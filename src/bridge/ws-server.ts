@@ -253,6 +253,7 @@ export class WpsBridgeServer {
     }
     if (url.pathname === '/api/v1/office/install-addon' && req.method === 'POST') {
       try {
+        appendServiceLog('WsServer', '收到 /api/v1/office/install-addon 部署请求');
         const home = os.homedir();
         const wefDir = process.platform === 'win32'
           ? path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData/Local'), 'Microsoft/Office/16.0/Wef')
@@ -265,6 +266,7 @@ export class WpsBridgeServer {
           try {
             const existing = fs.readFileSync(targetFile, 'utf8');
             if (existing === content || existing.includes(`<Version>${VERSION}`)) {
+              appendServiceLog('WsServer', '目标清单已为最新版本，跳过覆写');
               return json({
                 success: true,
                 message: 'Office 官方加载项清单已处于最新状态！请在 Excel 中点击【插入 -> 我的加载项】启用。',
@@ -288,12 +290,14 @@ export class WpsBridgeServer {
           } catch {}
         }
 
+        appendServiceLog('WsServer', `Office 加载项部署就绪: ${targetFile}`);
         return json({
           success: true,
           message: 'Office 官方加载项已成功部署！请在 Excel 中点击【插入 -> 我的加载项】启用。',
           targetPath: targetFile
         });
       } catch (e: any) {
+        appendServiceLog('WsServer', `Office 加载项部署失败: ${e.message}`);
         return json({ success: false, error: e.message }, 500);
       }
     }

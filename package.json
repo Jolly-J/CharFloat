@@ -1,6 +1,6 @@
 {
   "name": "office-agent-bridge",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Universal Bridge between AI Agents (Doubao, WorkBuddy, Qwen, Kimi, Claude Code, Codex) and Microsoft Office & WPS Office with Audit Trail and GUI",
   "main": "dist/main/index.js",
   "bin": {
@@ -21,7 +21,9 @@
     "dist": "npm run build && electron-builder",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
-    "dev:desktop": "npm run build && electron ."
+    "dev:desktop": "npm run build && electron .",
+    "dev:website": "npm --prefix website run dev",
+    "build:website": "npm --prefix website run build"
   },
   "build": {
     "appId": "com.antigravity.officeagentbridge",
@@ -43,15 +45,19 @@
     ],
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "zip",
+        "dir"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSDocumentsFolderUsageDescription": "Office Agent Bridge 需要访问文稿目录以部署并升级 Excel 加载项清单。",
+        "NSDownloadsFolderUsageDescription": "Office Agent Bridge 需要访问下载目录以管理临时配置文件。"
+      }
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "zip",
+        "dir"
       ]
     },
     "asarUnpack": [
@@ -74,13 +80,14 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",
+    "@xmldom/xmldom": "0.9.12",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
+    "motion": "^13.4.0",
     "tailwind-merge": "^3.0.2",
     "uuid": "^11.1.0",
     "ws": "^8.18.1",
-    "zod": "^3.24.2",
-    "@xmldom/xmldom": "0.9.12"
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

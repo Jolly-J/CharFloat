@@ -21,6 +21,21 @@ test('XML merge preserves unrelated plugins and rejects damaged input',()=>{
   assert.equal((result.match(/name="WPS Bridge/g)||[]).length,0);
   assert.equal(mergePluginIndex(result),result);
   assert.throws(()=>mergePluginIndex('<jsplugins><broken>'));
+  // 验证带有 BOM 和 Unicode 替换字符警告时不抛异常，正常合并
+  const bomRaw='\uFEFF<jsplugins><jsplugin name="Test\uFFFDPlugin" type="et" url="./test"/></jsplugins>';
+  const resBom=mergePluginIndex(bomRaw);
+  assert.match(resBom,/name="Office Agent Bridge/);
+  // 验证缺少根节点（如仅声明、仅注释、DOCTYPE、空关闭标签或异常符号）时，自动安全初始化为 <jsplugins/>
+  for (const emptyRoot of [
+    '<?xml version="1.0" encoding="utf-8"?>\r\n',
+    '<!-- only comment -->',
+    '<!DOCTYPE note SYSTEM "Note.dtd">',
+    '</jsplugins>',
+    '   <   '
+  ]) {
+    const res = mergePluginIndex(emptyRoot);
+    assert.match(res, /name="Office Agent Bridge/);
+  }
 });
 test('MCP merge preserves other clients and corrupt files byte for byte',()=>{
   const file=path.join(root,'config.json');fs.writeFileSync(file,'{"other":true,"mcpServers":{"existing":{"command":"x"}}}');
