@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build and compilation outputs
+dist/
+release/
+out/
+build/mac/
+build/win/
+
+# Packaging and bundling caches
+.vite/
+tsup.config.bundled_*.mjs
+*.tsbuildinfo
+
+# Logs and runtime traces
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+service.log*
+audit_history.json
+
+# Environment and sensitive keys
+.env
+.env*.local
+*.pem
+*.key
+*.crt
+token
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editors
+.idea/
+*.swp
+*.swo
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
