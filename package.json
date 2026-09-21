@@ -9,7 +9,8 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx scripts/dev.ts",
+    "dev:web": "vite",
     "build:renderer": "vite build",
     "build:main": "tsup",
     "build": "npm run build:renderer && npm run build:main",
