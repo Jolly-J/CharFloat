@@ -2,10 +2,40 @@
   <ribbon>
     <tabs>
       <tab id="OfficeAgentBridgeTab" label="Office Agent (AI)">
-        <group id="BridgeControlGroup" label="AI 协同中枢">
-          <button id="btnBridgeStatus" label="Agent 状态" onAction="OnActionBridgeStatus" size="large" imageMso="ServerConnection" />
-          <button id="btnForceReconnect" label="重新连接" onAction="OnActionForceReconnect" size="large" imageMso="Refresh" />
-          <button id="btnUndoAiAction" label="撤销 AI 修改" onAction="OnActionUndoAiAction" size="large" imageMso="Undo" />
+        <!-- 第 1 组：协同中枢 -->
+        <group id="grpConnection" label="协同中枢">
+          <button id="btnBrandHero" label="Office Agent" onAction="OnActionBridgeStatus" size="large" imageMso="AutoFormat" screentip="Office Agent (AI)" supertip="AI 办公旗舰协同中枢" />
+          <button id="btnBridgeStatus" label="Agent 状态" onAction="OnActionBridgeStatus" size="large" imageMso="ServerConnection" screentip="Agent 运行状态" supertip="查看当前 Bridge 本地通信服务状态、端口与活动工作区信息。" />
+          <button id="btnForceReconnect" label="重新连接" onAction="OnActionForceReconnect" size="normal" imageMso="Refresh" screentip="重新连接" supertip="刷新 WebSocket 链路并与 Bridge 重新握手。" />
+          <button id="btnOpenDesktopApp" label="控制中心" onAction="OnActionOpenDesktopApp" size="normal" imageMso="ApplicationOptionsDialog" screentip="控制中心" supertip="查看 Office Agent Bridge 桌面管理中心与高级配置。" />
+          <separator id="sep_conn" />
+        </group>
+        
+        <!-- 第 2 组：安全时光机 -->
+        <group id="grpSafetyAudit" label="安全时光机">
+          <button id="btnUndoAiAction" label="撤销 AI 修改" onAction="OnActionUndoAiAction" size="large" imageMso="Undo" screentip="撤销 AI 修改" supertip="安全回滚最近一次由 AI 写入的单元格值与公式。" />
+          <button id="btnShowAuditHistory" label="修改历史清单" onAction="OnActionShowAuditHistory" size="normal" imageMso="ReviewAcceptChange" screentip="修改历史清单" supertip="查看当前文档被 AI 智能体修改的快照时间线。" />
+          <button id="btnToggleSheetLock" label="锁定防误改" onAction="OnActionToggleSheetLock" size="normal" imageMso="ProtectSheet" screentip="锁定工作表" supertip="开启或关闭当前工作表的防篡改保护锁。" />
+          <separator id="sep_safety" />
+        </group>
+        
+        <!-- 第 3 组：表格智能增强 -->
+        <group id="grpTableUtils" label="表格智能增强">
+          <button id="btnAutoFitFormat" label="一键自适应排版" onAction="OnActionAutoFitFormat" size="large" imageMso="FormatPainter" screentip="自适应排版" supertip="根据当前单元格内容长度，自动自适应整张工作表所有列宽。" />
+          <button id="btnCopyAsMarkdown" label="复制为 Markdown" onAction="OnActionCopyAsMarkdown" size="normal" imageMso="Copy" screentip="复制为 Markdown" supertip="将当前鼠标框选的表格区域转换为整齐的 Markdown 文本并写入剪贴板。" />
+          <button id="btnClearEmptyRows" label="清除冗余空白" onAction="OnActionClearEmptyRows" size="normal" imageMso="Clear" screentip="清除冗余空白" supertip="清除当前工作表末尾的冗余空白内容。" />
+          <separator id="sep_table" />
+        </group>
+        
+        <!-- 第 4 组：常用 AI 指令 -->
+        <group id="grpPromptsAndHelp" label="常用 AI 指令">
+          <menu id="menuAiPrompts" label="常用指令库" size="large" imageMso="SmartArt">
+            <button id="btnPromptFinance" label="财务与报表智能分析" onAction="OnActionPromptFinance" imageMso="AutoSum" screentip="复制财务分析提示词" />
+            <button id="btnPromptFormula" label="公式编写与排错纠错" onAction="OnActionPromptFormula" imageMso="Calculator" screentip="复制公式排错提示词" />
+            <button id="btnPromptCleaning" label="数据清洗与自动去重" onAction="OnActionPromptCleaning" imageMso="FindDialog" screentip="复制数据清洗提示词" />
+            <button id="btnPromptSummary" label="提取核心要点与摘要" onAction="OnActionPromptSummary" imageMso="TextHighlightColor" screentip="复制提取摘要提示词" />
+          </menu>
+          <button id="btnShowGuide" label="使用向导" onAction="OnActionShowGuide" size="normal" imageMso="Help" screentip="使用向导" supertip="查看新手快速上手指南与 AI 接入方式。" />
         </group>
       </tab>
     </tabs>

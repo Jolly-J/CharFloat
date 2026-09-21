@@ -3,16 +3,85 @@ import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { atomicWrite, getToken, resourcePath, runtimePort, runtimeHome, getOrGenerateCerts, VERSION } from '../bridge/runtime.js';
+import { atomicWrite, getToken, resourcePath, runtimePort, runtimeHome, getOrGenerateCerts, appendServiceLog, VERSION } from '../bridge/runtime.js';
 import { serviceRequest } from '../bridge/service-client.js';
 
 const activeNames = ['Office Agent Bridge', 'Office Agent Bridge (表格)', 'Office Agent Bridge (文字)', 'Office Agent Bridge (演示)'];
 const legacyNames = ['WPS Bridge', 'WPS Bridge (表格)', 'WPS Bridge (文字)', 'WPS Bridge (演示)'];
 const ownedNames = [...activeNames, ...legacyNames];
+
+export function readXmlSafe(file: string): string {
+  if (!fs.existsSync(file)) return '';
+  const buf = fs.readFileSync(file);
+  if (!buf.length) return '';
+  appendServiceLog('AddonInstaller', `读取 ${file}: ${buf.length} 字节, 前导十六进制: ${buf.subarray(0, 16).toString('hex')}`);
+  // 1. 检测 UTF-16 LE BOM (ff fe) 或 UTF-16 BE BOM (fe ff) 以及无 BOM 的 UTF-16LE (3c 00)
+  if (buf.length >= 2) {
+    if (buf[0] === 0xff && buf[1] === 0xfe) return new TextDecoder('utf-16le').decode(buf.subarray(2));
+    if (buf[0] === 0xfe && buf[1] === 0xff) return new TextDecoder('utf-16be').decode(buf.subarray(2));
+    if (buf[0] === 0x3c && buf[1] === 0x00) return new TextDecoder('utf-16le').decode(buf);
+    if (buf[0] === 0x00 && buf[1] === 0x3c) return new TextDecoder('utf-16be').decode(buf);
+  }
+  // 2. 剥离 UTF-8 BOM (\uFEFF)
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(buf.subarray(3));
+  }
+  // 3. 检测 XML 声明中的 encoding
+  const head = buf.subarray(0, 120).toString('ascii').toLowerCase();
+  if (head.includes('encoding="utf-16"') || head.includes("encoding='utf-16'")) {
+    try { return new TextDecoder('utf-16le').decode(buf); } catch {}
+  }
+  if (head.includes('encoding="gbk"') || head.includes("encoding='gbk'") || head.includes('encoding="gb2312"') || head.includes("encoding='gb2312'")) {
+    try { return new TextDecoder('gbk').decode(buf); } catch {}
+  }
+  // 4. 优先 utf-8，若存在非法替换字节 (\uFFFD) 或 NUL 字节，尝试 gbk
+  const utf8 = new TextDecoder('utf-8').decode(buf);
+  if (utf8.includes('\uFFFD') || utf8.includes('\0')) {
+    try {
+      const gbk = new TextDecoder('gbk').decode(buf);
+      if (!gbk.includes('\uFFFD') && !gbk.includes('\0')) return gbk;
+    } catch {}
+  }
+  return utf8.replace(/\0/g, '');
+}
+
 export function mergePluginIndex(raw: string, remove = false) {
-  const doc = new DOMParser({ onError: () => { throw new Error('插件索引 XML 无效，停止写入'); } }).parseFromString(raw || '<jsplugins/>', 'application/xml');
-  if (doc.documentElement?.tagName !== 'jsplugins') throw new Error('插件索引根节点不是 jsplugins，停止写入');
-  const nodes = Array.from(doc.getElementsByTagName('jsplugin'));
+  let text = (raw || '').replace(/^\uFEFF/, '').replace(/\0/g, '').trim();
+  // 剔除 XML 声明头 (<?xml ... ?>) 与 注释 (<!-- ... -->) 后检测正文是否有标签
+  const body = text.replace(/<\?xml[\s\S]*?\?>/gi, '').replace(/<!--[\s\S]*?-->/gi, '').trim();
+  if (!body || !body.includes('<')) {
+    text = '<jsplugins/>';
+  }
+  let doc: any;
+  try {
+    doc = new DOMParser({
+      onError: (level, msg) => {
+        // 如果是 missing root element，由外层 catch 安全初始化为 <jsplugins/>，不作为致命错误中断
+        if (level === 'fatalError' && !msg.includes('missing root element')) {
+          throw new Error(`插件索引 XML 无效，停止写入: ${msg}`);
+        }
+      }
+    }).parseFromString(text, 'application/xml');
+  } catch (e: any) {
+    if (String(e.message || e).includes('missing root element')) {
+      appendServiceLog('AddonInstaller', '检测到索引 XML 缺少根节点 (missing root element)，自动安全初始化为 <jsplugins/>');
+      doc = new DOMParser().parseFromString('<jsplugins/>', 'application/xml');
+    } else {
+      appendServiceLog('AddonInstaller', `插件索引 XML 语法错误拦截: ${e.message}`);
+      throw e;
+    }
+  }
+
+  // 兜底：如果解析结果没有 documentElement（空根节点）
+  if (!doc || !doc.documentElement) {
+    appendServiceLog('AddonInstaller', '解析后未生成 documentElement，自动安全初始化为 <jsplugins/>');
+    doc = new DOMParser().parseFromString('<jsplugins/>', 'application/xml');
+  } else if (doc.documentElement.tagName !== 'jsplugins') {
+    appendServiceLog('AddonInstaller', `插件索引根节点不是 jsplugins (当前为: <${doc.documentElement.tagName}>)，停止写入`);
+    throw new Error(`插件索引根节点不是 jsplugins，停止写入`);
+  }
+
+  const nodes = Array.from(doc.getElementsByTagName('jsplugin')) as any[];
   for (const node of nodes) if (ownedNames.includes(node.getAttribute('name') || '')) node.parentNode!.removeChild(node);
   if (!remove) for (const [i, type] of ['et', 'wps', 'wpp'].entries()) {
     const node = doc.createElement('jsplugin');
@@ -67,7 +136,7 @@ export class AddonInstaller {
       return { dir, installed, current, version: ver, error, blocked: isHostBlocked(dir) };
     });
     const installed = details.some(d => d.installed);
-    const current = details.length > 0 && details.every(d => d.current);
+    const current = installed && (installedVersion === VERSION || details.some(d => d.installed && d.current));
     const hasBlocked = details.some(d => d.blocked);
     const needsUpgrade = !installed || !current;
     return {
@@ -90,13 +159,19 @@ export class AddonInstaller {
     };
   }
   static install(options: { cleanBlocked?: boolean } = { cleanBlocked: true }) {
+    appendServiceLog('AddonInstaller', '=== 开始执行 WPS 加载项安装 / 升级 ===');
     try {
       const dirs = this.getAllAddonDirectories();
+      appendServiceLog('AddonInstaller', `检测到 WPS 目标加载项目录: ${dirs.length ? dirs.join(' | ') : '未找到任何目录'}`);
       if (!dirs.length) throw new Error('找不到 WPS 加载项目录，请先安装并运行 WPS。');
       const source = this.getSourceAddonPath();
+      appendServiceLog('AddonInstaller', `安装源资源目录: ${source}`);
       // Validate every index before changing anything.
       const indexes = dirs.flatMap(dir => ['publish.xml', 'jsplugins.xml'].map(name => {
-        const file = path.join(dir, name); return { file, content: mergePluginIndex(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '') };
+        const file = path.join(dir, name);
+        appendServiceLog('AddonInstaller', `准备校验/合并索引文件: ${file}`);
+        const content = mergePluginIndex(readXmlSafe(file));
+        return { file, content };
       }));
       const token = getToken(true);
       for (const dir of dirs) {
@@ -106,7 +181,10 @@ export class AddonInstaller {
             try {
               fs.copyFileSync(blockFile, `${blockFile}.backup-${Date.now()}`);
               fs.unlinkSync(blockFile);
-            } catch {}
+              appendServiceLog('AddonInstaller', `已清理阻断文件: ${blockFile}`);
+            } catch (err: any) {
+              appendServiceLog('AddonInstaller', `清理阻断文件异常: ${err.message}`);
+            }
           }
         }
 
@@ -129,17 +207,29 @@ export class AddonInstaller {
         for (const alias of aliases) {
           const dest = path.join(dir, alias);
           fs.mkdirSync(dest, { recursive: true, mode: 0o700 });
-          for (const file of fs.readdirSync(source)) if (fs.statSync(path.join(source, file)).isFile()) atomicWrite(path.join(dest, file), fs.readFileSync(path.join(source, file), 'utf8'), true);
+          for (const file of fs.readdirSync(source)) {
+            const srcFile = path.join(source, file);
+            if (fs.statSync(srcFile).isFile()) {
+              fs.copyFileSync(srcFile, path.join(dest, file));
+            }
+          }
           atomicWrite(path.join(dest, 'bridge-config.js'), `window.WPS_BRIDGE_CONFIG = ${JSON.stringify({ port: runtimePort(), token, version: VERSION })};\n`);
         }
       }
-      for (const index of indexes) atomicWrite(index.file, index.content, true);
+      for (const index of indexes) {
+        atomicWrite(index.file, index.content, true);
+        appendServiceLog('AddonInstaller', `写入更新索引文件成功: ${index.file}`);
+      }
+      appendServiceLog('AddonInstaller', `=== WPS 加载项部署成功完成 (v${VERSION}) ===`);
       return { success: true, message: `加载项已成功部署并更新至 v${VERSION}！请在 WPS 中点击功能区【重新连接】或重启 WPS 生效。`, targetPath: dirs.join(' | '), warnings: dirs.filter(dir => fs.existsSync(path.join(dir, 'jsaddinblockhost.ini'))).map(() => '检测到 WPS 阻断配置，未删除。请在 WPS 中检查加载项权限。') };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      appendServiceLog('AddonInstaller', `WPS 加载项安装失败: ${e.message}\n堆栈: ${e.stack || ''}`);
+      return { success: false, message: e.message };
+    }
   }
   static uninstall() {
     try {
-      const indexes = this.getAllAddonDirectories().flatMap(dir => ['publish.xml', 'jsplugins.xml'].map(name => path.join(dir, name))).filter(file => fs.existsSync(file)).map(file => ({ file, content: mergePluginIndex(fs.readFileSync(file, 'utf8'), true) }));
+      const indexes = this.getAllAddonDirectories().flatMap(dir => ['publish.xml', 'jsplugins.xml'].map(name => path.join(dir, name))).filter(file => fs.existsSync(file)).map(file => ({ file, content: mergePluginIndex(readXmlSafe(file), true) }));
       for (const item of indexes) atomicWrite(item.file, item.content, true);
       return { success: true, message: '已注销本项目加载项；保留文件与备份，重启 WPS 后生效。' };
     } catch(e: any) { return { success: false, message: e.message }; }
@@ -175,107 +265,190 @@ export class OfficeAddonInstaller {
   }
 
   private static safeDeploy(sourceFile: string, destFile: string): void {
+    appendServiceLog('AddonInstaller', `准备部署 Office 清单: 源文件=${sourceFile}, 目标文件=${destFile}`);
+    if (!fs.existsSync(sourceFile)) {
+      const msg = `源清单文件不存在: ${sourceFile}`;
+      appendServiceLog('AddonInstaller', msg);
+      throw new Error(msg);
+    }
+
+    const sourceContent = fs.readFileSync(sourceFile, 'utf8');
+
+    // 1. 若目标文件已存在且内容一致，直接跳过覆盖，避免无谓触发系统权限限制
+    if (fs.existsSync(destFile)) {
+      try {
+        const destContent = fs.readFileSync(destFile, 'utf8');
+        if (destContent === sourceContent || (destContent.includes(`<Version>${VERSION}`) && destContent.includes('Office Agent Bridge'))) {
+          appendServiceLog('AddonInstaller', `目标清单文件已处于最新状态 (v${VERSION})，跳过覆写`);
+          if (process.platform === 'darwin') {
+            try { execSync(`chmod 644 "${destFile}"`, { stdio: 'ignore' }); } catch {}
+          }
+          return;
+        }
+      } catch (e: any) {
+        appendServiceLog('AddonInstaller', `比对目标清单失败: ${e.message}，准备覆写`);
+      }
+    }
+
     const destDir = path.dirname(destFile);
     try {
       fs.mkdirSync(destDir, { recursive: true, mode: 0o755 });
-    } catch {
+    } catch (e: any) {
+      appendServiceLog('AddonInstaller', `fs.mkdirSync 提示 (${e.code || e.message})，尝试 shell 创建目录`);
       if (process.platform === 'darwin') {
         try { execSync(`mkdir -p "${destDir}"`, { stdio: 'ignore' }); } catch {}
       }
     }
 
     let writeSucceeded = false;
-    let content = '';
+    // 2. 优先尝试 Node 原生直接写入
     try {
-      content = fs.readFileSync(sourceFile, 'utf8');
-      fs.writeFileSync(destFile, content, { mode: 0o644 });
+      fs.writeFileSync(destFile, sourceContent, { mode: 0o644 });
       writeSucceeded = true;
-    } catch {}
+      appendServiceLog('AddonInstaller', `fs.writeFileSync 直接写入目标清单成功`);
+    } catch (directErr: any) {
+      appendServiceLog('AddonInstaller', `fs.writeFileSync 直接写入失败: [${directErr.code || 'UNKNOWN'}] ${directErr.message}`);
+    }
 
+    // 3. macOS 平台受限时的系统降级处理
     if (!writeSucceeded && process.platform === 'darwin') {
+      appendServiceLog('AddonInstaller', `macOS 下直接写入受限，开始多层提权/系统代理写入流程...`);
+
+      // 3.1 尝试通过系统原生 osascript (AppleScript) 执行写入代理，触发 macOS 授权
       try {
-        if (!content) content = fs.readFileSync(sourceFile, 'utf8');
         const tmpFile = path.join(runtimeHome(), 'temp-wps-bridge-manifest.xml');
-        fs.writeFileSync(tmpFile, content, { mode: 0o644 });
+        fs.writeFileSync(tmpFile, sourceContent, { mode: 0o644 });
+
+        const cmd = `mkdir -p "${destDir}" && cp -f "${tmpFile}" "${destFile}" && chmod 644 "${destFile}"`;
+        const appleScript = `do shell script ${JSON.stringify(cmd)}`;
         try {
-          execSync(`cp -f "${tmpFile}" "${destFile}" && chmod 644 "${destFile}"`, { stdio: 'ignore' });
+          execSync(`osascript -e ${JSON.stringify(appleScript)}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
           writeSucceeded = true;
+          appendServiceLog('AddonInstaller', `通过 macOS 原生 osascript 代理写入清单成功`);
         } finally {
           try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
         }
-      } catch (e: any) {
-        throw new Error(`部署清单文件受限：${e.message || 'macOS 容器沙盒拦截'}`);
+      } catch (osaErr: any) {
+        const osaMsg = osaErr.stderr || osaErr.message || String(osaErr);
+        appendServiceLog('AddonInstaller', `osascript 代理写入失败: ${osaMsg}`);
+
+        // 3.2 尝试普通 cp -f 并捕获精确 stderr
+        try {
+          const tmpFile = path.join(runtimeHome(), 'temp-wps-bridge-manifest.xml');
+          fs.writeFileSync(tmpFile, sourceContent, { mode: 0o644 });
+          try {
+            execSync(`cp -f "${tmpFile}" "${destFile}" && chmod 644 "${destFile}"`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+            writeSucceeded = true;
+            appendServiceLog('AddonInstaller', `通过 fallback cp -f 写入清单成功`);
+          } finally {
+            try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
+          }
+        } catch (cpErr: any) {
+          const cpMsg = cpErr.stderr || cpErr.message || String(cpErr);
+          appendServiceLog('AddonInstaller', `cp -f 命令执行受阻: ${cpMsg}`);
+          throw new Error(`macOS 磁盘访问受限（${cpMsg.trim() || 'EPERM: Operation not permitted'}）。请在【系统设置 -> 隐私与安全性 -> 完全磁盘访问权限】中为应用开启权限后再试。`);
+        }
       }
     }
 
+    if (!writeSucceeded && process.platform !== 'darwin') {
+      throw new Error(`无法写入 Office 加载项清单文件: ${destFile}`);
+    }
+
+    // 4. 平台特有后置处理
     if (process.platform === 'darwin' && fs.existsSync(destFile)) {
       try { execSync(`chmod 644 "${destFile}"`, { stdio: 'ignore' }); } catch {}
     } else if (process.platform === 'win32' && fs.existsSync(destFile)) {
       try {
+        appendServiceLog('AddonInstaller', `[Windows] 开始注册 WEF Developer 注册表项`);
         execSync(`reg add "HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer" /v "55555555-aaaa-bbbb-cccc-777777777777" /t REG_SZ /d "${destFile}" /f`, { stdio: 'ignore' });
-      } catch {}
-    }
-  }
-
-  static async checkStatus() {
-    try {
-      return await serviceRequest('/api/v1/office/addon-status');
-    } catch {
-      const wefDir = this.getWefDirectory();
-      const targetFile = path.join(wefDir, 'wps-bridge-manifest.xml');
-      const installed = fs.existsSync(targetFile);
-      return {
-        installed,
-        current: installed,
-        latestVersion: VERSION,
-        installedVersion: installed ? VERSION : '未部署',
-        needsUpgrade: !installed,
-        targetPath: targetFile,
-        platform: process.platform,
-        message: installed ? `Office 官方加载项已就绪 (v${VERSION})` : '尚未部署 Office 官方加载项清单'
-      };
-    }
-  }
-
-  static async install() {
-    // 1. 幂等性自愈优先：若清单已就绪，直接返回成功，杜绝任何沙盒写入拦截
-    const wefDir = this.getWefDirectory();
-    const targetFile = path.join(wefDir, 'wps-bridge-manifest.xml');
-    if (fs.existsSync(targetFile)) {
-      return {
-        success: true,
-        message: 'Office 官方加载项清单已处于最新状态！请在 Excel 中点击【插入 -> 我的加载项】启用。',
-        targetPath: targetFile
-      };
-    }
-
-    // 2. 优先委托独立后台守护服务执行安全写入（命令行环境不受 GUI 沙盒隔离）
-    try {
-      return await serviceRequest('/api/v1/office/install-addon', {});
-    } catch {
-      // 3. 后台未启动时的安全降级
+        appendServiceLog('AddonInstaller', `[Windows] 注册表写入成功`);
+      } catch (regErr: any) {
+        appendServiceLog('AddonInstaller', `[Windows] 注册表写入异常: ${regErr.message}`);
+      }
       try {
-        const source = this.getSourceManifestPath();
-        this.safeDeploy(source, targetFile);
-        return {
-          success: true,
-          message: 'Office 官方加载项已成功部署！请在 Excel 中点击【插入 -> 我的加载项】启用。',
-          targetPath: targetFile
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message };
+        getOrGenerateCerts();
+        const certPath = path.join(runtimeHome(), 'certs/localhost.crt');
+        if (fs.existsSync(certPath)) {
+          appendServiceLog('AddonInstaller', `[Windows] 导入受信任根证书: ${certPath}`);
+          execSync(`certutil -user -addstore "Root" "${certPath}"`, { stdio: 'ignore' });
+          appendServiceLog('AddonInstaller', `[Windows] 证书导入完成`);
+        }
+      } catch (certErr: any) {
+        appendServiceLog('AddonInstaller', `[Windows] 证书导入异常: ${certErr.message}`);
       }
     }
   }
 
+  static async checkStatus() {
+    appendServiceLog('AddonInstaller', '开始检测 Office 加载项状态');
+    try {
+      const res = await serviceRequest('/api/v1/office/addon-status');
+      appendServiceLog('AddonInstaller', `通过后台服务获取状态成功: installed=${res.installed}, current=${res.current}`);
+      return res;
+    } catch (e: any) {
+      appendServiceLog('AddonInstaller', `后台服务状态请求未响应 (${e.message})，转入本地文件直接检测`);
+      const wefDir = this.getWefDirectory();
+      const targetFile = path.join(wefDir, 'wps-bridge-manifest.xml');
+      const installed = fs.existsSync(targetFile);
+      let current = false;
+      let ver = '未部署';
+      if (installed) {
+        try {
+          const content = fs.readFileSync(targetFile, 'utf8');
+          const m = content.match(/<Version>(.*?)<\/Version>/i);
+          ver = m ? m[1].trim() : VERSION;
+          current = ver === VERSION || ver === `${VERSION}.0` || ver.startsWith(VERSION);
+        } catch {
+          current = true;
+          ver = VERSION;
+        }
+      }
+      const status = {
+        installed,
+        current,
+        latestVersion: VERSION,
+        installedVersion: ver,
+        needsUpgrade: !installed || !current,
+        targetPath: targetFile,
+        platform: process.platform,
+        message: !installed ? '尚未部署 Office 官方加载项清单' : !current ? `检测到 Office 加载项需要更新（当前: ${ver}，最新: ${VERSION}）` : `Office 官方加载项已就绪 (v${ver})`
+      };
+      appendServiceLog('AddonInstaller', `本地检测结果: ${JSON.stringify(status)}`);
+      return status;
+    }
+  }
+
+  static async install() {
+    appendServiceLog('AddonInstaller', '触发 Office 加载项部署/升级流程');
+    const wefDir = this.getWefDirectory();
+    const targetFile = path.join(wefDir, 'wps-bridge-manifest.xml');
+    try {
+      const source = this.getSourceManifestPath();
+      this.safeDeploy(source, targetFile);
+      appendServiceLog('AddonInstaller', `Office 加载项部署成功: ${targetFile}`);
+      return {
+        success: true,
+        message: 'Office 官方加载项清单与本地安全配置已就绪！请在 Excel 中重新打开侧边栏。',
+        targetPath: targetFile
+      };
+    } catch (e: any) {
+      appendServiceLog('AddonInstaller', `Office 加载项部署失败: ${e.message}`);
+      return { success: false, message: e.message };
+    }
+  }
+
   static uninstall() {
+    appendServiceLog('AddonInstaller', '触发 Office 加载项卸载流程');
     try {
       const wefDir = this.getWefDirectory();
       const target = path.join(wefDir, 'wps-bridge-manifest.xml');
       if (fs.existsSync(target)) {
         try {
           fs.unlinkSync(target);
-        } catch {
+          appendServiceLog('AddonInstaller', `fs.unlinkSync 删除清单成功: ${target}`);
+        } catch (unlinkErr: any) {
+          appendServiceLog('AddonInstaller', `fs.unlinkSync 失败 (${unlinkErr.message})，尝试 shell 删除`);
           if (process.platform === 'darwin') {
             try { execSync(`rm -f "${target}"`, { stdio: 'ignore' }); } catch {}
           } else if (process.platform === 'win32') {
@@ -285,6 +458,7 @@ export class OfficeAddonInstaller {
       }
       return { success: true, message: '已移除 Office 加载项清单，重启 Excel 后生效。' };
     } catch (e: any) {
+      appendServiceLog('AddonInstaller', `Office 加载项卸载失败: ${e.message}`);
       return { success: false, message: e.message };
     }
   }

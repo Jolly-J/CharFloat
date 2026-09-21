@@ -66,7 +66,7 @@ test('two stdio clients reuse service; exiting one preserves the other and daemo
     await Promise.all([a.connect(ta),b.connect(tb)]);
     const read=await a.callTool({name:'excel_get_workspace_summary',arguments:{host:'wps'}});assert.equal((read as any).isError,undefined);
     await a.close();
-    const next:any=await b.callTool({name:'bridge_get_capabilities',arguments:{}});assert.equal(JSON.parse(next.content[0].text).version,'2.0.0');
+    const next:any=await b.callTool({name:'bridge_get_capabilities',arguments:{}});assert.equal(JSON.parse(next.content[0].text).version,'2.1.0');
     assert.equal((await fetch(base+'/health')).status,200);
   }finally{await a.close();await b.close();}
 });

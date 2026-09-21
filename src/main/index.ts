@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ensureService, serviceRequest, probeService } from '../bridge/service-client.js';
-import { atomicWrite, runtimeHome, runtimePort, VERSION, resourcePath } from '../bridge/runtime.js';
+import { atomicWrite, runtimeHome, runtimePort, VERSION, resourcePath, appendServiceLog } from '../bridge/runtime.js';
 import { InstallerEngine } from './installer-engine.js';
 import { AddonInstaller, OfficeAddonInstaller } from './addon-installer.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -22,7 +22,14 @@ if (['system', 'light', 'dark'].includes(prefs.theme)) nativeTheme.themeSource =
 function persist() { atomicWrite(prefsPath, JSON.stringify(prefs)); }
 function createWindow() {
   if (window) { window.show(); window.focus(); return; }
-  window = new BrowserWindow({ width: Math.max(760, Math.min(prefs.width || 880, 1300)), height: Math.max(560, Math.min(prefs.height || 620, 950)), minWidth: 760, minHeight: 560, show: false,
+  let appIcon: Electron.NativeImage | undefined;
+  if (process.platform !== 'darwin') {
+    try {
+      appIcon = nativeImage.createFromPath(resourcePath('resources/icon.png'));
+    } catch {}
+  }
+  window = new BrowserWindow({ width: Math.max(780, Math.min(prefs.width || 880, 1300)), height: Math.max(560, Math.min(prefs.height || 620, 950)), minWidth: 780, minHeight: 560, show: false,
+    ...(appIcon ? { icon: appIcon } : {}),
     title: 'Office Agent Bridge', titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#17191c' : '#f7f8fa',
     webPreferences: { preload: path.join(here, '../preload/index.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -50,7 +57,10 @@ function setupIpc() {
   ipcMain.handle('get-audit-record', (_e, id: string) => serviceRequest('/api/v1/tool/call', { name: 'wps_get_audit_record', arguments: { auditId: id } }).then(r => r.data));
   ipcMain.handle('rollback-record', (_e, id: string) => serviceRequest('/api/v1/tool/call', { name: 'wps_rollback', arguments: { auditId: id }, sessionId: 'desktop' }).then(r => r.data));
   ipcMain.handle('check-addon-status', () => AddonInstaller.checkStatus());
-  ipcMain.handle('install-addon', () => AddonInstaller.install());
+  ipcMain.handle('install-addon', () => {
+    appendServiceLog('IPC', '收到前端一键安装 / 升级 WPS 加载项请求');
+    return AddonInstaller.install();
+  });
   ipcMain.handle('check-office-addon-status', () => OfficeAddonInstaller.checkStatus());
   ipcMain.handle('install-office-addon', () => OfficeAddonInstaller.install());
   ipcMain.handle('installer:detect', () => InstallerEngine.detectEnvironment());
@@ -59,7 +69,14 @@ function setupIpc() {
   ipcMain.handle('set-theme', (_e, theme) => { if (!['system','light','dark'].includes(theme)) throw new Error('主题无效'); nativeTheme.themeSource = theme; prefs.theme = theme; persist(); return true; });
   ipcMain.handle('set-login', (_e, enabled) => { if (!app.isPackaged) throw new Error('登录启动仅在安装版中可用'); app.setLoginItemSettings({ openAtLogin: Boolean(enabled), args: ['--background'] }); return app.getLoginItemSettings().openAtLogin; });
   ipcMain.handle('copy-text', (_e, text) => { if (typeof text !== 'string' || text.length > 100000) throw new Error('文本无效'); clipboard.writeText(text); return true; });
-  ipcMain.handle('open-log', () => { const file = path.join(runtimeHome(), 'service.log'); if (fs.existsSync(file)) return shell.openPath(file); return '尚无日志'; });
+  ipcMain.handle('open-log', () => {
+    const file = path.join(runtimeHome(), 'service.log');
+    if (!fs.existsSync(file)) {
+      appendServiceLog('System', `日志文件已初始化 (平台: ${process.platform}, 版本: ${VERSION})`);
+    }
+    shell.openPath(file);
+    return true;
+  });
   ipcMain.handle('exit-app', () => app.quit());
 }
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -67,9 +84,15 @@ else {
   app.on('second-instance', createWindow);
   app.whenReady().then(async () => {
     setupIpc();
-    atomicWrite(path.join(runtimeHome(), 'installation.json'), JSON.stringify({ executable: process.execPath, cli: cliPath, resources: root, version: VERSION }));
-    const icon = nativeImage.createFromPath(resourcePath('resources/trayTemplate.png')).resize({ width: 22, height: 22 }); icon.setTemplateImage(true);
-    tray = new Tray(icon); tray.setToolTip('Office Agent Bridge');
+    const isMac = process.platform === 'darwin';
+    let trayIcon: Electron.NativeImage;
+    if (isMac) {
+      trayIcon = nativeImage.createFromPath(resourcePath('resources/trayTemplate.png'));
+      trayIcon.setTemplateImage(true);
+    } else {
+      trayIcon = nativeImage.createFromPath(resourcePath('resources/tray-win.png'));
+    }
+    tray = new Tray(trayIcon); tray.setToolTip('Office Agent Bridge');
     tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 Office Agent Bridge', click: createWindow }, { label: '停止服务', click: () => { void serviceRequest('/api/v1/service/stop', {}).catch(e => { notice = e.message; }); } }, { type: 'separator' }, { label: '退出管理窗口（后台继续运行）', click: () => app.quit() }]));
     tray.on('click', createWindow);
     if (!process.argv.includes('--background')) createWindow();

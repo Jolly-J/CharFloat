@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 
-export const VERSION = '2.0.0';
+export const VERSION = '2.1.0';
 export const PROTOCOL = 2;
 export function runtimeHome() {
   return process.env.WPS_BRIDGE_HOME || (process.platform === 'win32'
@@ -72,6 +72,21 @@ export function getOrGenerateCerts() {
     };
   }
 
+  // 1. 优先从预置资源提取 (解决 Windows 缺少 OpenSSL 命令行导致 HTTPS 无法启动的问题)
+  try {
+    const prebuiltKey = resourcePath('resources/certs/localhost.key');
+    const prebuiltCert = resourcePath('resources/certs/localhost.crt');
+    if (fs.existsSync(prebuiltKey) && fs.existsSync(prebuiltCert)) {
+      fs.copyFileSync(prebuiltKey, keyPath);
+      fs.copyFileSync(prebuiltCert, certPath);
+      return {
+        key: fs.readFileSync(keyPath, 'utf8'),
+        cert: fs.readFileSync(certPath, 'utf8')
+      };
+    }
+  } catch {}
+
+  // 2. 备用尝试调用 openssl
   try {
     execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`, { stdio: 'ignore' });
     if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
@@ -82,7 +97,16 @@ export function getOrGenerateCerts() {
     }
   } catch {}
 
-
   return null;
+}
+
+export function appendServiceLog(tag: string, message: string) {
+  try {
+    const home = runtimeHome();
+    fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+    const logPath = path.join(home, 'service.log');
+    const time = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${time}] [${tag}] ${message}\n`, 'utf8');
+  } catch {}
 }
 
