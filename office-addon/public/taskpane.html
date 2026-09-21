@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WPS Bridge - Excel AI</title>
+  <link rel="stylesheet" href="./taskpane.css?v=2.0.1">
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- 顶部状态栏 -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 11a9 9 0 0 1 9 9" />
+            <path d="M4 4a16 16 0 0 1 16 16" />
+            <circle cx="5" cy="19" r="1" />
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h2>WPS Bridge</h2>
+          <span class="sub-text">Excel AI 协同中枢</span>
+        </div>
+      </div>
+      <div id="connectionBadge" class="status-badge connecting">
+        <span class="pulse-dot"></span>
+        <span id="connectionText">连接中…</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- 工作区卡片 -->
+      <section class="card doc-card">
+        <div class="card-header">
+          <span class="card-title">当前工作区</span>
+          <span class="card-tag">42 项能力已就绪</span>
+        </div>
+        <div class="doc-body">
+          <div class="doc-item">
+            <div class="item-label">工作簿</div>
+            <div id="docTitle" class="item-val primary">—</div>
+          </div>
+          <div class="doc-item-row">
+            <div class="doc-item">
+              <div class="item-label">活动工作表</div>
+              <div id="activeSheet" class="item-val">—</div>
+            </div>
+            <div class="doc-item">
+              <div class="item-label">活动选区</div>
+              <div id="activeSelection" class="item-val mono">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 协同动态卡片 -->
+      <section class="card feed-card">
+        <div class="card-header">
+          <span class="card-title">AI 协同动态</span>
+          <span id="lastUpdated" class="time-hint">实时联动</span>
+        </div>
+        <div id="activityFeed" class="feed-content">
+          <div class="feed-empty">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            <p>已就绪 · 在 AI 客户端中可直接下达表格指令</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="footer">
+      <button id="btnReconnect" class="btn btn-reconnect" title="重新连接到本地后台服务">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        <span>刷新连接</span>
+      </button>
+
+      <button id="btnToggleLog" class="btn btn-text">
+        <span>运行日志</span>
+        <svg id="logArrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+    </footer>
+
+    <!-- 隐藏式折叠调试日志抽屉 -->
+    <div id="logDrawer" class="log-drawer collapsed">
+      <div class="drawer-header">
+        <span>实时底层日志</span>
+        <button id="btnClearLog" class="btn-clean">清空</button>
+      </div>
+      <div id="logArea" class="log-box"></div>
+    </div>
+  </div>
+
+  <script src="./taskpane.js?v=2.0.1"></script>
+</body>
+</html>

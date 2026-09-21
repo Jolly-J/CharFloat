@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>WPS Bridge AI 状态面板</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 18px 16px;
+      user-select: none;
+      -webkit-user-select: none;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      justify-content: space-between;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2.5px 8px;
+      border-radius: 9999px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .badge-ready {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .badge-online {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .dot-ready { background: #60a5fa; box-shadow: 0 0 6px #60a5fa; }
+    .dot-online { background: #34d399; box-shadow: 0 0 6px #34d399; }
+    
+    .card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 14px;
+      margin: 14px 0;
+      display: grid;
+      gap: 10px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .label { color: #94a3b8; }
+    .val {
+      color: #e2e8f0;
+      font-weight: 500;
+      text-align: right;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .log-box {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .tip {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid #1e293b;
+    }
+    .btn-close {
+      background: #334155;
+      color: #f8fafc;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-close:hover { background: #475569; }
+    .btn-reconnect {
+      background: #4f46e5;
+      color: #ffffff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-reconnect:hover { background: #4338ca; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="header">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="title">WPS Bridge</span>
+        <span id="addonVersionTag" style="font-size: 10px; background: #1e293b; color: #94a3b8; padding: 1px 6px; border-radius: 4px; border: 1px solid #334155;">v2.0.0</span>
+      </div>
+      <div id="statusBadge" class="badge badge-ready">
+        <span id="statusDot" class="dot dot-ready"></span>
+        <span id="statusText">待命就绪</span>
+      </div>
+    </div>
+
+    <div id="updateTip" style="display: none; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #facc15; margin-top: 10px;"></div>
+
+    <div class="card">
+      <div class="row">
+        <span class="label">网关通信</span>
+        <span id="gwText" class="val">127.0.0.1:19890</span>
+      </div>
+      <div class="row">
+        <span class="label">当前工作簿</span>
+        <span id="wbText" class="val">—</span>
+      </div>
+      <div class="row">
+        <span class="label">活动工作表</span>
+        <span id="shText" class="val">—</span>
+      </div>
+      <div class="row">
+        <span class="label">鼠标实时选区</span>
+        <span id="selText" class="val">—</span>
+      </div>
+    </div>
+
+    <div style="font-size: 11px; color: #94a3b8; font-weight: 500; margin-bottom: 6px;">最近交互日志</div>
+    <div id="logArea" class="log-box">正在待命...</div>
+
+    <div class="tip">
+      提示：在 Cursor / Claude / WorkBuddy 中直接发送指令即可操作当前文件，网关会自动随需连通。
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn-close" onclick="closePane()">收起面板</button>
+    <button class="btn-reconnect" onclick="window.OnActionForceReconnect && window.OnActionForceReconnect()">刷新连接</button>
+  </div>
+
+  <script src="./bridge-config.js"></script>
+  <script src="./addon-core.js"></script>
+  <script>
+    function closePane() {
+      if (typeof wps !== 'undefined' && wps.GetTaskPane) {
+        try {
+          const tp = wps.GetTaskPane(window.taskPaneId || 1);
+          if (tp) tp.Visible = false;
+        } catch (e) {
+          if (window.taskPaneObj) window.taskPaneObj.Visible = false;
+        }
+      }
+    }
+  </script>
+</body>
+</html>

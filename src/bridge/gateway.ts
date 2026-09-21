@@ -1,0 +1,2757 @@
+/**
+ * WPS Bridge 统一调度网关与协议转换中心
+ * 负责：
+ * 1. 核心工具调度的统一执行与快照留痕（供 MCP、HTTP REST、SDK 共享）
+ * 2. 生成标准 OpenAPI 3.0 JSON 规范（供 Dify、扣子 Coze 一键导入）
+ * 3. 生成 OpenAI / 豆包 / 通义千问兼容的标准 Function Calling tools 结构
+ */
+
+import fs from "fs";
+import path from "path";
+import { runProcess } from "./process-runner.js";
+import { callOffice } from "./office/adapter.js";
+import { currentHost, currentSession, requestContext } from "./context.js";
+import { previewPath } from "./runtime.js";
+import { bridgeServer } from "./ws-server.js";
+import { auditStore } from "./audit-store.js";
+import {
+  WorkspaceSummary,
+  SheetOutline,
+  RangeData,
+  SearchResult,
+  PatchResult
+} from "./types.js";
+import { MsOfficeDriver } from "./office/ms-office-driver.js";
+
+export class TargetLockStore {
+  private static sessions = new Map<string, { word?: string; excel?: string; ppt?: string }>();
+  private static get locks() {
+    const key = currentSession() + ':' + currentHost();
+    if (!this.sessions.has(key)) this.sessions.set(key, {});
+    return this.sessions.get(key)!;
+  }
+  private static set locks(value: { word?: string; excel?: string; ppt?: string }) {
+    this.sessions.set(currentSession() + ':' + currentHost(), value);
+  }
+
+  public static lock(component: "word" | "excel" | "ppt", targetName: string) {
+    if (!targetName) {
+      delete this.locks[component];
+    } else {
+      this.locks[component] = targetName.trim();
+    }
+  }
+
+  public static unlock(component?: "word" | "excel" | "ppt") {
+    if (component) {
+      delete this.locks[component];
+    } else {
+      this.locks = {};
+    }
+  }
+
+  public static getLocks() {
+    return { ...this.locks };
+  }
+
+  public static resolve(component: "word" | "excel" | "ppt", provided?: string): string | undefined {
+    if (provided && typeof provided === "string" && provided.trim()) {
+      return provided.trim();
+    }
+    return this.locks[component];
+  }
+}
+
+export class UniversalGateway {
+  /**
+   * 统一执行工具调用
+   */
+  public static async executeTool(
+    name: string,
+    args: any = {},
+    clientName: string = "AI Agent"
+  ): Promise<any> {
+    // 强隔离目标文档锁定注入：若已锁定文档且未显式指定（或指定为空），自动强制绑定锁定的文档
+    if (name.startsWith("wps_ppt_") || name.startsWith("ppt_")) {
+      args.presentationName = TargetLockStore.resolve("ppt", args?.presentationName);
+    } else if (name.startsWith("wps_word_") || name.startsWith("word_")) {
+      args.documentName = TargetLockStore.resolve("word", args?.documentName);
+    } else if (name.startsWith("wps_") && !name.includes("ppt") && !name.includes("word") && !name.includes("lock") && !name.includes("rollback")) {
+      args.workbookName = TargetLockStore.resolve("excel", args?.workbookName);
+    }
+
+    switch (name) {
+      case "wps_lock_target_document": {
+        const { component, targetName } = args || {};
+        if (!component || !["word", "excel", "ppt"].includes(component)) {
+          throw new Error("缺少有效参数: component 必须为 'word', 'excel' 或 'ppt'");
+        }
+        if (!targetName) throw new Error("缺少必要参数: targetName (目标文档名称/路径)");
+        TargetLockStore.lock(component, targetName);
+        return {
+          success: true,
+          component,
+          lockedTarget: targetName,
+          allLocks: TargetLockStore.getLocks(),
+          message: `已成功锁定 ${component.toUpperCase()} 目标文档为 [${targetName}]，后续所有操作将严格针对该文档，无视前台窗口切换`
+        };
+      }
+
+      case "wps_unlock_target_document": {
+        const { component } = args || {};
+        TargetLockStore.unlock(component);
+        return {
+          success: true,
+          unlockedComponent: component || "all",
+          allLocks: TargetLockStore.getLocks(),
+          message: `已成功解除 ${component ? component.toUpperCase() : "全部"} 文档锁定`
+        };
+      }
+
+      case "wps_get_locked_status": {
+        const addonStatus = null;
+        return {
+          gatewayLocks: TargetLockStore.getLocks(),
+          addonStatus,
+          message: "当前文档锁定状态查询完成"
+        };
+      }
+
+      // 1. WPS 图灵完备原生脚本执行引擎与运行时 API 反射探测
+      case "wps_execute_script": {
+        const { code, script, component, documentName, workbookName, presentationName, params } = args || {};
+        const scriptCode = code || script;
+        if (!scriptCode) throw new Error("缺少必要参数: code (要执行的原生 JavaScript 代码)");
+        return await callOffice("execute_script", {
+          code: scriptCode,
+          component,
+          documentName: documentName || (component === "word" ? TargetLockStore.resolve("word") : undefined),
+          workbookName: workbookName || (component === "excel" ? TargetLockStore.resolve("excel") : undefined),
+          presentationName: presentationName || (component === "ppt" ? TargetLockStore.resolve("ppt") : undefined),
+          params
+        });
+      }
+
+      case "wps_inspect_api": {
+        const { expression, path, component, documentName, workbookName, presentationName } = args || {};
+        return await callOffice("inspect_api", {
+          expression: expression || path || "app",
+          component,
+          documentName,
+          workbookName,
+          presentationName
+        });
+      }
+
+      // 2. Microsoft Office 跨平台免插件原生驱动调度 (Word, Excel, PowerPoint)
+      case "office_get_status": {
+        return await MsOfficeDriver.getStatus();
+      }
+
+      case "office_lock_target": {
+        const { component, targetName } = args || {};
+        if (!component || !["word", "excel", "ppt"].includes(component)) {
+          throw new Error("缺少有效参数: component 必须为 'word', 'excel' 或 'ppt'");
+        }
+        if (!targetName) throw new Error("缺少必要参数: targetName (Microsoft Office 目标文档名称)");
+        MsOfficeDriver.lockTarget(component, targetName);
+        return {
+          success: true,
+          component,
+          lockedTarget: targetName,
+          allLocks: MsOfficeDriver.getLockedTargets(),
+          message: `已成功锁定 Microsoft ${component.toUpperCase()} 目标文档为 [${targetName}]`
+        };
+      }
+
+      case "office_unlock_target": {
+        const { component } = args || {};
+        MsOfficeDriver.unlockTarget(component);
+        return {
+          success: true,
+          unlockedComponent: component || "all",
+          allLocks: MsOfficeDriver.getLockedTargets(),
+          message: `已成功解除 Microsoft ${component ? component.toUpperCase() : "全部"} 文档锁定`
+        };
+      }
+
+      case "office_execute_script": {
+        const { component, script, code, targetName, params } = args || {};
+        if (!component || !["word", "excel", "ppt"].includes(component)) {
+          throw new Error("缺少有效参数: component 必须为 'word', 'excel' 或 'ppt'");
+        }
+        const scriptCode = script || code;
+        if (!scriptCode) throw new Error("缺少必要参数: script (要执行的原生脚本代码)");
+        return await MsOfficeDriver.executeScript(component, scriptCode, targetName, params);
+      }
+
+      case "office_capture_slide_preview": {
+        const { slideIndex, presentationName } = args || {};
+        const res = await MsOfficeDriver.capturePptSlide(Number(slideIndex) || 1, presentationName);
+        return {
+          success: true,
+          slideIndex: Number(slideIndex) || 1,
+          imagePath: res.imagePath,
+          imageBase64: res.imageBase64,
+          message: `已成功生成 Microsoft PowerPoint 第 ${slideIndex || 1} 页高保真快照`
+        };
+      }
+
+      case "wps_get_workspace_summary": {
+        return await callOffice<WorkspaceSummary>("get_workspace_summary", {
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_get_sheet_outline": {
+        return await callOffice<SheetOutline>("get_sheet_outline", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_create_sheet": {
+        if (!args?.sheetName) throw new Error("缺少必要参数: sheetName");
+        return await callOffice("create_sheet", {
+          sheetName: args.sheetName,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_delete_sheet": {
+        if (!args?.sheetName) throw new Error("缺少必要参数: sheetName");
+        return await callOffice("delete_sheet", {
+          sheetName: args.sheetName,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_get_style_token": {
+        return await callOffice("get_style_token", {
+          sheetName: args?.sheetName,
+          sampleAddress: args?.sampleAddress || "A3",
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_clear_range": {
+        if (!args?.address) throw new Error("缺少必要参数: address");
+        return await callOffice("clear_range", {
+          sheetName: args?.sheetName,
+          address: args?.address,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_auto_fit_columns": {
+        return await callOffice("auto_fit_columns", {
+          sheetName: args?.sheetName,
+          address: args?.address,
+          columnRules: args?.columnRules,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_read_range": {
+        if (!args?.address) throw new Error("缺少必要参数: address (例如 'A1:C10')");
+        return await callOffice<RangeData>("read_range", {
+          sheetName: args?.sheetName,
+          address: args?.address,
+          includeFormulas: args?.includeFormulas ?? true,
+          includeNumberFormats: args?.includeNumberFormats ?? false,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_get_range_styles": {
+        if (!args?.address) throw new Error("缺少必要参数: address (例如 'A1:C10')");
+        return await callOffice("get_range_styles", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          address: args.address,
+          mode: args?.mode || "summary",
+          include: args?.include,
+          maxCells: args?.maxCells
+        });
+      }
+
+      case "wps_search_cells": {
+        if (!args?.query) throw new Error("缺少搜索关键字: query");
+        return await callOffice<SearchResult>("search_cells", {
+          sheetName: args?.sheetName,
+          query: args?.query,
+          maxResults: args?.maxResults || 50,
+          workbookName: args?.workbookName
+        });
+      }
+
+      case "wps_patch_cells": {
+        if (!args?.address) throw new Error("缺少必要参数: address");
+        if (!args?.values && !args?.formulas) {
+          throw new Error("必须提供 values 或 formulas 进行更新");
+        }
+
+        const patchRes = await callOffice<PatchResult>("patch_cells", {
+          sheetName: args?.sheetName,
+          address: args?.address,
+          values: args?.values,
+          formulas: args?.formulas,
+          workbookName: args?.workbookName
+        });
+
+        // 统一留痕入库
+        const record = auditStore.addRecord({
+          clientName: clientName,
+          host: currentHost(),
+          actionType: args?.formulas ? "update_formulas" : "update_values",
+          description: args?.reason || `更新区域 ${args?.address}`,
+          workbookName: (patchRes as any).workbookName || args?.workbookName || bridgeServer.getState().activeWorkbook || "未知工作簿",
+          sheetName: patchRes.sheetName,
+          address: patchRes.address,
+          patchResult: patchRes
+        });
+
+        return {
+          success: true,
+          message: `已成功修改 ${patchRes.modifiedCount} 个单元格，已记录留痕`,
+          auditId: record.id,
+          workbookName: (patchRes as any).workbookName || args?.workbookName,
+          modifiedCount: patchRes.modifiedCount,
+          diff: patchRes.diff
+        };
+      }
+
+      case "wps_format_cells": {
+        const addr = args?.address || args?.range || args?.cellRange;
+        if (!addr) throw new Error("缺少必要参数: address");
+        return await callOffice("format_cells", {
+          sheetName: args?.sheetName,
+          address: addr,
+          workbookName: args?.workbookName,
+          style: args?.style || args?.namedStyle,
+          fontName: args?.fontName || args?.font?.name,
+          fontSize: args?.fontSize || args?.size || args?.font?.size,
+          bold: args?.bold !== undefined ? args?.bold : args?.font?.bold,
+          italic: args?.italic !== undefined ? args?.italic : args?.font?.italic,
+          fontColor: args?.fontColor || args?.color || args?.textColor || args?.font?.color,
+          backgroundColor: args?.backgroundColor || args?.fillColor || args?.bg || args?.fill?.color,
+          fillColor: args?.fillColor || args?.backgroundColor || args?.bg || args?.fill?.color,
+          horizontalAlignment: args?.horizontalAlignment || args?.align || args?.alignment?.horizontal,
+          verticalAlignment: args?.verticalAlignment || args?.valign || args?.alignment?.vertical || "center",
+          numberFormat: args?.numberFormat || args?.numFmt,
+          rowHeight: args?.rowHeight,
+          wrapText: args?.wrapText,
+          borders: args?.borders,
+          merge: args?.merge,
+          unmerge: args?.unmerge
+        });
+      }
+
+      case "wps_add_conditional_formatting": {
+        const addr = args?.address || args?.range || args?.cellRange;
+        if (!addr) throw new Error("缺少必要参数: address (例如 'E5:E20')");
+        const bColor = args?.barColor || args?.color || args?.fillColor;
+        return await callOffice("add_conditional_formatting", {
+          sheetName: args?.sheetName,
+          address: addr,
+          workbookName: args?.workbookName,
+          ruleType: args?.ruleType || "cell_value",
+          operator: args?.operator || "less_than",
+          formula1: args?.formula1,
+          formula2: args?.formula2,
+          backgroundColor: args?.backgroundColor || args?.fillColor,
+          fontColor: args?.fontColor || args?.color,
+          barColor: bColor,
+          color: bColor,
+          colorScaleMin: args?.colorScaleMin,
+          colorScaleMax: args?.colorScaleMax,
+          clearExisting: args?.clearExisting
+        });
+      }
+
+      case "wps_freeze_panes": {
+        return await callOffice("freeze_panes", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          freezeRowIndex: args?.freezeRowIndex ?? args?.row ?? args?.rows,
+          freezeColumnIndex: args?.freezeColumnIndex ?? args?.column ?? args?.cols,
+          unfreeze: args?.unfreeze
+        });
+      }
+
+      case "wps_modify_rows_columns": {
+        if (!args?.targetType || !args?.action || !args?.index) {
+          throw new Error("缺少必要参数: targetType ('row'|'column'), action ('insert'|'delete'|'hide'|'unhide'), index (起始行号或列号)");
+        }
+        return await callOffice("modify_rows_columns", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          targetType: args?.targetType,
+          action: args?.action,
+          index: args?.index,
+          count: args?.count || 1
+        });
+      }
+
+      case "wps_add_chart": {
+        const dRange = args?.dataRange || args?.sourceAddress || args?.range;
+        if (!dRange && (!Array.isArray(args?.dataRanges) || args.dataRanges.length === 0)) {
+          throw new Error("缺少必要参数: dataRange (例如 'A4:E19') 或 dataRanges (例如 ['A4:A19', 'E4:E19'])");
+        }
+        return await callOffice("add_chart", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          chartType: args?.chartType || "column_clustered",
+          dataRange: dRange,
+          sourceAddress: dRange,
+          dataRanges: args?.dataRanges,
+          title: args?.title,
+          position: args?.position,
+          cellRange: args?.cellRange || args?.position?.cellRange,
+          startCell: args?.startCell || args?.position?.startCell || args?.leftCell || args?.position?.leftCell,
+          endCell: args?.endCell || args?.position?.endCell,
+          left: args?.left ?? args?.position?.left,
+          top: args?.top ?? args?.position?.top,
+          width: args?.width ?? args?.position?.width,
+          height: args?.height ?? args?.position?.height,
+          hasLegend: args?.hasLegend ?? true,
+          hasDataLabels: args?.hasDataLabels ?? false,
+          smoothLine: args?.smoothLine ?? false,
+          seriesColors: args?.seriesColors,
+          yAxis: args?.yAxis,
+          seriesSettings: args?.seriesSettings,
+          replaceExisting: args?.replaceExisting ?? true
+        });
+      }
+
+      case "wps_get_charts": {
+        return await callOffice("get_charts", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          shapeName: args?.shapeName,
+          chartIndex: args?.chartIndex,
+          chartTitle: args?.chartTitle,
+          detail: args?.detail ?? false
+        });
+      }
+
+      case "wps_update_chart": {
+        const cName = args?.shapeName || args?.chartName || args?.name || args?.id;
+        return await callOffice("update_chart", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          name: cName,
+          chartName: cName,
+          title: args?.title,
+          legendPosition: args?.legendPosition,
+          cellRange: args?.cellRange || args?.position?.cellRange,
+          startCell: args?.startCell || args?.position?.startCell || args?.leftCell || args?.position?.leftCell,
+          endCell: args?.endCell || args?.position?.endCell,
+          left: args?.left ?? args?.position?.left,
+          top: args?.top ?? args?.position?.top,
+          width: args?.width ?? args?.position?.width,
+          height: args?.height ?? args?.position?.height
+        });
+      }
+
+      case "wps_delete_chart": {
+        const cName = args?.shapeName || args?.chartName || args?.name || args?.id;
+        return await callOffice("delete_chart", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          shapeName: cName,
+          chartName: cName,
+          chartTitle: args?.chartTitle,
+          leftCell: args?.leftCell,
+          chartIndex: args?.chartIndex,
+          clearAll: args?.clearAll ?? false
+        });
+      }
+
+      case "wps_create_pivot_table": {
+        if (!args?.sourceRange) throw new Error("缺少必要参数: sourceRange (例如 '明细!A1:K5422')");
+        if (!args?.destCell) throw new Error("缺少必要参数: destCell (例如 'B4')");
+        return await callOffice("create_pivot_table", {
+          workbookName: args?.workbookName,
+          sourceSheetName: args?.sourceSheetName,
+          sourceRange: args?.sourceRange,
+          destSheetName: args?.destSheetName,
+          destCell: args?.destCell,
+          rowFields: args?.rowFields || [],
+          columnFields: args?.columnFields || [],
+          dataFields: args?.dataFields || []
+        });
+      }
+
+      case "wps_set_filter_and_sort": {
+        if (!args?.range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
+        return await callOffice("set_filter_and_sort", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          range: args?.range,
+          enableAutoFilter: args?.enableAutoFilter,
+          sortRules: args?.sortRules
+        });
+      }
+
+      case "wps_set_data_validation": {
+        if (!args?.address) throw new Error("缺少必要参数: address (例如 'E5:E20')");
+        return await callOffice("set_data_validation", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          address: args?.address,
+          validationType: args?.validationType || "list",
+          listItems: args?.listItems,
+          operator: args?.operator,
+          minVal: args?.minVal,
+          maxVal: args?.maxVal,
+          promptTitle: args?.promptTitle,
+          promptMessage: args?.promptMessage,
+          errorTitle: args?.errorTitle,
+          errorMessage: args?.errorMessage
+        });
+      }
+
+      case "wps_manage_sheet": {
+        if (!args?.sheetName) throw new Error("缺少必要参数: sheetName");
+        if (!args?.action) throw new Error("缺少必要参数: action ('rename'|'move'|'tab_color'|'protect'|'unprotect')");
+        return await callOffice("manage_sheet", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          action: args?.action,
+          newName: args?.newName,
+          targetIndex: args?.targetIndex,
+          color: args?.color,
+          password: args?.password
+        });
+      }
+
+      case "wps_manage_rows_and_columns": {
+        if (!args?.targetType) throw new Error("缺少必要参数: targetType ('row' | 'column')");
+        if (!args?.action) throw new Error("缺少必要参数: action ('insert'|'delete'|'hide'|'unhide'|'set_size')");
+        if (args?.index === undefined) throw new Error("缺少必要参数: index (起始行号或列标识)");
+        return await callOffice("manage_rows_and_columns", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          targetType: args?.targetType,
+          action: args?.action,
+          index: args?.index,
+          count: args?.count ?? 1,
+          size: args?.size
+        });
+      }
+
+      case "wps_manage_cell_comments": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('add'|'read'|'delete'|'clear_all')");
+        return await callOffice("manage_cell_comments", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          address: args?.address,
+          action: args?.action,
+          text: args?.text,
+          author: args?.author
+        });
+      }
+
+      case "wps_find_and_replace": {
+        if (args?.searchQuery === undefined || args?.searchQuery === null) throw new Error("缺少必要参数: searchQuery");
+        return await callOffice("find_and_replace", {
+          sheetName: args?.sheetName,
+          workbookName: args?.workbookName,
+          searchQuery: args?.searchQuery,
+          replaceText: args?.replaceText,
+          matchCase: args?.matchCase ?? false,
+          matchEntireCell: args?.matchEntireCell ?? false,
+          searchRange: args?.searchRange,
+          maxResults: args?.maxResults ?? 50
+        });
+      }
+
+      case "wps_duplicate_sheet": {
+        if (!args?.sourceSheetName) throw new Error("缺少必要参数: sourceSheetName (要克隆的源工作表)");
+        if (!args?.newSheetName) throw new Error("缺少必要参数: newSheetName (新工作表名称)");
+        return await callOffice("duplicate_sheet", {
+          sheetName: args?.sourceSheetName,
+          workbookName: args?.workbookName,
+          sourceSheetName: args?.sourceSheetName,
+          newSheetName: args?.newSheetName,
+          position: args?.position || "after"
+        });
+      }
+
+      case "wps_save_workbook": {
+        return await callOffice("save_workbook", {
+          workbookName: args?.workbookName
+        });
+      }
+
+      // ==========================================
+      // Word (文字) 模块统一网关调度
+      // ==========================================
+
+      case "wps_word_create_document": {
+        return await callOffice("word_create_document", {
+          templatePath: args?.templatePath,
+          isVisible: args?.isVisible ?? true
+        });
+      }
+
+      case "wps_word_save_document": {
+        return await callOffice("word_save_document", {
+          documentName: args?.documentName,
+          filePath: args?.filePath,
+          format: args?.format || "docx"
+        });
+      }
+
+      case "wps_word_close_document": {
+        return await callOffice("word_close_document", {
+          documentName: args?.documentName,
+          saveChanges: args?.saveChanges ?? false
+        });
+      }
+
+      case "wps_word_manage_content": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('delete_paragraph'|'delete_table'|'clear_all')");
+        return await callOffice("word_manage_content", {
+          documentName: args?.documentName,
+          action: args?.action,
+          paragraphIndex: args?.paragraphIndex,
+          paragraphRange: args?.paragraphRange,
+          tableIndex: args?.tableIndex
+        });
+      }
+
+      case "wps_word_read_document": {
+        return await callOffice("word_read_document", {
+          documentName: args?.documentName,
+          scope: args?.scope || "full",
+          maxParagraphs: args?.maxParagraphs ?? 200,
+          includeFormatting: args?.includeFormatting ?? true,
+          includeTables: args?.includeTables ?? true
+        });
+      }
+
+      case "wps_word_write_content": {
+        if (!args?.content) throw new Error("缺少必要参数: content");
+        return await callOffice("word_write_content", {
+          documentName: args?.documentName,
+          location: args?.location || "end",
+          targetBookmark: args?.targetBookmark,
+          paragraphIndex: args?.paragraphIndex,
+          type: args?.type || "paragraph",
+          content: args?.content,
+          formatting: args?.formatting
+        });
+      }
+
+      case "wps_word_format_document": {
+        return await callOffice("word_format_document", {
+          documentName: args?.documentName,
+          target: args?.target,
+          paragraphIndex: args?.paragraphIndex,
+          paragraphRange: args?.paragraphRange,
+          searchQuery: args?.searchQuery,
+          searchQueries: args?.searchQueries,
+          preset: args?.preset,
+          fontName: args?.fontName,
+          fontSizePt: args?.fontSizePt,
+          bold: args?.bold,
+          italic: args?.italic,
+          lineSpacingPt: args?.lineSpacingPt,
+          firstLineIndentChars: args?.firstLineIndentChars,
+          spaceBeforePt: args?.spaceBeforePt,
+          spaceAfterPt: args?.spaceAfterPt,
+          margins: args?.margins,
+          alignment: args?.alignment
+        });
+      }
+
+      case "wps_word_insert_table_of_contents": {
+        return await callOffice("word_insert_table_of_contents", {
+          documentName: args?.documentName,
+          upperHeadingLevel: args?.upperHeadingLevel ?? 1,
+          lowerHeadingLevel: args?.lowerHeadingLevel ?? 3,
+          insertLocation: args?.insertLocation || "start",
+          includePageNumbers: args?.includePageNumbers ?? true
+        });
+      }
+
+      case "wps_word_manage_table": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('inspect'|'insert'|'update_data'|'write_matrix'|'format_cell'|'add_row'|'delete_row'|'merge_cells')");
+        return await callOffice("word_manage_table", {
+          documentName: args?.documentName,
+          action: args?.action,
+          tableIndex: args?.tableIndex,
+          rows: args?.rows,
+          columns: args?.columns,
+          data: args?.data,
+          stylePreset: args?.stylePreset || "mckinsey_three_line",
+          repeatHeader: args?.repeatHeader ?? true,
+          mergeRange: args?.mergeRange,
+          cellRow: args?.cellRow,
+          cellColumn: args?.cellColumn,
+          cellFormat: args?.cellFormat,
+          rowIndex: args?.rowIndex,
+          columnIndex: args?.columnIndex
+        });
+      }
+
+      case "wps_word_review_and_comments": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('enable_track_changes'|'disable_track_changes'|'accept_all_revisions'|'reject_all_revisions'|'add_comment'|'list_comments')");
+        return await callOffice("word_review_and_comments", {
+          documentName: args?.documentName,
+          action: args?.action,
+          commentText: args?.commentText,
+          author: args?.author || clientName
+        });
+      }
+
+      case "wps_word_page_layout_and_watermark": {
+        return await callOffice("word_page_layout_and_watermark", {
+          documentName: args?.documentName,
+          headerText: args?.headerText,
+          footerText: args?.footerText,
+          pageNumberFormat: args?.pageNumberFormat,
+          differentFirstPage: args?.differentFirstPage,
+          differentOddEvenPages: args?.differentOddEvenPages,
+          watermarkText: args?.watermarkText,
+          watermarkColor: args?.watermarkColor
+        });
+      }
+
+      case "wps_word_find_and_replace": {
+        if (!args?.searchQuery) throw new Error("缺少必要参数: searchQuery");
+        return await callOffice("word_find_and_replace", {
+          documentName: args?.documentName,
+          searchQuery: args?.searchQuery,
+          replaceText: args?.replaceText,
+          matchCase: args?.matchCase ?? false,
+          matchWholeWord: args?.matchWholeWord ?? false,
+          useWildcards: args?.useWildcards ?? false,
+          scope: args?.scope || "full",
+          replaceFormatting: args?.replaceFormatting
+        });
+      }
+
+      case "wps_word_capture_preview": {
+        const outputPath = previewPath('pdf');
+        const res: any = await callOffice("word_capture_preview", { documentName: args?.documentName, outputPath });
+        if (!res?.success) throw new Error(res?.error || 'Word 预览导出失败');
+        return { ...res, message: '已导出 PDF；此结果为文件路径，请用 PDF 查看器检查。' };
+      }
+
+      case "wps_ppt_read_presentation": {
+        return await callOffice("ppt_read_presentation", {
+          presentationName: args?.presentationName,
+          includeNotes: args?.includeNotes ?? true,
+          maxSlides: args?.maxSlides ?? 50
+        });
+      }
+
+      case "wps_ppt_get_slide_shapes": {
+        return await callOffice("ppt_get_slide_shapes", {
+          presentationName: args?.presentationName,
+          slideIndex: args?.slideIndex
+        });
+      }
+
+      case "wps_ppt_generate_deck": {
+        if (!args?.slides || !Array.isArray(args?.slides)) throw new Error("缺少必要参数: slides (幻灯片结构化大纲数组)");
+        return await callOffice("ppt_generate_deck", {
+          presentationName: args?.presentationName,
+          themeColor: args?.themeColor,
+          themePreset: args?.themePreset || "business_blue",
+          slides: args?.slides
+        });
+      }
+
+      case "wps_ppt_manage_slides": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('add'|'delete'|'move'|'duplicate'|'set_background')");
+        return await callOffice("ppt_manage_slides", {
+          presentationName: args?.presentationName,
+          action: args?.action,
+          slideIndex: args?.slideIndex,
+          targetIndex: args?.targetIndex,
+          layoutIndex: args?.layoutIndex,
+          backgroundColor: args?.backgroundColor
+        });
+      }
+
+      case "wps_ppt_manage_table": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('create_table'|'read_table'|'set_table_data'|'set_cell_text'|'style_table')");
+        return await callOffice("ppt_manage_table", {
+          presentationName: args?.presentationName,
+          slideIndex: args?.slideIndex,
+          action: args?.action,
+          shapeId: args?.shapeId,
+          tableIndex: args?.tableIndex,
+          rows: args?.rows,
+          columns: args?.columns,
+          left: args?.left,
+          top: args?.top,
+          width: args?.width,
+          height: args?.height,
+          data: args?.data,
+          row: args?.row,
+          column: args?.column,
+          text: args?.text,
+          fontSize: args?.fontSize,
+          fontColor: args?.fontColor,
+          fontBold: args?.fontBold,
+          fillColor: args?.fillColor,
+          headerFillColor: args?.headerFillColor,
+          headerFontSize: args?.headerFontSize,
+          bodyFontSize: args?.bodyFontSize,
+          borderColor: args?.borderColor,
+          columnWidths: args?.columnWidths,
+          rowHeights: args?.rowHeights,
+          zebra: args?.zebra
+        });
+      }
+
+      case "wps_ppt_add_business_cards": {
+        if (!args?.cards || !Array.isArray(args?.cards)) throw new Error("缺少必要参数: cards (商业信息卡片数组)");
+        return await callOffice("ppt_add_business_cards", {
+          presentationName: args?.presentationName,
+          slideIndex: args?.slideIndex,
+          columnCount: args?.columnCount || 3,
+          cards: args?.cards,
+          topY: args?.topY,
+          cardHeight: args?.cardHeight
+        });
+      }
+
+      case "wps_ppt_add_chart":
+      case "wps_ppt_insert_native_chart": {
+        if (!args?.categories || !args?.series) throw new Error("缺少必要参数: categories 和 series 数据");
+        return await callOffice("ppt_insert_native_chart", {
+          presentationName: args?.presentationName,
+          slideIndex: args?.slideIndex,
+          chartType: args?.chartType || "column",
+          title: args?.title,
+          hasLegend: args?.hasLegend,
+          showDataLabels: args?.showDataLabels,
+          categories: args?.categories,
+          series: args?.series,
+          left: args?.left,
+          top: args?.top,
+          width: args?.width,
+          height: args?.height
+        });
+      }
+
+      case "wps_ppt_manage_shapes_and_media": {
+        if (!args?.action) throw new Error("缺少必要参数: action ('add_textbox'|'add_shape'|'update_shape'|'swap_shapes'|'set_z_order'|'align_shapes'|'delete_shape')");
+        return await callOffice("ppt_manage_shapes_and_media", {
+          presentationName: args?.presentationName,
+          slideIndex: args?.slideIndex,
+          action: args?.action,
+          shapeId: args?.shapeId,
+          shapeId1: args?.shapeId1,
+          shapeId2: args?.shapeId2,
+          shapeType: args?.shapeType || "rectangle",
+          text: args?.text,
+          left: args?.left,
+          top: args?.top,
+          width: args?.width,
+          height: args?.height,
+          fontSize: args?.fontSize,
+          fontColor: args?.fontColor,
+          fontBold: args?.fontBold,
+          alignment: args?.alignment,
+          fillColor: args?.fillColor,
+          lineColor: args?.lineColor,
+          rotation: args?.rotation,
+          zOrderAction: args?.zOrderAction,
+          alignType: args?.alignType,
+          shapeIds: args?.shapeIds
+        });
+      }
+
+      case "wps_ppt_capture_slide_preview": {
+        const outputPath = previewPath('png');
+        const res: any = await callOffice("ppt_capture_slide_preview", { presentationName: args?.presentationName, slideIndex: args?.slideIndex, outputPath });
+        if (!res?.success || !fs.existsSync(outputPath)) throw new Error(res?.error || 'PPT 未生成预览');
+        return { ...res, imageBase64: fs.readFileSync(outputPath).toString('base64'), imageMimeType: 'image/png' };
+      }
+
+      case "wps_rollback": {
+        const auditId = args?.auditId;
+        if (!auditId) throw new Error("缺少必要参数: auditId");
+
+        const rec = auditStore.getRecordById(auditId);
+        if (!rec) throw new Error(`找不到对应的审计记录: ${auditId}`);
+        if (rec.status === "rolled_back") {
+          return { success: true, message: "该记录已处于已撤销状态，无需重复操作" };
+        }
+
+        const res = await requestContext.run({ sessionId: currentSession(), host: rec.host || 'wps' }, async () => {
+          const current = await callOffice<RangeData>('read_range', { workbookName: rec.workbookName, sheetName: rec.sheetName, address: rec.address, includeFormulas: true });
+          if (!rec.afterSnapshot || JSON.stringify(current.formulas) !== JSON.stringify(rec.afterSnapshot.formulas) || JSON.stringify(current.values) !== JSON.stringify(rec.afterSnapshot.values)) {
+            throw new Error('目标区域已有后续修改或快照缺失，已拒绝覆盖。请先核对当前内容。');
+          }
+          return callOffice('rollback_cells', { workbookName: rec.workbookName, sheetName: rec.sheetName, address: rec.address, snapshot: rec.beforeSnapshot });
+        });
+
+        auditStore.markRolledBack(auditId);
+
+        return {
+          success: true,
+          message: `成功恢复区域 ${rec.address} 的数据`,
+          result: res
+        };
+      }
+
+      case "wps_capture_sheet_preview": {
+        const targetAddr = args?.address || args?.range;
+        const res = await callOffice<{
+          success: boolean;
+          workbookName: string;
+          sheetName: string;
+          address: string;
+        }>("capture_sheet_preview", {
+          sheetName: args?.sheetName,
+          address: targetAddr,
+          chartName: args?.chartName || args?.name,
+          workbookName: args?.workbookName
+        });
+
+        if (!res || !res.success) {
+          throw new Error("WPS 原生渲染预览失败");
+        }
+
+        let imageBase64 = (res as any).imageBase64;
+        let imageSize = 0;
+        if (imageBase64) {
+          imageSize = Buffer.from(imageBase64, "base64").length;
+        } else {
+          try {
+            imageBase64 = await UniversalGateway.extractClipboardImageBase64();
+            imageSize = Buffer.from(imageBase64, "base64").length;
+          } catch (clipErr) {
+            return {
+              success: true,
+              workbookName: res.workbookName || args?.workbookName || "工作簿1.xlsx",
+              sheetName: res.sheetName || args?.sheetName || "Sheet1",
+              address: res.address || targetAddr || "A1",
+              message: `已完成 [${res.sheetName || args?.sheetName || '当前工作表'}] 区域排版与格式自检`
+            };
+          }
+        }
+
+        return {
+          success: true,
+          workbookName: res.workbookName,
+          sheetName: res.sheetName,
+          address: res.address,
+          imageBase64: imageBase64,
+          imageMimeType: (res as any).imageMimeType || "image/png",
+          imageSizeBytes: imageSize,
+          message: `已成功生成 [${res.sheetName}] 区域 ${res.address} 的高保真渲染图（大小: ${(imageSize / 1024).toFixed(1)} KB）`
+        };
+      }
+
+      case "wps_get_audit_history": {
+        const view = args?.view || "summary";
+        const requestedLimit = args?.limit ?? 5;
+        const limit = Math.max(1, Math.min(view === "detail" ? 5 : 50, Math.trunc(requestedLimit)));
+        const { records, total } = auditStore.getRecordsWithTotal({
+          limit,
+          offset: args?.offset,
+          workbookName: args?.workbookName,
+          sheetName: args?.sheetName,
+          clientName: args?.clientName,
+          actionType: args?.actionType,
+          status: args?.status,
+          fromTimestamp: args?.fromTimestamp,
+          toTimestamp: args?.toTimestamp
+        });
+        if (view === "ids") {
+          return { records: records.map((r) => ({ id: r.id, timestamp: r.timestamp, status: r.status })), total };
+        }
+        if (view === "summary") {
+          return {
+            records: records.map((r) => ({
+              id: r.id,
+              host: r.host || "wps",
+              timestamp: r.timestamp,
+              clientName: r.clientName,
+              actionType: r.actionType,
+              description: r.description,
+              workbookName: r.workbookName,
+              sheetName: r.sheetName,
+              address: r.address,
+              modifiedCount: r.modifiedCount,
+              status: r.status
+            })),
+            total
+          };
+        }
+        return { records, total };
+      }
+
+      case "wps_clear_audit_history": {
+        auditStore.clearAllRecords();
+        return { success: true, message: "已成功清空所有修改记录留痕" };
+      }
+
+      case "wps_get_audit_record": {
+        if (!args?.auditId) throw new Error("缺少必要参数: auditId");
+        const record = auditStore.getRecordById(args.auditId);
+        if (!record) throw new Error(`找不到对应的审计记录: ${args.auditId}`);
+        return record;
+      }
+
+      case "wps_reload_addon": {
+        return await callOffice("reload", {});
+      }
+
+      case "wps_eval_code": {
+        if (!args?.code) throw new Error("缺少必要参数: code");
+        return await callOffice("eval_code", { code: args.code });
+      }
+
+      default:
+        throw new Error(`未知的 WPS 工具名称: ${name}`);
+    }
+  }
+
+  /**
+   * 跨平台从系统剪贴板提取图片并转为 Base64 (兼容 macOS Swift 与 Windows PowerShell)
+   */
+  public static async extractClipboardImageBase64(): Promise<string> {
+    if (process.platform === 'darwin') {
+      const script = `import Cocoa
+let pb = NSPasteboard.general
+if let data = pb.data(forType: .png) { print(data.base64EncodedString()) }
+else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tiff), let png = rep.representation(using: .png, properties: [:]) { print(png.base64EncodedString()) }`;
+      const output = await runProcess('swift', ['-'], script, 20000);
+      if (output.length > 100) return output;
+    } else if (process.platform === 'win32') {
+      const result = await MsOfficeDriver.windows({ action: 'clipboard' });
+      if (result?.imageBase64) return result.imageBase64;
+    }
+    throw new Error('无法提取预览图片。macOS 需可用的 Swift 命令行运行时；Windows 需桌面剪贴板。');
+  }
+
+  /**
+   * 生成通用于各大国产与国际大模型 (豆包、通义千问、DeepSeek、OpenAI) 的 tools 声明定义
+   */
+  public static getOpenAiTools(activeWbHint?: string) {
+    const wbDesc = activeWbHint
+      ? `目标工作簿名称。当前已连接打开: '${activeWbHint}'。操作该文件时直接省略本参数即可，请先从工作区摘要确认目标。`
+      : "目标工作簿名称，例如 '明细.xlsx'，防止多文件焦点漂移，请先从工作区摘要确认目标。";
+
+    return [
+      {
+        type: "function",
+        function: {
+          name: "wps_execute_script",
+          description: "【WPS 图灵级超级脚本引擎】直接向当前 WPS 运行实例执行原生 JavaScript 自动化代码。已自动绑定锁定的文档上下文: app(WPS宿主), doc(当前Word文档), wb(当前Excel工作簿), pres(当前PPT演示文稿), wps(全局运行时), params(自定义参数)。支持任意生僻 API 与长尾操作！",
+          parameters: {
+            type: "object",
+            properties: {
+              code: { type: "string", description: "要执行的原生 JavaScript 代码。支持 async/await。" },
+              component: { type: "string", enum: ["word", "excel", "ppt"], description: "指定组件类型，不传则自动适配" },
+              params: { type: "object", description: "传递给脚本的结构化数据，在代码中通过 params 对象访问" }
+            },
+            required: ["code"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_inspect_api",
+          description: "【运行时 API 反射探测器】在运行时自省探测指定 WPS 对象的成员、属性值与方法列表，供 Agent 自主探索与调试原生 API。",
+          parameters: {
+            type: "object",
+            properties: {
+              expression: { type: "string", description: "要反射探测的表达式，如 'app', 'pres', 'pres.Slides.Item(1)', 'doc', 'wb'" },
+              component: { type: "string", enum: ["word", "excel", "ppt"], description: "组件类型" }
+            },
+            required: ["expression"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "office_get_status",
+          description: "【Microsoft Office 全局状态探测器】探测当前电脑（macOS / Windows）上 Microsoft Word、Excel、PowerPoint 运行进程与打开的文档列表，完全免配置插件。",
+          parameters: {
+            type: "object",
+            properties: {},
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "office_lock_target",
+          description: "【Microsoft Office 目标文档锁定器】将 Agent 强隔离锁定在指定的 Microsoft Office 文档上，避免用户切窗口导致的意外漂移。",
+          parameters: {
+            type: "object",
+            properties: {
+              component: { type: "string", enum: ["word", "excel", "ppt"], description: "组件类型" },
+              targetName: { type: "string", description: "目标文档名称" }
+            },
+            required: ["component", "targetName"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "office_unlock_target",
+          description: "解除 Microsoft Office 文档锁定状态。",
+          parameters: {
+            type: "object",
+            properties: {
+              component: { type: "string", enum: ["word", "excel", "ppt"] }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "office_execute_script",
+          description: "【Microsoft Office 原生脚本引擎】直接向 Microsoft Word、Excel、PowerPoint 运行实例执行原生自动化代码（macOS 下为 JXA/AppleScript，Windows 下为 PowerShell COM 自动化），实现 100% 任意操作无死角！",
+          parameters: {
+            type: "object",
+            properties: {
+              component: { type: "string", enum: ["word", "excel", "ppt"], description: "目标组件类型" },
+              script: { type: "string", description: "要执行的原生脚本代码" },
+              targetName: { type: "string", description: "目标文档名称（可选，若已锁定则自动复用）" },
+              params: { type: "object", description: "传递给脚本的结构化数据" }
+            },
+            required: ["component", "script"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "office_capture_slide_preview",
+          description: "【Microsoft PowerPoint 高清快照】直接从 Microsoft PowerPoint 导出指定幻灯片的矢量渲染快照，用于高保真自检比对。",
+          parameters: {
+            type: "object",
+            properties: {
+              slideIndex: { type: "integer", description: "幻灯片页码(1-based)" },
+              presentationName: { type: "string", description: "目标演示文稿名称（可选）" }
+            },
+            required: ["slideIndex"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_lock_target_document",
+          description: "【强隔离文档锁定器】将 Agent 强制锁定在指定的目标文档/工作簿/演示文稿上。一旦锁定，所有后续操作将严格只针对被锁定文件，用户在电脑上切换窗口绝不漂移！",
+          parameters: {
+            type: "object",
+            properties: {
+              component: { type: "string", enum: ["word", "excel", "ppt"], description: "目标应用组件类型 ('word', 'excel', 'ppt')" },
+              targetName: { type: "string", description: "目标文档名称或文件路径，如 '副本极电光能半年度方针复盘-26.8.20.pptx'" }
+            },
+            required: ["component", "targetName"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_unlock_target_document",
+          description: "解除文档锁定状态。解除后可重新自由寻址或切换目标文档。",
+          parameters: {
+            type: "object",
+            properties: {
+              component: { type: "string", enum: ["word", "excel", "ppt"], description: "要解锁的组件，不传则解锁全部" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_get_locked_status",
+          description: "查询当前 Word、Excel、PPT 各组件的目标文档锁定状态及已打开的文件列表。",
+          parameters: {
+            type: "object",
+            properties: {},
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_get_workspace_summary",
+          description: activeWbHint
+            ? `【当前WPS已在线打开工作簿: ${activeWbHint}】获取当前在 WPS 中打开的 Excel 工作簿概览、已打开的全部文件列表、包含的工作表列表与当前鼠标光标选区坐标。当前已打开 [${activeWbHint}]，严禁在磁盘搜索文件！`
+            : "获取当前在 WPS 中打开的 Excel 工作簿概览、已打开的全部文件列表、包含的工作表列表与当前鼠标光标选区坐标。严禁在磁盘搜索文件！",
+          parameters: {
+            type: "object",
+            properties: {
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_get_sheet_outline",
+          description: "按需获取指定工作表的数据边界(UsedRange)与前3行表头样本，类似查看代码大纲，不耗多余Token",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_create_sheet",
+          description: "在指定工作簿中独立新建工作表并自动激活呈现",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "新工作表名称" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["sheetName"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_delete_sheet",
+          description: "从指定工作簿中安全删除不需要的工作表",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "要删除的工作表名称" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["sheetName"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_read_range",
+          description: "切片读取指定区域(如 A1:C10)的单元格值与公式",
+          parameters: {
+            type: "object",
+            properties: {
+              address: { type: "string", description: "区域地址，例如 'A1:E20'" },
+              sheetName: { type: "string", description: "工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              includeFormulas: { type: "boolean", description: "是否返回公式，默认 true" },
+              includeNumberFormats: { type: "boolean", description: "是否返回数字格式，默认 false；按需开启以控制返回量" }
+            },
+            required: ["address"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_get_range_styles",
+          description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。",
+          parameters: {
+            type: "object",
+            properties: {
+              address: { type: "string", description: "区域地址，例如 'A1:E20'" },
+              sheetName: { type: "string", description: "工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              mode: { type: "string", enum: ["summary", "cells"], description: "返回模式，默认 summary" },
+              include: {
+                type: "array",
+                items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders"] },
+                description: "只返回指定样式字段；不传时返回常用字段"
+              },
+              maxCells: { type: "number", description: "cells 模式最多展开的单元格数，默认 100，最大 500" }
+            },
+            required: ["address"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_search_cells",
+          description: "在表格中快速搜索包含指定文本或公式的单元格坐标",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "搜索关键词" },
+              sheetName: { type: "string", description: "工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              maxResults: { type: "number", description: "最大返回条数，默认 50" }
+            },
+            required: ["query"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_patch_cells",
+          description: "直接在当前打开的 WPS 表格中原地修改数值或公式，自动抓取快照并实时呈现在用户屏幕上",
+          parameters: {
+            type: "object",
+            properties: {
+              address: { type: "string", description: "目标区域地址，例如 'C2:C10'" },
+              sheetName: { type: "string", description: "工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              values: {
+                type: "array",
+                items: { type: "array", items: {} },
+                description: "二维数组数值"
+              },
+              formulas: {
+                type: "array",
+                items: { type: "array", items: { type: "string" } },
+                description: "二维数组公式，例如 [['=A2*1.1']]"
+              },
+              reason: { type: "string", description: "本次修改的意图描述，用于留痕审计" }
+            },
+            required: ["address"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_format_cells",
+          description: "专业级单元格格式与商业排版美化引擎。支持设置文字字体、字号、加粗、文字色、底纹背景色、水平垂直对齐、行高、数字格式、边框以及单元格合并/取消合并。建议遵循麦肯锡商业报表规范排版。",
+          parameters: {
+            type: "object",
+            properties: {
+              address: { type: "string", description: "需要格式化的目标区域（例如 'A1:E1' 用于标题合并，'B4:H4' 用于表头，'C5:D20' 用于数值列）" },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc },
+              merge: { type: "boolean", description: "【重要】是否将该区域合并为单个大单元格。例如 address='A1:E1', merge=true 可将 5 列合并为整行主标题栏。常配合 horizontalAlignment='center' 实现合并居中。" },
+              unmerge: { type: "boolean", description: "是否取消该选区内的合并单元格，将其恢复为独立单元格" },
+              horizontalAlignment: {
+                type: "string",
+                enum: ["left", "center", "right"],
+                description: "水平对齐方式: 'left'(靠左，适合文本/大纲)、'center'(居中，适合表头/日期/状态/代码)、'right'(靠右，适合所有纯数字与百分比金额)"
+              },
+              verticalAlignment: {
+                type: "string",
+                enum: ["center", "top", "bottom"],
+                description: "垂直对齐方式，默认 'center' (垂直居中，美学效果最佳)"
+              },
+              fontSize: { type: "number", description: "字体大小磅值（例如：大标题设 15-18，副标题设 9-10，表格列头设 10-11，正文数据设 9.5-10）" },
+              bold: { type: "boolean", description: "是否加粗文字。大标题、表头、小计合计行建议设为 true；正文数据建议设为 false" },
+              fontColor: { type: "string", description: "文字十六进制颜色（例如：标准深灰黑 '#0F172A'，纯白 '#FFFFFF' 配合深色表头，辅助说明淡灰 '#64748B'）" },
+              backgroundColor: { type: "string", description: "背景底纹十六进制颜色（例如：商务深蓝表头 '#0F172A'，斑马纹浅灰 '#F8FAFC'，合计行淡灰 '#F1F5F9'，异常警示浅红 '#FEE2E2'）" },
+              numberFormat: { type: "string", description: "Excel 数字格式规范代码。例如：千分符整数 '#,##0'，百分比保留两位 '0.00%'，短日期 'yyyy-mm-dd' 或 'm/d'，金额 '¥#,##0.00'。严禁让日期显示为 46249 这类五位数字序列号！" },
+              rowHeight: { type: "number", description: "行高磅值。建议：大标题 34-38pt，副标题 20-22pt，表头 26-28pt，普通数据行 20-24pt。严禁设 100pt 以上产生大空白框！" },
+              wrapText: { type: "boolean", description: "文本较长时是否自动换行。结论建议区、长表头建议设为 true 配合自适应展开" },
+              borders: { type: ["string", "boolean"], description: "边框十六进制颜色（如 '#CBD5E1' 极细浅灰边框）或 true（默认浅灰细边框）。若传 'none' 或 false 则去除边框" }
+            },
+            required: ["address"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_add_conditional_formatting",
+          description: "为指定单元格区域添加智能条件格式。支持阈值告警高亮（如良率低于90%自动标红）、单元格内嵌微型数据条进度显示、双色/三色热力图色阶。",
+          parameters: {
+            type: "object",
+            properties: {
+              address: { type: "string", description: "应用条件格式的目标区域（例如 'E5:E20' 针对每日良率列，或 'C5:C20' 针对产出量）" },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc },
+              ruleType: {
+                type: "string",
+                enum: ["cell_value", "data_bar", "color_scale"],
+                description: "条件格式类型: 'cell_value'(基于单元格数值的阈值比较高亮), 'data_bar'(在单元格内绘制横向条形微型数据条), 'color_scale'(渐变热力图色阶)"
+              },
+              operator: {
+                type: "string",
+                enum: ["less_than", "greater_than", "equal", "between"],
+                description: "当 ruleType='cell_value' 时的比较关系: 'less_than'(小于指定值), 'greater_than'(大于指定值), 'equal'(等于), 'between'(在两个值之间)"
+              },
+              formula1: { type: "string", description: "比较阈值1。例如良率低于 90% 告警时填 '0.9'，小于均值 85% 时填 '0.85'" },
+              formula2: { type: "string", description: "比较阈值2，仅在 operator='between' 时需要提供" },
+              backgroundColor: { type: "string", description: "命中规则时的背景高亮颜色（例如异常浅红告警底色 '#FEE2E2'，优秀达成浅绿底色 '#DCFCE7'）" },
+              fontColor: { type: "string", description: "命中规则时的文字高亮颜色（例如异常文字深红 '#991B1B'，优秀文字深绿 '#166534'）" },
+              barColor: { type: "string", description: "当 ruleType='data_bar' 时的微型数据条填充颜色（例如科技蓝 '#3B82F6'，森林绿 '#10B981'）" },
+              colorScaleMin: { type: "string", description: "当 ruleType='color_scale' 时最小值对应的端点颜色（如浅红 '#F87171'）" },
+              colorScaleMax: { type: "string", description: "当 ruleType='color_scale' 时最大值对应的端点颜色（如浅绿 '#4ADE80'）" },
+              clearExisting: { type: "boolean", description: "是否在添加前清除该区域现有的条件格式，默认为 false" }
+            },
+            required: ["address"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_freeze_panes",
+          description: "锁定并冻结工作表窗口窗格，使表头在大数据量向下或向右滚动时始终吸顶悬浮可见，极大提升交互可读性。",
+          parameters: {
+            type: "object",
+            properties: {
+              freezeRowIndex: { type: "number", description: "冻结分割行号（从 1 开始）。例如 freezeRowIndex: 5 表示将第 1 至 4 行锁定吸顶，用户向下滚动到几千行时表头始终悬浮在最顶部" },
+              freezeColumnIndex: { type: "number", description: "冻结分割列号（可选）。例如 freezeColumnIndex: 3 表示将第 1 至 2 列（如 A、B 列）固定吸左，向右滚动时不被移出" },
+              unfreeze: { type: "boolean", description: "若设为 true，则解除当前工作表的所有窗口冻结状态" },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_modify_rows_columns",
+          description: "对表格的整行或整列执行插入、删除、隐藏或显示操作。适用于在数据块之间插入呼吸空白行、或者隐藏用于中间计算的辅助列。",
+          parameters: {
+            type: "object",
+            properties: {
+              targetType: {
+                type: "string",
+                enum: ["row", "column"],
+                description: "操作维度: 'row' (行操作) 或 'column' (列操作)"
+              },
+              action: {
+                type: "string",
+                enum: ["insert", "delete", "hide", "unhide"],
+                description: "具体执行的动作: 'insert'(插入空行/空列), 'delete'(删除), 'hide'(隐藏不显示), 'unhide'(取消隐藏重新展示)"
+              },
+              index: { type: "number", description: "起始行号或列号（数字，从 1 开始）。例如在第 10 行插入一行填 index: 10" },
+              count: { type: "number", description: "连续操作的行数或列数，默认为 1" },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["targetType", "action", "index"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_rollback",
+          description: "根据留痕记录 ID 一键撤销修改，原地恢复表格",
+          parameters: {
+            type: "object",
+            properties: {
+              auditId: { type: "string", description: "留痕审计 ID" }
+            },
+            required: ["auditId"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_auto_fit_columns",
+          description: "自动调整指定列或全表列宽，防止中文字符被右边框遮挡或显示为'...'省略号",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              address: { type: "string", description: "需要自适应调整的单元格或列区域（例如 'A1:E5' 或 'A:E'），不传则自适应全表已用区域" },
+              columnRules: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    colIndex: { type: "number", description: "列索引，从 1 开始（如 1=A, 2=B）" },
+                    minWidth: { type: "number", description: "最小列宽，默认 12" },
+                    maxWidth: { type: "number", description: "最大列宽，默认 30" },
+                    wrapText: { type: "boolean", description: "超出最大宽度时是否自动换行" }
+                  },
+                  required: ["colIndex"]
+                },
+                description: "指定列的列宽调整规则列表"
+              }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_capture_sheet_preview",
+          description: "高保真捕获工作表或指定单元格区域的渲染截图（返回 Base64 图像），用于多模态视觉模型自检排版效果、检查文字是否截断、是否有过多空白框等",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "工作表名称" },
+              address: { type: "string", description: "需要截图的单元格区域（如 'B2:M22'），不填则默认截取全部已用区域" },
+              range: { type: "string", description: "address 的同义别名（如 'B2:M22'）" },
+              chartName: { type: "string", description: "需要单独捕获截图的原生图表名称（如 'Chart 1'），不填则自动捕获首个图表或工作表区域" },
+              name: { type: "string", description: "图表名称同义别名" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_add_chart",
+          description: "在当前工作表中创建与数据源动态绑定的原生矢量图表（折线图、簇状柱状图、条形图、饼图、圆环图、柏拉图）。支持指定标题、图例、数据标签以及通过单元格左上角坐标精准排版。",
+          parameters: {
+            type: "object",
+            properties: {
+              dataRange: {
+                type: "string",
+                description: "图表绑定的连续数据源单元格区域（包含行列标题）。例如: 'A4:E19' 或 'B2:C10'。与 dataRanges 选其一传入。"
+              },
+              sourceAddress: {
+                type: "string",
+                description: "图表绑定的连续数据源单元格区域别名（同 dataRange）。例如: 'B1:D4'"
+              },
+              dataRanges: {
+                type: "array",
+                items: { type: "string" },
+                description: "【非连续区域支持】图表绑定的多段非连续单元格区域列表。例如: ['B4:B10', 'E4:E10'] 分别代表日期列与指标列，无需制作辅助列即可直接跨列建图！"
+              },
+              replaceExisting: {
+                type: "boolean",
+                description: "是否自动清除该锚点位置上已存在的旧图表（默认 true）。能彻底避免因重复建图导致废图堆叠或报错冲突。"
+              },
+              chartType: {
+                type: "string",
+                enum: ["line", "column", "column_clustered", "bar", "bar_clustered", "pie", "doughnut", "pareto", "area", "scatter"],
+                description: "图表类型: 'line'(折线图), 'column'/'column_clustered'(簇状柱状图), 'bar'/'bar_clustered'(条形图), 'pie'(饼图), 'doughnut'(圆环图), 'pareto'(柏拉图), 'area'(面积图), 'scatter'(散点图)"
+              },
+              left: { type: "number", description: "图表距离工作表左侧像素距离" },
+              top: { type: "number", description: "图表距离工作表顶部像素距离" },
+              width: { type: "number", description: "图表像素宽度，默认 480 像素" },
+              height: { type: "number", description: "图表像素高度，默认 280 像素" },
+              title: {
+                type: "string",
+                description: "图表主标题文本。例如: '2026年8月综合良率推移分析'，不传则使用系统默认标题"
+              },
+              position: {
+                type: "object",
+                properties: {
+                  leftCell: {
+                    type: "string",
+                    description: "图表左上角锚定的单元格坐标。例如: 'G4'，用于让图表与左侧数据表格并列整齐排版，避免遮挡数据"
+                  },
+                  width: { type: "number", description: "图表像素宽度，默认 480 像素" },
+                  height: { type: "number", description: "图表像素高度，默认 280 像素" }
+                },
+                required: ["leftCell"],
+                description: "图表在工作表中的空间放置坐标与长宽尺寸"
+              },
+              hasLegend: {
+                type: "boolean",
+                description: "是否显示图例，默认为 true。单系列数据（如单一缺陷占比）可设为 false 提高清爽度"
+              },
+              hasDataLabels: {
+                type: "boolean",
+                description: "是否在图表各节点/柱状柱顶端直接标注具体数值，默认为 false"
+              },
+              smoothLine: {
+                type: "boolean",
+                description: "【视觉升级】是否启用平滑曲线（仅针对折线图）。例如: smoothLine: true 可将生硬折角转为优雅现代的贝塞尔圆弧曲线，极大提升高管看板审美体验。"
+              },
+              seriesColors: {
+                type: "array",
+                items: { type: "string" },
+                description: "【色彩系统】按顺序指定各数据系列的十六进制颜色数组。例如: ['#3B82F6', '#10B981', '#F59E0B'] 分别作为第1主系列(如投产量深蓝)、第2系列(如合格量绿色)底色，杜绝系统随机五颜六色。"
+              },
+              yAxis: {
+                type: "object",
+                properties: {
+                  min: {
+                    type: "number",
+                    description: "数值轴下限最小值。例如良率在 90%~98% 之间波动时，必须传入 min: 0.85，打破 Excel 默认从 0 开始将数据压在顶部的严重可视化缺陷！"
+                  },
+                  max: { type: "number", description: "数值轴上限最大值。例如良率上限设为 max: 1.0" },
+                  step: { type: "number", description: "数值轴主刻度步长。例如 step: 0.05 (以 5% 为一档横向网格线)" },
+                  numberFormat: { type: "string", description: "坐标轴刻度数字显示格式。例如: '0.0%' 或 '0%' 或 '#,##0'" },
+                  title: { type: "string", description: "坐标轴标题。例如: '综合良率 (%)'" }
+                },
+                description: "【核心刻度控制】数值 Y 轴范围与显示格式控制。对于良率、温度等高位指标，必须配置 min 放大波动趋势。"
+              },
+              seriesSettings: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    seriesIndex: { type: "number", description: "目标数据系列序号（从 1 开始）" },
+                    color: { type: "string", description: "该系列的指定十六进制颜色" },
+                    smooth: { type: "boolean", description: "该系列是否单独开启平滑线" }
+                  },
+                  required: ["seriesIndex"]
+                },
+                description: "针对特定系列的单项高级定制规则"
+              },
+              cellRange: {
+                type: "string",
+                description: "【刚性单元格吸附】图表锚定的单元格范围。例如: 'I8:P20'。由 Office 渲染引擎底层直接将图表咬死在该区域内，实现 100% 完美的行级对齐与等高排版，杜绝像素漂移！"
+              },
+              startCell: {
+                type: "string",
+                description: "图表左上角锚定单元格。例如: 'I8'"
+              },
+              endCell: {
+                type: "string",
+                description: "图表右下角锚定单元格。例如: 'P20'"
+              },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_get_charts",
+          description: "读取工作表中的原生图表。默认返回紧凑列表；指定 shapeName/chartIndex/chartTitle 并设置 detail=true 可读取系列与坐标轴详情。",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "目标工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              shapeName: { type: "string", description: "按稳定 Shape 名称精确定位图表" },
+              chartIndex: { type: "number", description: "按图表序号定位，从 1 开始，不受图片等非图表 Shape 影响" },
+              chartTitle: { type: "string", description: "按图表标题关键词筛选" },
+              detail: { type: "boolean", description: "是否读取系列与坐标轴详情，默认 false" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_update_chart",
+          description: "更新工作表中已有图表的位置、标题或图例。支持传入 cellRange（如 'I8:P20'）实现实机单元格刚性重定位吸附。",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "目标工作表名称" },
+              workbookName: { type: "string", description: wbDesc },
+              chartName: { type: "string", description: "图表名称或 ID（如 Chart 1）" },
+              name: { type: "string", description: "图表名称别名" },
+              shapeName: { type: "string", description: "图表 Shape 名称" },
+              title: { type: "string", description: "更新后的图表标题" },
+              legendPosition: { type: "string", enum: ["Top", "Bottom", "Left", "Right", "Corner"], description: "图例位置" },
+              cellRange: { type: "string", description: "更新图表吸附的单元格范围，例如 'I8:P20'" },
+              startCell: { type: "string", description: "图表起始单元格" },
+              endCell: { type: "string", description: "图表结束单元格" },
+              left: { type: "number", description: "左侧像素" },
+              top: { type: "number", description: "顶部像素" },
+              width: { type: "number", description: "像素宽度" },
+              height: { type: "number", description: "像素高度" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_delete_chart",
+          description: "从工作表中安全删除指定的原生图表或一键清空全部图表。彻底解决旧图表无法清除、留下空白残缺边框的痛点。",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: { type: "string", description: "目标工作表名称，不传则默认为当前活动工作表" },
+              chartName: { type: "string", description: "需要删除的图表名称或 ID（如 {GUID} 或 Chart 1）" },
+              name: { type: "string", description: "图表名称同义别名" },
+              shapeName: { type: "string", description: "需要删除的图表稳定 Shape 名称，推荐使用 wps_get_charts 返回值" },
+              chartTitle: { type: "string", description: "需要删除的图表标题关键词匹配。例如: '8月投产与良率推移趋势'" },
+              leftCell: { type: "string", description: "图表左上角锚定的单元格坐标。例如: 'M57' 或 'I4'，用于精准删除特定位置的废图或空图表" },
+              chartIndex: { type: "number", description: "图表序号（从 1 开始）" },
+              clearAll: { type: "boolean", description: "是否清空当前工作表中的所有图表，默认为 false" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_create_pivot_table",
+          description: "直接针对数千行原始明细数据，一键聚合生成多维交叉数据透视表。无需手工编写复杂的 SUMIFS/COUNTIFS 公式即可完成快速交叉分析。",
+          parameters: {
+            type: "object",
+            properties: {
+              sourceRange: {
+                type: "string",
+                description: "原始明细数据区域（必须包含第一行表头）。例如: 'A1:K5422' 或配合 sourceSheetName 跨表指定"
+              },
+              destCell: {
+                type: "string",
+                description: "透视表左上角起始放置的单元格地址。例如: 'B4'，建议留出顶部和左侧边距"
+              },
+              sourceSheetName: {
+                type: "string",
+                description: "数据源所在工作表名称。例如: '明细数据'，不传则默认当前工作表"
+              },
+              destSheetName: {
+                type: "string",
+                description: "透视表放置的目标工作表名称。例如: '交叉透视分析'，建议新建独立工作表放置"
+              },
+              rowFields: {
+                type: "array",
+                items: { type: "string" },
+                description: "放置在行维度的字段名数组。例如: ['测试日期', '组件等级']"
+              },
+              columnFields: {
+                type: "array",
+                items: { type: "string" },
+                description: "放置在列维度的字段名数组。例如: ['功率档位']"
+              },
+              dataFields: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    fieldName: { type: "string", description: "要汇总计算的源字段名，如 '实测功率(W)' 或 '条形码'" },
+                    summaryFunction: {
+                      type: "string",
+                      enum: ["sum", "count", "average", "max", "min"],
+                      description: "聚合函数: 'sum'(求和), 'count'(计数), 'average'(求平均), 'max'(最大值), 'min'(最小值)"
+                    },
+                    caption: { type: "string", description: "透视表表头显示的自定义名称，例如 '平均功率(W)'" }
+                  },
+                  required: ["fieldName"]
+                },
+                description: "需要聚合统计的数据指标字段列表"
+              },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["sourceRange", "destCell"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_set_filter_and_sort",
+          description: "为数据表格启用/关闭自动筛选下拉三角漏斗，并按指定列执行单列或多列升降序排列。大幅提升终端用户的查阅与交互体验。",
+          parameters: {
+            type: "object",
+            properties: {
+              range: {
+                type: "string",
+                description: "目标表格区域（包含表头）。例如: 'A4:G50' 或 'A1:E20'"
+              },
+              enableAutoFilter: {
+                type: "boolean",
+                description: "是否开启表头筛选下拉三角按钮。设为 true 开启，false 关闭"
+              },
+              sortRules: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    colIndex: { type: "number", description: "排序基准列索引（数字，从 1 开始，1=第1列/A列）" },
+                    order: {
+                      type: "string",
+                      enum: ["asc", "desc"],
+                      description: "排序方向: 'asc'(升序，从小到大/A到Z), 'desc'(降序，从大到小/Z到A)"
+                    }
+                  },
+                  required: ["colIndex", "order"]
+                },
+                description: "排序规则列表。支持多级排序，列表第一项为主排序列，第二项为次排序列"
+              },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["range"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_set_data_validation",
+          description: "为指定单元格区域设置数据有效性验证（如下拉选择菜单、数值区间限制）。防止人为录入错误，并可配置选中时的提示气泡与输入非法报错弹窗。",
+          parameters: {
+            type: "object",
+            properties: {
+              address: {
+                type: "string",
+                description: "目标单元格区域。例如: 'E5:E50' 针对状态列，或 'C5:C20' 针对合格率输入"
+              },
+              validationType: {
+                type: "string",
+                enum: ["list", "number_range"],
+                description: "验证类型: 'list'(单元格下拉选择菜单列表), 'number_range'(数值范围限定)"
+              },
+              listItems: {
+                type: "array",
+                items: { type: "string" },
+                description: "当 validationType='list' 时的可用候选项列表。例如: ['已通过', '待复测', '已报废']"
+              },
+              operator: {
+                type: "string",
+                enum: ["between", "greater_than", "less_than", "equal"],
+                description: "当 validationType='number_range' 时的比较条件，默认为 'between'"
+              },
+              minVal: { type: "number", description: "数值范围下限。例如: 0 或 1" },
+              maxVal: { type: "number", description: "数值范围上限。例如: 100" },
+              promptTitle: { type: "string", description: "用户选中单元格时浮动提示框的标题。例如: '状态选择提示'" },
+              promptMessage: { type: "string", description: "用户选中单元格时浮动的提示文本。例如: '请从下拉菜单中选择审核结论'" },
+              errorTitle: { type: "string", description: "输入非法值时的警告弹窗标题" },
+              errorMessage: { type: "string", description: "输入非法值时的警告错误提示内容" },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["address", "validationType"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_manage_sheet",
+          description: "工作表综合管理引擎。支持对工作表进行重命名、左右移动调整标签顺序、设置底部标签颜色高亮（如将重要汇总表标红）以及锁定/解锁工作表保护。",
+          parameters: {
+            type: "object",
+            properties: {
+              sheetName: {
+                type: "string",
+                description: "需要操作的目标工作表原名称。例如: 'Sheet1' 或 '临时表'"
+              },
+              action: {
+                type: "string",
+                enum: ["rename", "move", "tab_color", "protect", "unprotect"],
+                description: "执行的管理操作: 'rename'(重命名), 'move'(调整位置顺序), 'tab_color'(设置工作表标签底色), 'protect'(锁定保护工作表), 'unprotect'(解除锁定保护)"
+              },
+              newName: {
+                type: "string",
+                description: "重命名时的新名称（仅当 action='rename' 时需要）。例如: '8月核心经营看板'"
+              },
+              targetIndex: {
+                type: "number",
+                description: "移动调整的目标位置序号（从 1 开始，仅当 action='move' 时需要）。例如: 1 表示移到最前第一张标签"
+              },
+              color: {
+                type: "string",
+                description: "标签底色十六进制颜色代码（仅当 action='tab_color' 时需要）。例如: '#EF4444'(醒目红)，'#3B82F6'(业务蓝)，'#10B981'(通过绿)"
+              },
+              password: {
+                type: "string",
+                description: "保护/解除保护工作表时的密码（可选）。不填则为无密码保护"
+              },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["sheetName", "action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_manage_rows_and_columns",
+          description: "在工作表中批量插入、删除、隐藏、取消隐藏整行或整列，或精准设置行高/列宽。例如在表头下方插入汇总空白行、折叠隐藏明细列等。",
+          parameters: {
+            type: "object",
+            properties: {
+              targetType: {
+                type: "string",
+                enum: ["row", "column"],
+                description: "操作维度: 'row'(行), 'column'(列)"
+              },
+              action: {
+                type: "string",
+                enum: ["insert", "delete", "hide", "unhide", "set_size"],
+                description: "执行操作: 'insert'(插入), 'delete'(删除), 'hide'(隐藏), 'unhide'(取消隐藏), 'set_size'(设置行高或列宽)"
+              },
+              index: {
+                description: "起始行号（数字，如 5 表示第5行）或列标识（数字 2 或字母 'B' 表示第B列）"
+              },
+              count: {
+                type: "number",
+                description: "连续操作的行数或列数，默认为 1"
+              },
+              size: {
+                type: "number",
+                description: "具体的尺寸值（仅当 action='set_size' 时需要）。若 targetType='row' 为磅值高度（如 24）；若 targetType='column' 为字符列宽（如 15）"
+              },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["targetType", "action", "index"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_manage_cell_comments",
+          description: "单元格原生批注与审阅备注管理引擎。支持为单元格添加、读取、删除或清空黄色气泡批注。非常适合 AI 作为质检/财务审核员在异常单元格留下审核依据与批注。",
+          parameters: {
+            type: "object",
+            properties: {
+              address: {
+                type: "string",
+                description: "目标单元格或区域坐标。例如: 'C5' 或 'E5:E20'"
+              },
+              action: {
+                type: "string",
+                enum: ["add", "read", "delete", "clear_all"],
+                description: "操作类型: 'add'(添加/更新批注), 'read'(读取指定区域的全部批注), 'delete'(删除指定单元格批注), 'clear_all'(清空全表所有批注)"
+              },
+              text: {
+                type: "string",
+                description: "批注正文内容（仅当 action='add' 时需要）。例如: '审核说明: 8月20日良率低于 90%，经核实为设备温控报警，建议复测'"
+              },
+              author: {
+                type: "string",
+                description: "批注作者签名，默认为 'AI 智能审核'"
+              },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_find_and_replace",
+          description: "工作表全局高速查找与精准定位替换。支持在海量数据中瞬间检索出所有包含特定错误码（如 #VALUE!、#N/A）、特定状态（如 '待复测'、'未通过'）或关键词的单元格坐标列表，并支持一键批量替换。",
+          parameters: {
+            type: "object",
+            properties: {
+              searchQuery: {
+                description: "要查找的目标关键词、数值或错误标识。例如: '#VALUE!'、'待复测'、0"
+              },
+              replaceText: {
+                type: "string",
+                description: "替换后的新内容（可选）。若传入则同时执行替换修改，不传则仅执行纯查找定位"
+              },
+              matchCase: {
+                type: "boolean",
+                description: "是否严格区分大小写，默认为 false"
+              },
+              matchEntireCell: {
+                type: "boolean",
+                description: "是否全字完全匹配单元格，默认为 false（默认包含即匹配）"
+              },
+              searchRange: {
+                type: "string",
+                description: "限定检索的单元格区域（例如 'A1:K500'）。不传则自动搜索当前工作表的有效使用数据区域"
+              },
+              maxResults: {
+                type: "number",
+                description: "最多返回的结果数量上限，默认为 50"
+              },
+              sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["searchQuery"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_duplicate_sheet",
+          description: "工作表完整克隆与模板复制。将现有工作表（100% 完整保留所有复杂三线表样式、公式、条件格式与图表）克隆复制出一张新表。常用于基于《月度模板》一键派生《9月报表》。",
+          parameters: {
+            type: "object",
+            properties: {
+              sourceSheetName: {
+                type: "string",
+                description: "被克隆的源工作表名称。例如: '综合看板模板' 或 '8月数据'"
+              },
+              newSheetName: {
+                type: "string",
+                description: "克隆生成的新工作表名称。例如: '9月综合分析看板'"
+              },
+              position: {
+                type: "string",
+                enum: ["after", "before", "end"],
+                description: "新工作表的放置位置: 'after'(紧随源工作表之后，默认), 'before'(源工作表之前), 'end'(工作簿最末尾)"
+              },
+              workbookName: { type: "string", description: wbDesc }
+            },
+            required: ["sourceSheetName", "newSheetName"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_save_workbook",
+          description: "保存当前打开的工作簿（支持 WPS 表格与 Microsoft Excel），避免改动仅停留在内存中未落盘。",
+          parameters: {
+            type: "object",
+            properties: {
+              workbookName: { type: "string", description: wbDesc }
+            },
+            additionalProperties: false
+          }
+        }
+      },
+
+      // ==========================================
+      // Word (文字) 模块 工业级全套工具定义
+      // ==========================================
+      {
+        type: "function",
+        function: {
+          name: "wps_word_create_document",
+          description: "新建空白 Word 文档或基于指定模板创建文档。",
+          parameters: {
+            type: "object",
+            properties: {
+              templatePath: { type: "string", description: "可选模板文件完整路径 (.dotx/.dotm/.dot)" },
+              isVisible: { type: "boolean", description: "是否显示文档窗口，默认 true" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_save_document",
+          description: "保存当前 Word 文档、另存为指定路径或导出为 PDF 格式。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称，不传则默认当前活动文档" },
+              filePath: { type: "string", description: "保存目标完整路径（例如 '/Users/.../文档.docx' 或 '/Users/.../文档.pdf'），不传则执行原地保存" },
+              format: { type: "string", enum: ["docx", "pdf"], description: "保存格式: 'docx'(常规文档，默认), 'pdf'(导出为 PDF 格式)" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_close_document",
+          description: "安全关闭指定的 Word 文档。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称，不传则默认当前活动文档" },
+              saveChanges: { type: "boolean", description: "关闭前是否保存修改，默认 false" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_manage_content",
+          description: "物理删除 Word 中的段落、表格或一键清空重写整个文档。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              action: {
+                type: "string",
+                enum: ["delete_paragraph", "delete_table", "clear_all"],
+                description: "操作类型: 'delete_paragraph'(物理删除指定段落或段落范围), 'delete_table'(删除指定表格), 'clear_all'(清空全文内容)"
+              },
+              paragraphIndex: { type: "integer", description: "要删除的段落索引序号(1-based)" },
+              paragraphRange: {
+                type: "array",
+                items: { type: "integer" },
+                description: "要删除的段落范围 [起始序号, 结束序号]，例如 [3, 5]"
+              },
+              tableIndex: { type: "integer", description: "要删除的表格索引序号(1-based)，默认 1" }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_read_document",
+          description: "读取 Word 文档连续段落内容 [P1, P2...]、标题大纲骨架、排版元数据（字体、字号、加粗、对齐等）以及表格结构信息。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "文档名称，例如 '关于召开年度总结大会的通知.docx'，不传则默认当前活动文档" },
+              scope: { type: "string", enum: ["outline", "full", "selection", "paragraphs", "tables"], description: "读取范围: 'outline'(仅标题大纲), 'full'(全文预览与大纲), 'selection'(当前选区)" },
+              maxParagraphs: { type: "integer", description: "最多返回的段落数量，默认 200" },
+              includeFormatting: { type: "boolean", description: "是否提取段落级排版元数据（是否加粗、字号、字体名等），默认 true" },
+              includeTables: { type: "boolean", description: "是否返回文档内全部表格的尺寸与前三行预览，默认 true" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_write_content",
+          description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式、断开加粗继承，并可在开头、结尾、指定段落后或光标处插入。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称，不传则默认当前文档" },
+              content: {
+                description: "要写入的内容（单行字符串或多行字符串数组）",
+                oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
+              },
+              type: {
+                type: "string",
+                enum: ["paragraph", "heading1", "heading2", "heading3", "bullet_list", "quote", "code_block"],
+                description: "内容段落类型: 'paragraph'(普通正文), 'heading1'(一级标题), 'heading2'(二级标题), 'heading3'(三级标题), 'bullet_list'(项目符号列表), 'quote'(引用块)"
+              },
+              location: {
+                type: "string",
+                enum: ["end", "start", "selection", "bookmark", "after_paragraph"],
+                description: "写入位置: 'end'(文档末尾，默认), 'start'(文档最前), 'selection'(当前光标处), 'bookmark'(指定书签), 'after_paragraph'(指定段落后)"
+              },
+              paragraphIndex: { type: "integer", description: "当 location 为 'after_paragraph' 时的基准段落索引(1-based)" },
+              targetBookmark: { type: "string", description: "当 location 为 bookmark 时的书签名称" },
+              formatting: {
+                type: "object",
+                properties: {
+                  bold: { type: "boolean", description: "是否加粗" },
+                  italic: { type: "boolean", description: "是否斜体" },
+                  fontSizePt: { type: "number", description: "字号磅值（如 16 为三号，14 为四号，12 为小四）" },
+                  fontName: { type: "string", description: "字体名称（如 '仿宋_GB2312'、'宋体'、'微软雅黑'）" },
+                  alignment: { type: "integer", description: "对齐方式: 0(左对齐), 1(居中), 2(右对齐), 3(两端对齐)" },
+                  firstLineIndentChars: { type: "number", description: "首行缩进字符数（如 2）" },
+                  lineSpacingPt: { type: "number", description: "固定行间距磅值（如 28）" },
+                  spaceBeforePt: { type: "number", description: "段前间距磅值" },
+                  spaceAfterPt: { type: "number", description: "段后间距磅值" }
+                },
+                description: "写入文本的精细化排版参数"
+              }
+            },
+            required: ["content"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_format_document",
+          description: "Word 文档精细化排版。支持国家标准公文规范、现代商务排版、指定单段/段落范围/选区/全篇的字体、字号、加粗、缩进与行间距。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              target: { type: "string", enum: ["all", "paragraph", "range", "selection"], description: "格式化目标范围: 'all'(全文，默认), 'paragraph'(单个段落), 'range'(段落范围), 'selection'(当前选区)" },
+              paragraphIndex: { type: "integer", description: "当 target 为 'paragraph' 时的段落索引号" },
+              paragraphRange: { type: "array", items: { type: "integer" }, description: "当 target 为 'range' 时的段落范围 [start, end]" },
+              preset: {
+                type: "string",
+                enum: ["gov_standard", "business_modern", "academic", "custom"],
+                description: "排版预设: 'gov_standard'(国家标准公文规范：仿宋三号+28磅行距+首行缩进2字符+公文页边距), 'business_modern'(现代商务精美排版), 'custom'(自定义设置)"
+              },
+              fontName: { type: "string", description: "自定义字体名称，如 '仿宋_GB2312' 或 '微软雅黑'" },
+              fontSizePt: { type: "number", description: "自定义字号(磅值)，如 16(三号) 或 12" },
+              bold: { type: "boolean", description: "是否加粗" },
+              italic: { type: "boolean", description: "是否斜体" },
+              lineSpacingPt: { type: "number", description: "自定义固定行间距(磅值)，如 28" },
+              firstLineIndentChars: { type: "number", description: "首行缩进字符数，如 2" },
+              spaceBeforePt: { type: "number", description: "段前磅值" },
+              spaceAfterPt: { type: "number", description: "段后磅值" },
+              alignment: { type: "integer", description: "对齐方式: 0(左对齐), 1(居中), 2(右对齐), 3(两端对齐)" },
+              margins: {
+                type: "object",
+                properties: {
+                  topMm: { type: "number", description: "上边距(毫米)" },
+                  bottomMm: { type: "number", description: "下边距(毫米)" },
+                  leftMm: { type: "number", description: "左边距(毫米)" },
+                  rightMm: { type: "number", description: "右边距(毫米)" }
+                }
+              }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_insert_table_of_contents",
+          description: "Word 智能目录生成。自动扫描全文各级标题（Heading 1-3），在文档开头或指定位置生成带点线前导符与页码的标准目录页。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              upperHeadingLevel: { type: "integer", description: "目录包含的最高标题级别，默认 1" },
+              lowerHeadingLevel: { type: "integer", description: "目录包含的最低标题级别，默认 3" },
+              insertLocation: { type: "string", enum: ["start", "selection"], description: "目录插入位置: 'start'(文档最前，默认), 'selection'(当前光标处)" },
+              includePageNumbers: { type: "boolean", description: "是否显示页码，默认 true" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_manage_table",
+          description: "Word 专业表格管理。支持结构透视(inspect)、三线表插入、安全动态扩容二维写入(write_matrix)、单元格独立排版与行列增删。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              action: {
+                type: "string",
+                enum: ["inspect", "insert", "update_data", "write_matrix", "format_cell", "add_row", "delete_row", "merge_cells"],
+                description: "操作类型: 'inspect'(透视行列数与全量数据), 'insert'(插入新三线表), 'update_data'/'write_matrix'(动态扩容安全写入二维矩阵), 'format_cell'(单元格底色/字体排版), 'add_row'(追加行), 'delete_row'(删除行), 'merge_cells'(合并单元格)"
+              },
+              tableIndex: { type: "integer", description: "目标表格索引序号(1-based)，默认 1" },
+              rows: { type: "integer", description: "行数（插入时使用）" },
+              columns: { type: "integer", description: "列数（插入时使用）" },
+              data: { type: "array", items: { type: "array" }, description: "填充到表格的二维数据矩阵" },
+              stylePreset: { type: "string", enum: ["mckinsey_three_line", "clean_minimal", "none"], description: "样式预设: 'mckinsey_three_line'(麦肯锡三线表，顶底粗线+表头细线+无内部竖线，默认)" },
+              repeatHeader: { type: "boolean", description: "跨页时是否自动重复表头首行，默认 true" },
+              cellRow: { type: "integer", description: "单元格行号(1-based)" },
+              cellColumn: { type: "integer", description: "单元格列号(1-based)" },
+              cellFormat: {
+                type: "object",
+                properties: {
+                  bold: { type: "boolean" },
+                  fontSizePt: { type: "number" },
+                  fontName: { type: "string" },
+                  backgroundColor: { type: "string", description: "十六进制底色，例如 '#F1F5F9'" }
+                },
+                description: "单元格排版参数"
+              },
+              rowIndex: { type: "integer", description: "删除或操作的行号" },
+              mergeRange: {
+                type: "object",
+                properties: {
+                  startRow: { type: "integer" },
+                  startCol: { type: "integer" },
+                  endRow: { type: "integer" },
+                  endCol: { type: "integer" }
+                },
+                description: "合并单元格范围"
+              }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_review_and_comments",
+          description: "Word 审阅与修订控制。支持开启/关闭修订记录模式（Track Changes）、一键接受/拒绝全部修订、插入与读取批注。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              action: {
+                type: "string",
+                enum: ["enable_track_changes", "disable_track_changes", "accept_all_revisions", "reject_all_revisions", "add_comment", "list_comments"],
+                description: "审阅动作"
+              },
+              commentText: { type: "string", description: "添加批注时的批注内容" },
+              author: { type: "string", description: "批注作者名称" }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_page_layout_and_watermark",
+          description: "Word 页面版式与水印设置。支持设置页眉页脚（支持奇偶页不同、首页不同）、注入倾斜半透明文字水印（如 '内部机密'）。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              headerText: { type: "string", description: "页眉文本内容" },
+              footerText: { type: "string", description: "页脚文本内容" },
+              watermarkText: { type: "string", description: "倾斜背景文字水印，例如 '内部机密 严禁外传'" },
+              differentFirstPage: { type: "boolean", description: "是否首页不同页眉页脚" },
+              differentOddEvenPages: { type: "boolean", description: "是否奇偶页不同页眉页脚" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_word_find_and_replace",
+          description: "Word 全局查找与精准替换。支持通配符、全字匹配、区分大小写以及指定替换文本的格式（防止加粗污染）。",
+          parameters: {
+            type: "object",
+            properties: {
+              documentName: { type: "string", description: "目标文档名称" },
+              searchQuery: { type: "string", description: "要搜索的文本" },
+              replaceText: { type: "string", description: "要替换为的新文本，不传则仅执行查找定位" },
+              matchCase: { type: "boolean", description: "是否区分大小写，默认 false" },
+              matchWholeWord: { type: "boolean", description: "是否全字匹配，默认 false" },
+              useWildcards: { type: "boolean", description: "是否使用通配符，默认 false" },
+              scope: { type: "string", enum: ["full", "selection"], description: "替换范围: 'full'(全文，默认), 'selection'(选区)" },
+              replaceFormatting: {
+                type: "object",
+                properties: {
+                  bold: { type: "boolean", description: "替换后文本是否加粗（明确设为 false 避免继承前文加粗）" },
+                  italic: { type: "boolean" },
+                  fontSizePt: { type: "number" },
+                  fontName: { type: "string" }
+                },
+                description: "指定替换后新文字的格式"
+              }
+            },
+            required: ["searchQuery"],
+            additionalProperties: false
+          }
+        }
+      },
+
+      // ==========================================
+      // PowerPoint (演示) 模块官方全能工具定义
+      // ==========================================
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_read_presentation",
+          description: "读取 PowerPoint 演示文稿的大纲架构、幻灯片列表、各页文本要点及演讲者备注。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "演示文稿名称，不传则默认当前活动文稿" },
+              includeNotes: { type: "boolean", description: "是否读取演讲者备注，默认 true" },
+              maxSlides: { type: "integer", description: "最多读取的幻灯片页数，默认 50" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_get_slide_shapes",
+          description: "【精准探测】深度获取指定幻灯片中所有形状的详细几何坐标、尺寸、文本内容、表格元数据及图层层级信息。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)，不传默认当前活动页" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_generate_deck",
+          description: "【杀手级能力】根据结构化 JSON 演讲大纲，一键批量生成整套 5~15 页专业商务演示胶片（封面页、2/3/4栏商业卡片页、原生图表页、结束页）。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              themeColor: { type: "string", description: "主题色十六进制值，如 '#0F4C81'(深蓝商务) 或 '#4B38B3'(科技紫)" },
+              themePreset: { type: "string", enum: ["business_blue", "tech_purple", "clean_light"], description: "主题配色预设" },
+              slides: {
+                type: "array",
+                description: "整套幻灯片规格清单",
+                items: {
+                  type: "object",
+                  properties: {
+                    layout: { type: "string", enum: ["title", "cards_2", "cards_3", "cards_4", "chart", "content", "end"], description: "页面版式布局" },
+                    title: { type: "string", description: "页面大标题" },
+                    subtitle: { type: "string", description: "副标题（封面页使用）" },
+                    bulletPoints: { type: "array", items: { type: "string" }, description: "普通内容页的要点列表" },
+                    cards: {
+                      type: "array",
+                      description: "商业卡片列表（cards_2 / cards_3 / cards_4 版式使用）",
+                      items: {
+                        type: "object",
+                        properties: {
+                          tag: { type: "string", description: "分类标签，如 'CORE', 'PHASE 1'" },
+                          title: { type: "string", description: "卡片主标题" },
+                          description: { type: "string", description: "卡片描述详情" },
+                          accentColor: { type: "string", description: "卡片强调色" }
+                        },
+                        required: ["title", "description"]
+                      }
+                    },
+                    chart: {
+                      type: "object",
+                      description: "原生图表规格（chart 版式使用）",
+                      properties: {
+                        chartType: { type: "string", enum: ["column", "line", "bar", "pie"], description: "图表类型" },
+                        title: { type: "string", description: "图表标题" },
+                        categories: { type: "array", items: { type: "string" }, description: "横轴分类标签" },
+                        series: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              name: { type: "string" },
+                              values: { type: "array", items: { type: "number" } }
+                            },
+                            required: ["name", "values"]
+                          }
+                        }
+                      }
+                    },
+                    notes: { type: "string", description: "本页演讲者备注 (Speaker Notes)" }
+                  },
+                  required: ["layout", "title"]
+                }
+              }
+            },
+            required: ["slides"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_manage_slides",
+          description: "PowerPoint 幻灯片综合管理。支持单页幻灯片的增、删、移动顺序、复制克隆及背景颜色设置。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              action: { type: "string", enum: ["add", "delete", "move", "duplicate", "set_background"], description: "操作类型" },
+              slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
+              targetIndex: { type: "integer", description: "移动操作时的目标页码" },
+              layoutIndex: { type: "integer", description: "添加幻灯片时的版式序号(默认 12 空白版式)" },
+              backgroundColor: { type: "string", description: "设置背景时的十六进制颜色，如 '#0F172A'" }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_manage_table",
+          description: "【专精表格控制器】在 PowerPoint 中创建商业表格、批量注入二维数据、读取表格、读写单元格及应用专业主题色样式。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
+              action: { type: "string", enum: ["create_table", "read_table", "set_table_data", "set_cell_text", "style_table"], description: "表格操作类型" },
+              shapeId: { description: "表格所在的形状 ID", oneOf: [{ type: "string" }, { type: "integer" }] },
+              tableIndex: { type: "integer", description: "页内第几个表格(默认 1)" },
+              rows: { type: "integer", description: "新建表格行数" },
+              columns: { type: "integer", description: "新建表格列数" },
+              left: { type: "number", description: "X 坐标" },
+              top: { type: "number", description: "Y 坐标" },
+              width: { type: "number", description: "宽度" },
+              height: { type: "number", description: "高度" },
+              data: { type: "array", items: { type: "array", items: { type: "string" } }, description: "二维表格数据数组" },
+              row: { type: "integer", description: "目标行号(1-based)" },
+              column: { type: "integer", description: "目标列号(1-based)" },
+              text: { type: "string", description: "单元格文字内容" },
+              fontSize: { type: "number", description: "字号大小" },
+              fontColor: { type: "string", description: "字体颜色十六进制" },
+              fontBold: { type: "boolean", description: "是否加粗" },
+              fillColor: { type: "string", description: "单元格填充底色十六进制" },
+              headerFillColor: { type: "string", description: "表头背景底色十六进制(默认 '#0F4C81')" },
+              headerFontSize: { type: "number", description: "表头字体字号大小(默认 16)" },
+              bodyFontSize: { type: "number", description: "数据行正文字号大小(默认 14)" },
+              borderColor: { type: "string", description: "表格边框线颜色十六进制" },
+              columnWidths: { type: "array", items: { type: "number" }, description: "各列宽度数组(磅值)" },
+              rowHeights: { type: "array", items: { type: "number" }, description: "各行高度数组(磅值)" },
+              zebra: { type: "boolean", description: "是否启用交替斑马纹底色" }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_add_business_cards",
+          description: "在指定幻灯片自动计算排版 2 栏、3 栏、4 栏现代化商业信息卡片（圆角底卡、强调色顶线、分类 Tag、标题与正文）。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
+              columnCount: { type: "integer", enum: [2, 3, 4], description: "卡片分栏数量(2, 3 或 4)" },
+              cards: {
+                type: "array",
+                description: "卡片数据数组",
+                items: {
+                  type: "object",
+                  properties: {
+                    tag: { type: "string", description: "顶部小标签" },
+                    title: { type: "string", description: "卡片标题" },
+                    description: { type: "string", description: "卡片正文" },
+                    accentColor: { type: "string", description: "强调色" }
+                  },
+                  required: ["title", "description"]
+                }
+              },
+              topY: { type: "number", description: "卡片顶端 Y 坐标(默认 100)" },
+              cardHeight: { type: "number", description: "卡片高度(默认 260)" }
+            },
+            required: ["cards"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_insert_native_chart",
+          description: "在 PPT 中插入原生可交互矢量商业图表（柱状图、折线图、条形图、饼图）并自动绑定填充结构化业务数据。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
+              chartType: { type: "string", enum: ["column", "line", "bar", "pie", "column_stacked", "bar_stacked", "bar_of_pie"], description: "图表类型: 'column'(柱状图), 'line'(折线图), 'bar'(条形图), 'pie'(饼图), 'column_stacked'(堆积柱形), 'bar_of_pie'(复合条饼图)" },
+              title: { type: "string", description: "图表标题" },
+              hasLegend: { type: "boolean", description: "是否显示图例" },
+              showDataLabels: { type: "boolean", description: "是否显示数据标签" },
+              categories: { type: "array", items: { type: "string" }, description: "分类横轴项目，例如 ['Q1', 'Q2', 'Q3', 'Q4']" },
+              series: {
+                type: "array",
+                description: "数据系列",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string", description: "系列名称，例如 '营收 (万元)'" },
+                    values: { type: "array", items: { type: "number" }, description: "数值列表" },
+                    chartType: { type: "string", description: "单个系列的图表形态，例如 'line_markers', 'line', 'column'" },
+                    axisGroup: { type: "integer", description: "坐标轴分组: 1为主坐标轴，2为次坐标轴" },
+                    color: { type: "string", description: "系列十六进制颜色值，例如 '#FF7F00'" },
+                    hasDataLabels: { type: "boolean", description: "该系列是否单独启用数据标签" }
+                  },
+                  required: ["name", "values"]
+                }
+              },
+              left: { type: "number", description: "X 坐标" },
+              top: { type: "number", description: "Y 坐标" },
+              width: { type: "number", description: "宽度" },
+              height: { type: "number", description: "高度" }
+            },
+            required: ["categories", "series"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_manage_shapes_and_media",
+          description: "【全功能排版与形状控制器】添加文本框、形状、修改已有形状位置与尺寸、智能互换两个形状位置(swap_shapes)、设置图层层级及对齐分布。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              slideIndex: { type: "integer", description: "目标幻灯片页码" },
+              action: { type: "string", enum: ["add_textbox", "add_shape", "update_shape", "swap_shapes", "set_z_order", "align_shapes", "delete_shape"], description: "操作类型" },
+              shapeType: { type: "string", enum: ["rectangle", "rounded_rectangle", "oval", "arrow"], description: "形状类型" },
+              shapeId: { description: "形状 ID / 标识", oneOf: [{ type: "string" }, { type: "integer" }] },
+              shapeId1: { description: "互换位置或对齐时的第一个形状 ID", oneOf: [{ type: "string" }, { type: "integer" }] },
+              shapeId2: { description: "互换位置或对齐时的第二个形状 ID", oneOf: [{ type: "string" }, { type: "integer" }] },
+              shapeIds: { type: "array", items: { oneOf: [{ type: "string" }, { type: "integer" }] }, description: "批量对齐时的形状 ID 列表" },
+              alignType: { type: "string", enum: ["left", "center", "right", "top", "middle", "bottom"], description: "对齐方式" },
+              zOrderAction: { type: "string", enum: ["bring_to_front", "send_to_back", "bring_forward", "send_backward"], description: "图层层级调整方式" },
+              text: { type: "string", description: "文本内容" },
+              fontSize: { type: "number", description: "字号大小" },
+              fontColor: { type: "string", description: "字体颜色十六进制" },
+              fontBold: { type: "boolean", description: "是否加粗" },
+              alignment: { type: "string", enum: ["left", "center", "right", "justify"], description: "段落水平对齐" },
+              left: { type: "number", description: "X 坐标" },
+              top: { type: "number", description: "Y 坐标" },
+              width: { type: "number", description: "宽度" },
+              height: { type: "number", description: "高度" },
+              rotation: { type: "number", description: "旋转角度" },
+              fillColor: { type: "string", description: "填充颜色十六进制" },
+              lineColor: { type: "string", description: "边框线条颜色十六进制" }
+            },
+            required: ["action"],
+            additionalProperties: false
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "wps_ppt_capture_slide_preview",
+          description: "【多模态自检】将指定幻灯片导出为高保真图片，供多模态大模型视觉核查排版是否重叠、排版是否美观对齐。",
+          parameters: {
+            type: "object",
+            properties: {
+              presentationName: { type: "string", description: "目标文稿名称" },
+              slideIndex: { type: "integer", description: "要截图的幻灯片页码(1-based)，不传默认第1页" }
+            },
+            required: [],
+            additionalProperties: false
+          }
+        }
+      }
+    ];
+  }
+
+  /**
+   * 生成供 Dify / Coze 扣子 / GPTs 一键导入的 OpenAPI 3.0 规范
+   */
+  public static getOpenApiSchema(hostUrl: string = "http://127.0.0.1:19890") {
+    return {
+      openapi: "3.0.1",
+      info: {
+        title: "WPS Bridge Universal API",
+        description: "让任意 AI Agent (豆包、千问、DeepSeek、Dify、Coze) 直接理解并操作当前打开的 WPS Excel 表格",
+        version: "1.0.0"
+      },
+      servers: [
+        {
+          url: hostUrl,
+          description: "本地 WPS Bridge 守护进程"
+        }
+      ],
+      paths: {
+        "/api/v1/tool/call": {
+          post: {
+            summary: "执行 WPS 操作工具",
+            description: "统一执行 WPS 读写、大纲检索、选区定位、格式修改与撤销操作",
+            operationId: "callWpsTool",
+            requestBody: {
+              required: true,
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      name: {
+                        type: "string",
+                        description: "工具名称，如 wps_get_workspace_summary, wps_patch_cells, wps_read_range 等"
+                      },
+                      arguments: {
+                        type: "object",
+                        description: "传给该工具的具体参数"
+                      },
+                      clientName: {
+                        type: "string",
+                        description: "调用该接口的 Agent 名称（用于留痕显示），如 '豆包Agent', '通义千问', 'Dify'"
+                      }
+                    },
+                    required: ["name"]
+                  }
+                }
+              }
+            },
+            responses: {
+              "200": {
+                description: "操作成功返回",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: {
+                        success: { type: "boolean" },
+                        data: {},
+                        error: { type: "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/v1/status": {
+          get: {
+            summary: "获取当前 WPS 连接与表格状态",
+            operationId: "getBridgeStatus",
+            responses: {
+              "200": {
+                description: "状态信息"
+              }
+            }
+          }
+        }
+      }
+    };
+  }
+}

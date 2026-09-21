@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest>
+  <name>Office Agent Bridge</name>
+  <description>Universal AI Bridge for Office &amp; WPS (Cursor, Claude, WorkBuddy &amp; MCP Integration)</description>
+  <version>2.0.0</version>
+  <publisher>Antigravity</publisher>
+  <et>
+    <ribbon>ribbon.xml</ribbon>
+    <url>index.html</url>
+  </et>
+  <wps>
+    <ribbon>ribbon.xml</ribbon>
+    <url>index.html</url>
+  </wps>
+  <wpp>
+    <ribbon>ribbon.xml</ribbon>
+    <url>index.html</url>
+  </wpp>
+</manifest>

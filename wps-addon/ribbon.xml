@@ -1,0 +1,13 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="OnRibbonLoaded">
+  <ribbon>
+    <tabs>
+      <tab id="OfficeAgentBridgeTab" label="Office Agent (AI)">
+        <group id="BridgeControlGroup" label="AI 协同中枢">
+          <button id="btnBridgeStatus" label="Agent 状态" onAction="OnActionBridgeStatus" size="large" imageMso="ServerConnection" />
+          <button id="btnForceReconnect" label="重新连接" onAction="OnActionForceReconnect" size="large" imageMso="Refresh" />
+          <button id="btnUndoAiAction" label="撤销 AI 修改" onAction="OnActionUndoAiAction" size="large" imageMso="Undo" />
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

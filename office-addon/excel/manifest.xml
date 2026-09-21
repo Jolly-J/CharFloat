@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+  xsi:type="TaskPaneApp">
+  <Id>55555555-aaaa-bbbb-cccc-777777777777</Id>
+  <Version>2.0.0.0</Version>
+  <ProviderName>Antigravity</ProviderName>
+  <DefaultLocale>zh-CN</DefaultLocale>
+  <DisplayName DefaultValue="Office Agent Bridge (Excel AI)" />
+  <Description DefaultValue="连接 AI Agent (Cursor/Claude/WorkBuddy) 实时操纵当前打开的 Excel 工作簿" />
+  <IconUrl DefaultValue="https://localhost:19891/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:19891/assets/icon-80.png" />
+  <SupportUrl DefaultValue="https://github.com/Antigravity/WPS-Bridge" />
+  <AppDomains>
+    <AppDomain>https://localhost:19891</AppDomain>
+    <AppDomain>https://127.0.0.1:19891</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Workbook" />
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="ExcelApi" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://localhost:19891/office-addon/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="WpsBridge.Group">
+                <Label resid="WpsBridge.GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="WpsBridge.OpenPane">
+                  <Label resid="WpsBridge.OpenPane.Label" />
+                  <Supertip>
+                    <Title resid="WpsBridge.OpenPane.Label" />
+                    <Description resid="WpsBridge.OpenPane.Tooltip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>WpsBridge.ExcelTaskpane</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:19891/assets/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:19891/assets/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:19891/assets/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:19891/office-addon/taskpane.html" />
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Antigravity/WPS-Bridge" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Office Agent Bridge AI 协同就绪" />
+        <bt:String id="WpsBridge.GroupLabel" DefaultValue="Office Agent (AI)" />
+        <bt:String id="WpsBridge.OpenPane.Label" DefaultValue="Agent 协同面板" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="打开面板以将当前 Excel 工作簿与本机 Office Agent Bridge 服务连接。" />
+        <bt:String id="WpsBridge.OpenPane.Tooltip" DefaultValue="打开 Office Agent Bridge AI 协同控制面板。" />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

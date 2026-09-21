@@ -1,0 +1,376 @@
+/* WPS Bridge Office Add-in - 现代轻量商务风 */
+:root {
+  --bg: #f8f9fb;
+  --card-bg: #ffffff;
+  --text: #1d2129;
+  --text-secondary: #4e5969;
+  --text-muted: #86909c;
+  --border: #e5e6eb;
+  --accent: #165dff;
+  --accent-light: #e8f3ff;
+  --green: #00b42a;
+  --green-bg: #e8ffea;
+  --amber: #ff7d00;
+  --amber-bg: #fff7e8;
+  --red: #f53f3f;
+  --red-bg: #ffece8;
+  --radius: 10px;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141414;
+    --card-bg: #1f1f1f;
+    --text: #f2f3f5;
+    --text-secondary: #c9cdd4;
+    --text-muted: #86909c;
+    --border: #2e2e2e;
+    --accent: #3c7eff;
+    --accent-light: rgba(60, 126, 255, 0.15);
+    --green: #23c343;
+    --green-bg: rgba(35, 195, 67, 0.15);
+    --amber: #ff9a2e;
+    --amber-bg: rgba(255, 154, 46, 0.15);
+    --red: #f76560;
+    --red-bg: rgba(247, 101, 96, 0.15);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 14px;
+}
+
+/* 顶部导航与品牌 */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--green-bg);
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-info h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text);
+}
+
+.brand-info .sub-text {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* 状态标签与呼吸圆点 */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.status-badge.connecting {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.status-badge.connected {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.status-badge.error {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  animation: pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+/* 主体内容区 */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.card-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.time-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* 文档信息区 */
+.doc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc-item-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.item-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.item-val {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.item-val.primary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.item-val.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--accent);
+}
+
+/* 协同动态列表 */
+.feed-content {
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 10px;
+  color: var(--text-muted);
+  text-align: center;
+  gap: 8px;
+}
+
+.feed-empty p {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.feed-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 11px;
+  animation: slideIn 0.25s ease-out;
+}
+
+.feed-item-action {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.feed-item-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 底部操作 */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s ease;
+}
+
+.btn-reconnect {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 5px 10px;
+}
+
+.btn-reconnect:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.btn-text {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 4px 6px;
+}
+
+.btn-text:hover {
+  color: var(--text);
+}
+
+/* 日志抽屉 */
+.log-drawer {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-top: 10px;
+  padding: 10px;
+  max-height: 180px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: max-height 0.25s ease, opacity 0.25s ease;
+}
+
+.log-drawer.collapsed {
+  max-height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  opacity: 0;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.btn-clean {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.log-box {
+  flex: 1;
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
