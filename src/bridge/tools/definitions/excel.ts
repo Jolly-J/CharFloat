@@ -1047,7 +1047,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             bold: { type: "boolean", description: "kind=wordart 时是否加粗" },
             italic: { type: "boolean", description: "kind=wordart 时是否斜体" },
             wordArtPreset: { type: "number", description: "kind=wordart 的艺术字预设编号（msoTextEffect），默认 0" },
-            sheetName: { type: "string", description: "工作表名称" }
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc },
           },
           required: [],
           additionalProperties: false
@@ -1064,7 +1065,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           properties: {
             shapeNames: { type: "array", description: "要组合的形状名列表（用 list_shapes 或 add_shape 返回的 name）" },
             groupName: { type: "string", description: "组合后的名字，便于后续定位" },
-            sheetName: { type: "string", description: "工作表名称" }
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc },
           },
           required: ["shapeNames"],
           additionalProperties: false
@@ -1082,7 +1084,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             shapeName: { type: "string", description: "要解散的组合名（组本身的名字）" },
             name: { type: "string", description: "要解散的组合名（与 shapeName 等价，二选一）" },
             shapeId: { type: "string", description: "或用形状 id 定位" },
-            sheetName: { type: "string", description: "工作表名称" }
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc },
           },
           required: [],
           additionalProperties: false
@@ -1101,7 +1104,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             name: { type: "string", description: "目标形状名（与 shapeName 等价，二选一）" },
             shapeId: { type: "string", description: "或用形状 id 定位" },
             zOrder: { type: "string", enum: ["bringToFront", "sendToBack", "bringForward", "sendBackward"], description: "层级调整方式" },
-            sheetName: { type: "string", description: "工作表名称" }
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc },
           },
           required: ["zOrder"],
           additionalProperties: false
@@ -1120,7 +1124,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             shapeId: { type: "string", description: "或用形状 id 定位" },
             format: { type: "string", enum: ["png", "jpeg", "gif", "bmp", "svg"], description: "图片格式，默认 png" },
             scale: { type: "number", description: "缩放倍数，默认 1" },
-            sheetName: { type: "string", description: "工作表名称" }
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc },
           },
           required: [],
           additionalProperties: false
