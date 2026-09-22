@@ -73,6 +73,8 @@ const HANDLERS: Record<string, Handler> = {
   "wps_ungroup_shapes": excel.ungroupShapes,
   "wps_set_shape_zorder": excel.setShapeZOrder,
   "wps_export_shape_image": excel.exportShapeImage,
+  "wps_list_shapes": excel.listShapes,
+  "wps_update_shape": excel.updateShape,
   "wps_clear_range": excel.clearRange,
   "wps_auto_fit_columns": excel.autoFitColumns,
   "wps_read_range": excel.readRange,

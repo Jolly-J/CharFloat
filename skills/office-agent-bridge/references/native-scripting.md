@@ -83,6 +83,32 @@ AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针�
 - **返回值嵌套过深会丢属性**（[ISS-56](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：原实现 `depth > 2` 直接 `String(val)`，三层以上属性静默变 `undefined`。**已修为**：上限放宽到 6 层，超限节点写成显式占位符并返回 `truncated: true` 与 `truncatedPaths`（不再静默丢数据）。稳妥做法仍是**返回扁平的字符串/数字数组**，或自己 `JSON.stringify` 成字符串再返回。
 - **脚本成功 ≠ 写入生效**：Bridge 的包装层可能返回 `success`。调用方必须同时检查 `returnValue` 里的读回值和 `failed`/`pendingCount`，本文档末尾给了约定结构。
 
+## Excel / 表格：矢量绘图（优先用工具，不要手写脚本）
+
+**表格也能画矢量图**，而且 WPS 与 Microsoft 的能力**不一样**——这一点直接决定你能画到什么程度：
+
+| 能力 | WPS 表格 | Microsoft Excel |
+|---|---|---|
+| 几何形状 / 文本框 | ✅ | ✅ |
+| **直线连接符** | ✅ | ❌ 报「当前对象不允许此操作」 |
+| **艺术字**（`AddTextEffect`） | ✅ | ❌ 无此 API |
+| **分组 / 解组** | ✅ `Shapes.Range([...]).Group()` | ❌ 经工具未打通 |
+| 层级调整 | ✅ | ✅ |
+| 形状导图 | ❌ 未实现 | ✅ `getAsImage` |
+| SVG 形状 | 未实测 | ❌ 本机无 `addSvg` |
+
+**结论：要画复杂矢量图（信息图、流程图、带艺术字标题的看板），WPS 表格比 Microsoft Excel 更能画。**
+
+用工具（`host` 传 `wps` 或 `microsoft`）：
+
+- `excel_add_shape` —— `kind` 可选 `geometric` / `textBox` / `line` / `wordart`（艺术字，WPS）；几何形状名见 `shapeType`（`rectangle` / `rounded_rectangle` / `oval` / `arrow_right` / `flow_chart_decision` 等 30 种，**写错会在错误信息里列出可用值**）
+- `excel_list_shapes` —— **画完必须读回**：返回每个形状的名字/类型/位置/尺寸/旋转/填充色/线条色线宽/文字/所在单元格
+- `excel_update_shape` —— 移动/改尺寸/旋转/改色/改文字/改名，`action:"delete"` 删除
+- `excel_group_shapes` / `excel_ungroup_shapes` —— 分组解组（WPS 可用）
+- `excel_set_shape_zorder` —— 层级：`bringToFront` / `sendToBack` / `bringForward` / `sendBackward`
+
+**构图要点**：形状位置用**磅值**（`left/top/width/height`），不是单元格坐标；先画底层的分组框与背景条，再叠内容，最后用 `list_shapes` 核对每个形状的落位——**表上的形状没有"网格"约束，不读回很容易叠在一起**。
+
 ## Excel：可编辑矢量绘图
 
 Shapes 是独立于单元格和统计图表的绘图层，可用于流程图、标注、信息卡片。下例是 WPS 对象模型示例，使用前检查当前宿主的 Shapes API。坐标为 pt，依据目标单元格 Left/Top/Width/Height 定位，不是行列号或屏幕像素。
