@@ -115,7 +115,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             mode: { type: "string", enum: ["summary", "cells"], description: "返回模式，默认 summary" },
             include: {
               type: "array",
-              items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders"] },
+              items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation"] },
               description: "只返回指定样式字段；不传时返回常用字段"
             },
             maxCells: { type: "number", description: "cells 模式最多展开的单元格数，默认 100，最大 500" }

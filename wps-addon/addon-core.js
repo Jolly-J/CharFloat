@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 1bf1d3fa6f84c3acca74bcff83cf66c197116466f7671b9cc6b4011a7f3b8107
+// ADDON_BUILD_FINGERPRINT: dbb561dbef68461839595cd75e8a682f9d9ddae015e72153dadb0c2763ee0bdc
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "1bf1d3fa6f84c3acca74bcff83cf66c197116466f7671b9cc6b4011a7f3b8107";
+  var ADDON_BUILD_FINGERPRINT = "dbb561dbef68461839595cd75e8a682f9d9ddae015e72153dadb0c2763ee0bdc";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -2067,8 +2067,22 @@
       else if (horizontalAlignment === "left") range.HorizontalAlignment = -4131; // xlLeft
       else if (horizontalAlignment === "right") range.HorizontalAlignment = -4152; // xlRight
     }
-    if (verticalAlignment === "center") {
-      range.VerticalAlignment = -4108; // xlCenter
+    if (verticalAlignment !== undefined && verticalAlignment !== null && verticalAlignment !== "") {
+      // xlTop=-4160 / xlCenter=-4108 / xlBottom=-4107 / xlJustify=-4130
+      const VA = { top: -4160, center: -4108, middle: -4108, bottom: -4107, justify: -4130 };
+      const code = VA[String(verticalAlignment).toLowerCase()];
+      if (code === undefined) {
+        warnings.push(`不认识的 verticalAlignment: ${verticalAlignment}（可用 top / center / bottom / justify）`);
+      } else {
+        range.VerticalAlignment = code;
+        // **读回核对**：原先只处理 center，top/bottom 直接落空，
+        // 而返回体照样回显请求值——"谎报成功"（excel-tester H-2）。
+        let actual = null;
+        try { actual = Number(range.VerticalAlignment); } catch (e) {}
+        if (actual !== null && actual !== code) {
+          warnings.push(`verticalAlignment 未生效：请求 ${verticalAlignment}(${code})，宿主读回 ${actual}`);
+        }
+      }
     }
 
     // 4. 换行与行高
@@ -2473,7 +2487,25 @@
         expr = `=ISNUMBER(SEARCH("${String(containsText).replace(/"/g, '""')}",${anchor}))`;
       }
       if (!expr) throw new Error("formula 规则必须提供 formula1（如 '=A1>100'）");
-      const fx = range.FormatConditions.Add(2, 0, String(expr)); // 2=xlExpression, 0=xlNone
+      // ⚠️ **必须先把活动单元格移到区域左上角**：
+      // `FormatConditions.Add` 的公式用**相对引用**，基准是**当前活动单元格**而不是区域左上角。
+      // 若活动单元格在别处，公式会被整体平移——同一调用随环境变语义，规则看着加上了却完全不生效
+      // （excel-tester H-1：活动单元格=A1 时，给 M1:M5 加的规则变成 =ISNUMBER(SEARCH("特价",Y1))）。
+      let fx;
+      try {
+        // 把活动单元格移到区域左上角，公式相对引用才以它为基准
+        range.Cells(1, 1).Select();
+      } catch (e) {
+        warnings.push(`无法把活动单元格移到规则区域左上角（${e.message}），公式相对引用可能被平移`);
+      }
+      fx = range.FormatConditions.Add(2, 0, String(expr)); // 2=xlExpression, 0=xlNone
+      // 读回公式，核对它是否被平移（这是 H-1 的判据）
+      try {
+        const readExpr = String(range.FormatConditions.Item(range.FormatConditions.Count).Formula1);
+        if (readExpr && readExpr !== String(expr) && String(expr).indexOf("ISNUMBER") >= 0) {
+          warnings.push(`规则公式被平移：请求 ${expr}，宿主读回 ${readExpr}`);
+        }
+      } catch (e) {}
       if (backgroundColor) {
         const bgc = hexToExcelColor(backgroundColor);
         if (bgc !== null) fx.Interior.Color = bgc;
@@ -2560,6 +2592,10 @@
     }
 
     win.FreezePanes = false;
+    // 越界值校验：原先 `freezeRowIndex:0` 会走 else 分支导致 SplitRow 残留旧值 → 随机冻结（L-2）
+    if (freezeRowIndex !== undefined && freezeRowIndex !== null && !(Number(freezeRowIndex) >= 1)) {
+      throw new Error(`freezeRowIndex 必须是 >= 1 的整数（收到 ${freezeRowIndex}）；不冻传 unfreeze:true`);
+    }
     if (freezeRowIndex && freezeRowIndex > 1) {
       win.SplitRow = freezeRowIndex - 1;
     }
@@ -5470,8 +5506,23 @@
       case "rename": {
         if (!newName) throw new Error("rename 操作必须提供 newName");
         const oldName = sheet.Name;
+        // 目标名已存在时宿主会静默失败或改名成别的——先查存在性（excel-tester M-1）
+        const exists = (() => {
+          try {
+            for (let i = 1; i <= Number(wb.Worksheets.Count); i++) {
+              if (String(wb.Worksheets.Item(i).Name) === String(newName)) return true;
+            }
+          } catch (e) {}
+          return false;
+        })();
+        if (exists) throw new Error(`工作表名 "${newName}" 已被占用，改名未执行（原表仍是 "${oldName}"）`);
         sheet.Name = newName;
-        return { success: true, workbookName: wb.Name, oldName, newName, message: `工作表 [${oldName}] 已成功重命名为 [${newName}]` };
+        // 读回核对：宿主改名可能静默不生效（excel-tester M-1）
+        const actual = (() => { try { return String(sheet.Name); } catch (e) { return null; } })();
+        if (actual !== String(newName)) {
+          return { success: false, workbookName: wb.Name, oldName, newName, actualName: actual, warnings: [`改名未生效：请求 "${newName}"，宿主读回 "${actual}"`], message: `工作表改名未生效` };
+        }
+        return { success: true, workbookName: wb.Name, oldName, newName, actualName: actual, warnings: [], message: `工作表 [${oldName}] 已重命名为 [${newName}]` };
       }
       case "move": {
         if (!targetIndex) throw new Error("move 操作必须提供 targetIndex (1-indexed)");
@@ -5494,8 +5545,18 @@
         return { success: true, workbookName: wb.Name, sheetName: sheet.Name, protected: true, message: `工作表 [${sheet.Name}] 已锁定保护` };
       }
       case "unprotect": {
-        sheet.Unprotect(password || undefined);
-        return { success: true, workbookName: wb.Name, sheetName: sheet.Name, protected: false, message: `工作表 [${sheet.Name}] 已解除锁定保护` };
+        // ⚠️ 密码错误时宿主**不抛异常也不解锁**，原实现照样返回 protected:false —— 谎报成功
+        // （excel-tester M-2）。改为读回 ProtectContents 核对。
+        try { sheet.Unprotect(password === undefined ? undefined : String(password)); }
+        catch (e) { return { success: false, workbookName: wb.Name, sheetName: sheet.Name, hostError: e.message, warnings: [`解除保护失败: ${e.message}`], message: `工作表 [${sheet.Name}] 解除保护失败` }; }
+        let stillProtected = null;
+        try { stillProtected = Boolean(sheet.ProtectContents); } catch (e) {}
+        if (stillProtected === true) {
+          return { success: false, workbookName: wb.Name, sheetName: sheet.Name, protected: true,
+            warnings: [password === undefined ? "工作表仍处于保护状态：可能设有密码，请传入 password" : "工作表仍处于保护状态：密码可能不正确"],
+            message: `工作表 [${sheet.Name}] 仍处于保护状态（未解除）` };
+        }
+        return { success: true, workbookName: wb.Name, sheetName: sheet.Name, protected: false, warnings: [], message: `工作表 [${sheet.Name}] 已解除锁定保护` };
       }
       default:
         throw new Error(`未知的 Sheet 操作: ${action} (支持 rename, move, tab_color, protect, unprotect)`);
