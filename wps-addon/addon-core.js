@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: e58733976a801a1923a0ac084f1d005b02ac81d3bb3bcb8020b444129bc0643c
+// ADDON_BUILD_FINGERPRINT: 4f7b62fc97da92ff72b884f220c97beed6e8165ff6036b6d6032174720e466c5
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "e58733976a801a1923a0ac084f1d005b02ac81d3bb3bcb8020b444129bc0643c";
+  var ADDON_BUILD_FINGERPRINT = "4f7b62fc97da92ff72b884f220c97beed6e8165ff6036b6d6032174720e466c5";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -3828,7 +3828,8 @@
       const actualAll = states.length ? states.every(Boolean) : null;
       const actualNone = states.length ? states.every(v => !v) : null;
       applied.showDataLabels = want;
-      applied.dataLabelsActually = want ? actualAll : actualNone;
+      // 名字直说含义："实际状态与请求一致"，避免被读成"标签是开着的"
+      applied.dataLabelsMatchRequest = want ? actualAll : actualNone;
       if (states.length && (want ? !actualAll : !actualNone)) {
         warnings.push(`数据标签**未按请求生效**：请求 ${want}，各系列实际为 [${states.join(", ")}]`);
       }
