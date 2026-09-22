@@ -179,6 +179,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
         parameters: {
           type: "object",
           properties: {
+            fontName: { type: "string", description: "字体名称，如 '微软雅黑'、'等线'（宿主 Font.Name）" },
             address: { type: "string", description: "需要格式化的目标区域（例如 'A1:E1' 用于标题合并，'B4:H4' 用于表头，'C5:D20' 用于数值列）" },
             sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
             workbookName: { type: "string", description: ctx.wbDesc },
@@ -242,7 +243,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
               enum: ["less_than", "greater_than", "equal", "between"],
               description: "当 ruleType='cell_value' 时的比较关系: 'less_than'(小于指定值), 'greater_than'(大于指定值), 'equal'(等于), 'between'(在两个值之间)"
             },
-            formula1: { type: "string", description: "比较阈值1。例如良率低于 90% 告警时填 '0.9'，小于均值 85% 时填 '0.85'" },
+            formula1: { type: "string", description: "比较阈值1。例如良率低于 90% 告警时填 '0.9'，小于均值 85% 时填 '0.85'。⚠️ 比较值就放这个参数——没有 value1/value2，Excel/VBA 习惯的 value1 在本工具叫 formula1" },
             formula2: { type: "string", description: "比较阈值2，仅在 operator='between' 时需要提供" },
             backgroundColor: { type: "string", description: "命中规则时的背景高亮颜色（例如异常浅红告警底色 '#FEE2E2'，优秀达成浅绿底色 '#DCFCE7'）" },
             fontColor: { type: "string", description: "命中规则时的文字高亮颜色（例如异常文字深红 '#991B1B'，优秀文字深绿 '#166534'）" },

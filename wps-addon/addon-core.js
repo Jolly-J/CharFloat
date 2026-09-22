@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 383c1091856a65668f7368752f04330ff3da3fd4f5051db735f6cba118ddb7db
+// ADDON_BUILD_FINGERPRINT: 6e817b0e81b75d5b86afad196dd186cb1a8c1a62fa5f28bf8c3eae60a0ac9bc0
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "383c1091856a65668f7368752f04330ff3da3fd4f5051db735f6cba118ddb7db";
+  var ADDON_BUILD_FINGERPRINT = "6e817b0e81b75d5b86afad196dd186cb1a8c1a62fa5f28bf8c3eae60a0ac9bc0";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -4710,10 +4710,21 @@ case "ppt_read_presentation":
     // 从未保存过的新工作簿（Path 为空）调 Save() 会失败或弹"另存为"——如实告知而非报成功（excel-tester L-4）
     let pathBefore = "";
     try { pathBefore = String(wb.Path || ""); } catch (e) {}
+    // ⚠️ **必须关掉宿主对话框**：真机踩到——`Save()` 会弹模态框（格式兼容/云同步之类），
+    // 没人点它就一直卡着，`Saved` 也不会变；使用者点了"取消"就表现为
+    // 「Save() 没抛错，但 Saved 仍是 false、磁盘上没有文件」。
+    // 删表（deleteWorksheet）与建簿（createWorkbook）的路径都关了对话框，**保存这条此前漏了**。
+    const prevAlerts = (() => { try { return app.DisplayAlerts; } catch (e) { return null; } })();
+    try { app.DisplayAlerts = false; } catch (e) {}
     try { wb.Save(); }
     catch (e) {
       return { success: false, workbookName: wb.Name, hostError: e.message, warnings: [`保存失败: ${e.message}`],
         message: `工作簿 [${wb.Name}] 保存失败${pathBefore === "" ? "（该工作簿从未保存过，请先用 save_as 指定路径）" : ""}` };
+    }
+    finally {
+      // 一定要恢复，否则后续所有宿主提示都被静默吞掉
+      if (prevAlerts !== null) { try { app.DisplayAlerts = prevAlerts; } catch (e) {} }
+      else { try { app.DisplayAlerts = true; } catch (e) {} }
     }
     // 读回是否真的落盘（Saved 标志）
     let savedFlag = null;
