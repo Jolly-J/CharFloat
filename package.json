@@ -13,7 +13,7 @@
     "dev:web": "vite",
     "build:renderer": "vite build",
     "build:main": "tsup",
-    "build": "npm run build:renderer && npm run build:main && npm run build:addons",
+    "build": "npm run build:renderer && npm run build:main && npm run build:bytecode && npm run build:addons",
     "mcp": "tsx src/bridge/cli.ts",
     "setup": "tsx src/bridge/setup.ts",
     "inspect": "tsx scripts/inspect.ts",
@@ -31,7 +31,8 @@
     "build:office-addon": "node scripts/build-office-addon.mjs",
     "build:addons": "npm run build:wps-addon && npm run build:office-addon",
     "build:win-icon": "node scripts/build-win-icon.mjs",
-    "check:params": "tsx scripts/check-param-forwarding.ts"
+    "check:params": "tsx scripts/check-param-forwarding.ts",
+    "build:bytecode": "node scripts/build-cli-bytecode.mjs"
   },
   "build": {
     "appId": "com.antigravity.officeagentbridge",
@@ -50,10 +51,13 @@
       "skills/**/*",
       "prompts/**/*",
       "package.json",
+      "!dist/bridge/cli-full.cjs",
       "!**/*.map",
       "!**/AGENTS.md",
       "!wps-addon/src/**",
-      "!office-addon/src/**"
+      "!office-addon/src/**",
+      "dist/bridge/cli.jsc",
+      "node_modules/bytenode/**/*"
     ],
     "mac": {
       "target": [
@@ -109,7 +113,8 @@
     "tailwind-merge": "^3.0.2",
     "uuid": "^11.1.0",
     "ws": "^8.18.1",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "bytenode": "^1.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
