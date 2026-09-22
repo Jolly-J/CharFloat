@@ -566,7 +566,11 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入并读回核对；read 只读回当前状态、不做任何修改" },
+            action: { type: "string", enum: ["apply", "read", "configure"], description: "apply（默认）**新建**透视表；read 只读回现状；**configure 改已有透视表的字段布局**（配 pivotTableName + rowFields/columnFields/filterFields/dataFields + clearFields/refresh）" },
+            pivotTableName: { type: "string", description: "configure 时定位已有的透视表（省略则用工作表上第一张）" },
+            filterFields: { type: "array", description: "configure 时设为筛选器的字段名列表（xlPageField）" },
+            clearFields: { type: "boolean", description: "configure 时先把现有字段全部移出（避免旧布局残留），默认 false" },
+            refresh: { type: "boolean", description: "configure 后是否刷新，默认 true" },
             sourceRange: {
               type: "string",
               description: "原始明细数据区域（必须包含第一行表头）。例如: 'A1:K5422' 或配合 sourceSheetName 跨表指定"

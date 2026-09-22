@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 4433f8a5d576ab9f6e412f059fcadfe482c05ac4f6f9e3bbbff56dd92e54f98c
+// ADDON_BUILD_FINGERPRINT: 5c35a35c151794e6410687baa22c4079f1ca4a4241a62b08a15c12b81af13989
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "4433f8a5d576ab9f6e412f059fcadfe482c05ac4f6f9e3bbbff56dd92e54f98c";
+  var ADDON_BUILD_FINGERPRINT = "5c35a35c151794e6410687baa22c4079f1ca4a4241a62b08a15c12b81af13989";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -6109,6 +6109,132 @@ case "ppt_read_presentation":
         message: `工作簿 [${wb.Name}] 共 ${out.length} 个数据透视表`
       };
     }
+    // ── CAP-13 字段编排：改**已有**透视表的字段布局并刷新
+    //
+    // 此前只能建新表（且建完字段就固定了），改布局只能整张删了重建；
+    // 读回（CAP-36）已经能看到字段怎么摆，缺的是"让它变成我要的摆法"。
+    if ((params || {}).action === "configure") {
+      const { workbookName, sheetName, pivotTableName, rowFields = [], columnFields = [],
+              filterFields = [], dataFields = [], clearFields = false, refresh = true } = params || {};
+      const wb = getWorkbook(app, workbookName);
+      const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+
+      // 定位透视表：给了名字按名字，否则用第一张
+      const sheets = sheetName ? [sheetName] : (() => {
+        const out = []; for (let i = 1; i <= wb.Worksheets.Count; i++) { try { out.push(String(wb.Worksheets.Item(i).Name)); } catch (e) {} } return out;
+      })();
+      let pt = null, ptSheet = null;
+      for (const sn of sheets) {
+        let pts = null;
+        try { pts = wb.Worksheets.Item(sn).PivotTables(); } catch (e) { continue; }
+        const n = g(() => Number(pts.Count), 0);
+        for (let i = 1; i <= n; i++) {
+          const cand = (() => { try { return pts.Item(i); } catch (e) { return null; } })();
+          if (!cand) continue;
+          if (!pivotTableName || g(() => String(cand.Name), "") === String(pivotTableName)) { pt = cand; ptSheet = sn; break; }
+        }
+        if (pt) break;
+      }
+      if (!pt) {
+        const names = [];
+        for (const sn of sheets) {
+          try { const pts = wb.Worksheets.Item(sn).PivotTables(); for (let i = 1; i <= Number(pts.Count); i++) names.push(`${sn}/${g(() => String(pts.Item(i).Name), "?")}`); } catch (e) {}
+        }
+        throw new Error(`找不到数据透视表${pivotTableName ? ` "${pivotTableName}"` : ""}。现有：${names.join(" / ") || "无"}`);
+      }
+
+      const warnings = [];
+      const applied = {};
+      const availableFields = [];
+      try {
+        const rf = pt.PivotFields();
+        for (let i = 1; i <= Number(rf.Count); i++) { try { availableFields.push(String(rf.Item(i).Name)); } catch (e) {} }
+      } catch (e) {}
+
+      const setOrientation = (nameList, orientation, label) => {
+        const done = [], missing = [];
+        for (const raw of (Array.isArray(nameList) ? nameList : [])) {
+          const fieldName = String(raw);
+          if (availableFields.length && availableFields.indexOf(fieldName) < 0) { missing.push(fieldName); continue; }
+          try { const pf = pt.PivotFields(fieldName); pf.Orientation = orientation; done.push(fieldName); }
+          catch (e) { missing.push(fieldName); }
+        }
+        applied[label] = done;
+        if (missing.length) warnings.push(`${label} 有 ${missing.length} 个字段没设上：${missing.join(" / ")}（可用字段：${availableFields.join(" / ") || "读不到"}）`);
+      };
+
+      // 先清空（可选）：把除数据字段外的所有字段隐藏，避免旧布局残留
+      if (clearFields) {
+        let cleared = 0;
+        for (const fn of availableFields) {
+          try { const pf = pt.PivotFields(fn); if (Number(pf.Orientation) !== 0) { pf.Orientation = 0; cleared++; } } catch (e) {}
+        }
+        applied.clearedFields = cleared;
+      }
+
+      setOrientation(rowFields, 1, "rowFields");
+      setOrientation(columnFields, 2, "columnFields");
+      setOrientation(filterFields, 3, "filterFields");   // xlPageField = 3
+
+      // 数据字段：名字已存在就跳过（避免重复 AddDataField 产生"求和项:金额2"）
+      if (Array.isArray(dataFields) && dataFields.length) {
+        const existingCaptions = new Set();
+        try { const df = pt.DataFields(); for (let i = 1; i <= Number(df.Count); i++) { try { existingCaptions.add(String(df.Item(i).Name)); } catch (e) {} } } catch (e) {}
+        const added = [], skipped = [];
+        for (const d of dataFields) {
+          const fieldName = String(d && d.fieldName);
+          const caption = (d && d.caption) || fieldName;
+          if (existingCaptions.has(caption)) { skipped.push(caption); continue; }
+          if (availableFields.length && availableFields.indexOf(fieldName) < 0) { warnings.push(`数据字段 "${fieldName}" 不在源字段里，已跳过`); continue; }
+          try {
+            const pf = pt.PivotFields(fieldName);
+            const func = d && d.summaryFunction === "count" ? -4112 : (d && d.summaryFunction === "average" ? -4106 : -4157);
+            pt.AddDataField(pf, caption, func);   // -4157=xlSum -4112=xlCount -4106=xlAverage
+            added.push(caption);
+          } catch (e) { warnings.push(`添加数据字段 "${fieldName}" 失败：${e.message}`); }
+        }
+        applied.dataFieldsAdded = added;
+        if (skipped.length) applied.dataFieldsSkipped = skipped;
+      }
+
+      // 刷新
+      let refreshedBy = null;
+      if (refresh) {
+        try { pt.RefreshTable(); refreshedBy = "pivotTable.RefreshTable"; }
+        catch (e) { warnings.push(`刷新失败：${e.message}`); }
+      }
+
+      // 读回核对：字段的真实 Orientation 与记录数
+      const readFields = [];
+      try {
+        const rf = pt.PivotFields();
+        for (let i = 1; i <= Number(rf.Count); i++) {
+          const f = rf.Item(i);
+          readFields.push({ name: g(() => String(f.Name), null), orientation: g(() => Number(f.Orientation), null) });
+        }
+      } catch (e) {}
+      const checkOrientation = (nameList, want, label) => {
+        const asked = (Array.isArray(nameList) ? nameList : []).map(String);
+        const bad = asked.filter(n => { const f = readFields.find(x => x.name === n); return f && f.orientation !== want; });
+        if (bad.length) warnings.push(`${label} 读回与请求不一致：${bad.join(" / ")}`);
+      };
+      checkOrientation(rowFields, 1, "rowFields");
+      checkOrientation(columnFields, 2, "columnFields");
+      checkOrientation(filterFields, 3, "filterFields");
+
+      const recordCount = g(() => { const rr = pt.RowRange; return Number(rr.Rows.Count); }, null);
+      return {
+        success: warnings.length === 0,
+        workbookName: wb.Name, sheetName: ptSheet,
+        action: "configure",
+        pivotTableName: g(() => String(pt.Name), null),
+        availableFields, applied, refreshedBy, recordCount,
+        fields: readFields.filter(f => f.orientation !== 0),
+        warnings,
+        message: `已重排透视表「${g(() => String(pt.Name), "")}」的字段布局（行 ${(applied.rowFields || []).length} / 列 ${(applied.columnFields || []).length} / 筛选 ${(applied.filterFields || []).length}）${warnings.length ? `，${warnings.length} 条告警` : ""}`
+      };
+    }
+
     const {
       workbookName,
       sourceSheetName,
