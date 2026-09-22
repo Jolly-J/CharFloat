@@ -450,7 +450,9 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
                 properties: {
                   seriesIndex: { type: "number", description: "目标数据系列序号（从 1 开始）" },
                   color: { type: "string", description: "该系列的指定十六进制颜色" },
-                  smooth: { type: "boolean", description: "该系列是否单独开启平滑线" }
+                  smooth: { type: "boolean", description: "该系列是否单独开启平滑线" },
+                  type: { type: "string", description: "该系列的图表类型 → 做**组合图**（如柱+折线同图）：line / line_markers / column / area / scatter / bar，或直接传 xlChartType 整数" },
+                  axisGroup: { type: "number", description: "坐标轴组：1 主轴（默认）/ 2 次轴（组合图里把折线放次轴）" }
                 },
                 required: ["seriesIndex"]
               },

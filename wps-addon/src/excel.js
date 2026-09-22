@@ -3145,6 +3145,9 @@
         }
 
         // 高阶单系列独立设置 (seriesSettings)
+        const seriesTypeApplied = [];
+        const seriesTypeWarnings = [];
+        const seriesAxisApplied = [];
         if (Array.isArray(seriesSettings)) {
           seriesSettings.forEach((ss) => {
             const sIdx = Number(ss.seriesIndex);
@@ -3153,6 +3156,20 @@
                 const series = seriesCol.Item(sIdx);
                 if (ss.smooth !== undefined) {
                   series.Smooth = !!ss.smooth;
+                }
+                // 单系列图表类型 → 做**组合图**（柱 + 折线同图）。
+                // xlChartType：折线=4 / 柱状簇状=51 / 折线带数据点=65 / 面积=1 / 散点=75
+                if (ss.type !== undefined && ss.type !== null && ss.type !== "") {
+                  const ST = { line: 4, line_markers: 65, column: 51, column_clustered: 51, area: 1, scatter: 75, bar: 57 };
+                  const key = String(ss.type).toLowerCase();
+                  const code = ST[key] !== undefined ? ST[key] : (Number.isFinite(Number(ss.type)) ? Number(ss.type) : undefined);
+                  if (code === undefined) { seriesTypeWarnings.push(`系列 ${sIdx}: 不认识的 type=${ss.type}`); }
+                  else { series.ChartType = code; seriesTypeApplied.push({ seriesIndex: sIdx, type: key, code }); }
+                }
+                // 副坐标轴：组合图里把折线放到次轴（xlSecondary=2）
+                if (ss.axisGroup !== undefined) {
+                  series.AxisGroup = Number(ss.axisGroup) === 2 ? 2 : 1;
+                  seriesAxisApplied.push({ seriesIndex: sIdx, axisGroup: series.AxisGroup });
                 }
                 if (ss.color) {
                   const bgr = hexToExcelColor(ss.color);
@@ -3207,6 +3224,13 @@
       // 原实现对此毫无察觉（ISS-17）。这里把实际类型带回，不一致就给出 warning。
       let actualChartType = null;
       try { actualChartType = Number(shape.Chart.ChartType); } catch (e) {}
+      // 组合图核对：逐系列读回真实 ChartType，确认"折线真的是折线"
+      let seriesTypes = null;
+      try {
+        const sc = shape.Chart.SeriesCollection();
+        seriesTypes = [];
+        for (let i = 1; i <= Number(sc.Count); i++) { try { seriesTypes.push(Number(sc.Item(i).ChartType)); } catch (e) { seriesTypes.push(null); } }
+      } catch (e) {}
       if (actualChartType !== null && Number.isFinite(actualChartType) && actualChartType !== xlChartType) {
         warnings.push(
           `请求的 chartType=${chartType}（xlChartType=${xlChartType}）实际落成 ChartType=${actualChartType}；` +
@@ -3220,6 +3244,7 @@
         sheetName: sheet.Name,
         chartType,
         requestedChartType: xlChartType,
+        seriesTypes,
         actualChartType,
         warnings,
         dataRange: targetDataRange,
