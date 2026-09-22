@@ -1,0 +1,288 @@
+================================================================================
+ISS-06-B · P3.3「生成物是原文件的严格超集」diff 证据（重跑留档）
+================================================================================
+生成时间   : 2026-09-22
+对应问题   : docs/acceptance/2.1.0-p0p1/issues.md  ISS-06
+对应改造项 : docs/refactoring-plan.md  P3.3（"diff 证明 0 行删除/修改、仅新增 62 行"）
+重跑工具   : 系统 diff（diff -u），无需脚本；命令见下
+
+重跑命令（仓库根目录执行）:
+  diff -u .scratch/evidence/prior/office-addon/public/taskpane.js \
+    release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+
+--------------------------------------------------------------------------------
+一、比对输入（仓库内既有文件，无 git 操作、无构建）
+--------------------------------------------------------------------------------
+【改造前】office-addon/public/taskpane.js（P3.3 之前的单体实现）
+  取得方式：release/_legacy-build/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+  落位副本：.scratch/evidence/prior/office-addon/public/taskpane.js
+  行数    ：1809（wc -l）
+  sha256  ：ca86ef854d2a722ee4ac9481d331ae5f70ca7883f422315fa8dd58dac136a0fa
+  ★ 1809 行与 refactoring-plan.md P3.3 声称的"（1809 行）"完全吻合。
+  ★ 该文件不在 baseline-prior.patch 里（补丁 22 个文件清单中无此项），说明 P0 锚点→
+    基线期间它未被改动，因此 release/_legacy-build 里的这份就是改造前内容。
+    —— 重要说明：本次比对用"diff 结果自身"反向验证了这一点：
+    若取错文件，绝不可能得到"0 行删除/修改、62 行新增且全为注释或空行"。
+
+【改造后】office-addon/public/taskpane.js（P3.3 生成的构建产物）
+  取得方式：release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+  行数    ：1871（wc -l）
+  sha256  ：5ef08e873327fef5d86255c3f49574ee40495c49ea944f0c07bc83f8c1e359bd
+  ★ 该 sha256 与 docs/acceptance/2.1.0-p0p1/p5/p5.1-candidate-and-prebuilt-state.md §"关键产物指纹
+    （构建前）"记录的一致；1871 行与 refactoring-plan.md P3.3 声称的"（1871 行）"完全吻合。
+  ★ 为什么不用仓库当前的 office-addon/public/taskpane.js：它已被 P5 各项修复推到 1899 行
+    （sha256 99d87f8d…），比对的是"P3.3 改造当时"的等价性。
+
+--------------------------------------------------------------------------------
+二、结论（与台账声称逐项对照）
+--------------------------------------------------------------------------------
+  台账声称                                重跑实测                        结论
+  --------------------------------------  ------------------------------  --------
+  diff 证明 0 行删除/修改                 删除行 0 / 修改行 0              ★ 完全一致
+  仅新增 62 行                            新增行 62（1809 + 62 = 1871）    ★ 完全一致
+  且全为注释或空行                        注释行 60 + 空行 2 = 62，         ★ 完全一致
+                                          非注释非空的"代码行"新增 0 条
+  （同段落附带声明）                      改造前 / 改造后                  ★ 完全一致
+  dispatchExcelTool 77 个 case            77 / 77
+  58 个函数定义前后集合完全一致            58 / 58（去重函数名）
+  context.sync() 61 处                    61 / 61
+  .load( 40 处                             40 / 40
+  Excel.run( 46 处                        46 / 46
+
+  新增的 62 行长什么样：全部是构建头注释与逐模块横幅注释，例如
+    +// 本文件由 scripts/build-office-addon.mjs 生成，请勿手改；改动请改 office-addon/src/**
+    +// 拼接顺序: 01. src/state.js … 19. src/bootstrap.js
+    +// ── 模块: src/state.js — 全局常量与跨模块共享状态 ──
+  也就是说：**P3.3 的生成物在原文件之外只增加了注释，可执行代码逐字节未变。**
+  这正是"严格超集"的含义，也是 ISS-06-C 序列快照必然逐行一致的原因。
+
+--------------------------------------------------------------------------------
+三、原始输出
+--------------------------------------------------------------------------------
+--- 1) diff -u 全文（200 行） -------------------------------------------------
+--- .scratch/evidence/prior/office-addon/public/taskpane.js	2026-09-22 16:51:34
++++ release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js	2026-09-22 12:34:00
+@@ -1,9 +1,35 @@
++// 本文件由 scripts/build-office-addon.mjs 生成，请勿手改；改动请改 office-addon/src/**
++// 构建命令: node scripts/build-office-addon.mjs（按固定顺序拼接 src 下 19 个片段，无打包器、无依赖）
++// 拼接顺序:
++//   01. src/state.js
++//   02. src/ui.js
++//   03. src/lifecycle.js
++//   04. src/connection.js
++//   05. src/rpc.js
++//   06. src/excel/shared.js
++//   07. src/excel/workbook.js
++//   08. src/excel/sheets.js
++//   09. src/excel/range.js
++//   10. src/excel/formula.js
++//   11. src/excel/format.js
++//   12. src/excel/filter-sort.js
++//   13. src/excel/table.js
++//   14. src/excel/chart.js
++//   15. src/excel/pivot.js
++//   16. src/excel/shape.js
++//   17. src/excel/comment.js
++//   18. src/excel/script.js
++//   19. src/bootstrap.js
++
+ /**
+  * WPS Bridge - Microsoft Office (Excel) 官方 Office.js 核心运行时
+  * 运行在 Microsoft Excel 任务窗格 WebView (WebKit / Edge WebView2)
+  */
+ 
+ (function () {
++
++// ── 模块: src/state.js — 全局常量与跨模块共享状态 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 7-15 行（原样搬迁，未改写）。
+   const ADDON_VERSION = "2.0.0";
+   const DEFAULT_WS_URL = "wss://localhost:19891/office-addon";
+   let ws = null;
+@@ -13,6 +39,8 @@
+   let activeSheetName = "—";
+   let activeSelectionAddress = "—";
+ 
++// ── 模块: src/ui.js — 任务窗格 UI 渲染：运行日志、活动流、状态徽标 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 16-56 行（原样搬迁，未改写）。
+   function log(msg, data) {
+     const timestamp = new Date().toLocaleTimeString();
+     const formatted = `[${timestamp}] ${msg}` + (data ? ` ${JSON.stringify(data)}` : "");
+@@ -54,6 +82,8 @@
+     if (activeSelEl) activeSelEl.innerText = activeSelectionAddress;
+   }
+ 
++// ── 模块: src/lifecycle.js — Office.js 生命周期与宿主状态感知 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 57-116 行（原样搬迁，未改写）。
+   // ==========================================
+   // Office.js 初始化与状态感知
+   // ==========================================
+@@ -114,6 +144,8 @@
+     }).catch(() => {});
+   }
+ 
++// ── 模块: src/connection.js — WebSocket 连接、重连、注册与数据包发送 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 117-184 行（原样搬迁，未改写）。
+   // ==========================================
+   // WebSocket 通信与注册
+   // ==========================================
+@@ -182,6 +214,8 @@
+     }
+   }
+ 
++// ── 模块: src/rpc.js — RPC 入站分发与 dispatchExcelTool 方法路由 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 185-388 行（原样搬迁，未改写）。
+   // ==========================================
+   // RPC 分发中心与全量能力执行
+   // ==========================================
+@@ -386,6 +420,8 @@
+     }
+   }
+ 
++// ── 模块: src/excel/shared.js — Excel 操作公共辅助（目标工作表解析） ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 389-399 行（原样搬迁，未改写）。
+   // ==========================================
+   // 具体 API 业务实现 (借助 Excel.run)
+   // ==========================================
+@@ -397,6 +433,8 @@
+     return context.workbook.worksheets.getActiveWorksheet();
+   }
+ 
++// ── 模块: src/excel/workbook.js — 工作簿元数据、保存、计算、命名项与文档属性 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 400-531 行（原样搬迁，未改写）。
+   // 1. 工作簿操作
+   async function handleGetWorkbookInfo(params) {
+     return await Excel.run(async (context) => {
+@@ -529,6 +567,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/sheets.js — 工作表生命周期 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 532-613 行（原样搬迁，未改写）。
+   // 2. 工作表操作
+   async function handleListSheets() {
+     return await Excel.run(async (context) => {
+@@ -611,6 +651,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/range.js — 区域读写、结构与查找替换 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 614-918 行（原样搬迁，未改写）。
+   // 3. 区域核心读写
+   async function handleReadRange(params) {
+     return await Excel.run(async (context) => {
+@@ -916,6 +958,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/formula.js — 公式写入 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 919-936 行（原样搬迁，未改写）。
+   // 4. 公式
+   async function handleSetFormula(params) {
+     return await Excel.run(async (context) => {
+@@ -934,6 +978,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/format.js — 格式排版、冻结窗格与条件格式 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 937-1136 行（原样搬迁，未改写）。
+   // 5. 格式与排版
+   async function handleFormatRange(params) {
+     return await Excel.run(async (context) => {
+@@ -1134,6 +1180,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/filter-sort.js — 排序与筛选 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1137-1168 行（原样搬迁，未改写）。
+   // 6. 排序与筛选
+   async function handleSetFilterAndSort(params) {
+     return await Excel.run(async (context) => {
+@@ -1166,6 +1214,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/table.js — 结构化表格 Table ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1169-1194 行（原样搬迁，未改写）。
+   // 7. 结构化表格
+   async function handleCreateTable(params) {
+     return await Excel.run(async (context) => {
+@@ -1192,6 +1242,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/chart.js — 图表 Chart 与工作表预览渲染 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1195-1662 行（原样搬迁，未改写）。
+   // 8. 图表
+   async function handleGetCharts(params) {
+     return await Excel.run(async (context) => {
+@@ -1660,6 +1712,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/pivot.js — 数据透视表 PivotTable ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1663-1687 行（原样搬迁，未改写）。
+   // 9. 数据透视表
+   async function handleCreatePivotTable(params) {
+     return await Excel.run(async (context) => {
+@@ -1685,6 +1739,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/shape.js — 形状与图片 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1688-1731 行（原样搬迁，未改写）。
+   // 10. 形状与图片
+   async function handleInsertImage(params) {
+     return await Excel.run(async (context) => {
+@@ -1729,6 +1785,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/comment.js — 审阅与批注 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1732-1762 行（原样搬迁，未改写）。
+   // 11. 审阅与批注
+   async function handleManageComments(params) {
+     return await Excel.run(async (context) => {
+@@ -1760,6 +1818,8 @@
+     });
+   }
+ 
++// ── 模块: src/excel/script.js — 动态脚本执行 ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1763-1773 行（原样搬迁，未改写）。
+   // 12. 动态运行任意脚本
+   async function handleRunScript(params) {
+     return await Excel.run(async (context) => {
+@@ -1771,6 +1831,8 @@
+     });
+   }
+ 
++// ── 模块: src/bootstrap.js — DOM 事件绑定与启动引导（必须最后拼接） ──
++// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1774-1808 行（原样搬迁，未改写）。
+   function bindDomEvents() {
+     const btnReconnect = document.getElementById("btnReconnect");
+     if (btnReconnect) {
+
+--- 2) 行数分类统计（脚本口径） -----------------------------------------------
+$ diff -u <改造前> <改造后> | grep "^+" | grep -v "^+++" | wc -l   # 新增行（含空行）
+62
+$ diff -u <改造前> <改造后> | grep "^-" | grep -v "^---" | wc -l    # 删除行
+0
+$ grep "^+" <diff> | grep -v "^+++" | sed "s/^+//" | awk 分类          # 新增行分类
+空行: 2
+注释行: 60
+其它（代码行）: 0
+$ grep "^+" <diff> | grep -v "^+++" | sed "s/^+//" | grep -v "^[[:space:]]*$" | grep -v "^[[:space:]]*//"   # 非注释非空（应为空）
+[以上无输出 = 没有新增任何代码行]
+
+--- 3) 附带声明的计数复核 ------------------------------------------------------
+$ # .scratch/evidence/prior/office-addon/public/taskpane.js
+  dispatchExcelTool case 数        : 77
+  函数定义数（function 名去重）    : 58
+  context.sync() 处数              : 61
+  .load( 处数                      : 40
+  Excel.run( 处数                  : 46
+$ # release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+  dispatchExcelTool case 数        : 77
+  函数定义数（function 名去重）    : 58
+  context.sync() 处数              : 61
+  .load( 处数                      : 40
+  Excel.run( 处数                  : 46

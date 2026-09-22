@@ -1,0 +1,112 @@
+================================================================================
+ISS-06-A · P3.2「acorn 顶层语句多重集」等价性证据（重跑留档）
+================================================================================
+生成时间   : 2026-09-22
+对应问题   : docs/acceptance/2.1.0-p0p1/issues.md  ISS-06
+对应改造项 : docs/refactoring-plan.md  P3.2（"acorn 顶层语句多重集 120/121 逐字节相同"）
+重跑脚本   : docs/acceptance/2.1.0-p0p1/evidence/iss-06-acorn-multiset.mjs
+             （工作副本 .scratch/evidence/acorn-multiset.mjs，按约定不放仓库根目录）
+重跑命令（仓库根目录执行）:
+  node docs/acceptance/2.1.0-p0p1/evidence/iss-06-acorn-multiset.mjs \
+    .scratch/evidence/prior/wps-addon/addon-core.js \
+    release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/wps-addon/addon-core.js
+
+--------------------------------------------------------------------------------
+一、比对输入（两个文件都是仓库内既有文件，无 git 操作、无构建）
+--------------------------------------------------------------------------------
+【改造前】wps-addon/addon-core.js（P3.2 之前的单体实现）
+  取得方式：release/_legacy-build/win-unpacked/resources/app.asar.unpacked/wps-addon/addon-core.js
+            （5109 行，sha256 a5ca8e9f…，即 P0 锚点 cac6d38 时的版本）
+            + docs/acceptance/2.1.0-p0p1/baseline/baseline-prior.patch 中该文件的补丁段
+            （用系统 patch 工具应用，未使用 git）
+  落位副本：.scratch/evidence/prior/wps-addon/addon-core.js
+  行数    ：5170（wc -l）
+  sha256  ：6450c171cdbbb6dc121b8bd7e371ec5efc39aee932d4e1158783562064735906
+  ★ 该校验值与 docs/acceptance/2.1.0-p0p1/baseline/MANIFEST.sha256 第 8 行的
+    wps-addon/addon-core.js 条目**逐字符相同** —— 即本文件被证明就是 P0 基线（P3.2 改造前）
+    的那份字节内容，不是"看起来像"的重建。
+
+【改造后】wps-addon/addon-core.js（P3.2 生成的构建产物）
+  取得方式：release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/wps-addon/addon-core.js
+  行数    ：5247（wc -l）
+  sha256  ：c30e548afaacbcfd267a71b18be457f2d87196a886f4c461181f8423a131494b
+  ★ 该 sha256 与 docs/acceptance/2.1.0-p0p1/p5/p5.1-candidate-and-prebuilt-state.md §"关键产物指纹
+    （构建前）"记录的一致 —— 即它是 P3.2/P3.3 完成、后续修复尚未落地时的那份生成物，
+    行数 5247 与 refactoring-plan.md P3.2 声称的"（5247 行）"完全吻合。
+  ★ 为什么不用仓库当前的 wps-addon/addon-core.js：它已被 P5 各项修复推到 5631 行
+    （sha256 28cbb199…），比对的是"P3.2 改造当时"的等价性，不是当前版本。
+
+--------------------------------------------------------------------------------
+二、比对方法
+--------------------------------------------------------------------------------
+两个入口文件的结构都是「外层 IIFE + 函数体顶层的语句序列」，因此用 acorn 解析后：
+  1. 取 Program.body[0]（ExpressionStatement → CallExpression → FunctionExpression），
+     把该函数体的 body 当作「顶层语句」集合；
+  2. 每条语句用 node.start / node.end 切出**源码原始字节片段**（零归一化、零重新格式化），
+     算 sha256 后做**多重集**比对（同名同内容的语句计入计数，不做位置对齐）。
+判定口径：改造前的每条语句能否在改造后找到逐字节相同的对应语句。
+（脚本同时输出位置、类型、名字与配对情况，见下方原始输出。）
+
+--------------------------------------------------------------------------------
+三、结论（与台账声称逐项对照）
+--------------------------------------------------------------------------------
+  台账声称                                  重跑实测                        结论
+  ----------------------------------------  ------------------------------  --------
+  acorn 顶层语句多重集 120/121 逐字节相同    改造前 121 条，其中 120 条可在    ★ 完全一致
+                                            改造后逐字节找到 → 120/121
+  唯一差异是 fitGeneratedPptShapes 改为      改造前独有语句恰好 1 条：         ★ 完全一致
+  调用 4 个新抽出的纯函数                    FunctionDeclaration
+                                            fitGeneratedPptShapes (L3720-3745)；
+                                            改造后独有 5 条 = 该函数 + 4 个新
+                                            纯函数：pptScaleForPage /
+                                            pptCountTextUnits /
+                                            pptEstimateLines /
+                                            pptFitFontSize
+  （未在台账单独声称）                       改造后顶层语句 125 条，比改造前多 4 条
+                                            （= 4 个新抽出的纯函数）
+
+  交叉核对：改造后的 fitGeneratedPptShapes（L4022-4042）函数体确实调用了
+  pptScaleForPage(page)、pptFitFontSize(...)、pptEstimateLines(...)，
+  而 pptEstimateLines 内部调用 pptCountTextUnits —— 即 4 个新纯函数全部被用上，
+  与"改为调用 4 个新抽出的纯函数"的描述一致。
+
+  注意口径：台账的"120/121"指**改造前的 121 条里 120 条逐字节保留**，
+  不是"120 条对 121 条"。本次重跑按同一口径复现，数字完全对上。
+
+--------------------------------------------------------------------------------
+四、原始输出（脚本 stdout 逐字留档）
+--------------------------------------------------------------------------------
+=== ISS-06-A · acorn 顶层语句多重集比对 ===
+改造前: .scratch/evidence/prior/wps-addon/addon-core.js  (5171 行, Program.body=1)
+改造后: release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/wps-addon/addon-core.js  (5248 行, Program.body=1)
+顶层语句数: 改造前 121 / 改造后 125
+逐字节相同的语句（多重集去重后）: 120
+
+改造前有、改造后无（按 sha 计）: 1
+  - L3720-3745 [FunctionDeclaration fitGeneratedPptShapes] function fitGeneratedPptShapes(slide, firstIndex, page, warnings) { const sx = page.pageWidth / 
+改造后有、改造前无（按 sha 计）: 5
+  + L3974-3977 [FunctionDeclaration pptScaleForPage] function pptScaleForPage(page) { const sx = page.pageWidth / 720, sy = page.pageHeight / 405; re
+  + L3980-3982 [FunctionDeclaration pptCountTextUnits] function pptCountTextUnits(text) { return Array.from(text).reduce((n, ch) => n + (ch.charCodeAt(
+  + L3985-3990 [FunctionDeclaration pptEstimateLines] function pptEstimateLines(text, size, innerWidth) { return text.split(/\r\n|\r|\n/).reduce((sum,
+  + L3993-3999 [FunctionDeclaration pptFitFontSize] function pptFitFontSize(text, preferred, minimum, scale, innerWidth, innerHeight) { let size = p
+  + L4022-4042 [FunctionDeclaration fitGeneratedPptShapes] function fitGeneratedPptShapes(slide, firstIndex, page, warnings) { const ratio = pptScaleForPag
+
+--- 关键计数：改造前语句中能在改造后逐字节找到的数量 ---
+改造前语句总数 121，其中逐字节可在改造后找到 120 → 120/121
+改造后语句总数 125，多出 4 条
+
+--- 每条「改造前独有」语句的最相似改造后语句（按名字/类型配对） ---
+  · FunctionDeclaration fitGeneratedPptShapes @ L3720-3745
+      配对改造后: @ L4022-4042 sha 07362fc9aef4
+
+--- 每条「改造后独有」语句的同名改造前语句（若有） ---
+  · FunctionDeclaration pptScaleForPage @ L3974-3977
+      改造前无同名语句
+  · FunctionDeclaration pptCountTextUnits @ L3980-3982
+      改造前无同名语句
+  · FunctionDeclaration pptEstimateLines @ L3985-3990
+      改造前无同名语句
+  · FunctionDeclaration pptFitFontSize @ L3993-3999
+      改造前无同名语句
+  · FunctionDeclaration fitGeneratedPptShapes @ L4022-4042
+      配对改造前: @ L3720-3745 sha ae8aed54cbf7

@@ -586,10 +586,10 @@
   // 2. 工作表操作
   async function handleListSheets() {
     return await Excel.run(async (context) => {
-      const sheets = context.workbook.worksheets.load("items/name, items/visibility, items/tabColor");
+      const sheets = context.workbook.worksheets.load("items/name, items/visibility, items/tabColor, items/position");
       await context.sync();
       return {
-        sheets: sheets.items.map(s => ({ name: s.name, visibility: s.visibility, tabColor: s.tabColor }))
+        sheets: sheets.items.map(s => ({ name: s.name, visibility: s.visibility, tabColor: s.tabColor, position: s.position }))
       };
     });
   }
@@ -609,7 +609,7 @@
       const sheet = getTargetSheet(context, params.sheetName || params.oldName);
       if (params.name || params.newName) sheet.name = params.name || params.newName;
       if (params.visibility) sheet.visibility = params.visibility;
-      if (params.tabColor) sheet.tabColor = params.tabColor;
+      if (params.tabColor || params.color) sheet.tabColor = params.tabColor || params.color;
       if (params.activate) sheet.activate();
       await context.sync();
       return { success: true };
@@ -636,32 +636,121 @@
     });
   }
 
+  /** 取整数，失败返回 null（用于把 targetIndex / position / index 归一）。 */
+  function readSheetNumber(...candidates) {
+    for (const raw of candidates) {
+      if (raw === undefined || raw === null || raw === "") continue;
+      const n = Number(raw);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  }
+
   async function handleManageSheet(params) {
     return await Excel.run(async (context) => {
-      const action = params.action || (params.newSheetName ? "copy" : "rename");
-      const sheet = getTargetSheet(context, params.sheetName || params.oldName || params.sourceSheet);
-
-      if (action === "copy" || action === "duplicate") {
-        const copied = sheet.copy(Excel.WorksheetPositionType.after, sheet);
-        if (params.newSheetName || params.newName) {
-          copied.name = params.newSheetName || params.newName;
-        }
-        copied.load("name, position");
-        await context.sync();
-        return { success: true, sheetName: copied.name, position: copied.position };
-      } else if (action === "rename") {
-        sheet.name = params.newName || params.newSheetName;
-      } else if (action === "hide") {
-        sheet.visibility = Excel.SheetVisibility.hidden;
-      } else if (action === "show") {
-        sheet.visibility = Excel.SheetVisibility.visible;
-      } else if (action === "color" && params.tabColor) {
-        sheet.tabColor = params.tabColor;
+      const rawAction = String(params.action || "").trim();
+      const action = rawAction || (params.newSheetName || params.newName ? "rename" : "");
+      if (!action) {
+        throw new Error(
+          '[Office.js 通道] manage_sheet 缺少 action：支持 rename | move | tab_color | protect | unprotect。' +
+          '原实现在缺失 action 时会返回 success 却什么都不做，已阻断。'
+        );
       }
 
+      const sheet = getTargetSheet(context, params.sheetName || params.oldName || params.sourceSheet);
       sheet.load("name");
       await context.sync();
-      return { success: true, sheetName: sheet.name, action };
+      const sheetName = sheet.name;
+
+      // 归一化 action 别名：网关用 WPS 语义（rename/move/tab_color/protect/unprotect），
+      // 早期 Office.js 实现用 copy/hide/show/color —— 两套都认，避免任何一侧改名后静默 no-op（ISS-93）。
+      const actionAliases = {
+        copy: "copy", duplicate: "copy", clone: "copy",
+        rename: "rename", set_name: "rename",
+        move: "move", activate: "move", set_position: "move", reorder: "move",
+        tab_color: "tab_color", color: "tab_color", set_tab_color: "tab_color",
+        protect: "protect", unprotect: "unprotect",
+        hide: "hide", show: "show", unhide: "show", visible: "show"
+      };
+      const normalized = actionAliases[action.toLowerCase()];
+
+      const unsupported = {
+        protect: '[Office.js 通道] manage_sheet(action="protect") 在 Microsoft 宿主未实现：Excel Office.js 的 WorksheetProtection 在 Excel on Mac 桌面版不可用/不可靠，本通道拒绝执行以免回报假成功。替代路径：① 改用 host="wps" 的 wps_manage_sheet(action="protect")；② 在 Excel 里用「审阅 → 保护工作表」手动加保护，然后 read_range 读回确认。',
+        unprotect: '[Office.js 通道] manage_sheet(action="unprotect") 在 Microsoft 宿主未实现（同上）。替代路径：① 改用 host="wps" 的 wps_manage_sheet(action="unprotect")；② 在 Excel 里用「审阅 → 撤销工作表保护」手动解除。'
+      };
+
+      if (!normalized) {
+        throw new Error(
+          `[Office.js 通道] manage_sheet 无法识别的 action: "${rawAction}"。` +
+          '支持 rename | move | tab_color | protect | unprotect（另兼容 copy/duplicate/activate/color/hide/show）。' +
+          '原实现对未知 action 返回 success 但什么都不做，已改为显式报错。'
+        );
+      }
+      if (unsupported[normalized]) throw new Error(unsupported[normalized]);
+
+      if (normalized === "copy") {
+        const copied = sheet.copy(Excel.WorksheetPositionType.after, sheet);
+        const newName = params.newSheetName || params.newName;
+        if (newName) copied.name = newName;
+        copied.load("name, position");
+        await context.sync();
+        return { success: true, action: "copy", sheetName: copied.name, sourceSheetName: sheetName, position: copied.position };
+      }
+
+      if (normalized === "rename") {
+        const newName = params.newName || params.newSheetName;
+        if (!newName) {
+          throw new Error('[Office.js 通道] manage_sheet(action="rename") 缺少 newName：重命名必须给出新名称，未执行任何修改。');
+        }
+        sheet.name = newName;
+        sheet.load("name");
+        await context.sync();
+        return { success: true, action: "rename", sheetName: sheet.name, previousName: sheetName };
+      }
+
+      if (normalized === "move") {
+        // targetIndex 从 1 开始；Office.js 的 Worksheet.position 从 0 开始。
+        const targetIndex = readSheetNumber(params.targetIndex, params.position, params.index, params.targetPosition);
+        if (targetIndex === null) {
+          throw new Error(
+            '[Office.js 通道] manage_sheet(action="move") 缺少 targetIndex：请给出目标位置序号（从 1 开始，1=最前）。' +
+            '原实现会返回 success 但不移动工作表，已阻断。'
+          );
+        }
+        const total = context.workbook.worksheets.getCount();
+        await context.sync();
+        if (targetIndex < 1 || targetIndex > total.value) {
+          throw new Error(`[Office.js 通道] manage_sheet(action="move") 的 targetIndex=${targetIndex} 越界：当前工作簿共 ${total.value} 张工作表（合法范围 1..${total.value}）。`);
+        }
+        sheet.position = Math.round(targetIndex) - 1;
+        sheet.load("name, position");
+        await context.sync();
+        return { success: true, action: "move", sheetName: sheet.name, position: sheet.position, targetIndex: Math.round(targetIndex) };
+      }
+
+      if (normalized === "tab_color") {
+        const color = params.color || params.tabColor;
+        if (!color) {
+          throw new Error(
+            '[Office.js 通道] manage_sheet(action="tab_color") 缺少 color：请给出十六进制标签底色（如 "#EF4444"）。' +
+            '原实现只在 params.tabColor 存在时才设色，网关传的是 color → 静默 no-op，现已阻断。'
+          );
+        }
+        sheet.tabColor = color;
+        sheet.load("name, tabColor");
+        await context.sync();
+        return { success: true, action: "tab_color", sheetName: sheet.name, color: sheet.tabColor };
+      }
+
+      if (normalized === "hide" || normalized === "show") {
+        sheet.visibility = normalized === "hide" ? Excel.SheetVisibility.hidden : Excel.SheetVisibility.visible;
+        sheet.load("name, visibility");
+        await context.sync();
+        return { success: true, action: normalized, sheetName: sheet.name, visibility: sheet.visibility };
+      }
+
+      // 到这里说明别名表与分支不同步（防回归）。
+      throw new Error(`[Office.js 通道] manage_sheet 内部错误：action "${rawAction}" 已归一为 "${normalized}"，但没有对应实现分支。`);
     });
   }
 
@@ -813,48 +902,153 @@
     });
   }
 
+  /** 列号 → 列字母（1 → A，27 → AA）。 */
+  function columnIndexToLetters(colIdx) {
+    let temp = Math.floor(colIdx);
+    let letter = '';
+    while (temp > 0) {
+      const mod = (temp - 1) % 26;
+      letter = String.fromCharCode(mod + 65) + letter;
+      temp = Math.floor((temp - mod) / 26);
+    }
+    return letter;
+  }
+
+  /**
+   * 维度归一（ISS-93）：网关用 WPS 语义 `targetType`（'row' | 'column'），
+   * 早期 Office.js 实现读的是 `dimension`（'rows' | 'columns'）且**默认 rows** ——
+   * 结果"想插列却插行"。这里两套字段名都认，且都识别不了时**抛错**，绝不默认成行。
+   */
+  function resolveDimension(params) {
+    const raw = params.targetType !== undefined ? params.targetType : params.dimension;
+    if (raw === undefined || raw === null || raw === '') {
+      throw new Error(
+        '[Office.js 通道] manage_rows_and_columns 缺少 targetType：必须显式给出 "row" 或 "column"。' +
+        '原实现默认按行处理 → 传 "column" 时静默插行，已阻断。'
+      );
+    }
+    const s = String(raw).trim().toLowerCase();
+    if (['row', 'rows', '行', 'r'].includes(s)) return 'rows';
+    if (['column', 'columns', 'col', 'cols', '列', 'c'].includes(s)) return 'columns';
+    throw new Error(`[Office.js 通道] manage_rows_and_columns 无法识别的 targetType: "${raw}"（支持 "row" | "column"）。`);
+  }
+
+  /** index 归一：行用数字（1 基），列允许数字或列字母（'B'）。 */
+  function resolveStartIndex(params, dimension) {
+    const raw = params.index !== undefined ? params.index : params.startIndex;
+    if (raw === undefined || raw === null || raw === '') {
+      throw new Error('[Office.js 通道] manage_rows_and_columns 缺少 index：请给出起始行号或列号（数字，从 1 开始；列也接受字母如 "B"）。');
+    }
+    if (dimension === 'columns' && typeof raw === 'string' && /^[A-Za-z]{1,3}$/.test(raw.trim())) {
+      const letters = raw.trim().toUpperCase();
+      let idx = 0;
+      for (const ch of letters) idx = idx * 26 + (ch.charCodeAt(0) - 64);
+      return idx;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 1) {
+      throw new Error(`[Office.js 通道] manage_rows_and_columns 的 index="${raw}" 非法：需要 ≥1 的数字或列字母。`);
+    }
+    return Math.floor(n);
+  }
+
   async function handleUpdateRangeStructure(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const action = params.action || "insert";
-      const dimension = params.dimension || "rows";
+      const rawAction = String(params.action || 'insert').trim().toLowerCase();
+      const actionAliases = {
+        insert: 'insert', add: 'insert',
+        delete: 'delete', remove: 'delete',
+        hide: 'hide',
+        unhide: 'unhide', show: 'unhide',
+        set_size: 'set_size', set_row_height: 'set_size', set_column_width: 'set_size'
+      };
+      const action = actionAliases[rawAction];
+      if (!action) {
+        throw new Error(
+          `[Office.js 通道] manage_rows_and_columns 无法识别的 action: "${params.action}"。` +
+          '支持 insert | delete | hide | unhide | set_size（原实现对未知 action 返回 success 但什么都不做，已改为显式报错）。'
+        );
+      }
+
+      const dimension = resolveDimension(params);
+      const count = Math.floor(Number(params.count ?? 1));
+      if (!Number.isFinite(count) || count < 1) {
+        throw new Error(`[Office.js 通道] manage_rows_and_columns 的 count=${params.count} 非法：需要 ≥1 的整数。`);
+      }
+
       let range;
-
+      let targetAddress;
       if (params.address) {
-        range = sheet.getRange(params.address);
-      } else if (params.index !== undefined) {
-        const idx = Math.max(1, Number(params.index));
-        const count = Math.max(1, Number(params.count || 1));
-        if (dimension === "columns") {
-          const colLetter = (colIdx) => {
-            let temp, letter = '';
-            while (colIdx > 0) {
-              temp = (colIdx - 1) % 26;
-              letter = String.fromCharCode(temp + 65) + letter;
-              colIdx = Math.floor((colIdx - temp - 1) / 26);
-            }
-            return letter;
-          };
-          const startCol = colLetter(idx);
-          const endCol = colLetter(idx + count - 1);
-          range = sheet.getRange(`${startCol}:${endCol}`);
-        } else {
-          range = sheet.getRange(`${idx}:${idx + count - 1}`);
-        }
+        targetAddress = params.address;
+        range = sheet.getRange(targetAddress);
       } else {
-        throw new Error("update_range_structure 必须提供 address 或 (index, dimension)");
+        const start = resolveStartIndex(params, dimension);
+        if (dimension === 'columns') {
+          targetAddress = `${columnIndexToLetters(start)}:${columnIndexToLetters(start + count - 1)}`;
+        } else {
+          targetAddress = `${start}:${start + count - 1}`;
+        }
+        range = sheet.getRange(targetAddress);
       }
 
-      const shift = params.shift || (dimension === "columns" ? "Right" : "Down");
+      if (action === 'set_size') {
+        const size = Number(params.size);
+        if (params.size === undefined || params.size === null || !Number.isFinite(size) || size <= 0) {
+          throw new Error(
+            `[Office.js 通道] manage_rows_and_columns(action="set_size") 缺少合法 size：` +
+            `targetType='row' 时为磅值行高（如 24），'column' 时为字符列宽（如 15）。未执行任何修改。`
+          );
+        }
+        if (dimension === 'columns') {
+          range.format.columnWidth = size;
+        } else {
+          range.format.rowHeight = size;
+        }
+        await context.sync();
 
-      if (action === "insert") {
+        // 写后读回：不把"请求成功"当成"尺寸已变"。
+        range.load('format/rowHeight, format/columnWidth');
+        await context.sync();
+        const applied = dimension === 'columns' ? range.format.columnWidth : range.format.rowHeight;
+        return {
+          success: true,
+          action,
+          targetType: dimension === 'columns' ? 'column' : 'row',
+          address: targetAddress,
+          requestedSize: size,
+          appliedSize: applied,
+          warnings: Math.abs(Number(applied) - size) > 0.01 ? [`设置后读回 ${applied}，与请求 ${size} 不一致（宿主可能按内容或缩放换算）。`] : []
+        };
+      }
+
+      if (action === 'hide' || action === 'unhide') {
+        range.hidden = action === 'hide';
+        await context.sync();
+        range.load('hidden');
+        await context.sync();
+        return { success: true, action, targetType: dimension === 'columns' ? 'column' : 'row', address: targetAddress, hidden: range.hidden };
+      }
+
+      const shift = params.shift || (dimension === 'columns' ? 'Right' : 'Down');
+      if (action === 'insert') {
         range.insert(shift);
-      } else if (action === "delete") {
-        range.delete(dimension === "columns" ? "Left" : "Up");
+      } else {
+        range.delete(dimension === 'columns' ? 'Left' : 'Up');
       }
-
+      // 关键：属性必须显式 load 再 sync 才能读；直接读未 load 的 sheet.name 会抛
+      // 「属性"name"不可用」——且此时**写入已经执行**，调用方会误判为整体失败（实机踩到）。
+      sheet.load('name');
       await context.sync();
-      return { success: true, action, dimension, address: params.address };
+      return {
+        success: true,
+        action,
+        targetType: dimension === 'columns' ? 'column' : 'row',
+        address: targetAddress,
+        count,
+        shift: action === 'insert' ? shift : undefined,
+        sheetName: sheet.name
+      };
     });
   }
 
@@ -862,6 +1056,9 @@
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
       const targetRange = params.address || params.range;
+      if (!targetRange) {
+        throw new Error('[Office.js 通道] clear_range 缺少必要参数: address（如 "A1:E20"）。未执行任何修改。');
+      }
       const range = sheet.getRange(targetRange);
       const applyTo = params.applyTo || "All";
       range.clear(applyTo);
@@ -873,45 +1070,254 @@
   async function handleCopyRange(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const sourceRange = sheet.getRange(params.sourceAddress);
-      const destRange = sheet.getRange(params.destinationAddress);
+      const source = params.sourceAddress || params.sourceRange || params.from;
+      const destination = params.destinationAddress || params.destinationRange || params.to;
+      if (!source || !destination) {
+        throw new Error('[Office.js 通道] copy_range 需要 sourceAddress 与 destinationAddress（别名 sourceRange/destinationRange）。未执行任何修改。');
+      }
+      const sourceRange = sheet.getRange(source);
+      const destRange = sheet.getRange(destination);
       destRange.copyFrom(sourceRange, params.copyType || "All");
       await context.sync();
-      return { success: true };
+      return { success: true, sourceAddress: source, destinationAddress: destination, copyType: params.copyType || "All" };
     });
   }
 
   async function handleSetHyperlink(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const range = sheet.getRange(params.address);
+      const address = params.address || params.cell || params.range;
+      if (!address || !params.url) {
+        throw new Error('[Office.js 通道] set_hyperlink 需要 address 与 url。未执行任何修改。');
+      }
+      const range = sheet.getRange(address);
       range.hyperlink = {
         address: params.url,
-        textToDisplay: params.textToDisplay || params.url,
+        textToDisplay: params.textToDisplay || params.displayText || params.url,
         screenTip: params.screenTip || ""
       };
       await context.sync();
-      return { success: true, address: params.address };
+      return { success: true, address, url: params.url };
     });
+  }
+
+  /** WPS 语义 validationType → Office.js DataValidationRule 的规则键。 */
+  const VALIDATION_TYPE_MAP = {
+    list: 'list',
+    number_range: 'wholeNumber',
+    number: 'wholeNumber',
+    whole_number: 'wholeNumber',
+    integer: 'wholeNumber',
+    decimal: 'decimal',
+    date: 'date',
+    time: 'time',
+    text_length: 'textLength',
+    textlength: 'textLength',
+    custom: 'custom'
+  };
+
+  /** 网关 operator（WPS 语义）→ Excel.DataValidationOperator 的字符串值（用字符串以免旧宿主缺枚举）。 */
+  const VALIDATION_OPERATOR_MAP = {
+    between: 'Between',
+    not_between: 'NotBetween',
+    greater_than: 'GreaterThan',
+    greater_than_or_equal: 'GreaterThanOrEqualTo',
+    less_than: 'LessThan',
+    less_than_or_equal: 'LessThanOrEqualTo',
+    equal: 'EqualTo',
+    equals: 'EqualTo',
+    not_equal: 'NotEqualTo'
+  };
+
+  /** 数值/日期公式统一转 number；日期字符串保持字符串（ISO）。 */
+  function toValidationFormula(value, ruleKey, label) {
+    if (value === undefined || value === null || value === '') {
+      throw new Error(`[Office.js 通道] set_data_validation 的 ${label} 缺失：当前验证类型需要该阈值。`);
+    }
+    if (ruleKey === 'date' || ruleKey === 'time') return String(value);
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+      throw new Error(`[Office.js 通道] set_data_validation 的 ${label}="${value}" 不是合法数值。`);
+    }
+    return n;
+  }
+
+  /** 去掉 Excel 内联列表来源外层的成对引号（桥接侧可能已加引号）。 */
+  function stripOuterQuotes(source) {
+    const s = String(source).trim();
+    return s.length >= 2 && s.startsWith('"') && s.endsWith('"') ? s.slice(1, -1) : s;
+  }
+
+  /**
+   * 构造数据有效性规则（ISS-93-a）。
+   *
+   * 网关（WPS 语义）发的是 validationType / listItems / operator / minVal / maxVal / prompt* / error*；
+   * 原 Office.js 实现只读 `params.rule` → 先 `clear()` 再什么都不设，**静默清空既有校验**。
+   * 现在：两套字段名都认（WPS 语义优先），且**构造失败时在 clear() 之前抛错**，不清空任何东西。
+   */
+  function buildDataValidationRule(params) {
+    // 兼容路径：调用方（含桥接侧 normalizer）直接给 Office.js 原生规则对象。
+    if (params.rule !== undefined && params.rule !== null && !params.validationType) {
+      if (typeof params.rule !== 'object') {
+        throw new Error('[Office.js 通道] set_data_validation 的 rule 必须是 Office.js DataValidationRule 对象。');
+      }
+      const rule = { ...params.rule };
+      if (rule.list && rule.list.source !== undefined) {
+        rule.list = { ...rule.list, source: stripOuterQuotes(rule.list.source) };
+      }
+      return { rule, typeLabel: 'rule(原生对象)' };
+    }
+
+    const rawType = params.validationType !== undefined && params.validationType !== null && params.validationType !== ''
+      ? String(params.validationType)
+      : 'list';
+    const ruleKey = VALIDATION_TYPE_MAP[rawType.trim().toLowerCase()];
+    if (!ruleKey) {
+      throw new Error(
+        `[Office.js 通道] set_data_validation 无法识别的 validationType: "${rawType}"。` +
+        '支持 list | number_range | decimal | date | time | text_length | custom（另兼容直接传 Office.js 原生 rule 对象）。'
+      );
+    }
+
+    if (ruleKey === 'list') {
+      const items = params.listItems ?? params.items ?? params.source;
+      let source = null;
+      if (Array.isArray(items)) {
+        const flat = items.map(v => String(v)).filter(v => v.length > 0);
+        if (flat.length === 0) {
+          throw new Error('[Office.js 通道] set_data_validation(validationType="list") 的 listItems 为空数组：下拉列表至少需要一项。');
+        }
+        source = flat.join(',');
+      } else if (typeof items === 'string' && items.trim()) {
+        source = stripOuterQuotes(items);
+      }
+      if (!source) {
+        throw new Error(
+          '[Office.js 通道] set_data_validation 缺少 listItems：validationType="list" 必须给出候选项数组（如 ["已通过","待复测"]）。' +
+          '原实现在缺少 rule 时会先 clear() 再什么都不设，静默清空既有校验，已阻断。'
+        );
+      }
+      return { rule: { list: { inCellDropDown: true, source } }, typeLabel: 'list', source };
+    }
+
+    if (ruleKey === 'custom') {
+      const formula = params.formula || params.customFormula || params.minVal;
+      if (!formula || typeof formula !== 'string' || !formula.trim().startsWith('=')) {
+        throw new Error('[Office.js 通道] set_data_validation(validationType="custom") 需要 formula，且必须以 "=" 开头（如 "=ISNUMBER(A1)"）。');
+      }
+      return { rule: { custom: { formula: formula.trim() } }, typeLabel: 'custom' };
+    }
+
+    const opRaw = params.operator !== undefined && params.operator !== null && params.operator !== '' ? String(params.operator) : 'between';
+    const operator = VALIDATION_OPERATOR_MAP[opRaw.trim().toLowerCase()];
+    if (!operator) {
+      throw new Error(
+        `[Office.js 通道] set_data_validation 无法识别的 operator: "${opRaw}"。` +
+        '支持 between | not_between | greater_than | greater_than_or_equal | less_than | less_than_or_equal | equal | not_equal。'
+      );
+    }
+
+    const isTernary = operator === 'Between' || operator === 'NotBetween';
+    const primary = isTernary ? (params.minVal ?? params.formula1) : (params.minVal ?? params.maxVal ?? params.formula1);
+    const label = isTernary ? 'minVal' : (params.minVal !== undefined ? 'minVal' : 'maxVal');
+    const body = { operator, formula1: toValidationFormula(primary, ruleKey, label) };
+    if (isTernary) {
+      body.formula2 = toValidationFormula(params.maxVal ?? params.formula2, ruleKey, 'maxVal');
+    }
+
+    const rule = {};
+    rule[ruleKey] = body;
+    return { rule, typeLabel: ruleKey };
   }
 
   async function handleSetDataValidation(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const range = sheet.getRange(params.address);
-      range.dataValidation.clear();
-      if (params.rule) {
-        range.dataValidation.rule = params.rule;
+      const address = params.address || params.range;
+      if (!address) {
+        throw new Error('[Office.js 通道] set_data_validation 缺少必要参数: address（如 "E5:E50"）。未执行任何修改。');
       }
+
+      // 关键顺序（ISS-93-a）：先构造规则，构造失败就抛错 —— 此时**还没有 clear()**，既有校验不被破坏。
+      const built = buildDataValidationRule(params);
+      const range = sheet.getRange(address);
+
+      range.dataValidation.clear();
+      range.dataValidation.rule = built.rule;
+      if (params.ignoreBlanks !== undefined) range.dataValidation.ignoreBlanks = Boolean(params.ignoreBlanks);
+
+      // 提示与报错文案：桥接侧 normalizer 会把它们列在 unsupportedFields 里但**不下发值**，
+      // 这里两处都收：顶层参数（WPS 语义）+ unsupportedFields 里列出的同名字段。
+      const extraListed = Array.isArray(params.unsupportedFields) ? params.unsupportedFields : [];
+      const hasValue = (n) => params[n] !== undefined && params[n] !== null && String(params[n]) !== '';
+      const picked = (...names) => {
+        for (const n of names) if (hasValue(n)) return String(params[n]);
+        return null;
+      };
+      const promptTitle = picked('promptTitle');
+      const promptMessage = picked('promptMessage');
+      if (promptTitle || promptMessage) {
+        range.dataValidation.prompt = { showPrompt: true, title: promptTitle || '', message: promptMessage || '' };
+      }
+      const errorTitle = picked('errorTitle');
+      const errorMessage = picked('errorMessage');
+      if (errorTitle || errorMessage) {
+        range.dataValidation.errorAlert = {
+          showAlert: true,
+          style: 'Stop',
+          title: errorTitle || '',
+          message: errorMessage || ''
+        };
+      }
+      const auxiliaryCandidateFields = ['promptTitle', 'promptMessage', 'errorTitle', 'errorMessage'];
+      const auxiliaryApplied = auxiliaryCandidateFields.filter(hasValue);
+      const auxiliaryNotApplied = extraListed.filter(f => auxiliaryCandidateFields.includes(f) && !hasValue(f));
+
       await context.sync();
-      return { success: true, address: params.address };
+
+      // 写后读回：不把"请求成功"当成"校验已设上"。
+      range.load('address, dataValidation/type, dataValidation/rule, dataValidation/prompt, dataValidation/errorAlert');
+      sheet.load('name');
+      await context.sync();
+
+      const dv = range.dataValidation;
+      const readType = dv ? dv.type : null;
+      const warnings = [];
+      if (!readType || String(readType).toLowerCase() === 'none') {
+        warnings.push(
+          `设置后读回 dataValidation.type=${readType || 'null'}：宿主没有保留该规则，` +
+          '请用 read_range/execute_script 复核，不要直接重试。'
+        );
+      }
+      if (built.typeLabel === 'list' && built.source && dv && dv.rule && dv.rule.list && dv.rule.list.source) {
+        const readSource = String(dv.rule.list.source);
+        if (!readSource.includes(built.source.replace(/^=/, '').split(',')[0])) {
+          warnings.push(`读回的下拉来源为 "${readSource}"，与请求 "${built.source}" 不一致（Excel 可能把逗号列表改写为区域引用）。`);
+        }
+      }
+
+      return {
+        success: true,
+        address: range.address || address,
+        sheetName: sheet.name,
+        validationType: built.typeLabel,
+        rule: dv ? dv.rule : null,
+        readBackType: readType,
+        prompt: dv ? dv.prompt : null,
+        errorAlert: dv ? dv.errorAlert : null,
+        auxiliaryFieldsApplied: auxiliaryApplied,
+        auxiliaryFieldsNotApplied: auxiliaryNotApplied,
+        warnings
+      };
     });
   }
 
   async function handleFindReplace(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const range = params.address ? sheet.getRange(params.address) : sheet.getUsedRange();
+      // 网关（WPS 语义）传的是 searchRange；Office.js 侧原来只认 address（ISS-93-c）。
+      const searchRange = params.searchRange || params.address || params.range;
+      const range = searchRange ? sheet.getRange(searchRange) : sheet.getUsedRange();
       // 字段名兼容：网关（WPS 语义）传的是 searchQuery，Office.js 侧原来只认 text/query/findText。
       // 名字对不上 → text 落成空串 → `replaceAll("", …)` 会命中整片区域并可能破坏内容（问题台账 ISS-93）。
       const text = params.text || params.query || params.findText || params.searchQuery || "";
@@ -924,11 +1330,28 @@
       const replaceText = params.replaceText;
       const matchCase = !!params.matchCase;
       const matchEntireCell = !!params.matchEntireCell;
+      // maxResults（网关默认 50；桥接侧 normalizer 也会做一次截断）：<=0 视为不限量。
+      const rawMax = Number(params.maxResults);
+      const maxResults = Number.isFinite(rawMax) && rawMax > 0 ? Math.floor(rawMax) : Infinity;
 
       if (replaceText !== undefined) {
+        // 替换前先确认范围可读，替换后回读文本以给出可核验的读数（不谎报命中数）。
+        range.load("text, address");
+        await context.sync();
+        const beforeText = JSON.stringify(range.text || []);
         range.replaceAll(text, replaceText, { completeMatch: matchEntireCell, matchCase: matchCase });
         await context.sync();
-        return { success: true, replacedWith: replaceText };
+        range.load("text");
+        await context.sync();
+        const afterText = JSON.stringify(range.text || []);
+        return {
+          success: true,
+          address: range.address,
+          searchRange: searchRange || "(usedRange)",
+          replacedWith: replaceText,
+          changed: beforeText !== afterText,
+          textChanged: beforeText !== afterText
+        };
       }
 
       // 跨平台安全搜索：macOS Office.js 缺少 range.findAll，采用纯 JS 内存矩阵检索
@@ -950,7 +1373,8 @@
       const baseCol = range.columnIndex || 0;
       const matches = [];
       const queryStr = matchCase ? String(text) : String(text).toLowerCase();
-      const vals = range.values || [];
+      const vals = range.text || range.values || [];
+      let truncated = false;
 
       for (let r = 0; r < vals.length; r++) {
         const row = vals[r] || [];
@@ -961,6 +1385,7 @@
           const targetStr = matchCase ? str : str.toLowerCase();
           const matched = matchEntireCell ? targetStr === queryStr : targetStr.includes(queryStr);
           if (matched) {
+            if (matches.length >= maxResults) { truncated = true; break; }
             const cellAddr = `${colToLetters(baseCol + c)}${baseRow + r + 1}`;
             matches.push({
               address: cellAddr,
@@ -970,11 +1395,16 @@
             });
           }
         }
+        if (truncated) break;
       }
 
       return {
         success: true,
+        address: range.address,
+        searchRange: searchRange || "(usedRange)",
         count: matches.length,
+        truncated,
+        maxResults: maxResults === Infinity ? null : maxResults,
         matches: matches
       };
     });
@@ -1267,6 +1697,50 @@
 // ── 模块: src/excel/chart.js — 图表 Chart 与工作表预览渲染 ──
 // 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1195-1662 行（原样搬迁，未改写）。
   // 8. 图表
+
+  // ── ISS-96（高，伪渲染）───────────────
+  // 旧实现的 capture_sheet_preview 在"无原生图表"时用 Canvas 按 cellW=110 / rowH=28 硬编码
+  // 合成一张"看起来像表格"的图，并返回 success:true + "高保真渲染图" —— AI 的视觉自查会据此
+  // 得出与真实文件不符的结论。**这比报错更危险：报错会让人停下来，假图不会。**
+  // 现在的契约只有两条：
+  //   ① 真实渲染路径：只有 Office.js 的 chart.getImage()（宿主原生导出）算真实渲染；
+  //   ② 其余一律**抛错**，并在错误里写清替代路径（host=wps 的截图能力 / 在 Excel 里自行截图）。
+  // 绝不再返回任何合成图、示意图或"已完成排版自检"之类无法核验的措辞。
+  const CHART_NAME_PATTERN = /^(?:chart|图表|图)\s*(\d+)$/i;
+
+  /** 图表名归一：把 "图表 2" / "chart2" 与宿主返回的 "Chart 2" 视为同一个。 */
+  function normalizeChartName(raw) {
+    const s = String(raw === undefined || raw === null ? '' : raw).trim().toLowerCase().replace(/\s+/g, '');
+    if (!s) return '';
+    const m = CHART_NAME_PATTERN.exec(s);
+    if (m) return `chart${m[1]}`;
+    return s;
+  }
+
+  /** 按名称（兼容 "Chart 2"/"图表 2"）或 id 查找图表。 */
+  function findChartByName(items, wanted) {
+    const target = normalizeChartName(wanted);
+    if (!target) return null;
+    return (items || []).find(c => normalizeChartName(c.name) === target || String(c.id || '').toLowerCase() === String(wanted).trim().toLowerCase()) || null;
+  }
+
+  function chartNamesOf(items) {
+    return (items || []).map(c => {
+      const title = c.title && c.title.text ? `「${c.title.text}」` : '';
+      return `${c.name}${title}`;
+    });
+  }
+
+  /** 渲染目标与尺寸归一，任一非法值都抛错（不再静默用默认值顶替用户的请求）。 */
+  function readRenderSize(params) {
+    const rawW = params.width === undefined || params.width === null || params.width === '' ? 800 : Number(params.width);
+    const rawH = params.height === undefined || params.height === null || params.height === '' ? 450 : Number(params.height);
+    if (!Number.isFinite(rawW) || !Number.isFinite(rawH) || rawW < 100 || rawH < 100 || rawW > 4000 || rawH > 4000) {
+      throw new Error(`[Office.js 通道] capture_sheet_preview 的 width/height 非法（收到 ${params.width}×${params.height}）：需为 100..4000 的像素值。`);
+    }
+    return { width: Math.round(rawW), height: Math.round(rawH) };
+  }
+
   async function handleGetCharts(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
@@ -1276,9 +1750,11 @@
           ? "items/name, items/id, items/title/text, items/chartType, items/top, items/left, items/width, items/height, items/legend/visible, items/series/items/name"
           : "items/name, items/id, items/title/text, items/chartType, items/top, items/left, items/width, items/height"
       );
+      // 错误分支里要用 sheet.name 组文案：必须一起 load，否则报「属性"name"不可用」而盖掉真正的错误。
+      sheet.load("name");
       await context.sync();
 
-      const result = charts.items.map((c, idx) => {
+      const all = charts.items.map((c, idx) => {
         const item = {
           chartIndex: idx + 1,
           name: c.name,
@@ -1302,9 +1778,51 @@
         return item;
       });
 
+      // ISS-93-d：网关传 shapeName / chartIndex / chartTitle 三个选择器，旧实现全部忽略、恒返回全表。
+      // 现在按选择器过滤；选择器命中 0 张就**抛错并列出实际图表**，而不是悄悄返回别的图。
+      const wantedName = params.shapeName || params.name || params.chartName;
+      const wantedTitle = params.chartTitle;
+      const wantedIndex = params.chartIndex === undefined || params.chartIndex === null || params.chartIndex === ''
+        ? null
+        : Number(params.chartIndex);
+      if (wantedIndex !== null && (!Number.isFinite(wantedIndex) || wantedIndex < 1)) {
+        throw new Error(`[Office.js 通道] get_charts 的 chartIndex=${params.chartIndex} 非法：需要 ≥1 的整数。`);
+      }
+
+      const hasSelector = Boolean(wantedName) || Boolean(wantedTitle) || wantedIndex !== null;
+      let result = all;
+      const selector = { shapeName: wantedName || null, chartTitle: wantedTitle || null, chartIndex: wantedIndex };
+
+      if (hasSelector) {
+        if (all.length === 0) {
+          throw new Error(`[Office.js 通道] get_charts：工作表 [${sheet.name}] 中没有任何原生图表，选择器 ${JSON.stringify(selector)} 无对象可匹配。`);
+        }
+        if (wantedName) {
+          const nameNorm = normalizeChartName(wantedName);
+          result = result.filter(c => normalizeChartName(c.name) === nameNorm || normalizeChartName(c.id) === nameNorm);
+        }
+        if (wantedTitle) {
+          const t = String(wantedTitle).toLowerCase();
+          result = result.filter(c => String(c.title || '').toLowerCase().includes(t));
+        }
+        if (wantedIndex !== null) {
+          result = result.filter(c => c.chartIndex === wantedIndex);
+        }
+        if (result.length === 0) {
+          throw new Error(
+            `[Office.js 通道] get_charts 选择器 ${JSON.stringify(selector)} 在 [${sheet.name}] 未匹配到任何图表（未返回其它图表充数）。` +
+            `当前工作表实际有 ${all.length} 张：${chartNamesOf(all).join('、')}。`
+          );
+        }
+      }
+
       return {
         success: true,
+        sheetName: sheet.name,
         count: result.length,
+        totalCount: all.length,
+        filtered: hasSelector,
+        selector: hasSelector ? selector : null,
         charts: result
       };
     });
@@ -1319,36 +1837,41 @@
       const parts = targetCellRange.split(":").map(x => x.trim());
       try {
         chart.setPosition(sheet.getRange(parts[0]), sheet.getRange(parts[1]));
-        return;
+        return "cellRange";
       } catch (e1) {
-        try { chart.setPosition(parts[0], parts[1]); return; } catch (e2) {}
+        try { chart.setPosition(parts[0], parts[1]); return "cellRange"; } catch (e2) {}
       }
     } else if (targetStartCell && targetEndCell) {
       try {
         chart.setPosition(sheet.getRange(targetStartCell), sheet.getRange(targetEndCell));
-        return;
+        return "start/endCell";
       } catch (e1) {
-        try { chart.setPosition(targetStartCell, targetEndCell); return; } catch (e2) {}
+        try { chart.setPosition(targetStartCell, targetEndCell); return "start/endCell"; } catch (e2) {}
       }
     } else if (targetStartCell) {
       try {
         chart.setPosition(sheet.getRange(targetStartCell));
-        return;
+        return "startCell";
       } catch (e1) {
-        try { chart.setPosition(targetStartCell); return; } catch (e2) {}
+        try { chart.setPosition(targetStartCell); return "startCell"; } catch (e2) {}
       }
     }
     if (targetLeft !== undefined) chart.left = targetLeft;
     if (targetTop !== undefined) chart.top = targetTop;
     if (targetWidth !== undefined) chart.width = targetWidth;
     if (targetHeight !== undefined) chart.height = targetHeight;
+    return "pixels";
   }
 
   async function handleCreateChart(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
       const sourceRange = params.dataRange || params.sourceAddress;
-      const source = sourceRange ? sheet.getRange(sourceRange) : sheet.getUsedRange();
+      const extraRanges = Array.isArray(params.dataRanges) ? params.dataRanges.filter(r => typeof r === 'string' && r.trim()) : [];
+      if (!sourceRange && extraRanges.length === 0) {
+        throw new Error('[Office.js 通道] add_chart 缺少数据源：请提供 dataRange（如 "A4:E19"）或 dataRanges（多段区域数组）。');
+      }
+      const source = sourceRange ? sheet.getRange(sourceRange) : sheet.getRange(extraRanges[0]);
 
       const targetTitle = params.title || "";
       const targetLeft = params.left !== undefined ? Number(params.left) : (params.position?.left ? Number(params.position.left) : 350);
@@ -1358,6 +1881,8 @@
 
       // 处理 replaceExisting：若开启，先清理重叠位置或同名旧图，彻底避免图表堆叠
       const replaceExisting = params.replaceExisting !== false;
+      const warnings = [];
+      const removedCharts = [];
       if (replaceExisting) {
         try {
           const existingCharts = sheet.charts.load("items/name, items/id, items/title/text, items/left, items/top");
@@ -1366,12 +1891,13 @@
             const titleMatch = targetTitle && c.title && c.title.text === targetTitle;
             const posMatch = Math.abs(c.left - targetLeft) < 40 && Math.abs(c.top - targetTop) < 40;
             if (titleMatch || posMatch) {
+              removedCharts.push(c.name);
               c.delete();
             }
           }
           await context.sync();
         } catch (cleanErr) {
-          console.warn("清理已有图表警告:", cleanErr);
+          warnings.push(`清理已有图表时出错（未阻断建图）：${cleanErr && cleanErr.message ? cleanErr.message : cleanErr}`);
         }
       }
 
@@ -1379,58 +1905,204 @@
         column: "ColumnClustered",
         column_clustered: "ColumnClustered",
         columnclustered: "ColumnClustered",
+        clustered_column: "ColumnClustered",
         bar: "BarClustered",
         bar_clustered: "BarClustered",
         barclustered: "BarClustered",
+        clustered_bar: "BarClustered",
         line: "Line",
+        line_marker: "LineMarkers",
         pie: "Pie",
         doughnut: "Doughnut",
+        donut: "Doughnut",
         area: "Area",
-        scatter: "Scatter"
+        scatter: "Scatter",
+        xy_scatter: "Scatter"
       };
-      const rawType = String(params.chartType || "ColumnClustered").toLowerCase().replace(/-/g, '_');
-      const chartType = typeMap[rawType] || params.chartType || "ColumnClustered";
-      const chart = sheet.charts.add(chartType, source, params.seriesBy || "Auto");
-
-      if (targetTitle) chart.title.text = targetTitle;
-      applyChartPosition(chart, sheet, params, targetLeft, targetTop, targetWidth, targetHeight);
-
-      if (params.hasLegend !== undefined) {
-        chart.legend.visible = Boolean(params.hasLegend);
+      const rawType = String(params.chartType || "ColumnClustered").trim().toLowerCase().replace(/[-\s]/g, '_');
+      // ISS-17 同类问题的防线：枚举外的类型**报错**，不静默降级。
+      // pareto 在 Office.js 没有对应 ChartType —— 明确拒绝并给出可执行替代，绝不悄悄建成柱状图。
+      if (rawType === 'pareto') {
+        throw new Error(
+          '[Office.js 通道] add_chart 不支持 chartType="pareto"：Office.js 没有 Pareto 图表类型，' +
+          '不会静默降级成柱状图。替代路径：① 用 chartType="column_clustered" 建柱状图，另加一列累计占比系列（或改用 host="wps" 的 add_chart）；' +
+          '② 需要柏拉图外观时，自行对数据降序排序后再建图。'
+        );
+      }
+      const chartType = typeMap[rawType];
+      if (!chartType) {
+        throw new Error(
+          `[Office.js 通道] add_chart 无法识别的 chartType: "${params.chartType}"。` +
+          '支持 line | column | column_clustered | bar | bar_clustered | pie | doughnut | area | scatter。'
+        );
       }
 
-      // 处理系列着色与调色板
+      const chart = sheet.charts.add(chartType, source, params.seriesBy || "Auto");
+      const positionMode = applyChartPosition(chart, sheet, params, targetLeft, targetTop, targetWidth, targetHeight);
+
+      if (targetTitle) chart.title.text = targetTitle;
+
+      let legendApplied = null;
+      if (params.hasLegend !== undefined) {
+        chart.legend.visible = Boolean(params.hasLegend);
+        legendApplied = Boolean(params.hasLegend);
+      }
+
+      // ── ISS-93-e：dataRanges（多段数据源）────────────────
+      // 旧实现完全忽略 dataRanges；这里逐段追加，并在读回后核对系列数，不一致写入 warnings。
+      let dataRangesApplied = [sourceRange || extraRanges[0]];
+      if (extraRanges.length > 0) {
+        dataRangesApplied = extraRanges.slice();
+        try {
+          for (const addr of extraRanges) {
+            chart.setData(sheet.getRange(addr), params.seriesBy || "Auto");
+          }
+          await context.sync();
+        } catch (multiErr) {
+          warnings.push(
+            `dataRanges 多段数据源设置失败（已保留首段）：${multiErr && multiErr.message ? multiErr.message : multiErr}。` +
+            '可改用一段连续区域，或改用 host="wps" 的 add_chart。'
+          );
+        }
+      }
+
+      const seriesList = chart.series.load("items");
+      await context.sync();
+      const seriesItems = seriesList.items || [];
+      if (extraRanges.length > 0 && seriesItems.length < extraRanges.length) {
+        warnings.push(`请求 dataRanges 共 ${extraRanges.length} 段，宿主读回只有 ${seriesItems.length} 个系列（多段数据源可能未全部生效）。`);
+      }
+
+      // ── 系列着色 ────────────────────────────────
       let colors = params.seriesColors;
       if (typeof colors === "string") colors = [colors];
       if (!colors && params.seriesColor) colors = [params.seriesColor];
       if (!colors && params.color) colors = [params.color];
+      if (!Array.isArray(colors)) colors = null;
 
+      const isPieLike = rawType.includes("pie") || rawType.includes("doughnut") || rawType.includes("donut");
       try {
-        const seriesList = chart.series.load("items");
-        await context.sync();
-
-        if (rawType.includes("pie") || rawType.includes("doughnut")) {
-          if (seriesList.items.length > 0) {
-            const points = seriesList.items[0].points.load("items");
+        if (isPieLike) {
+          if (seriesItems.length > 0) {
+            const points = seriesItems[0].points.load("items");
             await context.sync();
-            const piePalette = (colors && colors.length > 1)
-              ? colors
-              : ["#046A38", "#00A854", "#2CFF73", "#52C41A", "#A3D4B6", "#145A32", "#7DCEA0"];
-            for (let pIdx = 0; pIdx < points.items.length; pIdx++) {
-              points.items[pIdx].format.fill.setSolidColor(piePalette[pIdx % piePalette.length]);
+            if (colors && colors.length > 0) {
+              // 饼/环图的"系列颜色"实际是逐点颜色：只给一个颜色就整圈同色，给 N 个就按点顺序取用。
+              for (let pIdx = 0; pIdx < points.items.length; pIdx++) {
+                points.items[pIdx].format.fill.setSolidColor(colors[pIdx % colors.length]);
+              }
+            } else {
+              const piePalette = ["#046A38", "#00A854", "#2CFF73", "#52C41A", "#A3D4B6", "#145A32", "#7DCEA0"];
+              for (let pIdx = 0; pIdx < points.items.length; pIdx++) {
+                points.items[pIdx].format.fill.setSolidColor(piePalette[pIdx % piePalette.length]);
+              }
             }
           }
         } else if (colors && colors.length > 0) {
-          for (let sIdx = 0; sIdx < seriesList.items.length; sIdx++) {
-            const c = colors[sIdx % colors.length];
-            seriesList.items[sIdx].format.fill.setSolidColor(c);
+          for (let sIdx = 0; sIdx < seriesItems.length; sIdx++) {
+            seriesItems[sIdx].format.fill.setSolidColor(colors[sIdx % colors.length]);
           }
         }
       } catch (colorErr) {
-        console.warn("设置图表系列颜色警告:", colorErr);
+        warnings.push(`图表系列颜色设置失败：${colorErr && colorErr.message ? colorErr.message : colorErr}`);
       }
 
-      chart.load("name, id");
+      // ── ISS-93-e：hasDataLabels / smoothLine / yAxis / seriesSettings ──
+      const labelsRequested = params.hasDataLabels;
+      if (labelsRequested !== undefined) {
+        try {
+          const labels = chart.dataLabels.load("showValue");
+          await context.sync();
+          labels.showValue = Boolean(labelsRequested);
+          await context.sync();
+          labels.load("showValue");
+          await context.sync();
+          if (Boolean(labels.showValue) !== Boolean(labelsRequested)) {
+            warnings.push(`hasDataLabels 请求 ${Boolean(labelsRequested)}，读回 ${Boolean(labels.showValue)}（宿主未接受）。`);
+          }
+        } catch (labelErr) {
+          warnings.push(`hasDataLabels 设置失败：${labelErr && labelErr.message ? labelErr.message : labelErr}`);
+        }
+      }
+
+      const smoothRequested = params.smoothLine;
+      const isLineLike = /line|scatter/i.test(rawType);
+      if (smoothRequested !== undefined && !isLineLike) {
+        warnings.push(`smoothLine 仅对折线/散点图有意义，当前 chartType=${rawType}，已忽略。`);
+      } else if (smoothRequested !== undefined) {
+        let smoothApplied = 0;
+        for (const s of seriesItems) {
+          try { s.smooth = Boolean(smoothRequested); smoothApplied++; } catch (smoothErr) { /* 单系列不支持时跳过 */ }
+        }
+        if (smoothApplied === 0) {
+          warnings.push('smoothLine 设置失败：宿主未接受任何系列的平滑属性。');
+        } else {
+          try {
+            await context.sync();
+          } catch (smoothSyncErr) {
+            warnings.push(`smoothLine 写入未生效：${smoothSyncErr && smoothSyncErr.message ? smoothSyncErr.message : smoothSyncErr}`);
+          }
+        }
+      }
+
+      const seriesSettings = Array.isArray(params.seriesSettings) ? params.seriesSettings : [];
+      for (const setting of seriesSettings) {
+        const idx = Number(setting && setting.seriesIndex);
+        if (!Number.isFinite(idx) || idx < 1) {
+          throw new Error('[Office.js 通道] add_chart 的 seriesSettings.seriesIndex 非法：需要 ≥1 的整数（从 1 开始）。');
+        }
+        if (idx > seriesItems.length) {
+          throw new Error(
+            `[Office.js 通道] add_chart 的 seriesSettings.seriesIndex=${idx} 越界：本图只有 ${seriesItems.length} 个系列。` +
+            '原实现会静默跳过，现改为显式报错（已建图不会回滚，请按需 delete_chart 后重建）。'
+          );
+        }
+        const target = seriesItems[idx - 1];
+        if (setting.color) {
+          try { target.format.fill.setSolidColor(setting.color); } catch (cErr) { warnings.push(`seriesSettings[${idx}].color 设置失败：${cErr && cErr.message ? cErr.message : cErr}`); }
+        }
+        if (setting.smooth !== undefined) {
+          try { target.smooth = Boolean(setting.smooth); } catch (smErr) { warnings.push(`seriesSettings[${idx}].smooth 设置失败：${smErr && smErr.message ? smErr.message : smErr}`); }
+        }
+      }
+      if (seriesSettings.length > 0) {
+        try { await context.sync(); } catch (ssErr) { warnings.push(`seriesSettings 写入未生效：${ssErr && ssErr.message ? ssErr.message : ssErr}`); }
+      }
+
+      const yAxisParam = params.yAxis || {};
+      const yAxisRequested = ['min', 'max', 'step', 'numberFormat', 'title'].some(k => yAxisParam[k] !== undefined && yAxisParam[k] !== null && yAxisParam[k] !== '');
+      let yAxisApplied = null;
+      if (yAxisRequested) {
+        try {
+          const va = chart.axes.valueAxis;
+          if (yAxisParam.min !== undefined && yAxisParam.min !== null) va.minimum = Number(yAxisParam.min);
+          if (yAxisParam.max !== undefined && yAxisParam.max !== null) va.maximum = Number(yAxisParam.max);
+          if (yAxisParam.step !== undefined && yAxisParam.step !== null) va.majorUnit = Number(yAxisParam.step);
+          if (yAxisParam.numberFormat) va.numberFormat = String(yAxisParam.numberFormat);
+          if (yAxisParam.title) va.title.text = String(yAxisParam.title);
+          await context.sync();
+          if (yAxisParam.numberFormat) va.format.numberFormat = String(yAxisParam.numberFormat);
+          if (yAxisParam.title) va.title.text = String(yAxisParam.title);
+          await context.sync();
+          va.load("minimum, maximum, majorUnit, numberFormat, title/text");
+          await context.sync();
+          yAxisApplied = {
+            minimum: va.minimum,
+            maximum: va.maximum,
+            majorUnit: va.majorUnit,
+            numberFormat: va.numberFormat,
+            title: va.title ? va.title.text : null
+          };
+          const mismatches = [];
+          if (yAxisParam.min !== undefined && yAxisParam.min !== null && Math.abs(Number(yAxisApplied.minimum) - Number(yAxisParam.min)) > 1e-9) mismatches.push(`min 请求 ${yAxisParam.min} 读回 ${yAxisApplied.minimum}`);
+          if (yAxisParam.max !== undefined && yAxisParam.max !== null && Math.abs(Number(yAxisApplied.maximum) - Number(yAxisParam.max)) > 1e-9) mismatches.push(`max 请求 ${yAxisParam.max} 读回 ${yAxisApplied.maximum}`);
+          if (mismatches.length > 0) warnings.push(`yAxis 未完全生效：${mismatches.join('；')}`);
+        } catch (axisErr) {
+          warnings.push(`yAxis 设置失败：${axisErr && axisErr.message ? axisErr.message : axisErr}`);
+        }
+      }
+
+      chart.load("name, id, top, left, width, height");
       sheet.load("name");
       await context.sync();
 
@@ -1442,14 +2114,23 @@
         chartIndex: 1,
         title: targetTitle,
         chartType: rawType,
-        dataRange: sourceRange,
+        dataRange: sourceRange || extraRanges[0],
+        dataRangesApplied,
         sheetName: sheet.name,
-        left: targetLeft,
-        top: targetTop,
-        width: targetWidth,
-        height: targetHeight,
+        left: chart.left !== undefined ? chart.left : targetLeft,
+        top: chart.top !== undefined ? chart.top : targetTop,
+        width: chart.width !== undefined ? chart.width : targetWidth,
+        height: chart.height !== undefined ? chart.height : targetHeight,
+        positionMode,
+        hasLegendApplied: legendApplied,
+        yAxisApplied,
+        seriesCount: seriesItems.length,
+        seriesSettingsApplied: seriesSettings.length,
         replaceExisting: replaceExisting,
-        message: `已成功在 [${sheet.name}] 创建 ${rawType} 原生图表，数据源为 ${sourceRange}`
+        removedCharts,
+        warnings,
+        readBackNote: '左侧/顶部/宽高为宿主读回值；用 get_charts(detail=true) 复核标题、系列数与类型。',
+        message: `已成功在 [${sheet.name}] 创建 ${rawType} 原生图表，数据源为 ${dataRangesApplied.join(' + ')}`
       };
     });
   }
@@ -1467,17 +2148,25 @@
         await context.sync();
         return { success: true, count, message: `已成功清空当前工作表中的全部 ${count} 个图表` };
       }
-      const chart = sheet.charts.getItem(params.chartName || params.name || params.id || params.shapeName);
+      const wanted = params.chartName || params.name || params.id || params.shapeName;
+      if (!wanted) {
+        throw new Error('[Office.js 通道] delete_chart 需要 chartName（或 shapeName/id），否则不知道删哪一张；如需清空全部请显式传 clearAll=true。');
+      }
+      const chart = sheet.charts.getItem(wanted);
       chart.delete();
       await context.sync();
-      return { success: true, message: "图表已成功删除" };
+      return { success: true, deleted: wanted, message: `图表 [${wanted}] 已成功删除` };
     });
   }
 
   async function handleUpdateChart(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const chart = sheet.charts.getItem(params.name || params.chartName || params.id || params.shapeName);
+      const wanted = params.name || params.chartName || params.id || params.shapeName;
+      if (!wanted) {
+        throw new Error('[Office.js 通道] update_chart 需要 name/chartName/shapeName/id 指定目标图表。');
+      }
+      const chart = sheet.charts.getItem(wanted);
       if (params.title) chart.title.text = params.title;
       if (params.legendPosition) chart.legend.position = params.legendPosition;
       const targetLeft = params.left !== undefined ? Number(params.left) : (params.position?.left ? Number(params.position.left) : undefined);
@@ -1487,250 +2176,101 @@
 
       applyChartPosition(chart, sheet, params, targetLeft, targetTop, targetWidth, targetHeight);
       await context.sync();
-      return { success: true, message: `图表 [${params.name || params.chartName || '目标图表'}] 已成功更新位置与配置` };
+      return { success: true, name: wanted, message: `图表 [${wanted}] 已成功更新位置与配置` };
     });
   }
 
   async function handleExportChartImage(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
-      const chart = sheet.charts.getItem(params.name || params.chartName);
-      const imageResult = chart.getImage(params.width || 800, params.height || 450);
+      const wanted = params.name || params.chartName || params.shapeName;
+      if (!wanted) {
+        throw new Error('[Office.js 通道] export_chart_image 需要 chartName（或 name/shapeName）指定图表。');
+      }
+      const chart = sheet.charts.getItem(wanted);
+      const size = readRenderSize({ width: params.width, height: params.height });
+      const imageResult = chart.getImage(size.width, size.height);
       await context.sync();
-      return { success: true, imageBase64: imageResult.value };
+      return { success: true, chartName: wanted, imageBase64: imageResult.value, imageMimeType: 'image/png', width: size.width, height: size.height, renderedBy: 'chart.getImage (Office.js 原生导出)' };
     });
   }
 
+  /**
+   * ISS-96：capture_sheet_preview —— 只做真实渲染，做不到就明确报错。
+   *
+   * 真实渲染的**唯一**来源是 `chart.getImage()`（宿主原生导出图表）。
+   * 工作表区域截图在 Office.js 交付面上没有可用 API（macOS 桌面版既无 Range 截图，
+   * 也没有可用的 Workbook 渲染导出），因此区域预览一律抛错并给出替代路径。
+   */
   async function handleCaptureSheetPreview(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params?.sheetName);
+      const requestedMode = params?.mode === undefined || params?.mode === null || params?.mode === '' ? null : String(params.mode).toLowerCase();
+      if (requestedMode && !['chart', 'sheet', 'auto'].includes(requestedMode)) {
+        throw new Error(`[Office.js 通道] capture_sheet_preview 无法识别的 mode: "${params.mode}"（支持 chart | sheet | auto）。`);
+      }
+
+      const chartSelector = params?.chartName || params?.name || null;
+      const address = params?.address || params?.range || null;
+      if (requestedMode === 'sheet' && chartSelector) {
+        throw new Error(
+          `[Office.js 通道] capture_sheet_preview 参数冲突：mode="sheet" 与 chartName="${chartSelector}" 同时给出。` +
+          '区域截图不受支持（见下），如需导出图表请去掉 mode 或传 mode="chart"。'
+        );
+      }
+
+      const targetChartName = requestedMode === 'sheet' ? null : chartSelector;
+      const wantsSheetArea = requestedMode === 'sheet' || (!targetChartName && Boolean(address));
+      // 错误分支要用 sheet.name 组文案（本通道的报错文案本身就是交付物）：先 load。
       sheet.load("name");
 
-      // 1. 若当前工作表中包含原生图表，优先导出图表的高清渲染图像 Base64
-      const charts = sheet.charts.load("items/name, items/id, items/title/text, items/left, items/top, items/width, items/height");
-      await context.sync();
-
-      const isChartTargeted = Boolean(params?.name || params?.chartName);
-      const isSheetRequested = params?.mode === "sheet" || (Boolean(params?.address) && !isChartTargeted);
-
-      if (charts.items.length > 0 && !isSheetRequested) {
-        try {
-          const targetChart = (params?.name || params?.chartName)
-            ? charts.items.find(c => c.name === (params?.name || params?.chartName) || c.id === (params?.name || params?.chartName)) || charts.items[0]
-            : charts.items[0];
-          const imgResult = targetChart.getImage(params?.width || 800, params?.height || 450);
-          await context.sync();
-          if (imgResult && imgResult.value) {
-            return {
-              success: true,
-              workbookName: "工作簿1.xlsx",
-              sheetName: sheet.name,
-              address: params?.address || "Chart",
-              imageBase64: imgResult.value,
-              imageMimeType: "image/png",
-              hasChart: true,
-              message: `已成功捕获 [${sheet.name}] 图表 [${targetChart.name}] 的高清原生渲染图`
-            };
-          }
-        } catch (chartErr) {
-          console.warn("读取图表图像警告:", chartErr);
+      if (targetChartName) {
+        const charts = sheet.charts.load("items/name, items/id, items/title/text, items/width, items/height");
+        await context.sync();
+        if (charts.items.length === 0) {
+          throw new Error(`[Office.js 通道] capture_sheet_preview 无法渲染：工作表 [${sheet.name}] 没有任何原生图表，而你请求的是图表 "${targetChartName}"。`);
         }
-      }
-
-      // 2. 纯数据表格排版区域：通过 Canvas 真实读取单元格高保真排版图
-      const range = params?.address ? sheet.getRange(params.address) : sheet.getUsedRange();
-      range.load("address, values, text, rowCount, columnCount");
-      await context.sync();
-
-      // 真实读取每行的填充色与字体色，杜绝任何假自检与硬编码伪装！
-      const rowFormatPromises = [];
-      const inspectRowCount = Math.min(50, (range.rowCount || 35));
-      for (let r = 0; r < inspectRowCount; r++) {
-        try {
-          const rowRange = range.getRow(r);
-          rowRange.load("format/fill/color, format/font/color, format/font/bold");
-          rowFormatPromises.push(rowRange);
-        } catch (e) {}
-      }
-      await context.sync();
-
-      const textMatrix = range.text || range.values || [];
-      const rowCount = range.rowCount || textMatrix.length || 1;
-      const colCount = range.columnCount || (textMatrix[0] ? textMatrix[0].length : 1);
-
-      try {
-        const cellW = 110;
-        const rowH = 28;
-        const bannerH = 42;
-        const width = Math.max(600, colCount * cellW + 40);
-        const height = bannerH + rowCount * rowH + 20;
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-
-        // 商务浅灰底板 (#F4F6F8)
-        ctx.fillStyle = "#F4F6F8";
-        ctx.fillRect(0, 0, width, height);
-
-        // 顶栏 Banner
-        ctx.fillStyle = "#046A38";
-        ctx.fillRect(0, 0, width, bannerH);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-        ctx.fillText(`📊 真实页面视觉自检 (WYSIWYG Inspector): [${sheet.name}] 区域: ${range.address}`, 16, 26);
-
-        // 遍历绘制单元格 (根据 Excel 真实属性绘制)
-        const startX = 20;
-        const startY = bannerH + 10;
-
-        for (let r = 0; r < rowCount; r++) {
-          const rowText = textMatrix[r] ? textMatrix[r].join(" ") : "";
-          const isEmptyRow = !rowText.trim();
-          const rObj = rowFormatPromises[r];
-          const actualFill = (rObj && rObj.format && rObj.format.fill && rObj.format.fill.color && !rObj.format.fill.color.includes("00000000")) ? rObj.format.fill.color : null;
-          const actualFont = (rObj && rObj.format && rObj.format.font && rObj.format.font.color) ? rObj.format.font.color : null;
-          const actualBold = (rObj && rObj.format && rObj.format.font) ? rObj.format.font.bold : false;
-
-          for (let c = 0; c < colCount; c++) {
-            const x = startX + c * cellW;
-            const y = startY + r * rowH;
-            const rawVal = textMatrix[r] ? String(textMatrix[r][c] ?? "") : "";
-
-            if (isEmptyRow) {
-              ctx.fillStyle = actualFill || "#F4F6F8";
-              ctx.fillRect(x, y, cellW, rowH);
-              continue;
-            }
-
-            // 100% 真实反映实机填充色：实机是什么颜色就画什么颜色！
-            if (actualFill) {
-              ctx.fillStyle = actualFill;
-            } else {
-              ctx.fillStyle = "#FFFFFF";
-            }
-            ctx.fillRect(x, y, cellW, rowH);
-
-            if (actualFont) {
-              ctx.fillStyle = actualFont;
-            } else {
-              ctx.fillStyle = (actualFill && actualFill.toLowerCase().includes("046a38")) ? "#FFFFFF" : "#1E293B";
-            }
-            ctx.font = actualBold ? "bold 11px -apple-system, BlinkMacSystemFont, sans-serif" : "11px -apple-system, BlinkMacSystemFont, sans-serif";
-
-            // 绘制单元格细边框
-            ctx.strokeStyle = "#E2ECE6";
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x, y, cellW, rowH);
-
-            // 绘制单元格文本 (截断保护)
-            if (rawVal) {
-              ctx.fillText(rawVal.slice(0, 15), x + 6, y + 19);
-            }
-          }
+        const target = findChartByName(charts.items, targetChartName);
+        if (!target) {
+          throw new Error(
+            `[Office.js 通道] capture_sheet_preview 未找到图表 "${targetChartName}"（按名称或 id 精确匹配，兼容 "图表 2" 与 "Chart 2"）。` +
+            `[${sheet.name}] 现有图表：${chartNamesOf(charts.items).join('、')}。`
+          );
         }
-
-        // 3. 图表图层高保真合成：将工作表上的图表渲染切片精确合成到 Canvas 对应网格区域
-        if (charts.items.length > 0) {
-          const chartEntries = [];
-          for (const c of charts.items) {
-            try {
-              const imgRes = c.getImage(800, 450);
-              chartEntries.push({ chart: c, imgRes });
-            } catch (imgErr) {}
-          }
-          await context.sync();
-
-          for (const entry of chartEntries) {
-            if (!entry.imgRes || !entry.imgRes.value) continue;
-            const c = entry.chart;
-            const title = (c.title && c.title.text) ? c.title.text : (c.name || "");
-
-            // 智能计算图表在 Bento 栅格上的对应网格区域
-            let targetX = startX + 8 * cellW;
-            let targetW = 8 * cellW;
-            let targetY = startY + 7 * rowH;
-            let targetH = 13 * rowH;
-
-            if (title.includes("月度") || title.includes("趋势") || c.name === "Chart 1") {
-              // Card 2: 月度走势柱状图 (A13:H18)
-              targetX = startX + 0 * cellW;
-              targetW = 8 * cellW;
-              targetY = startY + 12 * rowH;
-              targetH = 6 * rowH;
-            } else if (title.includes("产品线") || title.includes("占比") || c.name === "Chart 2") {
-              // Card 3: 产品线环形图 (M9:P18)
-              targetX = startX + 12 * cellW;
-              targetW = 4 * cellW;
-              targetY = startY + 8 * rowH;
-              targetH = 10 * rowH;
-            } else if (title.includes("大区") || title.includes("排行") || c.name === "Chart 3") {
-              // Card 4: 大区对比条形图 (I21:P34)
-              targetX = startX + 8 * cellW;
-              targetW = 8 * cellW;
-              targetY = startY + 21 * rowH;
-              targetH = 13 * rowH;
-            } else if (c.top !== undefined && c.left !== undefined) {
-              const approxR = Math.max(0, Math.round((c.top - 20) / 22));
-              const approxC = Math.max(0, Math.round(c.left / 70));
-              targetX = startX + approxC * cellW;
-              targetY = startY + approxR * rowH;
-              targetW = Math.max(240, Math.round((c.width || 480) / 70 * cellW));
-              targetH = Math.max(120, Math.round((c.height || 240) / 22 * rowH));
-            }
-
-            try {
-              const img = new Image();
-              img.src = "data:image/png;base64," + entry.imgRes.value;
-              await new Promise((resolve) => {
-                img.onload = resolve;
-                img.onerror = resolve;
-              });
-
-              // 绘制卡片底衬与微阴影
-              ctx.save();
-              ctx.fillStyle = "#FFFFFF";
-              ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
-              ctx.shadowBlur = 6;
-              ctx.shadowOffsetX = 0;
-              ctx.shadowOffsetY = 2;
-              ctx.fillRect(targetX + 2, targetY + 2, targetW - 4, targetH - 4);
-              ctx.strokeStyle = "#D1E7DD";
-              ctx.lineWidth = 1;
-              ctx.strokeRect(targetX + 2, targetY + 2, targetW - 4, targetH - 4);
-              ctx.restore();
-
-              // 绘制原生图表切片
-              ctx.drawImage(img, targetX + 4, targetY + 4, targetW - 8, targetH - 8);
-            } catch (drawErr) {
-              console.warn("Canvas 合成图表失败:", drawErr);
-            }
-          }
+        const size = readRenderSize(params || {});
+        const imgResult = target.getImage(size.width, size.height);
+        await context.sync();
+        if (!imgResult || !imgResult.value) {
+          throw new Error(`[Office.js 通道] capture_sheet_preview：宿主对图表 [${target.name}] 的 getImage 未返回图像数据，无法提供真实渲染图。`);
         }
-
-        const dataUrl = canvas.toDataURL("image/png");
-        const b64 = dataUrl.replace(/^data:image\/png;base64,/, "");
-
+        const title = target.title && target.title.text ? target.title.text : '';
         return {
           success: true,
-          workbookName: "工作簿1.xlsx",
+          kind: 'chart',
+          renderedBy: 'chart.getImage (Office.js 原生导出)',
+          workbookName: params?.workbookName || null,
           sheetName: sheet.name,
-          address: range.address,
-          imageBase64: b64,
+          address: target.name,
+          chartName: target.name,
+          chartTitle: title,
+          imageBase64: imgResult.value,
           imageMimeType: "image/png",
-          hasChart: false,
-          message: `已成功生成 [${sheet.name}] 区域 ${range.address} 的高保真渲染图`
-        };
-      } catch (canvasErr) {
-        return {
-          success: true,
-          workbookName: "工作簿1.xlsx",
-          sheetName: sheet.name,
-          address: range.address,
-          message: `表格已排版完成 (共 ${rowCount} 行 × ${colCount} 列)`
+          width: size.width,
+          height: size.height,
+          message: `已导出 [${sheet.name}] 图表 [${target.name}] 的原生渲染图（${size.width}×${size.height}，由 Office.js chart.getImage 生成，非合成图）。`
         };
       }
+
+      // 走到这里说明请求的是工作表区域（或既没给图表也没给区域）。
+      const scope = wantsSheetArea ? `区域 ${address}` : '工作表已用区域';
+      throw new Error(
+        `[Office.js 通道] capture_sheet_preview 不支持真实渲染：无法为 [${sheet.name}] 的${scope}生成截图。` +
+        'Office.js 交付面没有工作表/区域截图 API（只有图表有 chart.getImage），因此本通道不提供该图，' +
+        '也不会用 Canvas 合成"示意图"充数（旧版本会返回假渲染图，已移除）。' +
+        '替代路径：① 改用 host="wps" 的 wps_capture_sheet_preview（WPS 原生渲染，可截指定区域）；' +
+        '② 在 Excel 里自行截图（选区后 Shift+Cmd+4/Ctrl+C 复制为图片）再把图交给 AI；' +
+        '③ 需要"读回核对"时改用 read_range / get_range_styles / get_charts(detail=true) 做数据与格式自查。'
+      );
     });
   }
 

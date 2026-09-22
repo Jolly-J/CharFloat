@@ -118,15 +118,36 @@ export interface AuditRecord {
   id: string;
   timestamp: number;
   clientName: string; // 例如 "Cursor", "Claude Code", "Agent", "Manual"
-  actionType: "update_values" | "update_formulas" | "format" | "insert_col" | "insert_row" | "rollback";
+  /**
+   * 产生该记录的会话标识（ISS-49）。
+   *
+   * `clientName` 可以相同（例如两个 stdio 客户端都叫 "stdio MCP"），
+   * 会话标识才是"这条是谁改的"的稳定判据；HTTP /mcp 与 stdio 通道都会带上它。
+   */
+  sessionId?: string;
+  /**
+   * 操作类型。`update_values` / `update_formulas` 是唯一带值快照、可回滚的两类；
+   * 其余是"只留痕、不可回滚"的操作事实（ISS-48）。
+   */
+  actionType:
+    | "update_values" | "update_formulas" | "rollback"
+    | "format" | "conditional_format" | "freeze_panes" | "insert_col" | "insert_row"
+    | "delete_dimension" | "hide_dimension" | "sheet_structure" | "chart" | "data_validation"
+    | "find_replace" | "pivot_table" | "filter_sort" | "comment" | "save" | "script";
   description: string;
   workbookName: string;
   sheetName: string;
   address: string;
   modifiedCount: number;
   diff: CellDiff[];
-  beforeSnapshot: RangeSnapshot;
+  /** 修改前快照；只有可回滚的记录才有（其余记录为 undefined，ISS-48）。 */
+  beforeSnapshot?: RangeSnapshot;
   afterSnapshot?: RangeSnapshot;
+  /**
+   * 该记录能否用 `wps_rollback` 回滚。
+   * 只有 patch_cells 的值/公式修改为 true；其余写操作只留痕不提供回滚（ISS-48）。
+   */
+  rollbackable?: boolean;
   status: "applied" | "rolled_back";
 }
 

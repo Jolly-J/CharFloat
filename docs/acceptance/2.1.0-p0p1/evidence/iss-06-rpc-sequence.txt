@@ -1,0 +1,487 @@
+================================================================================
+ISS-06-C · P3.3「桩测试 20 条 RPC 序列快照逐行一致」证据（重跑留档）
+================================================================================
+生成时间   : 2026-09-22
+对应问题   : docs/acceptance/2.1.0-p0p1/issues.md  ISS-06
+对应改造项 : docs/refactoring-plan.md  P3.3（"桩测试 20 条 RPC 序列快照逐行一致"）
+             issues.md ISS-06 建议修法亦写"Office.js 侧 20 条序列快照优先"
+重跑脚本   : docs/acceptance/2.1.0-p0p1/evidence/iss-06-rpc-sequence.mjs
+             （工作副本 .scratch/evidence/rpc-sequence.mjs，按约定不放仓库根目录）
+
+重跑命令（仓库根目录执行）:
+  # 台账声称的 20 条
+  node docs/acceptance/2.1.0-p0p1/evidence/iss-06-rpc-sequence.mjs \
+    .scratch/evidence/prior/office-addon/public/taskpane.js \
+    release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+  # 扩展覆盖：全部 77 个 dispatchExcelTool 分支（额外加固，不属于台账声称的 20 条）
+  node docs/acceptance/2.1.0-p0p1/evidence/iss-06-rpc-sequence.mjs \
+    .scratch/evidence/prior/office-addon/public/taskpane.js \
+    release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js --all
+
+--------------------------------------------------------------------------------
+一、桩测试方法（脚本自己就是"桩"，可复核、可重跑）
+--------------------------------------------------------------------------------
+把加载项入口 taskpane.js 放进 Node 的 vm 上下文执行，用记录型桩替换宿主环境：
+  · `Office`：onReady / HostType.Excel / context.document.url 桩；
+  · `Excel.run(cb)`：进桩时记录 `Excel.run`，把 `context` 换成**记录代理**——它的每次
+    属性访问与调用都按出现顺序进记录（如 `CALL context.workbook.worksheets.getItem("Sheet1")`），
+    返回可继续链式访问的同源桩；`then` 特判为 undefined，避免 await 把桩当 thenable；
+  · `WebSocket`：进桩时记录注册包，`send()` 收进数组供取回 rpc_response；
+  · `document` / `setTimeout` / `Math.random`：安全桩 + 固定随机数，保证可重现。
+每条 RPC 的做法：**清空记录 → 投递一条 `{id, method, params}` → 让事件循环跑完 →
+取该条的调用序列与 rpc_response**。同样参数分别喂给改造前/改造后文件，逐行比对。
+（20 条 RPC 的名单与参数见脚本内 SNAPSHOT_METHODS / COMMON_PARAMS。）
+
+  说明（如实登记）：P3.3 当时所用的那份"20 条名单"没有随证据一起留档，本次是**按脚本内
+  固定名单重建**的 20 条（覆盖读 / 写 / 脚本 / 图表 / 表格 / 批注 / 预览等域）。名单本身
+  不影响结论——结论是"同一名单、同一参数下改造前后逐行一致"；为了不止步于 20 条，
+  下面 §三 另附**全部 77 个分支**的扩展跑，同样 77/77 一致。
+
+--------------------------------------------------------------------------------
+二、比对输入
+--------------------------------------------------------------------------------
+  改造前：.scratch/evidence/prior/office-addon/public/taskpane.js
+          1809 行 / sha256 ca86ef854d2a722ee4ac9481d331ae5f70ca7883f422315fa8dd58dac136a0fa
+  改造后：release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+          1871 行 / sha256 5ef08e873327fef5d86255c3f49574ee40495c49ea944f0c07bc83f8c1e359bd
+  （两个文件的取得方式与交叉验证见同目录 iss-06-diff-stat.txt §一；
+   改造后 sha256 与 p5.1-candidate-and-prebuilt-state.md 的"构建前指纹"一致。）
+
+--------------------------------------------------------------------------------
+三、结论
+--------------------------------------------------------------------------------
+  台账声称                                  重跑实测                  结论
+  ----------------------------------------  ------------------------  --------
+  桩测试 20 条 RPC 序列快照逐行一致          20/20 条序列逐行一致，     ★ 完全一致
+                                            响应签名也逐条一致，
+                                            不一致条数 0
+  （本文件额外加固）                        全部 77 个 dispatchExcelTool
+                                            分支同样 77/77 一致
+
+  为什么必然一致（独立第二重证据）：iss-06-diff-stat.txt 已证明生成物相对原文件
+  **0 行删除、0 行修改，仅 +62 行注释/空行** —— 可执行代码逐字节未变，因此任何桩测试
+  都只能得到相同序列。序列快照在这里的作用是**行为层面的复核**，与 diff 的文本层面结论
+  互为印证，而不是重复同一件事。
+
+--------------------------------------------------------------------------------
+四、原始输出 1/2：台账声称的 20 条（脚本 stdout 逐字留档）
+--------------------------------------------------------------------------------
+=== ISS-06-C · 桩测试 RPC 序列快照比对 ===
+改造前: .scratch/evidence/prior/office-addon/public/taskpane.js
+改造后: release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+快照条数: 20
+
+[一致] 01. get_workbook_info
+        调用序列行数 10 / 10 · 响应 result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>",
+[一致] 02. get_workspace_summary
+        调用序列行数 10 / 10 · 响应 result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>",
+[一致] 03. get_sheet_outline
+        调用序列行数 7 / 7 · 响应 result: {"sheetName":"<context.workbook.worksheets.getItem().name>","isEmpty":true,"usedRangeAddress":"A1","st
+[一致] 04. save_workbook
+        调用序列行数 5 / 5 · 响应 result: {"success":true,"saved":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.na
+[一致] 05. calculate
+        调用序列行数 4 / 4 · 响应 result: {"success":true,"calculationType":"FullRebuild"}
+[一致] 06. list_sheets
+        调用序列行数 5 / 5 · 响应 result: {"sheets":"<context.workbook.worksheets.load().items.map()>"}
+[一致] 07. read_range
+        调用序列行数 6 / 6 · 响应 result: {"address":"<context.workbook.worksheets.getItem().getRange().address>","rowCount":"<context.workbook.
+[一致] 08. get_range_styles
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","font":{"name":
+[一致] 09. write_range
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 10. patch_cells
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 11. set_formula
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'startsWith')
+[一致] 12. format_cells
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 13. auto_fit_columns
+        调用序列行数 6 / 6 · 响应 result: {"success":true}
+[一致] 14. freeze_panes
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"message":"已冻结窗格 (行: 2, 列: 2)"}
+[一致] 15. sort_range
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'value')
+[一致] 16. add_chart
+        调用序列行数 14 / 14 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().charts.add().id>","name":"<context.workbo
+[一致] 17. create_table
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"name":"<context.workbook.worksheets.getItem().tables.add().name>","id":"<context.work
+[一致] 18. manage_cell_comments
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().comments.add().id>","content":"<context.w
+[一致] 19. run_script
+        调用序列行数 3 / 3 · 响应 result: {"success":true,"result":2}
+[一致] 20. capture_sheet_preview
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"workbookName":"工作簿1.xlsx","sheetName":"<context.workbook.worksheets.getItem().name>",
+
+逐行一致的 RPC 条数: 20/20
+不一致条数: 0
+
+--- 明细：每条 RPC 的调用序列（改造前） ---
+
+### get_workbook_info  ·  10 行
+    Excel.run
+    CALL context.workbook.worksheets.load("items/name, items/visibi…")
+    CALL context.workbook.names.load("items/name")
+    CALL context.workbook.worksheets.getActiveWorksheet()
+    CALL context.workbook.worksheets.getActiveWorksheet().load("name")
+    CALL context.workbook.load("name")
+    CALL context.sync()
+    CALL context.workbook.worksheets.load().items.map(fn)
+    CALL context.workbook.names.load().items.map(fn)
+    Excel.run:finally
+    响应: result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>","activeSheet":"<context.workbook.worksheets.getActiveWorksheet().load().name>","activeSheetName":"<context.workbook.worksheets.getActiveWorksheet().load().name>","sheetCount":"<context.workbook.worksheets.load().items.length>","sheets":"<context.workbook.worksheets.load().items.map()>","namedItemCount":"<context.workbook.names.load().items.length>","namedItems":"<context.workbook.names.load().items.map()>"}
+
+### get_workspace_summary  ·  10 行
+    Excel.run
+    CALL context.workbook.worksheets.load("items/name, items/visibi…")
+    CALL context.workbook.names.load("items/name")
+    CALL context.workbook.worksheets.getActiveWorksheet()
+    CALL context.workbook.worksheets.getActiveWorksheet().load("name")
+    CALL context.workbook.load("name")
+    CALL context.sync()
+    CALL context.workbook.worksheets.load().items.map(fn)
+    CALL context.workbook.names.load().items.map(fn)
+    Excel.run:finally
+    响应: result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>","activeSheet":"<context.workbook.worksheets.getActiveWorksheet().load().name>","activeSheetName":"<context.workbook.worksheets.getActiveWorksheet().load().name>","sheetCount":"<context.workbook.worksheets.load().items.length>","sheets":"<context.workbook.worksheets.load().items.map()>","namedItemCount":"<context.workbook.names.load().items.length>","namedItems":"<context.workbook.names.load().items.map()>"}
+
+### get_sheet_outline  ·  7 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().load("name")
+    CALL context.workbook.worksheets.getItem().getUsedRangeOrNullObject()
+    CALL context.workbook.worksheets.getItem().getUsedRangeOrNullObject().load("address, rowCount, colum…")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"sheetName":"<context.workbook.worksheets.getItem().name>","isEmpty":true,"usedRangeAddress":"A1","startRow":1,"startColumn":1,"rowCount":0,"columnCount":0,"headerPreview":[]}
+
+### save_workbook  ·  5 行
+    Excel.run
+    CALL context.workbook.save()
+    CALL context.workbook.load("name")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"saved":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>","message":"工作簿 [] 已成功保存到磁盘"}
+
+### calculate  ·  4 行
+    Excel.run
+    CALL context.application.calculate("FullRebuild")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"calculationType":"FullRebuild"}
+
+### list_sheets  ·  5 行
+    Excel.run
+    CALL context.workbook.worksheets.load("items/name, items/visibi…")
+    CALL context.sync()
+    CALL context.workbook.worksheets.load().items.map(fn)
+    Excel.run:finally
+    响应: result: {"sheets":"<context.workbook.worksheets.load().items.map()>"}
+
+### read_range  ·  6 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().getRange().load("address, rowCount, colum…")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"address":"<context.workbook.worksheets.getItem().getRange().address>","rowCount":"<context.workbook.worksheets.getItem().getRange().rowCount>","columnCount":"<context.workbook.worksheets.getItem().getRange().columnCount>","values":"<context.workbook.worksheets.getItem().getRange().values>","formulas":"<context.workbook.worksheets.getItem().getRange().formulas>","text":"<context.workbook.worksheets.getItem().getRange().text>"}
+
+### get_range_styles  ·  6 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().getRange().load("address, format/font/nam…")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","font":{"name":"<context.workbook.worksheets.getItem().getRange().format.font.name>","size":"<context.workbook.worksheets.getItem().getRange().format.font.size>","bold":"<context.workbook.worksheets.getItem().getRange().format.font.bold>","color":"<context.workbook.worksheets.getItem().getRange().format.font.color>"},"fill":{"color":"<context.workbook.worksheets.getItem().getRange().format.fill.color>"},"alignment":{"horizontal":"<context.workbook.worksheets.getItem().getRange().format.horizontalAlignment>","vertical":"<context.workbook.worksheets.getItem().getRange().format.verticalAlignment>"},"numberFormat":"<context.workbook.worksheets.getItem().getRange().numberFormat.0.0>"}
+
+### write_range  ·  10 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    SET context.workbook.worksheets.getItem().getRange().values = [3]
+    CALL context.workbook.worksheets.getItem().getRange().getCell(0, 0)
+    SET context.workbook.worksheets.getItem().getRange().getCell().formulas = [1]
+    CALL context.workbook.worksheets.getItem().getRange().load("address")
+    CALL context.workbook.worksheets.getItem().load("name")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<context.workbook.worksheets.getItem().name>","rowCount":1,"columnCount":3,"modifiedCount":3}
+
+### patch_cells  ·  10 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    SET context.workbook.worksheets.getItem().getRange().values = [3]
+    CALL context.workbook.worksheets.getItem().getRange().getCell(0, 0)
+    SET context.workbook.worksheets.getItem().getRange().getCell().formulas = [1]
+    CALL context.workbook.worksheets.getItem().getRange().load("address")
+    CALL context.workbook.worksheets.getItem().load("name")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<context.workbook.worksheets.getItem().name>","rowCount":1,"columnCount":3,"modifiedCount":3}
+
+### set_formula  ·  4 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    Excel.run:finally
+    响应: error: Cannot read properties of undefined (reading 'startsWith')
+
+### format_cells  ·  7 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().getRange().load("address")
+    CALL context.workbook.worksheets.getItem().load("name")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<context.workbook.worksheets.getItem().name>"}
+
+### auto_fit_columns  ·  6 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().getRange().format.autofitColumns()
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true}
+
+### freeze_panes  ·  7 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().freezePanes.unfreeze()
+    CALL context.workbook.worksheets.getItem().getCell(2, 2)
+    CALL context.workbook.worksheets.getItem().freezePanes.freezeAt(fn)
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"message":"已冻结窗格 (行: 2, 列: 2)"}
+
+### sort_range  ·  4 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    Excel.run:finally
+    响应: error: Cannot read properties of undefined (reading 'value')
+
+### add_chart  ·  14 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getUsedRange()
+    CALL context.workbook.worksheets.getItem().charts.load("items/name, items/id, it…")
+    CALL context.sync()
+    CALL context.workbook.worksheets.getItem().charts.add("ColumnClustered", fn, "Auto")
+    CALL context.workbook.worksheets.getItem().getRange("E2")
+    CALL context.workbook.worksheets.getItem().charts.add().setPosition(fn)
+    CALL context.workbook.worksheets.getItem().charts.add().series.load("items")
+    CALL context.sync()
+    CALL context.workbook.worksheets.getItem().charts.add().load("name, id")
+    CALL context.workbook.worksheets.getItem().load("name")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"id":"<context.workbook.worksheets.getItem().charts.add().id>","name":"<context.workbook.worksheets.getItem().charts.add().name>","shapeName":"<context.workbook.worksheets.getItem().charts.add().name>","chartIndex":1,"title":"","chartType":"column_clustered","sheetName":"<context.workbook.worksheets.getItem().name>","left":350,"top":20,"width":360,"height":240,"replaceExisting":true,"message":"已成功在 [] 创建 column_clustered 原生图表，数据源为 undefined"}
+
+### create_table  ·  7 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().tables.add(fn, true)
+    CALL context.workbook.worksheets.getItem().tables.add().load("name, id")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"name":"<context.workbook.worksheets.getItem().tables.add().name>","id":"<context.workbook.worksheets.getItem().tables.add().id>"}
+
+### manage_cell_comments  ·  7 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().comments.add(fn, "查找文本")
+    CALL context.workbook.worksheets.getItem().comments.add().load("id, content")
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"id":"<context.workbook.worksheets.getItem().comments.add().id>","content":"<context.workbook.worksheets.getItem().comments.add().content>"}
+
+### run_script  ·  3 行
+    Excel.run
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"result":2}
+
+### capture_sheet_preview  ·  10 行
+    Excel.run
+    CALL context.workbook.worksheets.getItem("Sheet1")
+    CALL context.workbook.worksheets.getItem().load("name")
+    CALL context.workbook.worksheets.getItem().charts.load("items/name, items/id, it…")
+    CALL context.sync()
+    CALL context.workbook.worksheets.getItem().getRange("A1:C3")
+    CALL context.workbook.worksheets.getItem().getRange().load("address, values, text, r…")
+    CALL context.sync()
+    CALL context.sync()
+    Excel.run:finally
+    响应: result: {"success":true,"workbookName":"工作簿1.xlsx","sheetName":"<context.workbook.worksheets.getItem().name>","address":"<context.workbook.worksheets.getItem().getRange().address>","message":"表格已排版完成 (共  行 ×  列)"}
+
+--------------------------------------------------------------------------------
+五、原始输出 2/2：扩展覆盖全部 77 个分支（--all，脚本 stdout 逐字留档）
+--------------------------------------------------------------------------------
+=== ISS-06-C · 桩测试 RPC 序列快照比对 ===
+改造前: .scratch/evidence/prior/office-addon/public/taskpane.js
+改造后: release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+快照条数: 77（--all：含扩展集合）
+
+[一致] 01. get_workbook_info
+        调用序列行数 10 / 10 · 响应 result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>",
+[一致] 02. get_workbook_state
+        调用序列行数 10 / 10 · 响应 result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>",
+[一致] 03. get_workspace_summary
+        调用序列行数 10 / 10 · 响应 result: {"hasOpenWorkbook":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.name>",
+[一致] 04. get_sheet_outline
+        调用序列行数 7 / 7 · 响应 result: {"sheetName":"<context.workbook.worksheets.getItem().name>","isEmpty":true,"usedRangeAddress":"A1","st
+[一致] 05. save
+        调用序列行数 5 / 5 · 响应 result: {"success":true,"saved":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.na
+[一致] 06. save_workbook
+        调用序列行数 5 / 5 · 响应 result: {"success":true,"saved":true,"workbookName":"<context.workbook.name>","fullName":"<context.workbook.na
+[一致] 07. calculate
+        调用序列行数 4 / 4 · 响应 result: {"success":true,"calculationType":"FullRebuild"}
+[一致] 08. list_named_items
+        调用序列行数 5 / 5 · 响应 result: {"items":"<context.workbook.names.load().items.map()>"}
+[一致] 09. update_named_item
+        调用序列行数 4 / 4 · 响应 result: {"success":true}
+[一致] 10. get_document_properties
+        调用序列行数 4 / 4 · 响应 result: {"properties":"<context.workbook.properties.load()>"}
+[一致] 11. update_document_properties
+        调用序列行数 4 / 4 · 响应 result: {"success":true,"updated":{"workbookName":"Stub.xlsx","sheetName":"Sheet1","address":"A1:C3","range":"
+[一致] 12. list_sheets
+        调用序列行数 5 / 5 · 响应 result: {"sheets":"<context.workbook.worksheets.load().items.map()>"}
+[一致] 13. get_sheets
+        调用序列行数 5 / 5 · 响应 result: {"sheets":"<context.workbook.worksheets.load().items.map()>"}
+[一致] 14. add_sheet
+        调用序列行数 5 / 5 · 响应 result: {"success":true,"name":"<context.workbook.worksheets.add().name>","position":"<context.workbook.worksh
+[一致] 15. create_sheet
+        调用序列行数 5 / 5 · 响应 result: {"success":true,"name":"<context.workbook.worksheets.add().name>","position":"<context.workbook.worksh
+[一致] 16. update_sheet
+        调用序列行数 4 / 4 · 响应 result: {"success":true}
+[一致] 17. rename_sheet
+        调用序列行数 4 / 4 · 响应 result: {"success":true}
+[一致] 18. delete_sheet
+        调用序列行数 5 / 5 · 响应 result: {"success":true}
+[一致] 19. copy_sheet
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"sheetName":"<context.workbook.worksheets.getItem().name>","action":"rename"}
+[一致] 20. duplicate_sheet
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"sheetName":"<context.workbook.worksheets.getItem().name>","action":"rename"}
+[一致] 21. manage_sheet
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"sheetName":"<context.workbook.worksheets.getItem().name>","action":"rename"}
+[一致] 22. read_range
+        调用序列行数 6 / 6 · 响应 result: {"address":"<context.workbook.worksheets.getItem().getRange().address>","rowCount":"<context.workbook.
+[一致] 23. get_range_data
+        调用序列行数 6 / 6 · 响应 result: {"address":"<context.workbook.worksheets.getItem().getRange().address>","rowCount":"<context.workbook.
+[一致] 24. get_used_range
+        调用序列行数 6 / 6 · 响应 result: {"address":"<context.workbook.worksheets.getItem().getRange().address>","rowCount":"<context.workbook.
+[一致] 25. get_range_styles
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","font":{"name":
+[一致] 26. write_range
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 27. patch_cells
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 28. set_range_data
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 29. update_range_structure
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"action":"insert","dimension":"rows","address":"A1:C3"}
+[一致] 30. insert_rows
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"action":"insert","dimension":"rows","address":"A1:C3"}
+[一致] 31. delete_rows
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"action":"insert","dimension":"rows","address":"A1:C3"}
+[一致] 32. modify_rows_columns
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"action":"insert","dimension":"rows","address":"A1:C3"}
+[一致] 33. manage_rows_and_columns
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"action":"insert","dimension":"rows","address":"A1:C3"}
+[一致] 34. insert_dimension
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"action":"insert","dimension":"rows","address":"A1:C3"}
+[一致] 35. clear_range
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"address":"A1:C3","cleared":"All"}
+[一致] 36. clear_cells
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"address":"A1:C3","cleared":"All"}
+[一致] 37. copy_range
+        调用序列行数 7 / 7 · 响应 result: {"success":true}
+[一致] 38. set_hyperlink
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"address":"A1:C3"}
+[一致] 39. set_data_validation
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"address":"A1:C3"}
+[一致] 40. find_replace_cells
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"replacedWith":"替换文本"}
+[一致] 41. find_and_replace
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"replacedWith":"替换文本"}
+[一致] 42. find_replace
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"replacedWith":"替换文本"}
+[一致] 43. search_cells
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"replacedWith":"替换文本"}
+[一致] 44. set_formula
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'startsWith')
+[一致] 45. set_cell_formula
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'startsWith')
+[一致] 46. format_cells
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 47. format_range
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 48. set_range_format
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"address":"<context.workbook.worksheets.getItem().getRange().address>","sheetName":"<c
+[一致] 49. auto_fit_columns
+        调用序列行数 6 / 6 · 响应 result: {"success":true}
+[一致] 50. autofit_columns
+        调用序列行数 6 / 6 · 响应 result: {"success":true}
+[一致] 51. freeze_panes
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"message":"已冻结窗格 (行: 2, 列: 2)"}
+[一致] 52. add_conditional_formatting
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'cellValue')
+[一致] 53. list_conditional_formats
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'cellValue')
+[一致] 54. update_conditional_format
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'cellValue')
+[一致] 55. sort_range
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'value')
+[一致] 56. apply_filter
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'value')
+[一致] 57. set_filter_and_sort
+        调用序列行数 4 / 4 · 响应 error: Cannot read properties of undefined (reading 'value')
+[一致] 58. create_table
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"name":"<context.workbook.worksheets.getItem().tables.add().name>","id":"<context.work
+[一致] 59. update_table
+        调用序列行数 5 / 5 · 响应 result: {"success":true}
+[一致] 60. get_charts
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"count":"<context.workbook.worksheets.getItem().charts.load().items.map().length>","ch
+[一致] 61. add_chart
+        调用序列行数 14 / 14 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().charts.add().id>","name":"<context.workbo
+[一致] 62. create_chart
+        调用序列行数 14 / 14 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().charts.add().id>","name":"<context.workbo
+[一致] 63. delete_chart
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"message":"图表已成功删除"}
+[一致] 64. update_chart
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"message":"图表 [StubChart] 已成功更新位置与配置"}
+[一致] 65. export_chart_image
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"imageBase64":"<context.workbook.worksheets.getItem().charts.getItem().getImage().valu
+[一致] 66. capture_sheet_preview
+        调用序列行数 10 / 10 · 响应 result: {"success":true,"workbookName":"工作簿1.xlsx","sheetName":"<context.workbook.worksheets.getItem().name>",
+[一致] 67. create_pivot_table
+        调用序列行数 8 / 8 · 响应 result: {"success":true,"name":"<context.workbook.worksheets.getItem().pivotTables.add().name>"}
+[一致] 68. update_pivot_table
+        调用序列行数 5 / 5 · 响应 result: {"success":true}
+[一致] 69. insert_image
+        调用序列行数 6 / 6 · 响应 result: {"success":true,"name":"<context.workbook.worksheets.getItem().shapes.addImage().name>","id":"<context
+[一致] 70. list_shapes
+        调用序列行数 6 / 6 · 响应 result: {"shapes":"<context.workbook.worksheets.getItem().shapes.load().items.map()>"}
+[一致] 71. update_shape
+        调用序列行数 5 / 5 · 响应 result: {"success":true}
+[一致] 72. manage_cell_comments
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().comments.add().id>","content":"<context.w
+[一致] 73. add_comment
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().comments.add().id>","content":"<context.w
+[一致] 74. list_comments
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().comments.add().id>","content":"<context.w
+[一致] 75. update_comment
+        调用序列行数 7 / 7 · 响应 result: {"success":true,"id":"<context.workbook.worksheets.getItem().comments.add().id>","content":"<context.w
+[一致] 76. run_script
+        调用序列行数 3 / 3 · 响应 result: {"success":true,"result":2}
+[一致] 77. execute_script
+        调用序列行数 3 / 3 · 响应 result: {"success":true,"result":2}
+
+逐行一致的 RPC 条数: 77/77
+不一致条数: 0
+

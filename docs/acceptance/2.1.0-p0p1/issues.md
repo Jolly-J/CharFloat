@@ -6,6 +6,9 @@
 
 状态口径：`待修` / `修复中` / `已修待验` / `已修已验证` / `不修`
 
+> **本文件只管"现有能力做错了"。** "宿主能做、但 MCP 还没让 AI 用上"的**能力缺口**单独维护在
+> [capability-backlog.md](capability-backlog.md)（能力补强专项台账，37 条，待排期）——两者不要混。
+
 ---
 
 ## 决策结论（2026-09-22，使用者确认）
@@ -33,17 +36,17 @@
 | ISS-03 | 参数约定不一致：多数 excel 工具要 `host`/`sheetName`，个别不要 | 中 | 待修 | 工具契约 |
 | ISS-04 | 已交付包内 `taskpane.html` 仍显示"42 项能力已就绪" | 中 | 源码已修、**包未重打** | 发布物 |
 | ISS-05 | 能力文案检查漏掉加载项页面（扫描范围 + 模式双重漏网） | 中 | 已修已验证 | 检查脚本 |
-| ISS-06 | P3.2/P3.3 加载项等价性证据（acorn 多重集、diff、20 条 RPC 序列）无留档 | 中 | 待修 | 验收证据 |
+| ISS-06 | P3.2/P3.3 加载项等价性证据（acorn 多重集、diff、20 条 RPC 序列）无留档 | 中 | **已修已验证**（三项重跑，数字全部对上） | 验收证据 |
 | ISS-07 | 台账与证据文件存在多处数字漂移 | 低 | 已修已验证 | 文档 |
 | ISS-08 | `macOS x64` 无依据、DP1 决定不扩大（保留登记） | 低 | 不修（DP1 已决议） | 发布矩阵 |
 | ISS-09 | D8/D9 能力声明残留（WPS PPT 支持范围、capabilities 不能作为完整来源） | 中 | 待使用者裁决 | 能力声明 |
-| ISS-10 | 9 条未确认项（实机可用性、部署版本一致性、超时阈值等） | 中 | 待修 | 验证缺口 |
+| ISS-10 | 9 条未确认项（实机可用性、部署版本一致性、超时阈值等） | 中 | **已修已验证**（9 条逐条定状态：6 已澄清 / 3 仍保留） | 验证缺口 |
 | ISS-11 | 绘图对齐传字符串被**静默吞掉**成左对齐，不报错 | **高** | **已修已验证**（文档类） | 宿主 API 语义 + skill 说明 |
 | ISS-12 | `TextFrame.TextRange` / `ParagraphFormat` 在 WPS JS API 中不存在，说明与 VBA 文档混用会直接中断 | 中高 | **已修已验证**（文档类） | skill 说明 |
 | ISS-13 | `wps_inspect_api` 只反射方法名，**不返回枚举常量**，而绘图/格式化全靠枚举 | 中高 | **已修已验证**（文档类） | 工具能力 + skill 说明 |
 | ISS-14 | `Shapes.Range([...]).Group()` 不报错但产出损坏的分组对象 | 中 | 待修 | 宿主 API 语义 |
 | ISS-15 | `native-scripting.md` 缺多元素构图范例与画布换算 | 中 | **已修已验证**（文档类） | skill 说明 |
-| ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 待修 | 并发语义 + 说明 |
+| ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 台账已补实测场景 + 规避；**说明文案待工具说明批次** | 并发语义 + 说明 |
 | ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | **已修待验** | 宿主实现 + 说明 |
 | ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | **已修待验** | 宿主实现 + 说明 |
 | ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修已验证** | 宿主实现 + 说明 |
@@ -92,7 +95,7 @@
 | ISS-62 | 公式查找替换静默不支持（`totalFound:0` + `success`） | 中 | **已修待验** | 宿主实现 + 说明 |
 | ISS-63 | 透视表：建表瞬间是空骨架须手动 `Refresh`；`destSheetName` 必须已存在；`RecordCount` 恒为 1 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-64 | 条件格式无图标集/公式规则参数入口，也无读取/清除工具 | 中 | 待修 | 工具能力缺口 |
-| ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 待修 | 工具说明 |
+| ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 台账已补记录；**说明文案待工具说明批次** | 工具说明 |
 | ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | **已修待验** | 宿主实现 |
 | ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | 待修（根因待隔离） | 宿主实现 |
 | ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修已验证** | 宿主实现 |
@@ -256,6 +259,50 @@ if (formulas !== undefined && formulas !== null) range.Formula = formulas;  // '
 
 ---
 
+### ✅ ISS-06 修复记录（2026-09-22，三项比对已重跑并留档）
+
+**结论**：三项比对**全部重跑，数字与台账声称逐项吻合**（详见下表）。
+
+| # | 台账声称 | 重跑实测 | 证据文件 |
+|---|---|---|---|
+| A | acorn 顶层语句多重集 **120/121** 逐字节相同 | 改造前 **121** 条，其中 **120** 条可在改造后逐字节找到 → **120/121**；改造前独有恰好 1 条 = `fitGeneratedPptShapes`；改造后独有 5 条 = 该函数 + **4 个新抽出的纯函数**（`pptScaleForPage`/`pptCountTextUnits`/`pptEstimateLines`/`pptFitFontSize`） | [evidence/iss-06-acorn-multiset.txt](evidence/iss-06-acorn-multiset.txt) |
+| B | diff 证明 **0 行删除/修改、仅新增 62 行** | 删除 **0** / 修改 **0**；新增 **62** = 注释 60 + 空行 2，**非注释非空的代码行新增 0 条**。附带声明同步复核一致：`dispatchExcelTool` 77 case、58 个函数定义、`context.sync()` 61、`.load(` 40、`Excel.run(` 46，前后完全相同 | [evidence/iss-06-diff-stat.txt](evidence/iss-06-diff-stat.txt) |
+| C | 桩测试 **20 条 RPC 序列快照逐行一致** | **20/20 条**序列逐行一致、响应签名逐条一致、不一致 **0** 条。**额外加固**：全部 **77** 个 `dispatchExcelTool` 分支同样 **77/77** 一致（脚本 `--all`） | [evidence/iss-06-rpc-sequence.txt](evidence/iss-06-rpc-sequence.txt) |
+
+**比对输入（两个文件都是仓库内既有文件，未做 git 操作、未构建、未改源码）**：
+
+| 角色 | 文件 | 行数 | sha256 | 为何是它 |
+|---|---|---|---|---|
+| A/B/C 改造前 | `.scratch/evidence/prior/wps-addon/addon-core.js`（由 `release/_legacy-build/…/wps-addon/addon-core.js` + `baseline/baseline-prior.patch` 的该文件补丁段用系统 `patch` 应用得到） | 5170 | `6450c171…` | ★ 与 `baseline/MANIFEST.sha256` 的该条目**逐字符相同** —— 被证明就是 P0 基线（P3.2 改造前）的字节内容 |
+| A 改造后 | `release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/wps-addon/addon-core.js` | 5247 | `c30e548a…` | ★ 与 `p5/p5.1-candidate-and-prebuilt-state.md` 的"构建前指纹"一致；5247 行与 P3.2 声称的一致 |
+| B/C 改造前 | `.scratch/evidence/prior/office-addon/public/taskpane.js`（取自 `release/_legacy-build/…`） | 1809 | `ca86ef85…` | 1809 行与 P3.3 声称的一致 |
+| B/C 改造后 | `release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js` | 1871 | `5ef08e87…` | ★ 与 `p5.1` 的"构建前指纹"一致；1871 行与 P3.3 声称的一致 |
+
+> **为什么不用仓库当前的两个入口**：它们已被 P5 各项修复推到 5631 / 1899 行（`28cbb199…` / `99d87f8d…`）。ISS-06 要复核的是 **P3.2/P3.3 改造当时**的等价性，因此取当时的那份生成物；`release/2.1.0` 是它在本机唯一被记录过指纹的落点。
+
+**重跑方式**（脚本随证据一起留档在 `evidence/`，可原样复跑；按约定不放仓库根目录）：
+
+```bash
+node docs/acceptance/2.1.0-p0p1/evidence/iss-06-acorn-multiset.mjs \
+  .scratch/evidence/prior/wps-addon/addon-core.js \
+  release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/wps-addon/addon-core.js
+diff -u .scratch/evidence/prior/office-addon/public/taskpane.js \
+  release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js
+node docs/acceptance/2.1.0-p0p1/evidence/iss-06-rpc-sequence.mjs \
+  .scratch/evidence/prior/office-addon/public/taskpane.js \
+  release/2.1.0/win/win-unpacked/resources/app.asar.unpacked/office-addon/public/taskpane.js [--all]
+```
+
+**如实登记的两点口径**：
+1. P3.3 当时所用的那份"20 条 RPC 名单"**没有随证据留档**，本次是按脚本内固定名单**重建**的 20 条（覆盖读/写/脚本/图表/表格/批注/预览）。名单本身不影响结论——结论是"同一名单、同一参数下改造前后逐行一致"；为此另跑了全部 **77** 个分支，同样 77/77 一致。
+2. 序列快照与 diff 结论**互为印证而非重复**：diff 已证明可执行代码逐字节未变，序列快照是行为层面的独立复核。
+
+**仍未覆盖（保留，不在本条修复范围）**：`issues.md` ISS-06 原文提到的"其余 57 个分支目前只有原样搬迁 + 语法检查级保证"——本次 `--all` 已把桩测试扩到 **77/77**，该限制**已被解除**；但**真实宿主上的等价性仍未验证**（两个入口都没有在 P3 改造后做 WPS/Excel 实机加载对比，见 P3.8"未做真实宿主回归"）。
+
+**证据**：[evidence/iss-06-acorn-multiset.txt](evidence/iss-06-acorn-multiset.txt)、[evidence/iss-06-diff-stat.txt](evidence/iss-06-diff-stat.txt)、[evidence/iss-06-rpc-sequence.txt](evidence/iss-06-rpc-sequence.txt)；脚本 [evidence/iss-06-acorn-multiset.mjs](evidence/iss-06-acorn-multiset.mjs)、[evidence/iss-06-rpc-sequence.mjs](evidence/iss-06-rpc-sequence.mjs)；执行记录 [p5/mcp-sweep/14-evidence-fixes.md](p5/mcp-sweep/14-evidence-fixes.md)
+
+---
+
 ## ISS-07 台账与证据文件数字漂移
 
 **严重度**：低（结论未变，但引用会误导）
@@ -288,6 +335,30 @@ if (formulas !== undefined && formulas !== null) range.Formula = formulas;  // '
 见 `tool-inventory.md` 第 180 行起：实机可用性未确认、部署版本与源码是否一致未确认、"42 项"来源未确认、各工具宿主超时阈值未确认、无读回工具的写操作失败判定未确认等。
 
 **建议修法**：并入 P5.4 业务矩阵逐项实测。
+
+---
+
+### ✅ ISS-10 处理记录（2026-09-22，9 条逐条定状态）
+
+**产出**：**[p5/open-questions.md](p5/open-questions.md)** —— 每条给出「当前状态 / 结论 / 证据指向」，仍未确认的写清**下一步怎么确认**（具体到"打开什么、调哪个工具、看哪个字段"）。
+
+**状态分布：9 条中 6 条已澄清、3 条仍未确认。**
+
+| # | 未确认项 | 状态 | 结论一句话 |
+|---|---|---|---|
+| 1 | 实机可用性未确认 | ✅ 已澄清 | 第一轮的"纯静态"局限已被真实宿主盘点解除：3 个真实成品、e2e 跨组件一致性 18/18；结论是**能跑通成品，但大量工具"返回 success 却没生效"**（ISS-38/39/17/29/11/42） |
+| 2 | 部署版本与源码是否一致未确认 | ✅ **已澄清（结论：不一致）** | 实测查明"磁盘上是新构建、进程里跑的是旧构建"，升级为 **ISS-59（高）**；版本号相同、构建不同，现有版本号比对拦不住 |
+| 3 | "42 项"的来源未确认 | ✅ 已澄清 | 来源是两处手写文案（`catalog.ts` 的 validation 字段 + `taskpane.html:38`），与 `EXCEL_METHODS`=30 / `excel_*`=27 都对不上；两处均已改写。残留：已交付三包内仍是 42（ISS-04，决策方案 B 不重打） |
+| 4 | 各工具的宿主超时阈值未确认 | ❌ **仍未确认** | 只有 1 个实测锚点（`Presentations.Add()+SaveAs` 21 s 超时，且文案正确标"结果未知、不要重放"）；逐工具阈值表仍未建立 |
+| 5 | 无专用读回工具的写操作失败判定未确认 | ✅ 已澄清 | 缺口成立并升级为 ISS-44/ISS-64/ISS-94（C 类只写不读 7 项）；修法已决策（补读回工具）；判定路径已用脚本读回实测走通（ISS-41） |
+| 6 | host=microsoft 下审计快照缺失的实际后果未确认 | ❌ **仍未确认** | Microsoft 通道自始未连接，属外部前置条件；静态结论已知（无快照 → 回滚被拒），但落库形态与文案未验 |
+| 7 | Microsoft 侧 Word/PPT 能力边界未确认 | ✅ 已澄清 | `mcp-sweep/08-ms-vs-wps.md`（552 行双通道对照）+ ISS-93（21 个 Word/PPT 工具在该宿主是死路）；"Office.js 原生通道"说法已判不实并改写 |
+| 8 | 8 行的"部分成功语义"未逐函数核对 | ✅ **已澄清 8/8** | 8 个函数全部拿到实测或代码复核结论：`freeze_panes` 两条判"不修"（ISS-41）；`set_data_validation` 两条实测"清除原校验却返回 success"；`wps_word_write_content` → ISS-67；`page_layout_and_watermark` → ISS-57/58/72；`ppt_add_business_cards` **可用**（超栏有明确报错）；`ppt_insert_native_chart` → ISS-80/81 |
+| 9 | 审计记录条数上限（500）的副作用未确认 | ❌ **仍未确认** | 代码事实已复核（`audit-store.ts:47-48` 静默淘汰），但从未有测试触及上限（P5 期间只 34 条留痕）；淘汰后的回滚文案、是否影响 ISS-46 判定，均未验 |
+
+**说明**：标记"已澄清"**不等于"问题已解决"**——#1/#2/#5/#8 澄清出来的都是真实缺陷，已各自登记为独立 ISS 条目。"澄清"指的是"这条未知项不再是未知"。#4/#6/#9 的确认依赖外部前置条件（宿主会话 / Microsoft 通道），已写明可执行的下一步，**不当作已完成**。
+
+**证据**：[p5/open-questions.md](p5/open-questions.md)（含逐条证据文件索引表）
 
 ---
 
@@ -387,6 +458,51 @@ if (formulas !== undefined && formulas !== null) range.Formula = formulas;  // '
 **验证方式**：说明文档有该警告；或有针对性的并发行为测试。
 
 **来源**：`shapes` 子代理旁注
+
+---
+
+#### ISS-16 实测场景与规避建议（2026-09-22 补充，证据取自 `mcp-sweep/` 并行子代理记录）
+
+**★ 说明文案本身写在哪**：工具描述（`wps_save_workbook` / `excel_save_workbook`）的告警文字**不在本条目范围**，由工具说明批次负责（见 [p5/mcp-sweep/09-tool-desc-fixes.md](p5/mcp-sweep/09-tool-desc-fixes.md)）。本小节只补**实测场景 + 规避建议**，供写说明者直接取用。
+
+**实测场景 1（原始发生）**：第一轮盘点派了 **4 个并行子代理**（`inventory` / `tables` / `charts` / `shapes`），**同时操作同一个工作簿**，各自建自己的表（`sweep图形_*` / `sweep图表_*` / `sweep表格_*`）。
+`shapes` 子代理收尾调 `wps_save_workbook` 时，**把它两个兄弟任务当时还只在内存里的第 9、10 张表一并写进了磁盘文件**——它自己只打算保存第 8 张表。
+（场景与并行方式见 [p5/mcp-sweep/README.md](p5/mcp-sweep/README.md) §方法、§三个真实成品。）
+
+**实测场景 2（独立复核，更能说明问题）**：稍后 `e2e` 子代理对同一个工作簿做端到端链路。它只新建了自己的 `e2e_钙钛矿数据集` 一张表，然后调 `wps_save_workbook`：
+
+```
+wps_save_workbook → 已成功保存到磁盘，磁盘 mtime 15:55
+落盘后独立解 OOXML 包核对：xl/workbook.xml 表名清单共 18 张，
+含 e2e_钙钛矿数据集，以及第一轮并行盘点留下的全部 sweep* / fault_* / __MCP验收测试__ 表
+```
+
+**关键点**：`e2e` 子代理在报告里只能写"**未改动**任何 `sweep*` 表"（它确实没改内容），但它**无法选择不写它们**——一次 `Save()` 就把 17 张不属于它的表连同自己的表一起落盘。（见 [p5/mcp-sweep/05-e2e.md](p5/mcp-sweep/05-e2e.md) §产物表、§步骤 2。）
+
+**根因（源码，一句话）**：保存走的是宿主 `Workbook.Save()`，粒度就是整个工作簿，实现里没有任何"只保存某张表"的分支：
+
+```js
+// wps-addon/src/excel.js:989-998  saveWorkbook()
+const wb = getWorkbook(app, workbookName);
+wb.Save();                       // ← 整个工作簿，包含所有未保存的内存改动
+return { success: true, workbookName: wb.Name, fullName: wb.FullName,
+         message: `工作簿 [${wb.Name}] 已成功保存到磁盘` };
+```
+
+同源记录：[tool-inventory.md](tool-inventory.md) 对 `excel_save_workbook` / `wps_save_workbook` 的说明均为"**整簿多表一次落盘**；仅调用 `wb.Save()` 后即返回成功，未校验磁盘结果"。
+
+**为什么调用方一定会踩**：返回文案是 `工作簿 [X] 已成功保存到磁盘`，**不含"本次保存影响了哪些表"**。调用方读到的是"我的保存成功了"，完全看不出它刚刚替别人提交了未完成的改动。
+
+**规避建议（按可行性排序，给多 Agent / 并行编排场景）**：
+
+1. **一个工作簿只给一个写任务**（最省事、最可靠）。并行任务各用一个工作簿，或各用**独立文件**；本项目并行盘点的正确做法本该是"每个子代理一个 `.xlsx` 副本"，而不是共用一份。
+2. **把"保存"收归协调方**。子代理**不要自己调 `save_workbook`**，只改内存并**报告自己改了哪些表**；由协调方在所有子任务结束后**统一保存一次**。这样"落盘"这个动作只发生在没有在途任务的时间点上。
+3. **并行期间一律不保存**。若必须共用一份工作簿，把 `save_workbook` 视作**全局屏障操作**：先确认所有兄弟任务都已完成或已明确放弃，再保存。P5 的落盘核验（P5.6）就是这个模式。
+4. **保存前先读回自己的表做完整性自查**，并核对**磁盘 mtime 与自己的调用时间对得上**——但要注意：这只证明"保存发生了"，**不能**排除"顺手写了别人的表"；能排除的是"保存根本没生效"（ISS-59 场景）。
+5. **需要真正隔离时用脚本路径**：若仅需导出单表，改用 `wps_execute_script` 单独 `SaveAs` 到新文件，而不是对共享工作簿调 `Save()`。
+6. **给编排指令加一条硬约束**：派并行子代理时明确写"**禁止调用 `wps_save_workbook`**"——本次 4 个子代理的指令里没有这一条，因此它是**主动踩出来的**。（对照：`README.md` §过程问题已记录"后续派子代理时应在指令里指定中间产物目录"，同一类指令缺陷。）
+
+**长期修法（不在本次范围，供排期参考）**：提供"仅保存指定工作表/新建副本另存"的能力，或引入显式的变更事务边界（开始/提交/回滚），使"保存"不再是事实上的全局提交。
 
 ---
 
@@ -1384,6 +1500,56 @@ test('isSortedByRules 必须比较**最后一对**相邻行（"漏最后一行"�
 ### Office.js 侧（ISS-91 / 92 / 98）：**只做了静态验证**
 
 改的是 `office-addon/src/{rpc.js, excel/comment.js, excel/range.js}`，构建 + 语法 + 生成物一致性都过了，但**本机 Microsoft Excel 加载项未连接**，无法运行时验证。状态标为"已修·静态验证"，**不得当成已验证**。
+
+## 验收证据与文档缺口处理批次（2026-09-22，ISS-06 / ISS-10 / ISS-16 / ISS-65）
+
+> 执行记录：[p5/mcp-sweep/14-evidence-fixes.md](p5/mcp-sweep/14-evidence-fixes.md)。ISS-06 的三项比对已重跑留档（见 §ISS-06 修复记录），ISS-10 已产出 [p5/open-questions.md](p5/open-questions.md)，ISS-16 已补实测场景（见 §ISS-16），ISS-65 见下。
+
+### ISS-65 `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**而非工作表绝对行列号
+
+**严重度**：低（不报错、结果可见，但调用方按返回值定位会**错位**）
+
+**现象**：`wps_find_and_replace` / `excel_find_and_replace` 在 `results[]` 里返回的 `row` / `col`，是**相对于本次检索区域**的 1 基偏移，**不是工作表绝对行列号**。工具说明对此**一字未提**，参数名也没有 `relative` 之类的提示。
+
+**实测复现（真实 WPS 宿主，`mcp-sweep/04-sheet-advanced.md` §S7）**：
+
+| 检索区域 | 命中位置（绝对） | 返回的 `row`/`col` | 若按返回值去找会落到 |
+|---|---|---|---|
+| `G4:G15` | 第一条就在 **G4** | `row:1, col:1` | **A1**（错位 3 行 6 列） |
+| `I4:I6` | 命中 **I5** | `row:2, col:1` | A2 |
+| `B4:B15` | 命中 **B5** | `row:5, col:1` | A5 |
+
+三例的方向一致：返回的 `row` 恰好等于 **命中行 − 区域首行 + 1**，`col` 同理（同一次盘点还单独复核过 `G4` 报 `row:1`）。**同一份返回体里 `address` 字段却是正确的绝对地址（如 `$G$4`）**，两个字段语义不一致，更容易误导。
+
+**根因（源码，`wps-addon/src/excel.js:911,928-929`）**：
+
+```js
+const cell = range.Cells.Item(r + 1, c + 1);   // ← 对宿主 API 而言，区域相对寻址是正确用法
+const addr = cell.Address;                      // ← address 是绝对地址，正确
+matches.push({
+  address: addr,
+  row: r + 1,      // ← 但 row/col 直接把区域内的下标当成了「行列号」返回
+  col: c + 1
+});
+```
+
+即：**`r`/`c` 是遍历检索区域 `values` 矩阵时的下标**（`excel.js:872` 起的 `findAndReplace`），`r + 1` 只是把它转成 1 基，**从没加上区域首行/首列的偏移**。`Cells.Item(r+1, c+1)` 之所以正确，是因为 `range.Cells` 本身就相对 `range` 计数——两处用了同一个下标，但一个语义是"区域内偏移"，另一个被当成"绝对行列号"返回了。
+
+**影响面**：调用方（尤其是 AI）拿到 `results[]` 后**很自然会把它当坐标**去 `read_range` / `format_cells`，于是操作到完全不相干的单元格。它比"报错"更危险的地方在于：**返回值看起来完全合理**（`row:1, col:1` 形式合法，数值也在表内），没有任何异常可循。ISS-65 定级"低"是因为**不破坏数据**，但在"AI 依赖读回结果做下一步"的链路上，它的误导性是实打实的。
+
+**规避（当前版本，调用方侧）**：
+
+1. **只信 `results[].address`**（绝对地址，如 `$G$4`，可直接喂给 `read_range` / `format_cells`）；**不要用 `row`/`col`**。
+2. 若一定要还原绝对行列号，自行换算：`绝对行 = 区域首行 + row − 1`，`绝对列 = 区域首列 + col − 1`（区域首行/首列从你传入的 `searchRange` 里取）。
+3. 对"必须先定位再改写"的流程，改成**先把 `searchRange` 收窄到目标行列**，让"区域内偏移"退化为"区域内第几格"，从而绕开换算。
+
+**建议修法（不在此批次范围，供排期）**：`row`/`col` 改为返回**工作表绝对**行列号（或同时返回 `relativeRow`/`relativeCol` + `rangeStart`）；无论选哪种，工具说明里必须写明语义。**说明文案由工具说明批次负责**（见 [p5/mcp-sweep/09-tool-desc-fixes.md](p5/mcp-sweep/09-tool-desc-fixes.md) 第 75 行，已排入该批次）。
+
+**验证方式**：构造三例上表场景，断言 `results[].row/col` 与 `address` 指向同一单元格；或说明中写明"相对 `searchRange` 的偏移"并给出换算示例。
+
+**证据**：[p5/mcp-sweep/04-sheet-advanced.md](p5/mcp-sweep/04-sheet-advanced.md) §S7（第 134 行复现、第 206 行登记）；源码复核 `wps-addon/src/excel.js:911,928-929`。
+
+---
 
 ## 待补充
 

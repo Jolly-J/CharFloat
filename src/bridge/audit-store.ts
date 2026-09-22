@@ -12,6 +12,7 @@ export interface AuditQuery {
   workbookName?: string;
   sheetName?: string;
   clientName?: string;
+  sessionId?: string;
   actionType?: AuditRecord["actionType"];
   status?: AuditRecord["status"];
   fromTimestamp?: number;
@@ -23,6 +24,16 @@ export class AuditStore {
   private storageDir: string;
   private storageFile: string;
   private listeners: Set<AuditListener> = new Set();
+  /**
+   * 未经值快照记录的"可能改变目标身份"操作台账（ISS-46）。
+   *
+   * 回滚的"是否有后续修改"判定原来只比内容：别人删表重建、再写回**完全相同**的内容时，
+   * 旧 auditId 会被放行并把这批新数据清空（真实数据破坏）。这里记录这类操作的发生时间，
+   * 回滚时若发现它晚于审计记录，就拒绝覆盖——身份无法确认时宁可拒绝。
+   *
+   * 键：工作簿名；`*` 表示无法归属到具体工作簿的操作（如任意脚本），对所有工作簿生效。
+   */
+  private untrackedMutations = new Map<string, { at: number; reason: string }>();
 
   constructor(customDir?: string) {
     this.storageDir = customDir || runtimeHome();
@@ -53,32 +64,41 @@ export class AuditStore {
   }
 
   /**
-   * 记录一次 Agent 的修改动作
+   * 记录一次 Agent 的修改动作。
+   *
+   * `patchResult` 只有"带值快照、可回滚"的操作才传（当前为 patch_cells）。
+   * 其余写操作传 `rollbackable: false` 只登记操作事实，历史里可见但不可回滚（ISS-48）。
    */
   public addRecord(params: {
     clientName?: string;
+    sessionId?: string;
     host?: "wps" | "microsoft";
     actionType: AuditRecord["actionType"];
     description: string;
     workbookName: string;
     sheetName: string;
     address: string;
-    patchResult: PatchResult;
+    patchResult?: PatchResult;
+    rollbackable?: boolean;
+    modifiedCount?: number;
   }): AuditRecord {
+    const rollbackable = params.rollbackable ?? Boolean(params.patchResult);
     const record: AuditRecord = {
       id: uuidv4(),
       timestamp: Date.now(),
       clientName: params.clientName || "AI Agent",
+      sessionId: params.sessionId,
       host: params.host || "wps",
       actionType: params.actionType,
       description: params.description,
       workbookName: params.workbookName,
       sheetName: params.sheetName,
       address: params.address,
-      modifiedCount: params.patchResult.modifiedCount,
-      diff: params.patchResult.diff,
-      beforeSnapshot: params.patchResult.beforeSnapshot,
-      afterSnapshot: params.patchResult.afterSnapshot,
+      modifiedCount: params.patchResult?.modifiedCount ?? params.modifiedCount ?? 0,
+      diff: params.patchResult?.diff ?? [],
+      beforeSnapshot: params.patchResult?.beforeSnapshot,
+      afterSnapshot: params.patchResult?.afterSnapshot,
+      rollbackable,
       status: "applied"
     };
 
@@ -98,6 +118,35 @@ export class AuditStore {
   }
 
   /**
+   * 登记一次"未经值快照记录的、可能改变工作表身份的写操作"（ISS-46）。
+   *
+   * 触发方是那些不做值快照的写路径：任意脚本执行、清空区域、工作表增删/改名、
+   * 行列插入删除（会移动既有数据）。回滚判定用它来回答"这条记录之后，目标是否可能
+   * 已经不是同一次修改的对象了"。
+   *
+   * @param workbookName 目标工作簿；未知时传空，将记为对所有工作簿生效（保守）。
+   * @param reason 人类可读的原因，会写进拒绝回滚的错误信息。
+   */
+  public markUntrackedMutation(workbookName: string | undefined, reason: string): void {
+    const key = workbookName && String(workbookName).trim() ? String(workbookName).trim() : "*";
+    const previous = this.untrackedMutations.get(key);
+    // 同一键只保留最近一次（回滚判定只关心"是否晚于记录时间"）。
+    if (!previous || previous.at <= Date.now()) this.untrackedMutations.set(key, { at: Date.now(), reason });
+  }
+
+  /** 查询该工作簿（含无法归属的全局登记）最近一次未审计写操作。 */
+  public getLastUntrackedMutation(workbookName?: string): { at: number; reason: string; scope: "workbook" | "global" } | undefined {
+    const name = workbookName && String(workbookName).trim() ? String(workbookName).trim() : "";
+    const scoped = name ? this.untrackedMutations.get(name) : undefined;
+    const global = this.untrackedMutations.get("*");
+    const candidates: Array<{ at: number; reason: string; scope: "workbook" | "global" }> = [];
+    if (scoped) candidates.push({ ...scoped, scope: "workbook" });
+    if (global) candidates.push({ ...global, scope: "global" });
+    if (!candidates.length) return undefined;
+    return candidates.sort((a, b) => b.at - a.at)[0];
+  }
+
+  /**
    * 获取留痕记录列表
    */
   public getRecords(query: number | AuditQuery = 50): AuditRecord[] {
@@ -110,6 +159,7 @@ export class AuditStore {
         if (options.workbookName && record.workbookName !== options.workbookName) return false;
         if (options.sheetName && record.sheetName !== options.sheetName) return false;
         if (options.clientName && record.clientName !== options.clientName) return false;
+        if (options.sessionId && record.sessionId !== options.sessionId) return false;
         if (options.actionType && record.actionType !== options.actionType) return false;
         if (options.status && record.status !== options.status) return false;
         if (options.fromTimestamp !== undefined && record.timestamp < options.fromTimestamp) return false;
@@ -128,6 +178,7 @@ export class AuditStore {
       if (options.workbookName && record.workbookName !== options.workbookName) return false;
       if (options.sheetName && record.sheetName !== options.sheetName) return false;
       if (options.clientName && record.clientName !== options.clientName) return false;
+      if (options.sessionId && record.sessionId !== options.sessionId) return false;
       if (options.actionType && record.actionType !== options.actionType) return false;
       if (options.status && record.status !== options.status) return false;
       if (options.fromTimestamp !== undefined && record.timestamp < options.fromTimestamp) return false;

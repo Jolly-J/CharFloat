@@ -4,6 +4,10 @@
  * 已发布顺序中的第 51–59 条，分类标签为 `ppt`。
  * 注意：网关执行分支另有别名 `wps_ppt_add_chart`，它**没有**对外定义
  * （属"实现了但未注册"台账），不要顺手补进来。
+ * 同理 `wps_ppt_save_presentation` 也**不能**在这里新增：网关 `HANDLERS` 注册表
+ * （`src/bridge/gateway.ts`，不在本文件写区）没有该工具的处理器，注册后会命中
+ * `tests/contract-consistency.test.ts` 的"注册工具缺少网关分支"断言。保存能力因此
+ * 挂在 `wps_ppt_manage_slides` 的 `save` / `save_as` 动作上（宿主 `Presentation.Save`/`SaveAs`）。
  */
 import type { GatewayToolDefinition } from './shared.js';
 
@@ -47,7 +51,7 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_generate_deck",
-        description: "按结构化 JSON 大纲在目标文稿中逐页生成幻灯片：title(封面) / cards_2、cards_3、cards_4(卡片页) / chart(原生图表页) / content(要点页) / end(结束页)。坐标为 720×405 设计基准并自动换算到实际页面尺寸（用返回的 pageWidth/pageHeight 核对）。'content' 布局缺 bulletPoints 时本页只有标题，会记入 layoutWarnings；返回的 layoutWarnings 必须逐页预览核实。",
+        description: "按结构化 JSON 大纲在目标文稿中逐页生成幻灯片：title(封面) / cards_2、cards_3、cards_4(卡片页) / chart(原生图表页) / content(要点页) / end(结束页)。坐标为 720×405 设计基准，工具内部会按返回的 pageWidth/pageHeight 换算到实际页面尺寸：传 960×540 页面时实测每个几何量都会乘以 4/3（背景正好满页）；其他页面尺寸的缩放系数未实测。'content' 布局缺 bulletPoints 时本页只有标题，会记入 layoutWarnings；返回的 layoutWarnings 必须逐页预览核实。本工具是追加型：一次调用插入 N 页，不幂等，重复调用会继续插入，且 chart 布局失败时已插入的页面不会回滚。",
         parameters: {
           type: "object",
           properties: {
@@ -114,16 +118,18 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_manage_slides",
-        description: "PowerPoint 幻灯片管理：新增、删除、移动顺序、复制克隆与背景颜色设置。add/duplicate 属追加型操作、不幂等，重复调用会产生多页；删除是破坏性操作，先确认 slideIndex。",
+        description: "PowerPoint 幻灯片管理：新建演示文稿(new_presentation)、新增、删除、移动顺序、复制克隆、背景颜色设置与保存(save/save_as)。add/duplicate/new_presentation 属追加型操作、不幂等，重复调用会新增更多页；delete 是破坏性操作，先确认 slideIndex；越界页码会返回带有效范围的中文错误，不再回传宿主内部 JS 报错。",
         parameters: {
           type: "object",
           properties: {
-            presentationName: { type: "string", description: "目标文稿名称" },
-            action: { type: "string", enum: ["add", "delete", "move", "duplicate", "set_background"], description: "操作: 'add'(新增页，可配 layoutIndex), 'delete'(删除页，需 slideIndex), 'move'(移动页，需 slideIndex + targetIndex), 'duplicate'(克隆页，需 slideIndex), 'set_background'(设置背景色，需 slideIndex + backgroundColor)" },
-            slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
+            presentationName: { type: "string", description: "目标文稿名称；action='new_presentation' 时忽略（新建后请用返回的 presentationName 继续操作）" },
+            action: { type: "string", enum: ["new_presentation", "add", "delete", "move", "duplicate", "set_background", "save", "save_as"], description: "操作: 'new_presentation'(新建演示文稿，可配 filePath 直接另存), 'add'(新增页，可配 layoutIndex), 'delete'(删除页，需 slideIndex), 'move'(移动页，需 slideIndex + targetIndex), 'duplicate'(克隆页，需 slideIndex), 'set_background'(设置背景色，需 slideIndex + backgroundColor), 'save'/'save_as'(保存，需 filePath 时走另存为、format 可为 pptx/pdf)" },
+            slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)；越界时报错并给出当前总页数" },
             targetIndex: { type: "integer", description: "移动操作的目标页码(1-based)" },
             layoutIndex: { type: "integer", description: "新增页使用的 ppLayout 版式枚举，不是母版 CustomLayouts 的 1..N 序号。常用值：1=标题幻灯片(标题+副标题占位符)、2=标题和文本、7=标题和图示或组织结构图、12=空白(默认)。取值越界时宿主不报错但版式不可预期；要精确套用本模板的自定义版式，请改用 wps_execute_script 操作 slide.CustomLayout。" },
-            backgroundColor: { type: "string", description: "设置背景时的十六进制颜色，如 '#0F172A'" }
+            backgroundColor: { type: "string", description: "set_background 时的十六进制颜色，如 '#0F172A'" },
+            filePath: { type: "string", description: "保存/新建的目标完整路径（如 '/Users/.../方案.pptx' 或 '.pdf'）。注意：当前网关只向宿主转发 presentationName/action/slideIndex/targetIndex/layoutIndex/backgroundColor，filePath 尚未透传；在网关补齐前，带 filePath 的 save_as / new_presentation 只会退回原地保存或新建未保存文稿，需要指定落盘路径时请用 wps_execute_script 调 pres.SaveAs(path)。" },
+            format: { type: "string", enum: ["pptx", "pdf"], description: "保存格式，默认 'pptx'(另存为 pptx)；'pdf' 走导出。同样受 filePath 未透传的限制。" }
           },
           required: ["action"],
           additionalProperties: false

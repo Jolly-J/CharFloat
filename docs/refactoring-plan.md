@@ -350,6 +350,8 @@ docs/
 | **DP7** | `excel_patch_cells` 同时传 `values` 与 `formulas` 时，`formulas` 里的 `''` 会把该单元格清空（第二步覆盖第一步），而返回文案是"已成功修改 N 个单元格" → **对调用方是静默数据丢失**（详见 [p5.4](acceptance/2.1.0-p0p1/p5/p5.4-macos-wps-business-matrix.md) §3） | **待决策**。三个方向：**A（推荐）** `formulas` 中 `''`/`null` 视为"不动该单元格"，只对非空项赋公式；**B** 矩阵含空项时直接报错，要求调用方二选一；**C** 保持现状，只在工具说明与 skill 里写明"不要混用"。A 最贴合直觉且不改正常路径；B 最保守但会让既有调用方式变严格；C 零改动但把风险留给调用方 | 决策后改 `wps-addon/src/excel.js` 的 `patchCells` + `tests/addon.test.ts` 回归 + 工具说明 |
 
 > **总验收期间发现的问题统一登记在 [问题台账](acceptance/2.1.0-p0p1/issues.md)**（ISS-01 起，逐条修复并更新状态）。DP7 对应其中的 ISS-01。
+>
+> **能力缺口（宿主能做、但 MCP 还没让 AI 用上）单独登记在 [能力补强专项台账](acceptance/2.1.0-p0p1/capability-backlog.md)**（CAP-01 起，37 条，**待排期**）。两份台账分开维护：前者是"做错了要修"，后者是"还没做要补"——不要混在一轮里排期。
 
 
 ### 执行记录
