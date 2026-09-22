@@ -4176,8 +4176,13 @@
       if (m) {
         const otherName = (m[1] || m[2] || "").trim();
         if (otherName) {
-          try { srcSheet = wb.Worksheets.Item(otherName); srcAddr = String(m[3]).trim(); }
-          catch (e) { warnings.push(`数据源表 "${otherName}" 不存在，已按当前表解析：${e.message}`); }
+          // ⚠️ 本函数里**没有 `wb` 变量**（只有 `sheet`）——先前误用 `wb.Worksheets`
+          // 会抛 ReferenceError，被 catch 吞掉后**静默回退到当前表**，
+          // 于是拿一张空表的区域去 SetSourceData，报成 "Parameter type error source"，
+          // 看起来像"宿主不支持跨表"，其实是变量名写错了。
+          // 表名找不到时**必须报错**，不能回退到别的表——那会把数据源悄悄换掉。
+          srcSheet = sheet.Parent.Worksheets.Item(otherName); // 找不到会抛，交给外层如实报错
+          srcAddr = String(m[3]).trim();
         }
       }
       const srcRange = srcSheet.Range(srcAddr);
