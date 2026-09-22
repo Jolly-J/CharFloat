@@ -3199,10 +3199,21 @@
     // 从未保存过的新工作簿（Path 为空）调 Save() 会失败或弹"另存为"——如实告知而非报成功（excel-tester L-4）
     let pathBefore = "";
     try { pathBefore = String(wb.Path || ""); } catch (e) {}
+    // ⚠️ **必须关掉宿主对话框**：真机踩到——`Save()` 会弹模态框（格式兼容/云同步之类），
+    // 没人点它就一直卡着，`Saved` 也不会变；使用者点了"取消"就表现为
+    // 「Save() 没抛错，但 Saved 仍是 false、磁盘上没有文件」。
+    // 删表（deleteWorksheet）与建簿（createWorkbook）的路径都关了对话框，**保存这条此前漏了**。
+    const prevAlerts = (() => { try { return app.DisplayAlerts; } catch (e) { return null; } })();
+    try { app.DisplayAlerts = false; } catch (e) {}
     try { wb.Save(); }
     catch (e) {
       return { success: false, workbookName: wb.Name, hostError: e.message, warnings: [`保存失败: ${e.message}`],
         message: `工作簿 [${wb.Name}] 保存失败${pathBefore === "" ? "（该工作簿从未保存过，请先用 save_as 指定路径）" : ""}` };
+    }
+    finally {
+      // 一定要恢复，否则后续所有宿主提示都被静默吞掉
+      if (prevAlerts !== null) { try { app.DisplayAlerts = prevAlerts; } catch (e) {} }
+      else { try { app.DisplayAlerts = true; } catch (e) {} }
     }
     // 读回是否真的落盘（Saved 标志）
     let savedFlag = null;
