@@ -51,6 +51,8 @@ Windows 包 exe 图标显示空白 → 只看"`RT_GROUP_ICON` 条目数够不够
 
 只验证"构建成功"就发布代码保护改动 → 字节码不会因构建失败而失败：**它只会在运行时加载不了** → 必须验证「把明文包临时移走仍能跑」，才证明真的走字节码而非悄悄回退 → [check-cli-protection.mjs](check-cli-protection.mjs) 的最后一条。
 
+只验证 `app.asar` 里的内容就认为打包没问题 → 实际跑不起来、且**全平台都挂**（不只是出问题的那个平台）→ `src/main/index.ts` 会把入口**重定向到 `app.asar.unpacked`**，而 `asarUnpack` 是按**文件名逐个列**的：漏列 `cli.jsc` 或 `bytenode` 就缺文件/缺模块，进程起来即死，主进程等 6 秒后报"后台启动失败" → 新增可执行文件后**必须同步 `asarUnpack`**，并用**安装器实际使用的那条路径**跑一次 → [check-cli-protection.mjs](check-cli-protection.mjs) 的三条 unpacked 检查。
+
 ## 同步维护
 
 文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。

@@ -162,3 +162,46 @@ node --import tsx scripts/check-cli-protection.mjs
 | **加载项两个文件**（`wps-addon/addon-core.js`、`office-addon/public/taskpane.js`） | 仍是明文 + 注释 | 它们是**纯拼接**产物，要额外接 esbuild；WPS 的 JSA 引擎踩过多次坑，**压缩后必须真机验证** |
 | **`skills/**` markdown** | 完全可读 | 那是积累的 know-how（图表规范、看板布局）。上云可按需下发，本地只能接受或另想办法 |
 | **`resources/certs/localhost.key`** | 随包发布 | 实测服务**只绑 `127.0.0.1`**，跨机不可达，真实风险有限；但"所有安装共用一个私钥"仍不该长期保留。要修得引入纯 JS 证书库按机器生成（Windows 无 OpenSSL 时预置私钥是为兜底） |
+
+---
+
+## 九、2026-09-23 事故：打包后**根本起不来**（已修，教训留档）
+
+**现象**：Windows 上安装后提示「后台启动失败，不要反复启动多个实例」。
+
+**根因**（**mac 同样受影响**，不只是 Windows）：
+
+```jsonc
+// package.json
+"asarUnpack": ["dist/bridge/cli.cjs", ...]   // ← 只解包了 cli.cjs
+```
+
+安装器把入口重定向到 `app.asar.unpacked/dist/bridge/cli.cjs`（见 `src/main/index.ts`），
+但：
+
+| 缺什么 | 后果 |
+|---|---|
+| `cli.jsc` 没进 `asarUnpack` | 加载器在解包目录里**找不到字节码** |
+| `bytenode` 没进 `asarUnpack` | 从解包目录启动时 **`Cannot find module 'bytenode'`** |
+
+进程起来就死 → 主进程等 6 秒服务未就绪 → 报出那句话。
+
+**修法**：`asarUnpack` 补 `dist/bridge/cli.jsc` 与 `node_modules/bytenode/**/*`。
+
+### 为什么没被发现（这才是真正的教训）
+
+**当时的校验脚本只检查了 `app.asar` 的内容，并跑本地 `dist/` 验证功能。**
+而安装器用的是 **`app.asar.unpacked`** 里的路径 —— **两条路根本不是同一个文件**，
+所以校验全绿、用户打开就挂。
+
+**已补进 `check-cli-protection.mjs` 的三条**：
+
+```
+✔ asar.unpacked 里有入口 cli.cjs
+✔ asar.unpacked 里有字节码 cli.jsc
+✔ 以安装器路径启动可用（真实场景）   ← 用安装器实际用的那个路径跑一次 --status
+```
+
+**通用教训**：**验证必须走"用户实际会走的那条路"**。
+检查"构建产物对不对"和检查"装出来的东西能不能用"是两件事，
+中间任何一次路径重定向（asar → asar.unpacked、软链、复制）都会让前者全绿、后者全挂。

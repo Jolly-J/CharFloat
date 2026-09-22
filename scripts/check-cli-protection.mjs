@@ -86,6 +86,32 @@ for (const asar of asars) {
 
     ck('包内有字节码 cli.jsc', files.some((f) => f.endsWith('cli.jsc')));
 
+  // ⚠️ 只查 asar 内容**不够**：安装器把入口重定向到 `app.asar.unpacked`，
+  // 那里必须同时有 cli.cjs 与 cli.jsc，且 bytenode 可解析。
+  // 这条是"打包后打不开"的真实根因（2026-09-23 由 Windows 测试暴露，mac 同样受影响）。
+  const unpacked = asar.replace(/app\.asar$/, 'app.asar.unpacked');
+  if (fs.existsSync(unpacked)) {
+    const uShim = path.join(unpacked, 'dist/bridge/cli.cjs');
+    const uJsc = path.join(unpacked, 'dist/bridge/cli.jsc');
+    ck('asar.unpacked 里有入口 cli.cjs', fs.existsSync(uShim));
+    ck('asar.unpacked 里有字节码 cli.jsc', fs.existsSync(uJsc), '入口重定向到 unpacked，缺它则加载器找不到字节码');
+    // 真正跑一次：以安装器实际使用的路径启动
+    const electron = process.platform === 'darwin'
+      ? path.join(root, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron')
+      : path.join(root, 'node_modules/electron/dist/electron');
+    if (fs.existsSync(uShim) && fs.existsSync(electron)) {
+      try {
+        const out = execFileSync(electron, [uShim, '--status'], {
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+          encoding: 'utf8', timeout: 20000,
+        });
+        ck('以安装器路径启动可用（真实场景）', out.includes('"service"'), out.trim().slice(0, 120));
+      } catch (e) {
+        ck('以安装器路径启动可用（真实场景）', false, String(e.message).split('\n')[0].slice(0, 120));
+      }
+    }
+  }
+
     // ── 关键一条：把明文包移走后，字节码仍能跑 → 证明真的在用字节码
     const localFull = path.join(root, 'dist/bridge/cli-full.cjs');
     const hold = path.join(os.tmpdir(), `cli-full-hold-${Date.now()}.cjs`);
