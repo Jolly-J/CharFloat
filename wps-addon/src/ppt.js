@@ -421,9 +421,44 @@
       case "set_background": {
         if (!slideIndex || !backgroundColor) throw new Error("set_background 操作必须提供 slideIndex 与 backgroundColor");
         const slide = pres.Slides.Item(Number(slideIndex));
+        const total = pres.Slides.Count;
+
+        // 读回背景色的辅助：不同宿主返回的 RGB 可能是 number 也可能是其它形态，统一成 "R,G,B"
+        const readRgb = (target) => {
+          try {
+            const rgb = Number(target.Background.Fill.ForeColor.RGB);
+            if (!Number.isFinite(rgb)) return null;
+            const b = rgb & 0xff, g = (rgb >> 8) & 0xff, r = (rgb >> 16) & 0xff;
+            return r + "," + g + "," + b;
+          } catch (e) { return null; }
+        };
+        const neighbourIndex = Number(slideIndex) === 1 ? Math.min(2, total) : Number(slideIndex) - 1;
+        const neighbourBefore = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+
+        // 关键：该页若仍"跟随母版背景"，`slide.Background` 可能指向母版对象，写入会**串改全部页**
+        // （问题台账 ISS-87，受控复现：设第 1 页后第 2 页也变红）。先显式断开与母版的关联再写。
+        try { slide.FollowMasterBackground = false; } catch (e) {}
         slide.Background.Fill.Solid();
         slide.Background.Fill.ForeColor.RGB = hexToPptColor(backgroundColor);
-        return { success: true, presentationName: pres.Name, slideIndex, backgroundColor, message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}` };
+
+        // 写后校验：目标页确实变了，且相邻页**没有被串改**
+        const applied = readRgb(slide);
+        const neighbourAfter = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+        if (neighbourBefore !== null && neighbourAfter !== null && neighbourBefore !== neighbourAfter) {
+          throw new Error(
+            `设置背景时串改了相邻页：第 ${neighbourIndex} 页背景由 ${neighbourBefore} 变成了 ${neighbourAfter}。` +
+            `已尝试先断开 FollowMasterBackground；请检查该稿的母版/版式是否被直接修改。`
+          );
+        }
+        return {
+          success: true,
+          presentationName: pres.Name,
+          slideIndex,
+          backgroundColor,
+          appliedRgb: applied,
+          neighbourChecked: neighbourIndex !== Number(slideIndex) ? { slideIndex: neighbourIndex, before: neighbourBefore, after: neighbourAfter } : null,
+          message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}`
+        };
       }
       default:
         throw new Error(`未知的 PPT 页面操作: ${action}`);

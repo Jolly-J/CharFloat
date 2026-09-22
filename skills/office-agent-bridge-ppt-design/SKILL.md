@@ -20,7 +20,7 @@ description: 通过 Office Agent Bridge 在已打开的演示文稿中按页批�
 - 字号与页面尺寸和容量一起确定。720×405 pt 页面可从标题 24–36 pt、正文 16–22 pt 起步，其他尺寸相应调整；这不是固定限制。
 - 将换行、内边距、段落间距和 AutoSize 纳入布局。长文本优先调整可用区域；涉及精简内容或拆页时保持用户意图，不无限缩小字体。
 
-精细设置使用 [原生脚本](../office-agent-bridge/references/native-scripting.md)。页面批次返回 slideIndex、形状 ID、实际几何、字号及失败步骤；避免返回全部文本或整个宿主对象。
+精细设置使用 [原生脚本](../office-agent-bridge/references/native-scripting.md)；形状类型、图表类型与版式都是枚举，必须传整数，取值见 [枚举速查表](../office-agent-bridge/references/enumeration.md)。页面批次返回 slideIndex、形状 ID、实际几何、字号及失败步骤；避免返回全部文本或整个宿主对象。
 
 ## 验证与继续
 

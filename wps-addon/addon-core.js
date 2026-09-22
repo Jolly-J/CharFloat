@@ -1618,16 +1618,22 @@
 
   // 8. 单元格搜索
   function searchCells(app, params) {
-    const { sheetName, query, maxResults = 50, workbookName } = params;
+    const { sheetName, query, maxResults = 50, workbookName, address } = params;
     if (!query) throw new Error("缺少搜索关键字: query");
 
     const sheet = getWorksheet(app, sheetName, workbookName);
-    const usedRange = sheet.UsedRange;
+    // 可选 address：原实现只能全表检索，报错却让调用方"缩小检索范围"（问题台账 ISS-29）。
+    const usedRange = address ? sheet.Range(address) : sheet.UsedRange;
     if (!usedRange) return { matches: [] };
 
-    if (usedRange.Rows.Count * usedRange.Columns.Count > 100000) throw new Error("已用范围超过 100000 单元格，请先缩小检索范围");
+    if (usedRange.Rows.Count * usedRange.Columns.Count > 100000) {
+      throw new Error("检索范围超过 100000 单元格，请用 address 指定更小的区域");
+    }
     const matches = [];
     const values = normalize2DArray(usedRange.Value2, usedRange.Rows.Count, usedRange.Columns.Count);
+    // 说明承诺可搜"文本或公式"，但原实现只读 Value2 —— 按公式搜必然 0 命中且返回 success
+    // （问题台账 ISS-29，比报错更危险）。这里同时检索公式串。
+    const formulas = normalize2DArray(usedRange.Formula, usedRange.Rows.Count, usedRange.Columns.Count);
     const startRow = usedRange.Row;
     const startCol = usedRange.Column;
 
@@ -1636,14 +1642,19 @@
     for (let r = 0; r < values.length; r++) {
       for (let c = 0; c < values[r].length; c++) {
         const val = values[r][c];
-        if (val !== null && val !== undefined && String(val).toLowerCase().includes(lowerQuery)) {
+        const formula = formulas[r] ? formulas[r][c] : null;
+        const hitValue = val !== null && val !== undefined && String(val).toLowerCase().includes(lowerQuery);
+        const hitFormula = formula !== null && formula !== undefined && String(formula).toLowerCase().includes(lowerQuery);
+        if (hitValue || hitFormula) {
           const cellRow = startRow + r;
           const cellCol = startCol + c;
           matches.push({
             address: sheet.Cells.Item(cellRow, cellCol).Address(),
             row: cellRow,
             column: cellCol,
-            value: val
+            value: val,
+            formula: formula === null || formula === undefined ? "" : String(formula),
+            matchedIn: hitValue ? "value" : "formula"
           });
           if (matches.length >= maxResults) break;
         }
@@ -1654,6 +1665,7 @@
     return {
       sheetName: sheet.Name,
       query: query,
+      searchedRange: usedRange.Address(),
       totalFound: matches.length,
       matches: matches
     };
@@ -2171,12 +2183,16 @@
         if (val === null || val === undefined) continue;
 
         const cellStr = String(val);
-        let matched = false;
-        if (matchEntireCell) {
-          matched = matchCase ? (cellStr === queryStr) : (cellStr.toLowerCase() === queryLower);
-        } else {
-          matched = matchCase ? cellStr.includes(queryStr) : cellStr.toLowerCase().includes(queryLower);
-        }
+        const formStr = form === null || form === undefined ? "" : String(form);
+        const testMatch = (text) => matchEntireCell
+          ? (matchCase ? text === queryStr : text.toLowerCase() === queryLower)
+          : (matchCase ? text.includes(queryStr) : text.toLowerCase().includes(queryLower));
+
+        const hitValue = testMatch(cellStr);
+        // 原实现读了 formulas 却只拿 Value2 匹配 —— 按公式片段搜必然 0 命中且返回 success
+        // （问题台账 ISS-62）。这里把真正的公式串（以 = 开头）也纳入检索。
+        const hitFormula = !hitValue && formStr.startsWith("=") && testMatch(formStr);
+        const matched = hitValue || hitFormula;
 
         if (matched) {
           const cell = range.Cells.Item(r + 1, c + 1);
@@ -2184,14 +2200,12 @@
           let isReplaced = false;
 
           if (replaceText !== undefined) {
-            let newVal;
-            if (matchEntireCell) {
-              newVal = replaceText;
-            } else {
-              const regex = new RegExp(queryStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
-              newVal = cellStr.replace(regex, replaceText);
-            }
-            cell.Value2 = newVal;
+            const source = hitFormula ? formStr : cellStr;
+            const newVal = matchEntireCell
+              ? replaceText
+              : source.replace(new RegExp(queryStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi'), replaceText);
+            // 命中在公式里就写回公式位，否则写值位
+            if (hitFormula) cell.Formula = newVal; else cell.Value2 = newVal;
             isReplaced = true;
             replacedCount++;
           }
@@ -2201,7 +2215,8 @@
             row: r + 1,
             col: c + 1,
             value: val,
-            formula: (typeof form === "string" && form.startsWith("=")) ? form : null,
+            formula: formStr.startsWith("=") ? formStr : null,
+            matchedIn: hitFormula ? "formula" : "value",
             replaced: isReplaced
           });
 
@@ -2518,16 +2533,28 @@
     }
 
     // 映射 Excel 图表类型常量
-    // xlLine=4, xlColumnClustered=51, xlBarClustered=57, xlPie=5, xlDoughnut=-4120, xlPareto=122
+    // xlLine=4, xlColumnClustered=51, xlBarClustered=57, xlPie=5, xlDoughnut=-4120, xlPareto=122,
+    // xlArea=1, xlXYScatter=-4169
     const chartTypeMap = {
       line: 4,
+      column: 51,
       column_clustered: 51,
+      bar: 57,
       bar_clustered: 57,
       pie: 5,
       doughnut: -4120,
-      pareto: 122
+      pareto: 122,
+      area: 1,
+      scatter: -4169
     };
-    const xlChartType = chartTypeMap[chartType] !== undefined ? chartTypeMap[chartType] : 51;
+    // 原来未知类型会**静默退回柱状图**并返回 success（问题台账 ISS-17）：调用方拿到的图不是要的类型却毫无察觉。
+    // 现在改为显式报错，并带上可用类型清单。
+    if (chartTypeMap[chartType] === undefined) {
+      throw new Error(
+        `不支持的图表类型: ${chartType}（可用: ${Object.keys(chartTypeMap).join(" / ")}）`
+      );
+    }
+    const xlChartType = chartTypeMap[chartType];
 
     let shape = null;
     try {
@@ -2677,11 +2704,26 @@
         }
       }
 
+      // 建图后读回真实 ChartType：宿主可能（在任何版本）把请求的类型落成别的类型，
+      // 原实现对此毫无察觉（ISS-17）。这里把实际类型带回，不一致就给出 warning。
+      let actualChartType = null;
+      try { actualChartType = Number(shape.Chart.ChartType); } catch (e) {}
+      const typeWarnings = [];
+      if (actualChartType !== null && Number.isFinite(actualChartType) && actualChartType !== xlChartType) {
+        typeWarnings.push(
+          `请求的 chartType=${chartType}（xlChartType=${xlChartType}）实际落成 ChartType=${actualChartType}；` +
+          `请用 wps_get_charts 复核，必要时改用 wps_execute_script 直接指定常量。`
+        );
+      }
+
       return {
         success: true,
         workbookName: sheet.Parent.Name,
         sheetName: sheet.Name,
         chartType,
+        requestedChartType: xlChartType,
+        actualChartType,
+        warnings: typeWarnings,
         dataRange: targetDataRange,
         title: title || "",
         left,
@@ -4636,9 +4678,44 @@
       case "set_background": {
         if (!slideIndex || !backgroundColor) throw new Error("set_background 操作必须提供 slideIndex 与 backgroundColor");
         const slide = pres.Slides.Item(Number(slideIndex));
+        const total = pres.Slides.Count;
+
+        // 读回背景色的辅助：不同宿主返回的 RGB 可能是 number 也可能是其它形态，统一成 "R,G,B"
+        const readRgb = (target) => {
+          try {
+            const rgb = Number(target.Background.Fill.ForeColor.RGB);
+            if (!Number.isFinite(rgb)) return null;
+            const b = rgb & 0xff, g = (rgb >> 8) & 0xff, r = (rgb >> 16) & 0xff;
+            return r + "," + g + "," + b;
+          } catch (e) { return null; }
+        };
+        const neighbourIndex = Number(slideIndex) === 1 ? Math.min(2, total) : Number(slideIndex) - 1;
+        const neighbourBefore = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+
+        // 关键：该页若仍"跟随母版背景"，`slide.Background` 可能指向母版对象，写入会**串改全部页**
+        // （问题台账 ISS-87，受控复现：设第 1 页后第 2 页也变红）。先显式断开与母版的关联再写。
+        try { slide.FollowMasterBackground = false; } catch (e) {}
         slide.Background.Fill.Solid();
         slide.Background.Fill.ForeColor.RGB = hexToPptColor(backgroundColor);
-        return { success: true, presentationName: pres.Name, slideIndex, backgroundColor, message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}` };
+
+        // 写后校验：目标页确实变了，且相邻页**没有被串改**
+        const applied = readRgb(slide);
+        const neighbourAfter = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+        if (neighbourBefore !== null && neighbourAfter !== null && neighbourBefore !== neighbourAfter) {
+          throw new Error(
+            `设置背景时串改了相邻页：第 ${neighbourIndex} 页背景由 ${neighbourBefore} 变成了 ${neighbourAfter}。` +
+            `已尝试先断开 FollowMasterBackground；请检查该稿的母版/版式是否被直接修改。`
+          );
+        }
+        return {
+          success: true,
+          presentationName: pres.Name,
+          slideIndex,
+          backgroundColor,
+          appliedRgb: applied,
+          neighbourChecked: neighbourIndex !== Number(slideIndex) ? { slideIndex: neighbourIndex, before: neighbourBefore, after: neighbourAfter } : null,
+          message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}`
+        };
       }
       default:
         throw new Error(`未知的 PPT 页面操作: ${action}`);
