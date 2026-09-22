@@ -18,6 +18,7 @@ export function scriptToolDefinitions(): GatewayToolDefinition[] {
         parameters: {
           type: "object",
           properties: {
+            readOnly: { type: "boolean", description: "声明本段脚本**只读**（不改文档）。声明后不再把本次调用登记为「未快照操作」，因此不会挡住后续 wps_rollback。**这是声明不是保证**：若脚本实际写了文档却声明 readOnly，回滚的安全性由声明方负责——真正会改文档的脚本不要声明。" },
             code: { type: "string", description: "要执行的原生 JavaScript 代码。支持 async/await。执行成功不代表符合预期，需自行读回。" },
             workbookName: { type: "string", description: "精确目标工作簿名" },
             documentName: { type: "string", description: "精确目标 Word 文档名" },

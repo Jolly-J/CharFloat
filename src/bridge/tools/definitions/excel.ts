@@ -1243,7 +1243,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_manage_named_range",
-        description: "**命名区域**增删查：列出全部名称与引用位置、新增（如 图表源=Sheet1!$A$1:$B$10）、删除。写后读回引用位置核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "⚠️ 两条宿主限制（已实测）：① **`comment` 宿主不存储**——写入后读回恒为空，工具会给出 warnings；② **名字不能看起来像单元格地址**（如 `fz1`、`AB12`），宿主会拒绝，请用 `销量_2026` 这类名字。**命名区域**增删查：列出全部名称与引用位置、新增（如 图表源=Sheet1!$A$1:$B$10）、删除。写后读回引用位置核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
