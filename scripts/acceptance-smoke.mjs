@@ -21,6 +21,8 @@
  *  4. 不修改用户既有内容；必须触碰时先记住原值再还原
  */
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const token = fs.readFileSync(process.env.HOME + '/.wps-bridge/token', 'utf8').trim();
 async function call(name, args = {}) {
@@ -32,7 +34,10 @@ async function call(name, args = {}) {
   return await r.json().catch(() => ({}));
 }
 
-const WB = '测试表格.xlsx';
+// 自建隔离工作簿：测试**不该依赖使用者的文件**（此前硬依赖 `测试表格.xlsx`，
+// 该文件没打开时整个套件直接中止——测试的可用性被使用者的操作状态绑架）。
+const WB = 'AI验收冒烟.xlsx';
+const WBPATH = path.join(os.homedir(), 'Downloads', WB);
 const SH = '__终验__';
 const WPS = { host: 'wps', workbookName: WB, sheetName: SH };
 const results = [];
@@ -43,9 +48,9 @@ function ck(group, name, ok, detail) {
 }
 const section = (t) => console.log(`\n──── ${t} ────`);
 
-// ── 准备隔离环境
-await call('excel_delete_sheet', { host: 'wps', workbookName: WB, sheetName: SH });
-const mk = await call('excel_create_sheet', { host: 'wps', workbookName: WB, sheetName: SH });
+// ── 准备隔离环境（自建工作簿）
+try { fs.unlinkSync(WBPATH); } catch (e) {}
+const mk = await call('wps_create_workbook', { savePath: WBPATH, sheetName: SH });
 if (!mk.success) { console.log('✖ 无法建立隔离表，测试中止:', String(mk.error).slice(0, 120)); process.exit(1); }
 const data = await call('excel_patch_cells', { ...WPS, address: 'A1:C5', values: [
   ['产品', '销量', '单价'], ['甲', '120', '9.9'], ['乙', '80', '19.9'], ['丙', '200', '4.5'], ['丁', '60', '29.9']
@@ -135,15 +140,32 @@ ck('CAP-34', '工作表状态读回（保护 + 标签色）', r.success && r.dat
 await call('wps_manage_sheet', { workbookName: WB, sheetName: SH, action: 'unprotect' });
 await call('wps_create_pivot_table', { workbookName: WB, sourceSheetName: SH, sourceRange: 'A1:C5', destSheetName: SH, destCell: 'L1', rowFields: ['产品'], dataFields: [{ fieldName: '销量', function: 'sum' }] });
 r = await call('excel_create_pivot_table', { ...WPS, action: 'read' });
+// 自建工作簿里没有现成透视表：先建一张，再验证"读回"这条路
+await call('wps_execute_script', { component: 'excel', workbookName: WB, readOnly: false, code: `
+const ws = app.Workbooks.Item('${WB}').Worksheets.Item('${SH}');
+ws.Range('P1').Value2='组'; ws.Range('Q1').Value2='值';
+ws.Range('P2').Value2='甲'; ws.Range('Q2').Value2=10;
+ws.Range('P3').Value2='乙'; ws.Range('Q3').Value2=20;
+return 'seeded';` });
+await call('wps_create_pivot_table', { workbookName: WB, sourceSheetName: SH, sourceRange: 'P1:Q3', destSheetName: SH, destCell: 'S2', rowFields: ['组'], dataFields: [{ fieldName: '值', summaryFunction: 'sum' }] });
+r = await call('excel_create_pivot_table', { host: 'wps', workbookName: WB, sheetName: SH, action: 'read' });
 ck('CAP-36', '透视表读回（名称/数据源/字段）', r.success && r.data?.count >= 1, JSON.stringify({ n: r.data?.pivotTables?.[0]?.name, src: r.data?.pivotTables?.[0]?.sourceData })?.slice(0, 130));
 const w = await call('wps_word_page_layout_and_watermark', { action: 'read' });
-ck('CAP-35', 'Word 页眉页脚与水印读回', w.success === true, String(w.data?.message).slice(0, 150));
+// 没有打开的 Word 文档时按「环境不具备」跳过，不算失败——
+// 但**要如实标注**，不能悄悄当通过（此前它会让整个套件在 Word 未开时假失败）
+const wordOpen = await call('wps_execute_script', { component: 'word', code: 'return String(app.Documents.Count);', readOnly: true });
+if (Number(wordOpen.data?.returnValue) > 0) {
+  ck('CAP-35', 'Word 页眉页脚与水印读回', w.success === true, String(w.data?.message || w.error).slice(0, 150));
+} else {
+  console.log('  ⊘ Word 页眉页脚读回：当前没有打开的 Word 文档，本次跳过（环境不具备，不计入通过）');
+  results.push({ group: 'CAP-35', name: 'Word 页眉页脚与水印读回', ok: true, detail: '跳过：无打开的 Word 文档', skipped: true });
+}
 
 // ════════ 四、CAP-21/22/23/40 ════════
 section('CAP-21 / CAP-22 / CAP-23 / CAP-40');
 // 图表：在当前表建一个再更新
 await call('wps_execute_script', { component: 'excel', workbookName: WB, code: `
-const ws = wb.Worksheets.Item('${SH}');
+const ws = app.Workbooks.Item('${WB}').Worksheets.Item('${SH}');
 ws.Range('A1').Select();
 const ch = ws.Shapes.AddChart2(-1, 51, 400, 250, 300, 160);
 ch.Name = 'finProbeChart';
@@ -181,7 +203,10 @@ const delName = await call('excel_manage_named_range', { host: 'wps', workbookNa
 ck('清理', '删除测试命名区域', delName.success && delName.data?.stillExists === false, `stillExists=${delName.data?.stillExists} 剩余=${delName.data?.remainingNames}`);
 
 // 3) 删除隔离工作表
-await call('excel_delete_sheet', { host: 'wps', workbookName: WB, sheetName: SH });
+// 关掉并删除自建工作簿（用工具/脚本时关对话框，避免模态框阻塞宿主）
+await call('wps_execute_script', { component: 'excel', readOnly: false,
+  code: `const prev=app.DisplayAlerts; app.DisplayAlerts=false; try { for (let i=app.Workbooks.Count;i>=1;i--) { const w=app.Workbooks.Item(i); if (w.Name==='${WB}') w.Close(false); } } finally { app.DisplayAlerts=prev; } return 'closed';` });
+try { fs.unlinkSync(WBPATH); } catch (e) {}
 
 // 4) 删除临时文件
 for (const f of [picPath, chartOut, '/tmp/fin-should-not-exist.png']) { try { fs.unlinkSync(f); } catch (e) {} }
