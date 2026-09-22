@@ -10,6 +10,7 @@ import { LiveWorkspaceCard } from './components/LiveWorkspaceCard.js';
 import { AgentHub } from './components/AgentHub.js';
 import { SafetyTimeMachine } from './components/SafetyTimeMachine.js';
 import { DiffModal } from './components/DiffModal.js';
+import { ShieldAlert } from 'lucide-react';
 import { SettingsDrawer } from './components/SettingsDrawer.js';
 
 const api = (window as any).api;
@@ -36,6 +37,8 @@ export default function App() {
 
   // 弹窗与抽屉控制
   const [confirm, setConfirm] = useState<'stop' | 'rollback' | 'clear-audit' | null>(null);
+  // 权限引导：失败时主进程会打开置顶浮窗（方案 B）；主界面只留一条可回到引导的细条，避免弹窗 + toast 重复
+  const [permissionNotice, setPermissionNotice] = useState<{ label: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -53,10 +56,11 @@ export default function App() {
     setBusy(id);
     try {
       const result = await action();
-      if (result?.success === false) {
+      // 权限类失败由底部提示条 + 引导浮窗承载；这里不再弹 toast，否则两者会叠在同一位置
+      if (result?.success === false && !result?.permissionIssue) {
         throw new Error(result.message || result.error || '操作未成功');
       }
-      if (successMsg) notify(successMsg);
+      if (successMsg && !result?.permissionIssue) notify(successMsg);
       return result;
     } catch (e: any) {
       notify(e.message?.replace(/^Error invoking remote method '[^']+': Error: /, '') || '未知异常', true);
@@ -178,8 +182,13 @@ export default function App() {
   const handleInstallWps = () => {
     void run('addon', async () => {
       const r = await api.installAddon();
-      if (!r.success) throw new Error(r.message);
+      if (!r.success) {
+        // 权限受限走引导弹窗，不丢进会自动消失的 toast
+        if (r.permissionIssue) { setPermissionNotice({ label: 'WPS 加载项' }); return r; }
+        throw new Error(r.message);
+      }
       await refreshAll();
+      setPermissionNotice(null);
       return r;
     }, 'WPS 加载项配置已更新');
   };
@@ -188,8 +197,12 @@ export default function App() {
   const handleInstallOffice = () => {
     void run('office-addon', async () => {
       const r = await api.installOfficeAddon();
-      if (!r.success) throw new Error(r.message);
+      if (!r.success) {
+        if (r.permissionIssue) { setPermissionNotice({ label: 'Microsoft Office 加载项' }); return r; }
+        throw new Error(r.message);
+      }
       await refreshAll();
+      setPermissionNotice(null);
       return r;
     }, 'Microsoft Office 加载项已部署');
   };
@@ -367,7 +380,17 @@ export default function App() {
         </div>
       </footer>
 
-      {/* 4. 全局 Toast 提示 */}
+      {/* 4. 权限未授予时的常驻提示条（引导细节在置顶浮窗里，这里只做入口，避免重复弹窗） */}
+      {permissionNotice && (
+        <div className="permission-bar" role="status">
+          <ShieldAlert size={15} />
+          <span>{permissionNotice.label}需要完全磁盘访问权限</span>
+          <button onClick={() => { void api.openPermissionGuide(); }}>打开引导</button>
+          <button className="permission-bar-close" onClick={() => setPermissionNotice(null)} aria-label="关闭"><X size={13} /></button>
+        </div>
+      )}
+
+      {/* 5. 全局 Toast 提示 */}
       {toast && (
         <div className={`floating-toast ${toast.error ? 'error' : 'success'}`} role="status">
           {toast.error ? <CircleAlert size={16} /> : <CheckCircle2 size={16} />}

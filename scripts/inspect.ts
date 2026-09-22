@@ -8,6 +8,7 @@ async function main() {
 
   // 1. 启动本地 Bridge 服务
   try {
+    composeBridgeServer();
     await bridgeServer.start();
     console.log("[成功] 本地 Bridge 网关已成功监听端口: 19890");
     console.log("[地址] OpenAPI 规范: http://127.0.0.1:19890/openapi.json");

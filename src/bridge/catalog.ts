@@ -1,24 +1,50 @@
 import { UniversalGateway } from './gateway.js';
+import { assembleTools } from './tools/index.js';
 import { currentHost } from './context.js';
 import { bridgeServer } from './ws-server.js';
 import { VERSION } from './runtime.js';
+import { BridgeError } from './errors.js';
+import { EXCEL_METHODS, HOST_IMPLEMENTATION_GAPS, isReadOnlyTool, isUnimplementedOn, MCP_READ_ONLY_TOOLS } from './contracts/host-methods.js';
 
-export const EXCEL_METHODS = [
-  'get_workspace_summary', 'get_sheet_outline', 'read_range', 'get_range_styles', 'search_cells',
-  'create_sheet', 'delete_sheet', 'clear_range', 'patch_cells', 'format_cells', 'add_conditional_formatting',
-  'freeze_panes', 'modify_rows_columns', 'auto_fit_columns', 'insert_dimension', 'get_charts', 'add_chart',
-  'update_chart', 'delete_chart', 'create_pivot_table', 'set_filter_and_sort', 'set_data_validation', 'manage_sheet',
-  'manage_rows_and_columns', 'manage_cell_comments', 'find_and_replace', 'duplicate_sheet', 'capture_sheet_preview',
-  'rollback_cells', 'save_workbook'
-] as const;
-export const READ_TOOLS = new Set(['get_workspace_summary', 'get_sheet_outline', 'read_range', 'get_range_styles', 'search_cells', 'get_charts', 'get_audit_history', 'get_audit_record']);
+/**
+ * 兼容导出：宿主方法标识与只读判定已上移到契约层 `contracts/host-methods.ts`（P2.1），
+ * 这里保持原有导出名不变，既有调用方与脚本无需改动。契约层不反向依赖本模块，
+ * 因此 `office/adapter.ts` 可以直接引用它而不形成回环。
+ */
+export { EXCEL_METHODS, HOST_IMPLEMENTATION_GAPS, isReadOnlyTool };
+export const READ_TOOLS = MCP_READ_ONLY_TOOLS;
+
 export function capabilities() {
+  const registered = new Set(getTools().map(t => t.name));
+  const callable = EXCEL_METHODS.filter(m => registered.has(`wps_${m}`) && registered.has(`excel_${m}`));
+  const declaredNotCallable = EXCEL_METHODS.filter(m => !callable.includes(m));
+  const implementedOn = (host: 'wps' | 'microsoft') => callable.filter(m => !HOST_IMPLEMENTATION_GAPS[host].includes(m));
   return {
     version: VERSION, platform: process.platform, preferredWorkflow: '在已打开的 Excel / WPS 表格中操作，先读后写，明确目标并核验结果',
     connection: bridgeServer.getState(),
     hosts: {
-      wps: { transport: 'authenticated-addon', excel: { implemented: [...EXCEL_METHODS], validation: process.platform === 'darwin' ? '既有功能曾在 macOS 使用；2.0 回归需实机确认' : 'Windows 实机待验收' }, word: '有限支持：读取、编辑、保存；按实际工具清单使用', ppt: '有限支持：基础页面、文字、形状、表格；复杂图表与母版需实机验证，不保证高保真复刻' },
-      microsoft: { transport: 'Office.js Web Add-in / WebSocket', excel: { implemented: [...EXCEL_METHODS], validation: '全量 42 项结构化能力支持 (macOS / Windows 统一)' }, word: 'Office.js 原生通道', ppt: 'Office.js 原生通道' }
+      wps: {
+        transport: 'authenticated-addon',
+        excel: {
+          implemented: [...implementedOn('wps')],
+          declaredNotCallable: [...declaredNotCallable],
+          unimplementedOnHost: [...HOST_IMPLEMENTATION_GAPS.wps],
+          validation: process.platform === 'darwin' ? '既有功能曾在 macOS 使用；2.0 回归需实机确认' : 'Windows 实机待验收'
+        },
+        word: '有限支持：读取、编辑、保存；按实际工具清单使用',
+        ppt: '有限支持：基础页面、文字、形状、表格；复杂图表与母版需实机验证，不保证高保真复刻'
+      },
+      microsoft: {
+        transport: 'Office.js Web Add-in / WebSocket',
+        excel: {
+          implemented: [...implementedOn('microsoft')],
+          declaredNotCallable: [...declaredNotCallable],
+          unimplementedOnHost: [...HOST_IMPLEMENTATION_GAPS.microsoft],
+          validation: '代码路径已实现，但本候选版本尚未在真实 Microsoft Excel 上做实机验收；静态与模拟通道不代表实机通过'
+        },
+        word: '未提供 Microsoft 结构化通道：Word 工具为 WPS 专用；Microsoft Word 需改用 office_execute_script 原生脚本（Windows 分支待实机验收）',
+        ppt: '未提供 Microsoft 结构化通道：PPT 工具为 WPS 专用；Microsoft PowerPoint 需改用 office_execute_script 原生脚本（Windows 分支待实机验收）'
+      }
 
     },
     audit: { covered: ['patch_cells 值与公式'], uncovered: ['样式', '图表', '结构修改', 'Word/PPT', '原生脚本'], rollback: '检查当前值和公式与记录的修改后快照一致；有后续修改则拒绝覆盖' },
@@ -27,21 +53,14 @@ export function capabilities() {
     limitations: ['不承诺未实测的平台可用', '写入超时结果未知，先读回，禁止自动重放', 'MCP 已连接不等于办公软件已连接', '持久保存必须有明确保存结果']
   };
 }
+/**
+ * 对外工具清单（P2.3）：定义已按类迁移到 `tools/`，本函数只做装配调用，保留原有导出名与顺序。
+ * 注意诊断工具的顺序：`bridge_diagnose` 在 `bridge_get_capabilities` 之前，与迁移前一致。
+ */
 export function getTools() {
-  const existing = UniversalGateway.getOpenAiTools().map(t => ({ name: t.function.name, description: t.function.description.replace(/【[^】]*】/g, '').replace(/实现 100% 任意操作无死角！|支持任意生僻 API 与长尾操作！/g, ''), inputSchema: structuredClone(t.function.parameters) as any }));
-  // Legacy wps_* calls always address WPS. Unified excel_* calls explicitly choose the host.
-  const excel = existing.filter(t => EXCEL_METHODS.includes(t.name.replace(/^wps_/, '') as any)).map(t => ({
-    ...t, name: t.name.replace(/^wps_/, 'excel_'), description: `${t.description} 统一表格入口；host 必填。Windows Microsoft Excel 尚待实机验收。`,
-    inputSchema: { ...t.inputSchema, properties: { ...t.inputSchema.properties, host: { type: 'string', enum: ['wps', 'microsoft'], description: '明确选择 WPS 表格或 Microsoft Excel' } }, required: [...(t.inputSchema.required || []), 'host'] }
-  }));
-  const diagnostic = ['bridge_get_capabilities', 'bridge_diagnose'].map(name => ({ name, description: name === 'bridge_diagnose' ? '检查 Bridge、WPS 连接和能力边界，不修改配置或文档。Office 状态可另用 office_get_status 探测。' : '接入后首先调用：获取平台、真实连接状态、支持工具、验证程度、回滚限制和运行方式。', inputSchema: { type: 'object', properties: {}, additionalProperties: false } }));
-  const audits = [
-    { name: 'wps_get_audit_history', description: '分页筛选修改记录；默认 5 条摘要', inputSchema: { type: 'object', properties: { limit: { type: 'number' }, offset: { type: 'number' }, view: { type: 'string', enum: ['ids', 'summary', 'detail'] }, workbookName: { type: 'string' }, sheetName: { type: 'string' }, clientName: { type: 'string' }, actionType: { type: 'string' }, status: { type: 'string', enum: ['applied', 'rolled_back'] }, fromTimestamp: { type: 'number' }, toTimestamp: { type: 'number' } }, additionalProperties: false } },
-    { name: 'wps_get_audit_record', description: '按审计 ID 读取完整记录和快照', inputSchema: { type: 'object', properties: { auditId: { type: 'string' } }, required: ['auditId'], additionalProperties: false } },
-    { name: 'wps_clear_audit_history', description: '清空本地存储的全部修改记录留痕', inputSchema: { type: 'object', properties: {}, additionalProperties: false } }
-  ];
-  return [...diagnostic, ...excel, ...existing, ...audits].map(t => ({ ...t, annotations: { readOnlyHint: t.name.startsWith('bridge_') || READ_TOOLS.has(t.name.replace(/^(wps|excel)_/, '')) || t.name === 'office_get_status', openWorldHint: false } }));
+  return assembleTools();
 }
+
 export function validateArgs(schema: any, value: any, location = 'arguments'): void {
   if (!schema) return;
   if (schema.oneOf) {
@@ -70,16 +89,37 @@ export async function executeCatalogTool(name: string, args: any, clientName: st
 }
 async function executeValidatedTool(name: string, args: any, clientName: string) {
   const tool = getTools().find(t => t.name === name);
-  if (!tool) throw new Error(`未知工具 ${name}`);
-  validateArgs(tool.inputSchema, args);
+  if (!tool) throw new BridgeError('rejected', `未知工具 ${name}`, { channel: 'bridge', method: name, executed: 'no' });
+  try {
+    validateArgs(tool.inputSchema, args);
+  } catch (error: any) {
+    // 入参校验在调用宿主之前完成，可确认宿主未执行。
+    throw new BridgeError('rejected', error?.message || String(error), { channel: 'bridge', method: name, executed: 'no', cause: error });
+  }
   if (name === 'bridge_get_capabilities') return capabilities();
   if (name === 'bridge_diagnose') return { ...capabilities(), checks: [{ id: 'service', status: 'ok' }, ...Object.entries(bridgeServer.getState().components).map(([id, s]) => ({ id: `wps-${id}`, status: s.connected ? 'connected' : 'not-connected', next: s.connected ? '先读取目标文档' : '打开目标办公组件，并检查加载项是否安装、版本是否匹配' }))] };
   const realName = name.replace(/^excel_/, 'wps_');
+
+  // DP4：契约里声明了但目标宿主加载项没有实现的操作，在**调用宿主之前**明确拒绝。
+  // 否则请求会落到加载项的 default 分支，报出与事实不符的"未知的 RPC 方法"。
+  const host = currentHost();
+  const bareMethod = realName.replace(/^wps_/, '');
+  if (isUnimplementedOn(host, bareMethod)) {
+    const hostLabel = host === 'wps' ? 'WPS' : 'Microsoft';
+    throw new BridgeError(
+      'rejected',
+      `${name} 在 ${hostLabel} 宿主上未实现（加载项缺少该 RPC 分支），已拒绝且未执行。` +
+      (host === 'wps' ? `如需修改已有图表，可用 wps_execute_script 调用原生 API；改用 host=microsoft 亦可。` : ''),
+      { channel: 'bridge', method: name, executed: 'no' }
+    );
+  }
+
   args = structuredClone(args);
   if (realName === 'wps_patch_cells') {
-    for (const field of ['values', 'formulas']) if (args[field] != null && (!Array.isArray(args[field]) || args[field].length === 0 || args[field].some((row: any) => !Array.isArray(row) || row.length !== args[field][0].length))) throw new Error(`${field} 必须为非空矩形二维数组`);
+    for (const field of ['values', 'formulas']) if (args[field] != null && (!Array.isArray(args[field]) || args[field].length === 0 || args[field].some((row: any) => !Array.isArray(row) || row.length !== args[field][0].length))) throw new BridgeError('rejected', `${field} 必须为非空矩形二维数组`, { channel: 'bridge', method: name, executed: 'no' });
   }
   const result = await UniversalGateway.executeTool(realName, args, clientName);
-  if (result?.success === false) throw new Error(result.error || result.message || '办公软件未完成请求');
+  // 宿主已接收请求并明确报告失败：是否已部分生效未知，不得当作"未执行"重放。
+  if (result?.success === false) throw new BridgeError('failed', result.error || result.message || '办公软件未完成请求', { channel: 'bridge', method: name });
   return result;
 }

@@ -1,0 +1,78 @@
+{
+  "note": "由 wps-addon/addon-core.js 在 vm 模拟宿主中实际执行得到的原始 RPC 请求/响应；非真实 WPS 进程验证。",
+  "harness": "node --import tsx /tmp/samples.ts（与 tests/addon.test.ts 相同的模拟宿主）",
+  "samples": [
+    {
+      "title": "读取区域（含零值与公式）",
+      "request": {
+        "method": "read_range",
+        "params": {
+          "address": "A1",
+          "workbookName": "Exact.xlsx",
+          "includeFormulas": true
+        }
+      },
+      "response": {
+        "type": "rpc_response",
+        "id": "sample",
+        "result": {
+          "workbookName": "Exact.xlsx",
+          "sheetName": "Test",
+          "address": "$A$1",
+          "rowCount": 1,
+          "columnCount": 1,
+          "values": [
+            [
+              0
+            ]
+          ],
+          "formulas": [
+            [
+              0
+            ]
+          ],
+          "numberFormats": null
+        },
+        "error": null
+      }
+    },
+    {
+      "title": "写入维度不一致被拒绝（写入前校验）",
+      "request": {
+        "method": "patch_cells",
+        "params": {
+          "address": "A1",
+          "values": [
+            [
+              1,
+              2
+            ]
+          ],
+          "workbookName": "Exact.xlsx"
+        }
+      },
+      "response": {
+        "type": "rpc_response",
+        "id": "sample",
+        "result": null,
+        "error": "写入矩阵必须与目标区域尺寸一致"
+      }
+    },
+    {
+      "title": "目标文档名不完整被拒绝（不误命中）",
+      "request": {
+        "method": "read_range",
+        "params": {
+          "address": "A1",
+          "workbookName": "Exact"
+        }
+      },
+      "response": {
+        "type": "rpc_response",
+        "id": "sample",
+        "result": null,
+        "error": "未在 WPS 中找到目标工作簿 [Exact]。当前已打开: Exact.xlsx"
+      }
+    }
+  ]
+}

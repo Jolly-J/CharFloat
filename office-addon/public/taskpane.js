@@ -1,9 +1,35 @@
+// 本文件由 scripts/build-office-addon.mjs 生成，请勿手改；改动请改 office-addon/src/**
+// 构建命令: node scripts/build-office-addon.mjs（按固定顺序拼接 src 下 19 个片段，无打包器、无依赖）
+// 拼接顺序:
+//   01. src/state.js
+//   02. src/ui.js
+//   03. src/lifecycle.js
+//   04. src/connection.js
+//   05. src/rpc.js
+//   06. src/excel/shared.js
+//   07. src/excel/workbook.js
+//   08. src/excel/sheets.js
+//   09. src/excel/range.js
+//   10. src/excel/formula.js
+//   11. src/excel/format.js
+//   12. src/excel/filter-sort.js
+//   13. src/excel/table.js
+//   14. src/excel/chart.js
+//   15. src/excel/pivot.js
+//   16. src/excel/shape.js
+//   17. src/excel/comment.js
+//   18. src/excel/script.js
+//   19. src/bootstrap.js
+
 /**
  * WPS Bridge - Microsoft Office (Excel) 官方 Office.js 核心运行时
  * 运行在 Microsoft Excel 任务窗格 WebView (WebKit / Edge WebView2)
  */
 
 (function () {
+
+// ── 模块: src/state.js — 全局常量与跨模块共享状态 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 7-15 行（原样搬迁，未改写）。
   const ADDON_VERSION = "2.0.0";
   const DEFAULT_WS_URL = "wss://localhost:19891/office-addon";
   let ws = null;
@@ -13,6 +39,8 @@
   let activeSheetName = "—";
   let activeSelectionAddress = "—";
 
+// ── 模块: src/ui.js — 任务窗格 UI 渲染：运行日志、活动流、状态徽标 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 16-56 行（原样搬迁，未改写）。
   function log(msg, data) {
     const timestamp = new Date().toLocaleTimeString();
     const formatted = `[${timestamp}] ${msg}` + (data ? ` ${JSON.stringify(data)}` : "");
@@ -54,6 +82,8 @@
     if (activeSelEl) activeSelEl.innerText = activeSelectionAddress;
   }
 
+// ── 模块: src/lifecycle.js — Office.js 生命周期与宿主状态感知 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 57-116 行（原样搬迁，未改写）。
   // ==========================================
   // Office.js 初始化与状态感知
   // ==========================================
@@ -114,6 +144,8 @@
     }).catch(() => {});
   }
 
+// ── 模块: src/connection.js — WebSocket 连接、重连、注册与数据包发送 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 117-184 行（原样搬迁，未改写）。
   // ==========================================
   // WebSocket 通信与注册
   // ==========================================
@@ -182,6 +214,8 @@
     }
   }
 
+// ── 模块: src/rpc.js — RPC 入站分发与 dispatchExcelTool 方法路由 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 185-388 行（原样搬迁，未改写）。
   // ==========================================
   // RPC 分发中心与全量能力执行
   // ==========================================
@@ -386,6 +420,8 @@
     }
   }
 
+// ── 模块: src/excel/shared.js — Excel 操作公共辅助（目标工作表解析） ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 389-399 行（原样搬迁，未改写）。
   // ==========================================
   // 具体 API 业务实现 (借助 Excel.run)
   // ==========================================
@@ -397,6 +433,8 @@
     return context.workbook.worksheets.getActiveWorksheet();
   }
 
+// ── 模块: src/excel/workbook.js — 工作簿元数据、保存、计算、命名项与文档属性 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 400-531 行（原样搬迁，未改写）。
   // 1. 工作簿操作
   async function handleGetWorkbookInfo(params) {
     return await Excel.run(async (context) => {
@@ -529,6 +567,8 @@
     });
   }
 
+// ── 模块: src/excel/sheets.js — 工作表生命周期 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 532-613 行（原样搬迁，未改写）。
   // 2. 工作表操作
   async function handleListSheets() {
     return await Excel.run(async (context) => {
@@ -611,6 +651,8 @@
     });
   }
 
+// ── 模块: src/excel/range.js — 区域读写、结构与查找替换 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 614-918 行（原样搬迁，未改写）。
   // 3. 区域核心读写
   async function handleReadRange(params) {
     return await Excel.run(async (context) => {
@@ -916,6 +958,8 @@
     });
   }
 
+// ── 模块: src/excel/formula.js — 公式写入 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 919-936 行（原样搬迁，未改写）。
   // 4. 公式
   async function handleSetFormula(params) {
     return await Excel.run(async (context) => {
@@ -934,6 +978,8 @@
     });
   }
 
+// ── 模块: src/excel/format.js — 格式排版、冻结窗格与条件格式 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 937-1136 行（原样搬迁，未改写）。
   // 5. 格式与排版
   async function handleFormatRange(params) {
     return await Excel.run(async (context) => {
@@ -1134,6 +1180,8 @@
     });
   }
 
+// ── 模块: src/excel/filter-sort.js — 排序与筛选 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1137-1168 行（原样搬迁，未改写）。
   // 6. 排序与筛选
   async function handleSetFilterAndSort(params) {
     return await Excel.run(async (context) => {
@@ -1166,6 +1214,8 @@
     });
   }
 
+// ── 模块: src/excel/table.js — 结构化表格 Table ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1169-1194 行（原样搬迁，未改写）。
   // 7. 结构化表格
   async function handleCreateTable(params) {
     return await Excel.run(async (context) => {
@@ -1192,6 +1242,8 @@
     });
   }
 
+// ── 模块: src/excel/chart.js — 图表 Chart 与工作表预览渲染 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1195-1662 行（原样搬迁，未改写）。
   // 8. 图表
   async function handleGetCharts(params) {
     return await Excel.run(async (context) => {
@@ -1660,6 +1712,8 @@
     });
   }
 
+// ── 模块: src/excel/pivot.js — 数据透视表 PivotTable ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1663-1687 行（原样搬迁，未改写）。
   // 9. 数据透视表
   async function handleCreatePivotTable(params) {
     return await Excel.run(async (context) => {
@@ -1685,6 +1739,8 @@
     });
   }
 
+// ── 模块: src/excel/shape.js — 形状与图片 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1688-1731 行（原样搬迁，未改写）。
   // 10. 形状与图片
   async function handleInsertImage(params) {
     return await Excel.run(async (context) => {
@@ -1729,6 +1785,8 @@
     });
   }
 
+// ── 模块: src/excel/comment.js — 审阅与批注 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1732-1762 行（原样搬迁，未改写）。
   // 11. 审阅与批注
   async function handleManageComments(params) {
     return await Excel.run(async (context) => {
@@ -1760,6 +1818,8 @@
     });
   }
 
+// ── 模块: src/excel/script.js — 动态脚本执行 ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1763-1773 行（原样搬迁，未改写）。
   // 12. 动态运行任意脚本
   async function handleRunScript(params) {
     return await Excel.run(async (context) => {
@@ -1771,6 +1831,8 @@
     });
   }
 
+// ── 模块: src/bootstrap.js — DOM 事件绑定与启动引导（必须最后拼接） ──
+// 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1774-1808 行（原样搬迁，未改写）。
   function bindDomEvents() {
     const btnReconnect = document.getElementById("btnReconnect");
     if (btnReconnect) {

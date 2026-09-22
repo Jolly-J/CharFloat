@@ -1,0 +1,337 @@
+/**
+ * Word（文字）工具定义（P2.3 剩余项：逐类迁移自 gateway.getOpenAiTools）。
+ *
+ * 已发布顺序中的第 39–50 条，分类标签为 `word`。
+ * 注意：网关执行分支另有 `wps_word_capture_preview`，它**没有**对外定义
+ * （属 tests/contract-consistency.test.ts 的"实现了但未注册"台账），不要顺手补进来。
+ */
+import type { GatewayToolDefinition } from './shared.js';
+
+/** Word（文字）：已发布顺序第 39–50 条。定义顺序即契约顺序，不得重排。 */
+export function wordToolDefinitions(): GatewayToolDefinition[] {
+  return [
+    {
+      type: "function",
+      function: {
+        name: "wps_word_create_document",
+        description: "新建空白 Word 文档或基于指定模板创建文档。",
+        parameters: {
+          type: "object",
+          properties: {
+            templatePath: { type: "string", description: "可选模板文件完整路径 (.dotx/.dotm/.dot)" },
+            isVisible: { type: "boolean", description: "是否显示文档窗口，默认 true" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_save_document",
+        description: "保存当前 Word 文档、另存为指定路径或导出为 PDF 格式。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称，不传则默认当前活动文档" },
+            filePath: { type: "string", description: "保存目标完整路径（例如 '/Users/.../文档.docx' 或 '/Users/.../文档.pdf'），不传则执行原地保存" },
+            format: { type: "string", enum: ["docx", "pdf"], description: "保存格式: 'docx'(常规文档，默认), 'pdf'(导出为 PDF 格式)" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_close_document",
+        description: "安全关闭指定的 Word 文档。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称，不传则默认当前活动文档" },
+            saveChanges: { type: "boolean", description: "关闭前是否保存修改，默认 false" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_manage_content",
+        description: "物理删除 Word 中的段落、表格或一键清空重写整个文档。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            action: {
+              type: "string",
+              enum: ["delete_paragraph", "delete_table", "clear_all"],
+              description: "操作类型: 'delete_paragraph'(物理删除指定段落或段落范围), 'delete_table'(删除指定表格), 'clear_all'(清空全文内容)"
+            },
+            paragraphIndex: { type: "integer", description: "要删除的段落索引序号(1-based)" },
+            paragraphRange: {
+              type: "array",
+              items: { type: "integer" },
+              description: "要删除的段落范围 [起始序号, 结束序号]，例如 [3, 5]"
+            },
+            tableIndex: { type: "integer", description: "要删除的表格索引序号(1-based)，默认 1" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_read_document",
+        description: "读取 Word 文档连续段落内容 [P1, P2...]、标题大纲骨架、排版元数据（字体、字号、加粗、对齐等）以及表格结构信息。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "文档名称，例如 '关于召开年度总结大会的通知.docx'，不传则默认当前活动文档" },
+            scope: { type: "string", enum: ["outline", "full", "selection", "paragraphs", "tables"], description: "读取范围: 'outline'(仅标题大纲), 'full'(全文预览与大纲), 'selection'(当前选区)" },
+            maxParagraphs: { type: "integer", description: "最多返回的段落数量，默认 200" },
+            includeFormatting: { type: "boolean", description: "是否提取段落级排版元数据（是否加粗、字号、字体名等），默认 true" },
+            includeTables: { type: "boolean", description: "是否返回文档内全部表格的尺寸与前三行预览，默认 true" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_write_content",
+        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式、断开加粗继承，并可在开头、结尾、指定段落后或光标处插入。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称，不传则默认当前文档" },
+            content: {
+              description: "要写入的内容（单行字符串或多行字符串数组）",
+              oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
+            },
+            type: {
+              type: "string",
+              enum: ["paragraph", "heading1", "heading2", "heading3", "bullet_list", "quote", "code_block"],
+              description: "内容段落类型: 'paragraph'(普通正文), 'heading1'(一级标题), 'heading2'(二级标题), 'heading3'(三级标题), 'bullet_list'(项目符号列表), 'quote'(引用块)"
+            },
+            location: {
+              type: "string",
+              enum: ["end", "start", "selection", "bookmark", "after_paragraph"],
+              description: "写入位置: 'end'(文档末尾，默认), 'start'(文档最前), 'selection'(当前光标处), 'bookmark'(指定书签), 'after_paragraph'(指定段落后)"
+            },
+            paragraphIndex: { type: "integer", description: "当 location 为 'after_paragraph' 时的基准段落索引(1-based)" },
+            targetBookmark: { type: "string", description: "当 location 为 bookmark 时的书签名称" },
+            formatting: {
+              type: "object",
+              properties: {
+                bold: { type: "boolean", description: "是否加粗" },
+                italic: { type: "boolean", description: "是否斜体" },
+                fontSizePt: { type: "number", description: "字号磅值（如 16 为三号，14 为四号，12 为小四）" },
+                fontName: { type: "string", description: "字体名称（如 '仿宋_GB2312'、'宋体'、'微软雅黑'）" },
+                alignment: { type: "integer", description: "对齐方式: 0(左对齐), 1(居中), 2(右对齐), 3(两端对齐)" },
+                firstLineIndentChars: { type: "number", description: "首行缩进字符数（如 2）" },
+                lineSpacingPt: { type: "number", description: "固定行间距磅值（如 28）" },
+                spaceBeforePt: { type: "number", description: "段前间距磅值" },
+                spaceAfterPt: { type: "number", description: "段后间距磅值" }
+              },
+              description: "写入文本的精细化排版参数"
+            }
+          },
+          required: ["content"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_format_document",
+        description: "Word 文档精细化排版。支持国家标准公文规范、现代商务排版、指定单段/段落范围/选区/全篇的字体、字号、加粗、缩进与行间距。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            target: { type: "string", enum: ["all", "paragraph", "range", "selection"], description: "格式化目标范围: 'all'(全文，默认), 'paragraph'(单个段落), 'range'(段落范围), 'selection'(当前选区)" },
+            paragraphIndex: { type: "integer", description: "当 target 为 'paragraph' 时的段落索引号" },
+            paragraphRange: { type: "array", items: { type: "integer" }, description: "当 target 为 'range' 时的段落范围 [start, end]" },
+            preset: {
+              type: "string",
+              enum: ["gov_standard", "business_modern", "academic", "custom"],
+              description: "排版预设: 'gov_standard'(国家标准公文规范：仿宋三号+28磅行距+首行缩进2字符+公文页边距), 'business_modern'(现代商务精美排版), 'custom'(自定义设置)"
+            },
+            fontName: { type: "string", description: "自定义字体名称，如 '仿宋_GB2312' 或 '微软雅黑'" },
+            fontSizePt: { type: "number", description: "自定义字号(磅值)，如 16(三号) 或 12" },
+            bold: { type: "boolean", description: "是否加粗" },
+            italic: { type: "boolean", description: "是否斜体" },
+            lineSpacingPt: { type: "number", description: "自定义固定行间距(磅值)，如 28" },
+            firstLineIndentChars: { type: "number", description: "首行缩进字符数，如 2" },
+            spaceBeforePt: { type: "number", description: "段前磅值" },
+            spaceAfterPt: { type: "number", description: "段后磅值" },
+            alignment: { type: "integer", description: "对齐方式: 0(左对齐), 1(居中), 2(右对齐), 3(两端对齐)" },
+            margins: {
+              type: "object",
+              properties: {
+                topMm: { type: "number", description: "上边距(毫米)" },
+                bottomMm: { type: "number", description: "下边距(毫米)" },
+                leftMm: { type: "number", description: "左边距(毫米)" },
+                rightMm: { type: "number", description: "右边距(毫米)" }
+              }
+            }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_insert_table_of_contents",
+        description: "Word 智能目录生成。自动扫描全文各级标题（Heading 1-3），在文档开头或指定位置生成带点线前导符与页码的标准目录页。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            upperHeadingLevel: { type: "integer", description: "目录包含的最高标题级别，默认 1" },
+            lowerHeadingLevel: { type: "integer", description: "目录包含的最低标题级别，默认 3" },
+            insertLocation: { type: "string", enum: ["start", "selection"], description: "目录插入位置: 'start'(文档最前，默认), 'selection'(当前光标处)" },
+            includePageNumbers: { type: "boolean", description: "是否显示页码，默认 true" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_manage_table",
+        description: "Word 专业表格管理。支持结构透视(inspect)、三线表插入、安全动态扩容二维写入(write_matrix)、单元格独立排版与行列增删。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            action: {
+              type: "string",
+              enum: ["inspect", "insert", "update_data", "write_matrix", "format_cell", "add_row", "delete_row", "merge_cells"],
+              description: "操作类型: 'inspect'(透视行列数与全量数据), 'insert'(插入新三线表), 'update_data'/'write_matrix'(动态扩容安全写入二维矩阵), 'format_cell'(单元格底色/字体排版), 'add_row'(追加行), 'delete_row'(删除行), 'merge_cells'(合并单元格)"
+            },
+            tableIndex: { type: "integer", description: "目标表格索引序号(1-based)，默认 1" },
+            rows: { type: "integer", description: "行数（插入时使用）" },
+            columns: { type: "integer", description: "列数（插入时使用）" },
+            data: { type: "array", items: { type: "array" }, description: "填充到表格的二维数据矩阵" },
+            stylePreset: { type: "string", enum: ["mckinsey_three_line", "clean_minimal", "none"], description: "样式预设: 'mckinsey_three_line'(麦肯锡三线表，顶底粗线+表头细线+无内部竖线，默认)" },
+            repeatHeader: { type: "boolean", description: "跨页时是否自动重复表头首行，默认 true" },
+            cellRow: { type: "integer", description: "单元格行号(1-based)" },
+            cellColumn: { type: "integer", description: "单元格列号(1-based)" },
+            cellFormat: {
+              type: "object",
+              properties: {
+                bold: { type: "boolean" },
+                fontSizePt: { type: "number" },
+                fontName: { type: "string" },
+                backgroundColor: { type: "string", description: "十六进制底色，例如 '#F1F5F9'" }
+              },
+              description: "单元格排版参数"
+            },
+            rowIndex: { type: "integer", description: "删除或操作的行号" },
+            mergeRange: {
+              type: "object",
+              properties: {
+                startRow: { type: "integer" },
+                startCol: { type: "integer" },
+                endRow: { type: "integer" },
+                endCol: { type: "integer" }
+              },
+              description: "合并单元格范围"
+            }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_review_and_comments",
+        description: "Word 审阅与修订控制。支持开启/关闭修订记录模式（Track Changes）、一键接受/拒绝全部修订、插入与读取批注。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            action: {
+              type: "string",
+              enum: ["enable_track_changes", "disable_track_changes", "accept_all_revisions", "reject_all_revisions", "add_comment", "list_comments"],
+              description: "审阅动作"
+            },
+            commentText: { type: "string", description: "添加批注时的批注内容" },
+            author: { type: "string", description: "批注作者名称" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_page_layout_and_watermark",
+        description: "Word 页面版式与水印设置。支持设置页眉页脚（支持奇偶页不同、首页不同）、注入倾斜半透明文字水印（如 '内部机密'）。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            headerText: { type: "string", description: "页眉文本内容" },
+            footerText: { type: "string", description: "页脚文本内容" },
+            watermarkText: { type: "string", description: "倾斜背景文字水印，例如 '内部机密 严禁外传'" },
+            differentFirstPage: { type: "boolean", description: "是否首页不同页眉页脚" },
+            differentOddEvenPages: { type: "boolean", description: "是否奇偶页不同页眉页脚" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_find_and_replace",
+        description: "Word 全局查找与精准替换。支持通配符、全字匹配、区分大小写以及指定替换文本的格式（防止加粗污染）。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称" },
+            searchQuery: { type: "string", description: "要搜索的文本" },
+            replaceText: { type: "string", description: "要替换为的新文本，不传则仅执行查找定位" },
+            matchCase: { type: "boolean", description: "是否区分大小写，默认 false" },
+            matchWholeWord: { type: "boolean", description: "是否全字匹配，默认 false" },
+            useWildcards: { type: "boolean", description: "是否使用通配符，默认 false" },
+            scope: { type: "string", enum: ["full", "selection"], description: "替换范围: 'full'(全文，默认), 'selection'(选区)" },
+            replaceFormatting: {
+              type: "object",
+              properties: {
+                bold: { type: "boolean", description: "替换后文本是否加粗（明确设为 false 避免继承前文加粗）" },
+                italic: { type: "boolean" },
+                fontSizePt: { type: "number" },
+                fontName: { type: "string" }
+              },
+              description: "指定替换后新文字的格式"
+            }
+          },
+          required: ["searchQuery"],
+          additionalProperties: false
+        }
+      }
+    }
+  ];
+}

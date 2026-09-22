@@ -1,0 +1,58 @@
+锚点提交: cac6d38e87791e53e61f3ecfc7286e0f39606f68
+仓库根目录: /Users/Python/Office Agent Bridge
+已把副本中的 adapter 替换为锚点提交版本（修复前实现）
+✔ 四种失败种类默认的"是否已执行"判定是保守的 (1.077375ms)
+✔ 只有确认未执行或不修改文档的方法才允许跨通道重放 (0.1985ms)
+✔ routeOfficeFailure 决策表：写操作在结果不可判定时拒绝回退 (0.164917ms)
+✔ 替代通道不支持该方法时，保留前一通道的原始错误与 executed 状态 (0.075042ms)
+✖ 故障注入：写入已发生但响应超时，不得在原生通道重复执行 (1.561042ms)
+✖ 故障注入：写入已完成但响应无法解析，同样不得回退重放 (0.45925ms)
+✔ 故障注入：加载项未连接属于执行前不可用，仍允许原生通道接管 (1.420291ms)
+✔ 通道边界在真实调用路径上抛出已分类错误 (0.279083ms)
+✔ MCP readOnlyHint 与重放安全性是两套命名清晰的判定 (0.146042ms)
+✔ 带副作用的表达式探测既不算只读，也不允许跨通道重放 (2.487125ms)
+✔ DP4：声明了但目标宿主未实现的操作，在调用宿主之前明确拒绝 (3.930084ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 9
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 433.109666
+
+✖ failing tests:
+
+test at tests/failure-routing.test.ts:1:6515
+✖ 故障注入：写入已发生但响应超时，不得在原生通道重复执行 (1.561042ms)
+  AssertionError [ERR_ASSERTION]: 必须抛出错误而不是静默成功
+      at TestContext.<anonymous> (/private/var/folders/8h/xcw9k8b56nl44dbwkg0nq1gw0000gn/T/tmp.QWlynE61tJ/tests/failure-routing.test.ts:136:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/failure-routing.test.ts:1:7900
+✖ 故障注入：写入已完成但响应无法解析，同样不得回退重放 (0.45925ms)
+  AssertionError [ERR_ASSERTION]: 必须抛出错误而不是静默成功
+      at TestContext.<anonymous> (/private/var/folders/8h/xcw9k8b56nl44dbwkg0nq1gw0000gn/T/tmp.QWlynE61tJ/tests/failure-routing.test.ts:160:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+---- 复现判定 ----
+测试进程退出码: 1（修复前预期为 1）
+结果签名: tests=11 pass=9 fail=2（预期 11/9/2）
+✔ REPRODUCED：修复前缺陷确实存在，2 项故障注入失败，失败用例名与预期一致
+   失败含义：callOffice 曾“成功返回”——原生通道把同一次写入又执行了一遍，第二次的成功掩盖了第一次的失败。

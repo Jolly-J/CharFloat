@@ -1,0 +1,22 @@
+=== P2.2 回归复现：stdio 代理漏传 sessionId 导致跨客户端锁串扰 ===
+复现方式：把工作区复制到临时目录，将 cli.ts 的 /api/v1/tool/call 转发改回不传 sessionId，
+         重新构建 CLI，再用两个独立 stdio 客户端进程跑 tests/session-isolation.test.ts。
+         （两个客户端共享同一个后台服务；AsyncLocalStorage 不会跨 HTTP 传递，因此只有端到端能发现）
+
+$ node --import tsx --test tests/session-isolation.test.ts
+✖ 两个 stdio 客户端的 WPS 文档锁互不串扰 (433.717041ms)
+✖ 两个 stdio 客户端的 Microsoft 目标锁互不串扰 (4.994292ms)
+ℹ tests 2
+ℹ pass 0
+ℹ fail 2
+✖ failing tests:
+✖ 两个 stdio 客户端的 WPS 文档锁互不串扰 (433.717041ms)
+  AssertionError [ERR_ASSERTION]: A 应看到自己锁定的 A.xlsx
+    actual: 'B.xlsx',
+    expected: 'A.xlsx',
+✖ 两个 stdio 客户端的 Microsoft 目标锁互不串扰 (4.994292ms)
+  AssertionError [ERR_ASSERTION]: B 只应看到自己的 ppt 锁
+    actual: [ 'excel', 'ppt' ],
+    expected: [ 'ppt' ],
+
+结论：A 查询到的是 B.xlsx，即 A 后续依赖锁定目标的操作会误指向 B 的文件。

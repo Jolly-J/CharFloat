@@ -5,8 +5,8 @@
 | 场景 | 定位 |
 |---|---|
 | WPS 表格 | 首选场景：工作区、范围、值、公式、格式、图表、筛选、验证、透视、结构操作 |
-| Windows Microsoft Excel | 统一 `excel_*` + `host=microsoft`，PowerShell COM 适配；逐版本实机验收后才能承诺兼容 |
-| macOS Microsoft Excel | 当前未实现结构化工具；可显式使用 `office_execute_script` JXA 通道 |
+| Windows Microsoft Excel | 统一 `excel_*` + `host=microsoft`：走 Office.js 任务窗格加载项；加载项不可用或可判定未执行时回退 PowerShell COM。逐版本实机验收后才能承诺兼容 |
+| macOS Microsoft Excel | 同一 Office.js 任务窗格通道（不是 COM）；也可显式使用 `office_execute_script` JXA 通道。本候选版本未实机验收 |
 | WPS Word | 可查询当前新建、保存、内容和格式工具；不再沿用“没有保存工具”的旧结论 |
 | WPS PPT | 基础页面、文本、形状、表格、图表接口和预览；复杂图表、嵌入数据编辑、母版与动画有限支持 |
 | Microsoft Word/PPT | 原生脚本通道和 PowerPoint 预览，不能宣传与 WPS 结构化能力等同 |
@@ -18,3 +18,5 @@
 回滚状态：仅恢复已记录的单元格值与公式；如果目标区域与修改后快照不一致，拒绝覆盖。无统一撤销保障的操作应按影响范围分批执行，用户要求保留原图表或样式时不能擅自删除重建。
 
 Windows 验证需要在安装了真实 Office/WPS 的桌面会话进行。模拟宿主测试、PowerShell 语法检查和安装包生成都不能替代实机验收。
+
+没有专用工具不等于不支持；原生 JS 扩展路径见 [脚本能力与示例](native-scripting.md)。矢量形状与统计图表是不同对象，均应按实际宿主 API 探测、执行并验证。

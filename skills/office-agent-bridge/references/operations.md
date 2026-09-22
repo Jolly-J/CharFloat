@@ -1,5 +1,18 @@
 # 启动与排障
 
+## 启动入口
+
+本节仅用于连接异常，不是每个文档任务的前置步骤。stdio MCP 自动启动或复用后台；HTTP 需要先启动管理器或已安装 CLI。关闭 GUI 不停止后台，“停止服务”会影响所有 AI。
+
+本技能 `scripts/bridge_client.py` 不依赖第三方 Python 包。从当前技能目录定位脚本：
+
+```sh
+python3 <技能目录>/scripts/bridge_client.py --doctor
+python3 <技能目录>/scripts/bridge_client.py --start
+```
+
+启动使用安装记录中的可执行文件和入口。记录缺失时从已安装应用启动一次；源码环境按项目 README 构建运行，不猜测或下载运行时。
+
 ## 安装布局
 
 macOS 默认 `~/.wps-bridge`；Windows 默认 `%LOCALAPPDATA%/WPSBridge`。`WPS_BRIDGE_HOME`、`WPS_BRIDGE_PORT` 可覆盖，必须与客户端安装记录一致。

@@ -1,0 +1,27 @@
+=== P2.2 之前：协议层静态引用 catalog 时的强连通分量（SCC 完整口径）===
+测量方法：把工作区复制到临时目录，恢复 ws-server.ts / mcp-server.ts 对 catalog.ts 的静态 import，
+         再运行 tests/contracts-boundary.test.ts 的 SCC 分析（Tarjan，与遍历顺序无关）。
+
+$ node --import tsx --test tests/contracts-boundary.test.ts
+✖ 强连通分量台账只减不增，且反映真实状态 (2.493708ms)
+✔ P2.1 验收：执行层 adapter 不再反向依赖注册入口 catalog (0.089625ms)
+✖ P2.2 验收：协议层通过注入的接口取工具，不静态反向引用 catalog (0.101042ms)
+✔ 契约层不依赖执行层、协议层与服务实例 (0.069625ms)
+✔ 契约层标识与既有兼容导出同源 (145.941625ms)
+✔ 契约层判定在搬迁中保持不变（回归护栏） (0.31725ms)
+ℹ tests 6
+ℹ pass 4
+ℹ fail 2
+✖ failing tests:
+✖ 强连通分量台账只减不增，且反映真实状态 (2.493708ms)
+  AssertionError [ERR_ASSERTION]: 出现未登记的循环依赖分量，请先消除而不是加入台账：
+  members=[catalog.ts,gateway.ts,mcp-server.ts,office/adapter.ts,ws-server.ts] edges=[catalog.ts→gateway.ts,catalog.ts→ws-server.ts,gateway.ts→office/adapter.ts,gateway.ts→ws-server.ts,mcp-server.ts→catalog.ts,office/adapter.ts→ws-server.ts,ws-server.ts→catalog.ts,ws-server.ts→mcp-server.ts]
+  +   'members=[catalog.ts,gateway.ts,mcp-server.ts,office/adapter.ts,ws-server.ts] edges=[catalog.ts→gateway.ts,catalog.ts→ws-server.ts,gateway.ts→office/adapter.ts,gateway.ts→ws-server.ts,mcp-server.ts→catalog.ts,office/adapter.ts→ws-server.ts,ws-server.ts→catalog.ts,ws-server.ts→mcp-server.ts]'
+    actual: [ 'members=[catalog.ts,gateway.ts,mcp-server.ts,office/adapter.ts,ws-server.ts] edges=[catalog.ts→gateway.ts,catalog.ts→ws-server.ts,gateway.ts→office/adapter.ts,gateway.ts→ws-server.ts,mcp-server.ts→catalog.ts,office/adapter.ts→ws-server.ts,ws-server.ts→catalog.ts,ws-server.ts→mcp-server.ts]' ],
+✖ P2.2 验收：协议层通过注入的接口取工具，不静态反向引用 catalog (0.101042ms)
+  AssertionError [ERR_ASSERTION]: ws-server.ts 不应静态 import catalog.ts（应通过注入的 ToolService）
+
+说明：这是一个含 5 个模块、8 条内部边的强连通分量，而不是两条回环路径。
+      先前的 DFS 口径（已访问即跳过）会漏报，例如 gateway.ts 直接 import ws-server.ts 形成的
+      catalog → gateway → ws-server → catalog 就被漏掉了。改用 SCC 后口径完整。
+      P2.2 后该分量已分解，SCC 列表为空。

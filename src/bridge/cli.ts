@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createMcpServer } from './mcp-server.js';
+import type { ToolService } from './contracts/tool-service.js';
 import { bridgeServer } from './ws-server.js';
+import { composeBridgeServer } from './compose.js';
 import { ensureService, serviceRequest, probeService } from './service-client.js';
 import { atomicWrite, getToken, runtimeHome, runtimePort, VERSION, resourcePath } from './runtime.js';
 
@@ -12,6 +14,7 @@ console.log = (...args) => console.error(...args);
 async function main() {
   const mode = process.argv[2];
   if (mode === '--serve') {
+    composeBridgeServer();   // 组装入口：为 HTTP/MCP 路由注入工具服务（P2.2）
     await bridgeServer.start();
     atomicWrite(path.join(runtimeHome(), 'service.json'), JSON.stringify({ pid: process.pid, port: runtimePort(), version: VERSION, startedAt: Date.now() }));
     const cleanup = () => { bridgeServer.stop(); process.exit(0); };
@@ -31,15 +34,20 @@ async function main() {
   await ensureService(entry);
   if (mode === '--start') atomicWrite(path.join(runtimeHome(), 'installation.json'), JSON.stringify({ executable: process.execPath, cli: entry, resources: path.dirname(resourcePath('package.json')), version: VERSION }));
   if (mode === '--start') { process.stdout.write('Bridge 后台已就绪\n'); return; }
-  const server = createMcpServer({
-    tools: () => serviceRequest('/api/v1/mcp-tools'),
-    call: async (name, args, sessionId) => (await serviceRequest('/api/v1/tool/call', { name, arguments: args, sessionId, clientName: 'stdio MCP' })).data,
+  // stdio 客户端不直接持有工具实现：经后台服务转发，同样以注入的 ToolService 形状交给协议层。
+  // sessionId 必须显式转发：后台按它隔离目标锁等会话状态，AsyncLocalStorage 不会跨 HTTP 传递。
+  const remote: ToolService = {
+    list: () => serviceRequest('/api/v1/mcp-tools'),
     capabilities: () => serviceRequest('/api/v1/capabilities'),
-    prompt: async () => {
-      const r = await fetch(`http://127.0.0.1:${runtimePort()}/api/v1/prompts/aesthetic`, { headers: { Authorization: `Bearer ${getToken()}` }, signal: AbortSignal.timeout(5000) });
-      if (!r.ok) throw new Error('提示词资源缺失'); return r.text();
-    }
-  });
+    execute: async (name, args, context) => (await serviceRequest('/api/v1/tool/call', {
+      name, arguments: args, sessionId: context.sessionId, clientName: context.clientName
+    })).data
+  };
+  const readPrompt = async () => {
+    const r = await fetch(`http://127.0.0.1:${runtimePort()}/api/v1/prompts/aesthetic`, { headers: { Authorization: `Bearer ${getToken()}` }, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error('提示词资源缺失'); return r.text();
+  };
+  const server = createMcpServer(remote, { prompt: readPrompt, clientName: 'stdio MCP' });
   await server.connect(new StdioServerTransport());
   const cleanup = async () => { await server.close(); process.exit(0); };
   process.on('SIGINT', cleanup); process.on('SIGTERM', cleanup); process.stdin.on('end', cleanup);

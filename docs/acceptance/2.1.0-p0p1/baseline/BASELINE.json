@@ -1,0 +1,37 @@
+{
+  "baselineCommit": "cac6d38e87791e53e61f3ecfc7286e0f39606f68",
+  "baselineCommitShort": "cac6d38",
+  "recordedAt": "2026-09-22",
+  "candidate": "2.1.0-p0p1",
+  "patch": "baseline-prior.patch",
+  "manifest": "MANIFEST.sha256",
+  "entryCount": 22,
+  "purpose": "P0 基线恢复的固定锚点。恢复与失败复现都必须读取本文件的 baselineCommit，不得使用会随提交前进的 HEAD。",
+  "unrecoverable": [
+    {
+      "file": "AGENTS.md",
+      "baselineSha256": "f25c93d6d8c8b43073f5bc0877f17c0623dd3e8f337e6dcdc3972c8e6a4405b2",
+      "reason": "基线时为未跟踪文件，随后在 P0 补记验收证据目录约定时被修改；无 git 历史可回退"
+    },
+    {
+      "file": "docs/refactoring-plan.md",
+      "baselineSha256": "2d0d5087b06d0fdaf55f569ecca73281c2b1d886324abc3b957a35d0d8ae57d0",
+      "reason": "基线时为未跟踪文件，随后在 P0/P1 勾选与台账更新时被修改；无 git 历史可回退"
+    },
+    {
+      "file": "scripts/AGENTS.md",
+      "baselineSha256": "0f8915cda7a49371b7fce38797c0500d36f31888a902572320ef2feb15eb267c",
+      "reason": "基线时为未跟踪文件，随后在 P0.2 新增 snapshot-tools.ts 条目时被修改；无 git 历史可回退"
+    },
+    {
+      "file": "src/bridge/AGENTS.md",
+      "baselineSha256": "96e38b98161b764028b2df9bce9c1c089ddfc6eedec68b0f2b11936e7a4dcf40",
+      "reason": "基线时为未跟踪文件，随后在 P1 新增 errors.ts 条目与避坑条目时被修改；无 git 历史可回退"
+    },
+    {
+      "file": "tests/AGENTS.md",
+      "baselineSha256": "8031f4def86ee1b2790ac8f054e0a83716b05800551ff2a85585bd490688cf07",
+      "reason": "基线时为未跟踪文件，随后在 P1.4 新增 failure-routing.test.ts 条目时被修改；无 git 历史可回退"
+    }
+  ]
+}

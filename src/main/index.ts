@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ensureService, serviceRequest, probeService } from '../bridge/service-client.js';
 import { atomicWrite, runtimeHome, runtimePort, VERSION, resourcePath, appendServiceLog } from '../bridge/runtime.js';
+import { FULL_DISK_ACCESS_URL, appToAuthorize } from './permissions.js';
+import { openPermissionWindow, closePermissionWindow, startAppDrag, getPermissionIssue, loadAppIcon } from './permission-window.js';
 import { InstallerEngine } from './installer-engine.js';
 import { AddonInstaller, OfficeAddonInstaller } from './addon-installer.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -57,14 +59,38 @@ function setupIpc() {
   ipcMain.handle('get-audit-record', (_e, id: string) => serviceRequest('/api/v1/tool/call', { name: 'wps_get_audit_record', arguments: { auditId: id } }).then(r => r.data));
   ipcMain.handle('rollback-record', (_e, id: string) => serviceRequest('/api/v1/tool/call', { name: 'wps_rollback', arguments: { auditId: id }, sessionId: 'desktop' }).then(r => r.data));
   ipcMain.handle('check-addon-status', () => AddonInstaller.checkStatus());
-  ipcMain.handle('install-addon', () => {
+  // 安装器只做**纯识别**（不依赖 electron）；"该授权哪个 App"在这里补上，保证 installer 可在普通 Node 测试里加载
+  let lastPermissionRetry: (() => Promise<any>) | null = null;
+  const withPermissionTarget = (r: any) => {
+    if (!r?.permissionIssue) return r;
+    const issue = { ...r.permissionIssue, appToAuthorize: appToAuthorize(), isDev: !app.isPackaged, label: r.message };
+    // 方案 B：直接开置顶引导浮窗，它能在系统设置面板上方保持可见，便于拖拽图标
+    appendServiceLog('PermissionWindow', `权限失败，准备打开引导浮窗: ${issue?.targetPath || '(无路径)'}`);
+    try { openPermissionWindow(issue); appendServiceLog('PermissionWindow', '引导浮窗已创建'); }
+    catch (e: any) { appendServiceLog('PermissionWindow', `打开引导浮窗失败: ${e?.message || e}`); }
+    return { ...r, permissionIssue: issue };
+  };
+  ipcMain.handle('install-addon', async () => {
     appendServiceLog('IPC', '收到前端一键安装 / 升级 WPS 加载项请求');
-    return AddonInstaller.install();
+    lastPermissionRetry = async () => withPermissionTarget(await AddonInstaller.install());
+    return withPermissionTarget(await AddonInstaller.install());
   });
   ipcMain.handle('check-office-addon-status', () => OfficeAddonInstaller.checkStatus());
-  ipcMain.handle('install-office-addon', () => OfficeAddonInstaller.install());
+  ipcMain.handle('install-office-addon', async () => {
+    lastPermissionRetry = async () => withPermissionTarget(await OfficeAddonInstaller.install());
+    return withPermissionTarget(await OfficeAddonInstaller.install());
+  });
   ipcMain.handle('installer:detect', () => InstallerEngine.detectEnvironment());
   ipcMain.handle('installer:execute', (_e, options) => InstallerEngine.executeInstall(options));
+  // macOS 完全磁盘访问权限引导：打开设置面板 + 告知当前运行模式该授权的 App。
+  ipcMain.handle('permission:full-disk-access-info', () => ({ url: FULL_DISK_ACCESS_URL, appToAuthorize: appToAuthorize(), isDev: !app.isPackaged, platform: process.platform }));
+  ipcMain.handle('permission:open-full-disk-access', async () => { await shell.openExternal(FULL_DISK_ACCESS_URL); return { success: true }; });
+  // 必须用 ipcMain.on（配合渲染层 ipcRenderer.send）：invoke 的异步往返会错过拖拽会话
+  ipcMain.on('permission:drag-start', event => { try { startAppDrag(event.sender); } catch (e: any) { appendServiceLog('PermissionWindow', `发起拖拽失败: ${e?.message || e}`); } });
+  ipcMain.handle('permission:app-icon', () => loadAppIcon());
+  ipcMain.handle('permission:open-guide', () => { openPermissionWindow(getPermissionIssue()); return { success: true }; });
+  ipcMain.handle('permission:close-window', () => { closePermissionWindow(); return { success: true }; });
+  ipcMain.handle('permission:retry-install', async () => lastPermissionRetry ? lastPermissionRetry() : { success: false, message: '没有可重试的安装' });
   ipcMain.handle('get-app-info', () => ({ version: VERSION, port: runtimePort(), home: runtimeHome(), platform: process.platform, theme: prefs.theme || 'system', login: app.getLoginItemSettings().openAtLogin, config: { mcpServers: { 'office-agent-bridge': InstallerEngine.configEntry(), 'wps-bridge': InstallerEngine.configEntry() } } }));
   ipcMain.handle('set-theme', (_e, theme) => { if (!['system','light','dark'].includes(theme)) throw new Error('主题无效'); nativeTheme.themeSource = theme; prefs.theme = theme; persist(); return true; });
   ipcMain.handle('set-login', (_e, enabled) => { if (!app.isPackaged) throw new Error('登录启动仅在安装版中可用'); app.setLoginItemSettings({ openAtLogin: Boolean(enabled), args: ['--background'] }); return app.getLoginItemSettings().openAtLogin; });

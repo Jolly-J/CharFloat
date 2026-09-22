@@ -7,6 +7,13 @@ contextBridge.exposeInMainWorld('api', {
   checkAddonStatus: invoke('check-addon-status'), installAddon: invoke('install-addon'),
   checkOfficeAddonStatus: invoke('check-office-addon-status'), installOfficeAddon: invoke('install-office-addon'),
   detectEnvironment: invoke('installer:detect'), executeInstall: invoke('installer:execute'),
+  permissionInfo: invoke('permission:full-disk-access-info'), openFullDiskAccess: invoke('permission:open-full-disk-access'),
   setTheme: invoke('set-theme'), setLogin: invoke('set-login'), copyText: invoke('copy-text'), openLog: invoke('open-log'), exitApp: invoke('exit-app'),
+  startAppDrag: () => ipcRenderer.send('permission:drag-start'),
+  appIcon: invoke('permission:app-icon'),
+  openPermissionGuide: invoke('permission:open-guide'),
+  closePermissionWindow: invoke('permission:close-window'),
+  retryPermissionInstall: invoke('permission:retry-install'),
+  onPermissionIssue: (callback: (value: any) => void) => { const handler = (_: any, value: any) => callback(value); ipcRenderer.on('permission:issue', handler); return () => ipcRenderer.removeListener('permission:issue', handler); },
   onStatusChange: (callback: (value: any) => void) => { const handler = (_: any, value: any) => callback(value); ipcRenderer.on('status-changed', handler); return () => ipcRenderer.removeListener('status-changed', handler); }
 });

@@ -8,9 +8,11 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createMcpServer } from './mcp-server.js';
-import { executeCatalogTool, getTools, capabilities } from './catalog.js';
 import { requestContext } from './context.js';
-import { VERSION, PROTOCOL, runtimePort, runtimeHttpsPort, getOrGenerateCerts, getToken, validToken, resourcePath } from './runtime.js';
+import { VERSION, PROTOCOL, runtimePort, runtimeHttpsPort, getOrGenerateCerts, getToken, validToken, resourcePath, appendServiceLog } from './runtime.js';
+import { BridgeError } from './errors.js';
+import type { ToolService } from './contracts/tool-service.js';
+import type { ChannelParams, ToolResult } from './contracts/boundary.js';
 import type { SelectionInfo } from './types.js';
 
 export interface ComponentStatus { connected: boolean; activeDocument?: string; activeSheet?: string; version?: string; lastHeartbeat?: number; summary?: any }
@@ -51,12 +53,13 @@ export class WpsBridgeServer {
   private httpsServer?: https.Server;
   private wss?: WebSocketServer;
   private sockets = new Map<string, WebSocket>();
-  private pending = new Map<string, { socket: WebSocket; resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
+  private pending = new Map<string, { socket: WebSocket; resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; channel: 'wps-addon' | 'microsoft-officejs'; method: string }>();
   private sessions = new Map<string, StreamableHTTPServerTransport>();
   private sse = new Map<string, SSEServerTransport>();
   private listeners = new Set<(s: BridgeState) => void>();
   private heartbeat?: NodeJS.Timeout;
   private state: BridgeState = { isWpsConnected: false, isMsOfficeConnected: false, components: { word: { connected: false }, excel: { connected: false }, ppt: { connected: false }, msExcel: { connected: false } }, lastUpdated: Date.now() };
+  private toolService?: ToolService;
   constructor(private port = runtimePort(), private httpsPort = runtimeHttpsPort()) {}
   async start() {
     getToken(true);
@@ -183,7 +186,7 @@ export class WpsBridgeServer {
         if (!transport) {
           if (body.method !== 'initialize') return json({ error: '请先初始化 MCP 会话' }, 400);
           if (this.sessions.size >= 64) return json({ error: '会话数量达到上限' }, 429);
-          const server = createMcpServer();
+          const server = createMcpServer(this.tools());
           transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID(), onsessioninitialized: sid => { this.sessions.set(sid, transport!); } });
           transport.onclose = () => { if (transport?.sessionId) this.sessions.delete(transport.sessionId); void server.close(); };
           await server.connect(transport);
@@ -197,7 +200,7 @@ export class WpsBridgeServer {
     if (url.pathname === '/sse' && req.method === 'GET') {
       const transport = new SSEServerTransport('/messages', res);
       this.sse.set(transport.sessionId, transport);
-      const server = createMcpServer();
+      const server = createMcpServer(this.tools());
       res.on('close', () => { this.sse.delete(transport.sessionId); void server.close(); });
       await server.connect(transport); return;
     }
@@ -208,8 +211,8 @@ export class WpsBridgeServer {
     }
     if (req.method === 'GET') {
       if (url.pathname === '/api/v1/status') return json({ ...this.getState(), service: { version: VERSION, pid: process.pid, port: this.port, background: true } });
-      if (url.pathname === '/api/v1/mcp-tools') return json(getTools());
-      if (url.pathname === '/api/v1/capabilities') return json(capabilities());
+      if (url.pathname === '/api/v1/mcp-tools') return json(this.tools().list());
+      if (url.pathname === '/api/v1/capabilities') return json(await this.tools().capabilities());
       if (url.pathname === '/openapi.json') {
         const { UniversalGateway } = await import('./gateway.js');
         const schema: any = UniversalGateway.getOpenApiSchema(`http://127.0.0.1:${this.port}`);
@@ -217,7 +220,7 @@ export class WpsBridgeServer {
         schema.components = { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } };
         return json(schema);
       }
-      if (url.pathname === '/api/v1/tools') return json(getTools().map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })));
+      if (url.pathname === '/api/v1/tools') return json((await this.tools().list()).map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })));
       if (url.pathname === '/api/v1/prompts/aesthetic') { res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8' }); res.end(fs.readFileSync(resourcePath('prompts/excel_aesthetic_system.md'), 'utf8')); return; }
       if (url.pathname === '/api/v1/office/addon-status') {
         const home = os.homedir();
@@ -321,7 +324,7 @@ export class WpsBridgeServer {
       const host = name?.startsWith('excel_') && args.host === 'microsoft' ? 'microsoft' : 'wps';
       const sessionId = typeof body.sessionId === 'string' ? body.sessionId : 'http-local';
       try {
-        const data = await requestContext.run({ sessionId, host }, () => executeCatalogTool(name, args, body.clientName || 'HTTP Agent'));
+        const data = await this.tools().execute(name, args, { sessionId, clientName: body.clientName || 'HTTP Agent' });
         return json({ success: true, data });
       } catch (e: any) { return json({ success: false, error: e.message }, 422); }
     }
@@ -382,7 +385,7 @@ export class WpsBridgeServer {
         const pending = this.pending.get(p.id);
         if (!pending || pending.socket !== ws) return;
         clearTimeout(pending.timer); this.pending.delete(p.id);
-        if (p.error) pending.reject(new Error(p.error)); else pending.resolve(p.result);
+        if (p.error) pending.reject(new BridgeError('failed', p.error, { channel: pending.channel, method: pending.method })); else pending.resolve(p.result);
       } else if (p.type === 'event' && p.event === 'selection_change') {
         if (this.sockets.get('excel') === ws || this.sockets.get('ms-excel') === ws) {
           this.state.currentSelection = p.data;
@@ -402,32 +405,47 @@ export class WpsBridgeServer {
           if (key === 'excel') { this.state.activeWorkbook = undefined; this.state.activeSheet = undefined; this.state.currentSelection = null; }
         }
       }
-      for (const [id, p] of this.pending) if (p.socket === ws) { clearTimeout(p.timer); p.reject(new Error('加载项断开，执行结果未知，请先读回确认')); this.pending.delete(id); }
+      for (const [id, p] of this.pending) if (p.socket === ws) { clearTimeout(p.timer); p.reject(new BridgeError('unknown', '加载项断开，执行结果未知，请先读回确认', { channel: p.channel, method: p.method })); this.pending.delete(id); }
       this.publish();
     });
   }
-  async callWps<T = any>(method: string, params: any = {}, timeoutMs = 20000): Promise<T> {
-    let key = params.component || (method.startsWith('word_') || params.documentName ? 'word' : method.startsWith('ppt_') || params.presentationName ? 'ppt' : 'excel');
+  async callWps<T = ToolResult>(method: string, params: ChannelParams = {}, timeoutMs = 20000): Promise<T> {
+    // component 必须是字符串才作为通道键；非字符串按未指定处理（与旧行为对合法输入等价）。
+    let key = typeof params.component === 'string' && params.component
+      ? params.component
+      : (method.startsWith('word_') || params.documentName ? 'word' : method.startsWith('ppt_') || params.presentationName ? 'ppt' : 'excel');
     if (method === 'get_workspace_summary' && !params.workbookName && !this.sockets.has('excel') && this.sockets.size === 1) key = [...this.sockets.keys()][0];
     const ws = this.sockets.get(key);
-    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error(`WPS ${key} 加载项未连接，请先打开对应组件并检查 Bridge 加载项。`);
+    // 加载项未连接 = 执行前不可用，可确认宿主未执行。
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new BridgeError('unavailable', `WPS ${key} 加载项未连接，请先打开对应组件并检查 Bridge 加载项。`, { channel: 'wps-addon', method, executed: 'no' });
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`WPS ${method} 超时，结果未知；先读取状态，不要自动重放写入`)); }, timeoutMs);
-      this.pending.set(id, { socket: ws, resolve, reject, timer });
-      ws.send(JSON.stringify({ id, method, params }), error => { if (error) { clearTimeout(timer); this.pending.delete(id); reject(error); } });
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new BridgeError('unknown', `WPS ${method} 超时，结果未知；先读取状态，不要自动重放写入`, { channel: 'wps-addon', method })); }, timeoutMs);
+      this.pending.set(id, { socket: ws, resolve, reject, timer, channel: 'wps-addon', method });
+      // 发送失败无法证明宿主未收到请求，保守归为结果未知。
+      ws.send(JSON.stringify({ id, method, params }), error => { if (error) { clearTimeout(timer); this.pending.delete(id); reject(new BridgeError('unknown', `WPS ${method} 请求发送失败：${error.message}；结果未知，先读回确认`, { channel: 'wps-addon', method, cause: error })); } });
     });
   }
-  async callOfficeAddon<T = any>(method: string, params: any = {}, timeoutMs = 25000): Promise<T> {
+  async callOfficeAddon<T = ToolResult>(method: string, params: ChannelParams = {}, timeoutMs = 25000): Promise<T> {
     const key = params.component === 'word' ? 'ms-word' : params.component === 'ppt' ? 'ms-ppt' : 'ms-excel';
     const ws = this.sockets.get(key);
-    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error(`Microsoft Office (${key}) 加载项未连接，请在 Excel 中打开【WPS Bridge (Excel AI)】任务窗格。`);
+    // 任务窗格未连接 = 执行前不可用，可确认宿主未执行。
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new BridgeError('unavailable', `Microsoft Office (${key}) 加载项未连接，请在 Excel 中打开【WPS Bridge (Excel AI)】任务窗格。`, { channel: 'microsoft-officejs', method, executed: 'no' });
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`Microsoft Office ${method} 超时，请检查 Excel 任务窗格连接`)); }, timeoutMs);
-      this.pending.set(id, { socket: ws, resolve, reject, timer });
-      ws.send(JSON.stringify({ id, method, params }), error => { if (error) { clearTimeout(timer); this.pending.delete(id); reject(error); } });
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new BridgeError('unknown', `Microsoft Office ${method} 超时，请检查 Excel 任务窗格连接`, { channel: 'microsoft-officejs', method })); }, timeoutMs);
+      this.pending.set(id, { socket: ws, resolve, reject, timer, channel: 'microsoft-officejs', method });
+      // 发送失败无法证明宿主未收到请求，保守归为结果未知。
+      ws.send(JSON.stringify({ id, method, params }), error => { if (error) { clearTimeout(timer); this.pending.delete(id); reject(new BridgeError('unknown', `Microsoft Office ${method} 请求发送失败：${error.message}；结果未知，先读回确认`, { channel: 'microsoft-officejs', method, cause: error })); } });
     });
+  }
+  /**
+   * 装配工具服务（P2.2）。协议层不静态引用 catalog，由组装入口 composeBridgeServer() 注入。
+   */
+  setToolService(service: ToolService) { this.toolService = service; }
+  private tools(): ToolService {
+    if (!this.toolService) throw new BridgeError('unavailable', '工具服务尚未装配：请通过组装入口 composeBridgeServer() 启动服务', { channel: 'bridge' });
+    return this.toolService;
   }
   getState() {
     const copy = structuredClone(this.state);
@@ -444,7 +462,7 @@ export class WpsBridgeServer {
   }
   stop() {
     clearInterval(this.heartbeat);
-    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error('Bridge 已停止')); }
+    for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new BridgeError('unknown', 'Bridge 已停止，结果未知，请先读回确认', { channel: p.channel, method: p.method })); }
     this.pending.clear();
     for (const ws of this.wss?.clients || []) ws.terminate();
     for (const t of this.sessions.values()) void t.close();

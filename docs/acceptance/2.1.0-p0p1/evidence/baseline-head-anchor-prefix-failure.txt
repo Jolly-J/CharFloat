@@ -1,0 +1,42 @@
+=== 修复前行为复现：恢复逻辑依赖 HEAD ===
+锚点提交（补丁对应）: cac6d38e87791e53e61f3ecfc7286e0f39606f68
+副本新 HEAD           : 89d8178ff86942f160da95017daabecf29b5f04b
+旧实现使用 'git archive HEAD' 导出工作树，再用补丁还原，结果如下：
+
+$ git -C <tree> init -q
+exit=0
+$ git -C <tree> apply --whitespace=nowarn docs/acceptance/2.1.0-p0p1/baseline/baseline-prior.patch
+error: patch failed: README.md:98
+error: README.md: patch does not apply
+error: office-addon/AGENTS.md: already exists in working directory
+error: patch failed: package.json:23
+error: package.json: patch does not apply
+error: resources/office/AGENTS.md: already exists in working directory
+error: scripts/check-agents.mjs: already exists in working directory
+error: skills/AGENTS.md: already exists in working directory
+error: patch failed: skills/office-agent-bridge-chart-style/SKILL.md:1
+error: skills/office-agent-bridge-chart-style/SKILL.md: patch does not apply
+error: patch failed: skills/office-agent-bridge-ppt-design/SKILL.md:1
+error: skills/office-agent-bridge-ppt-design/SKILL.md: patch does not apply
+error: patch failed: skills/office-agent-bridge-word-batch-edit/SKILL.md:1
+error: skills/office-agent-bridge-word-batch-edit/SKILL.md: patch does not apply
+error: patch failed: skills/office-agent-bridge/SKILL.md:1
+error: skills/office-agent-bridge/SKILL.md: patch does not apply
+error: patch failed: skills/office-agent-bridge/references/capabilities.md:18
+error: skills/office-agent-bridge/references/capabilities.md: patch does not apply
+error: skills/office-agent-bridge/references/native-scripting.md: already exists in working directory
+error: patch failed: skills/office-agent-bridge/references/operations.md:1
+error: skills/office-agent-bridge/references/operations.md: patch does not apply
+error: patch failed: src/bridge/gateway.ts:1048
+error: src/bridge/gateway.ts: patch does not apply
+error: patch failed: src/bridge/mcp-server.ts:8
+error: src/bridge/mcp-server.ts: patch does not apply
+error: src/main/AGENTS.md: already exists in working directory
+error: src/preload/AGENTS.md: already exists in working directory
+error: src/renderer/AGENTS.md: already exists in working directory
+error: tests/ppt-layout.test.ts: already exists in working directory
+error: website/AGENTS.md: already exists in working directory
+error: wps-addon/AGENTS.md: already exists in working directory
+error: patch failed: wps-addon/addon-core.js:3706
+error: wps-addon/addon-core.js: patch does not apply
+exit=1

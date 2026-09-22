@@ -1,0 +1,1218 @@
+  // ---------------------------------------------------------------------------
+  // ppt.js — PPT 宿主写入与 RPC 实现
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
+  // ==========================================
+  // PowerPoint (演示) 模块 7 大核心操作实现
+  // ==========================================
+
+  function hexToPptColor(hex) {
+    if (!hex) return 0;
+    const clean = hex.replace("#", "");
+    if (clean.length !== 6) return 0;
+    const r = parseInt(clean.substring(0, 2), 16);
+    const g = parseInt(clean.substring(2, 4), 16);
+    const b = parseInt(clean.substring(4, 6), 16);
+    return (b << 16) | (g << 8) | r;
+  }
+
+  // Adapt only newly generated shapes; existing slide content stays untouched.
+  // 几何/字号/容量计算全部委托给 ppt-layout.js 的纯函数，本函数只读写宿主对象。
+  function fitGeneratedPptShapes(slide, firstIndex, page, warnings) {
+    const ratio = pptScaleForPage(page);
+    const sx = ratio.sx, sy = ratio.sy, scale = ratio.scale;
+    for (let i = firstIndex; i <= slide.Shapes.Count; i++) {
+      const shape = slide.Shapes.Item(i);
+      shape.Left *= sx; shape.Top *= sy;
+      shape.Width *= sx; shape.Height *= sy;
+      if (!shape.HasTextFrame || !shape.TextFrame.HasText) continue;
+      const frame = shape.TextFrame, range = frame.TextRange;
+      frame.AutoSize = 0;
+      frame.WordWrap = true;
+      const preferred = Number(range.Font.Size) * scale;
+      const minimum = Math.min(preferred, 12 * scale);
+      const innerW = Math.max(1, shape.Width - Number(frame.MarginLeft || 0) - Number(frame.MarginRight || 0));
+      const innerH = Math.max(1, shape.Height - Number(frame.MarginTop || 0) - Number(frame.MarginBottom || 0));
+      const text = String(range.Text || "");
+      const size = pptFitFontSize(text, preferred, minimum, scale, innerW, innerH);
+      range.Font.Size = size;
+      if (pptEstimateLines(text, size, innerW) * size * 1.25 > innerH) warnings.push({ shapeId: shape.Id, reason: "文字可能溢出，请缩短内容或扩大文本框并检查预览" });
+    }
+  }
+
+  function addSlideHeader(slide, title, themeColor) {
+    const titleBox = slide.Shapes.AddTextbox(1, 50, 30, 620, 50);
+    titleBox.TextFrame.TextRange.Text = title || "主题要点";
+    titleBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+    titleBox.TextFrame.TextRange.Font.Size = 24;
+    titleBox.TextFrame.TextRange.Font.Bold = true;
+    titleBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor(themeColor || "#0F4C81");
+
+    try {
+      const line = slide.Shapes.AddLine(50, 75, 120, 75);
+      line.Line.ForeColor.RGB = hexToPptColor(themeColor || "#0F4C81");
+      line.Line.Weight = 2.5;
+    } catch (e) {}
+  }
+
+  function renderPptCards(slide, cards, colCount, themeColor, customTop, customH) {
+    const cols = Math.max(1, Math.min(Number(colCount) || 3, 4));
+    if (cards.length > cols) throw new Error("卡片数量超过分栏数，请拆分为多页，避免内容被截断");
+    const count = cards.length;
+    const totalW = 620;
+    const startX = 50;
+    const startY = customTop === undefined ? 100 : Number(customTop);
+    const cardH = customH === undefined ? 260 : Number(customH);
+    if (!Number.isFinite(startY) || !Number.isFinite(cardH) || startY < 0 || cardH <= 0 || startY + cardH > 405) throw new Error("卡片位置或高度超出页面");
+    const gap = 16;
+    const cardW = (totalW - (cols - 1) * gap) / cols;
+
+    for (let i = 0; i < count; i++) {
+      const item = cards[i];
+      const x = startX + i * (cardW + gap);
+      const accent = item.accentColor || themeColor || "#0F4C81";
+
+      // 1. 底卡 (圆角矩形 5)
+      try {
+        const bgShape = slide.Shapes.AddShape(5, x, startY, cardW, cardH);
+        bgShape.Fill.Solid();
+        bgShape.Fill.ForeColor.RGB = hexToPptColor("#F8FAFC");
+        bgShape.Line.ForeColor.RGB = hexToPptColor("#E2E8F0");
+        bgShape.Line.Weight = 1;
+      } catch (e) {}
+
+      // 2. 顶条强调线
+      try {
+        const topBar = slide.Shapes.AddShape(1, x + 10, startY + 12, 36, 4);
+        topBar.Fill.Solid();
+        topBar.Fill.ForeColor.RGB = hexToPptColor(accent);
+        topBar.Line.Visible = false;
+      } catch (e) {}
+
+      // 3. 卡片标签 (Tag)
+      if (item.tag) {
+        const tagBox = slide.Shapes.AddTextbox(1, x + 10, startY + 20, cardW - 20, 22);
+        tagBox.TextFrame.TextRange.Text = item.tag.toUpperCase();
+        tagBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+        tagBox.TextFrame.TextRange.Font.Size = 10;
+        tagBox.TextFrame.TextRange.Font.Bold = true;
+        tagBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor(accent);
+      }
+
+      // 4. 卡片标题
+      const titleY = item.tag ? startY + 42 : startY + 22;
+      const cardTitleBox = slide.Shapes.AddTextbox(1, x + 10, titleY, cardW - 20, 36);
+      cardTitleBox.TextFrame.TextRange.Text = item.title || `要点 ${i + 1}`;
+      cardTitleBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+      cardTitleBox.TextFrame.TextRange.Font.Size = cols >= 4 ? 14 : 16;
+      cardTitleBox.TextFrame.TextRange.Font.Bold = true;
+      cardTitleBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#0F172A");
+
+      // 5. 卡片正文描述
+      const descY = titleY + 36;
+      const descBox = slide.Shapes.AddTextbox(1, x + 10, descY, cardW - 20, cardH - (descY - startY) - 10);
+      descBox.TextFrame.TextRange.Text = item.description || "";
+      descBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+      descBox.TextFrame.TextRange.Font.Size = cols >= 4 ? 11 : 12;
+      descBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#475569");
+      descBox.TextFrame.WordWrap = true;
+    }
+  }
+
+  function renderPptChart(slide, chartSpec, left, top, width, height) {
+    const { chartType, categories, series, title, hasLegend, showDataLabels } = chartSpec || {};
+    let typeCode = 51; // xlColumnClustered 柱状图
+    if (chartType === "line") typeCode = 4; // xlLine 折线图
+    else if (chartType === "pie") typeCode = 5; // xlPie 饼图
+    else if (chartType === "bar") typeCode = 57; // xlBarClustered 条形图
+    else if (chartType === "column_stacked" || chartType === "stacked_column") typeCode = 52;
+    else if (chartType === "bar_stacked" || chartType === "stacked_bar") typeCode = 58;
+    else if (chartType === "bar_of_pie" || chartType === "pie_bar") typeCode = 68;
+    else if (typeof chartType === "number") typeCode = chartType;
+
+    let chartShape = null;
+    try {
+      chartShape = slide.Shapes.AddChart(typeCode, left, top, width, height);
+    } catch (e) {
+      try {
+        chartShape = slide.Shapes.AddChart2(-1, typeCode, left, top, width, height);
+      } catch (err) {
+        throw new Error("当前宿主无法创建原生图表：" + err.message);
+      }
+    }
+
+    try {
+      const chart = chartShape.Chart;
+      if (title) {
+        try {
+          chart.HasTitle = true;
+          chart.ChartTitle.Text = title;
+        } catch (e) { throw e; }
+      }
+      if (hasLegend !== undefined) {
+        try { chart.HasLegend = Boolean(hasLegend); } catch (e) { throw e; }
+      }
+
+      if (Array.isArray(series) && series.length > 0) {
+        const sc = chart.SeriesCollection();
+        while (sc.Count > series.length) {
+          try { sc.Item(sc.Count).Delete(); } catch (e) { throw e; }
+        }
+        for (let i = 0; i < series.length; i++) {
+          const sData = series[i];
+          let sObj = null;
+          if (i + 1 <= sc.Count) {
+            sObj = sc.Item(i + 1);
+          } else {
+            try { sObj = sc.NewSeries(); } catch (e) { throw e; }
+          }
+          if (!sObj) throw new Error("无法创建目标数据系列");
+
+          if (sData.name) {
+            try { sObj.Name = sData.name; } catch (e) { throw e; }
+          }
+          if (categories && categories.length > 0 && i === 0) {
+            try { sObj.XValues = categories; } catch (e) { throw e; }
+          }
+          if (Array.isArray(sData.values)) {
+            try { sObj.Values = sData.values; } catch (e) { throw e; }
+          }
+          if (sData.chartType) {
+            const sType = sData.chartType;
+            try {
+              if (sType === "line" || sType === 4) sObj.ChartType = 4;
+              else if (sType === "line_markers" || sType === 65) sObj.ChartType = 65;
+              else if (typeof sType === "number") sObj.ChartType = sType;
+            } catch (e) { throw e; }
+          }
+          if (sData.axisGroup === 2 || sData.secondaryAxis) {
+            try { sObj.AxisGroup = 2; } catch (e) { throw e; }
+          }
+          if (sData.color) {
+            try {
+              sObj.Format.Fill.Solid();
+              sObj.Format.Fill.ForeColor.RGB = hexToPptColor(sData.color);
+            } catch (e) { throw e; }
+          }
+          if (sData.hasDataLabels || showDataLabels) {
+            try { sObj.HasDataLabels = true; } catch (e) { throw e; }
+          }
+        }
+      } else if (categories && categories.length > 0) {
+        try {
+          const sc = chart.SeriesCollection();
+          if (sc.Count > 0) {
+            sc.Item(1).XValues = categories;
+          }
+        } catch (e) { throw e; }
+      }
+    } catch (e) {
+      throw new Error("图表已创建，但数据配置未完成：" + e.message);
+    }
+
+    return chartShape;
+  }
+
+  function pptReadPresentation(app, params) {
+    const { presentationName, includeNotes, maxSlides } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+    const pptApp = getPptApp() || app;
+    const slides = [];
+    const count = pres.Slides ? pres.Slides.Count : 0;
+    const maxS = Number(maxSlides) || 50;
+
+    for (let i = 1; i <= Math.min(count, maxS); i++) {
+      try {
+        const slide = pres.Slides.Item(i);
+        let title = `Slide ${i}`;
+        const snippets = [];
+        let notes = "";
+
+        const shapeCount = slide.Shapes ? slide.Shapes.Count : 0;
+        for (let s = 1; s <= shapeCount; s++) {
+          const shp = slide.Shapes.Item(s);
+          if (shp.HasTextFrame && shp.TextFrame.HasText) {
+            const text = (shp.TextFrame.TextRange.Text || "").trim().replace(/[\r\n\x07]/g, " ");
+            if (shp.Type === 14 || s === 1) {
+              if (text && title === `Slide ${i}`) title = text;
+            }
+            if (text) snippets.push(text);
+          }
+        }
+
+        if (includeNotes !== false) {
+          try {
+            if (slide.NotesPage && slide.NotesPage.Shapes) {
+              const notesShape = slide.NotesPage.Shapes.Placeholders.Item(2);
+              if (notesShape && notesShape.HasTextFrame && notesShape.TextFrame.HasText) {
+                notes = (notesShape.TextFrame.TextRange.Text || "").trim();
+              }
+            }
+          } catch (e) {}
+        }
+
+        slides.push({
+          index: i,
+          title,
+          shapeCount,
+          notes: notes || undefined,
+          textSnippets: snippets.slice(0, 5)
+        });
+      } catch (e) {}
+    }
+
+    let activeIdx = 1;
+    try {
+      if (pptApp.ActiveWindow && pptApp.ActiveWindow.Selection && pptApp.ActiveWindow.Selection.SlideRange) {
+        activeIdx = pptApp.ActiveWindow.Selection.SlideRange.SlideIndex;
+      }
+    } catch (e) {}
+
+    return {
+      presentationName: pres.Name,
+      fullName: pres.FullName || pres.Name,
+      ...pptPageSize(pres),
+      slideCount: count,
+      activeSlideIndex: activeIdx,
+      slides
+    };
+  }
+
+  function pptGenerateDeck(app, params) {
+    const { presentationName, themeColor, themePreset, slides } = params || {};
+    if (!Array.isArray(slides) || slides.length === 0) {
+      throw new Error("缺少必要参数: slides 数组");
+    }
+    const pres = getPptPresentation(app, presentationName);
+    const baseColor = themeColor || (themePreset === "tech_purple" ? "#4B38B3" : "#0F4C81");
+    const createdIndices = [];
+    const page = pptPageSize(pres);
+    const warnings = [];
+    // Design coordinates are mapped to the actual page before returning.
+    const pageWidth = 720;
+    const pageHeight = 405;
+
+    for (let i = 0; i < slides.length; i++) {
+      const spec = slides[i];
+      const slide = pres.Slides.Add(pres.Slides.Count + 1, 12);
+      const slideIdx = slide.SlideIndex;
+      createdIndices.push(slideIdx);
+
+      if (spec.layout === "title") {
+        try {
+          const bg = slide.Shapes.AddShape(1, 0, 0, pageWidth, pageHeight);
+          bg.Fill.Solid();
+          bg.Fill.ForeColor.RGB = hexToPptColor(baseColor);
+          bg.Line.Visible = false;
+        } catch (e) {}
+
+        const titleBox = slide.Shapes.AddTextbox(1, 60, 140, pageWidth - 120, 80);
+        titleBox.TextFrame.TextRange.Text = spec.title || "演示文稿";
+        titleBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+        titleBox.TextFrame.TextRange.Font.Size = 36;
+        titleBox.TextFrame.TextRange.Font.Bold = true;
+        titleBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#FFFFFF");
+
+        if (spec.subtitle) {
+          const subBox = slide.Shapes.AddTextbox(1, 60, 230, pageWidth - 120, 40);
+          subBox.TextFrame.TextRange.Text = spec.subtitle;
+          subBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+          subBox.TextFrame.TextRange.Font.Size = 18;
+          subBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#E2E8F0");
+        }
+      } else if (spec.layout === "cards_2" || spec.layout === "cards_3" || spec.layout === "cards_4" || spec.cards) {
+        addSlideHeader(slide, spec.title, baseColor);
+        const colCount = spec.layout === "cards_2" ? 2 : (spec.layout === "cards_4" ? 4 : (spec.cards ? Math.min(spec.cards.length, 4) : 3));
+        renderPptCards(slide, spec.cards || [], colCount, baseColor);
+      } else if (spec.layout === "chart" && spec.chart) {
+        addSlideHeader(slide, spec.title, baseColor);
+        renderPptChart(slide, spec.chart, 60, 90, pageWidth - 120, pageHeight - 120);
+      } else if (spec.layout === "end") {
+        try {
+          const bg = slide.Shapes.AddShape(1, 0, 0, pageWidth, pageHeight);
+          bg.Fill.Solid();
+          bg.Fill.ForeColor.RGB = hexToPptColor(baseColor);
+          bg.Line.Visible = false;
+        } catch (e) {}
+
+        const titleBox = slide.Shapes.AddTextbox(1, 60, 160, pageWidth - 120, 80);
+        titleBox.TextFrame.TextRange.Text = spec.title || "THANK YOU";
+        titleBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+        titleBox.TextFrame.TextRange.Font.Size = 40;
+        titleBox.TextFrame.TextRange.Font.Bold = true;
+        titleBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#FFFFFF");
+        titleBox.TextFrame.TextRange.ParagraphFormat.Alignment = 2;
+      } else {
+        addSlideHeader(slide, spec.title, baseColor);
+        if (Array.isArray(spec.bulletPoints) && spec.bulletPoints.length > 0) {
+          const contentBox = slide.Shapes.AddTextbox(1, 60, 100, pageWidth - 120, pageHeight - 140);
+          contentBox.TextFrame.TextRange.Text = spec.bulletPoints.join("\n");
+          contentBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+          contentBox.TextFrame.TextRange.Font.Size = 16;
+          contentBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#334155");
+        }
+      }
+
+      fitGeneratedPptShapes(slide, 1, page, warnings);
+
+      if (spec.notes) {
+        try {
+          if (slide.NotesPage && slide.NotesPage.Shapes) {
+            const notesShape = slide.NotesPage.Shapes.Placeholders.Item(2);
+            if (notesShape && notesShape.HasTextFrame) {
+              notesShape.TextFrame.TextRange.Text = spec.notes;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    return {
+      success: true,
+      ...page,
+      layoutWarnings: warnings,
+      visualVerificationRequired: true,
+      presentationName: pres.Name,
+      createdSlidesCount: slides.length,
+      createdSlideIndices: createdIndices,
+      themeColor: baseColor,
+      message: `已成功基于大纲批量生成 ${slides.length} 页专业商业演示胶片！`
+    };
+  }
+
+  function pptManageSlides(app, params) {
+    const { presentationName, action, slideIndex, targetIndex, layoutIndex, backgroundColor } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+
+    switch (action) {
+      case "add": {
+        const idx = slideIndex ? Number(slideIndex) : (pres.Slides.Count + 1);
+        const lIndex = Number(layoutIndex) || 12;
+        const newSlide = pres.Slides.Add(idx, lIndex);
+        return { success: true, presentationName: pres.Name, slideIndex: newSlide.SlideIndex, message: `已在位置 ${newSlide.SlideIndex} 新增幻灯片` };
+      }
+      case "delete": {
+        if (!slideIndex) throw new Error("delete 操作必须提供 slideIndex");
+        const idx = Number(slideIndex);
+        const slide = pres.Slides.Item(idx);
+        slide.Delete();
+        return { success: true, presentationName: pres.Name, deletedIndex: idx, message: `已成功删除第 ${idx} 页幻灯片` };
+      }
+      case "move": {
+        if (!slideIndex || !targetIndex) throw new Error("move 操作必须提供 slideIndex 与 targetIndex");
+        const slide = pres.Slides.Item(Number(slideIndex));
+        slide.MoveTo(Number(targetIndex));
+        return { success: true, presentationName: pres.Name, from: slideIndex, to: targetIndex, message: `幻灯片已移动至第 ${targetIndex} 页` };
+      }
+      case "duplicate": {
+        if (!slideIndex) throw new Error("duplicate 操作必须提供 slideIndex");
+        const slide = pres.Slides.Item(Number(slideIndex));
+        slide.Duplicate();
+        return { success: true, presentationName: pres.Name, originalIndex: slideIndex, message: `已成功克隆第 ${slideIndex} 页幻灯片` };
+      }
+      case "set_background": {
+        if (!slideIndex || !backgroundColor) throw new Error("set_background 操作必须提供 slideIndex 与 backgroundColor");
+        const slide = pres.Slides.Item(Number(slideIndex));
+        slide.Background.Fill.Solid();
+        slide.Background.Fill.ForeColor.RGB = hexToPptColor(backgroundColor);
+        return { success: true, presentationName: pres.Name, slideIndex, backgroundColor, message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}` };
+      }
+      default:
+        throw new Error(`未知的 PPT 页面操作: ${action}`);
+    }
+  }
+
+  function pptAddBusinessCards(app, params) {
+    const { presentationName, slideIndex, columnCount, cards, topY, cardHeight } = params || {};
+    if (!Array.isArray(cards) || cards.length === 0) throw new Error("缺少 cards 数组");
+    const pres = getPptPresentation(app, presentationName);
+    const idx = Number(slideIndex) || (pres.Slides.Count > 0 ? 1 : 1);
+    const slide = pres.Slides.Item(idx);
+    const cols = columnCount || (cards.length === 2 ? 2 : (cards.length === 4 ? 4 : 3));
+
+    const page = pptPageSize(pres);
+    const warnings = [];
+    const firstIndex = slide.Shapes.Count + 1;
+    renderPptCards(slide, cards, cols, "#0F4C81",
+      topY === undefined ? undefined : Number(topY) * 405 / page.pageHeight,
+      cardHeight === undefined ? undefined : Number(cardHeight) * 405 / page.pageHeight);
+    fitGeneratedPptShapes(slide, firstIndex, page, warnings);
+    return {
+      success: true,
+      presentationName: pres.Name,
+      slideIndex: idx,
+      ...page,
+      layoutWarnings: warnings,
+      visualVerificationRequired: true,
+      columns: cols,
+      cardsCount: cards.length,
+      message: `已在第 ${idx} 页成功排版 ${cards.length} 张现代化商业信息卡片`
+    };
+  }
+
+  function pptInsertNativeChart(app, params) {
+    const { presentationName, slideIndex, chartType, title, categories, series, left, top, width, height } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+    const idx = Number(slideIndex) || (pres.Slides.Count > 0 ? 1 : 1);
+    const slide = pres.Slides.Item(idx);
+
+    const page = pptPageSize(pres);
+    const l = left !== undefined ? Number(left) : page.pageWidth / 12;
+    const t = top !== undefined ? Number(top) : page.pageHeight * 90 / 405;
+    const w = width !== undefined ? Number(width) : page.pageWidth * 600 / 720;
+    const h = height !== undefined ? Number(height) : page.pageHeight * 280 / 405;
+
+    renderPptChart(slide, { chartType: chartType || "column", title, categories, series }, l, t, w, h);
+    return {
+      success: true,
+      presentationName: pres.Name,
+      slideIndex: idx,
+      chartType: chartType || "column",
+      message: `已在第 ${idx} 页成功插入原生矢量图表`
+    };
+  }
+
+  function getShapeTypeName(typeCode) {
+    switch (typeCode) {
+      case 1: return "shape"; // msoAutoShape
+      case 3: return "chart"; // msoChart
+      case 6: return "group"; // msoGroup
+      case 13: return "picture"; // msoPicture
+      case 14: return "placeholder"; // msoPlaceholder
+      case 17: return "textbox"; // msoTextBox
+      case 19: return "table"; // msoTable
+      case 24: return "smartArt"; // msoSmartArt
+      default: return `type_${typeCode}`;
+    }
+  }
+
+  function pptGetSlideShapes(app, params) {
+    const { presentationName, slideIndex } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+    const pptApp = getPptApp() || app;
+    let idx = Number(slideIndex);
+    if (!idx || isNaN(idx)) {
+      try {
+        if (pptApp.ActiveWindow && pptApp.ActiveWindow.Selection && pptApp.ActiveWindow.Selection.SlideRange) {
+          idx = pptApp.ActiveWindow.Selection.SlideRange.SlideIndex;
+        }
+      } catch (e) {}
+      if (!idx) idx = 1;
+    }
+
+    const slide = pres.Slides.Item(idx);
+    const count = slide.Shapes ? slide.Shapes.Count : 0;
+    const shapes = [];
+
+    for (let s = 1; s <= count; s++) {
+      try {
+        const shp = slide.Shapes.Item(s);
+        const hasText = Boolean(shp.HasTextFrame && shp.TextFrame.HasText);
+        let textContent = "";
+        if (hasText) {
+          textContent = (shp.TextFrame.TextRange.Text || "").trim();
+        }
+
+        const hasTable = Boolean(shp.HasTable);
+        let tableMeta = null;
+        if (hasTable && shp.Table) {
+          tableMeta = {
+            rows: shp.Table.Rows ? shp.Table.Rows.Count : 0,
+            columns: shp.Table.Columns ? shp.Table.Columns.Count : 0
+          };
+        }
+
+        const hasChart = Boolean(shp.HasChart);
+
+        shapes.push({
+          shapeIndex: s,
+          shapeId: shp.Id,
+          name: shp.Name || `Shape_${s}`,
+          typeCode: shp.Type,
+          typeName: getShapeTypeName(shp.Type),
+          left: Math.round(Number(shp.Left) * 10) / 10,
+          top: Math.round(Number(shp.Top) * 10) / 10,
+          width: Math.round(Number(shp.Width) * 10) / 10,
+          height: Math.round(Number(shp.Height) * 10) / 10,
+          rotation: shp.Rotation || 0,
+          zOrderPosition: shp.ZOrderPosition || s,
+          hasText,
+          fontSize: hasText ? Number(shp.TextFrame.TextRange.Font.Size) : undefined,
+          text: textContent ? (textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent) : undefined,
+          hasTable,
+          table: tableMeta || undefined,
+          hasChart
+        });
+      } catch (e) {
+        log(`读取第 ${idx} 页第 ${s} 个形状元数据失败: ${e.message}`);
+      }
+    }
+
+    return {
+      success: true,
+      presentationName: pres.Name,
+      slideIndex: idx,
+      ...pptPageSize(pres),
+      shapeCount: count,
+      shapes,
+      message: `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
+    };
+  }
+
+  function findShapeOnSlide(slide, shapeIdOrIndex) {
+    if (shapeIdOrIndex === undefined || shapeIdOrIndex === null) return null;
+    const count = slide.Shapes.Count;
+    // 1. 如果传入数字且在范围内，先尝试直接按索引或 ID 获取
+    if (typeof shapeIdOrIndex === "number" || /^\d+$/.test(String(shapeIdOrIndex))) {
+      const num = Number(shapeIdOrIndex);
+      // 先遍历按 Id 匹配
+      for (let s = 1; s <= count; s++) {
+        const item = slide.Shapes.Item(s);
+        if (item.Id === num) return item;
+      }
+      // 再按索引匹配
+      if (num >= 1 && num <= count) {
+        return slide.Shapes.Item(num);
+      }
+    }
+    // 2. 按名称查找
+    for (let s = 1; s <= count; s++) {
+      const item = slide.Shapes.Item(s);
+      if (item.Name === String(shapeIdOrIndex)) return item;
+    }
+    // 3. 兜底直接 Item
+    try {
+      return slide.Shapes.Item(shapeIdOrIndex);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function pptManageShapesAndMedia(app, params) {
+    const {
+      presentationName,
+      slideIndex,
+      action,
+      shapeId,
+      shapeId1,
+      shapeId2,
+      shapeType,
+      text,
+      left,
+      top,
+      width,
+      height,
+      fontSize,
+      fontColor,
+      fontBold,
+      alignment,
+      fillColor,
+      lineColor,
+      rotation,
+      zOrderAction,
+      alignType
+    } = params || {};
+
+    const pres = getPptPresentation(app, presentationName);
+    const pptApp = getPptApp() || app;
+    let idx = Number(slideIndex);
+    if (!idx || isNaN(idx)) {
+      try {
+        if (pptApp.ActiveWindow && pptApp.ActiveWindow.Selection && pptApp.ActiveWindow.Selection.SlideRange) {
+          idx = pptApp.ActiveWindow.Selection.SlideRange.SlideIndex;
+        }
+      } catch (e) {}
+      if (!idx) idx = 1;
+    }
+    const slide = pres.Slides.Item(idx);
+
+    const l = left !== undefined ? Number(left) : 100;
+    const t = top !== undefined ? Number(top) : 100;
+    const w = width !== undefined ? Number(width) : 200;
+    const h = height !== undefined ? Number(height) : 100;
+
+    switch (action) {
+      case "add_textbox": {
+        const tb = slide.Shapes.AddTextbox(1, l, t, w, h);
+        const tr = tb.TextFrame.TextRange;
+        tr.Text = text || "新文本框";
+        tr.Font.Name = "Microsoft YaHei";
+        if (fontSize) tr.Font.Size = Number(fontSize);
+        if (fontColor) tr.Font.Color.RGB = hexToPptColor(fontColor);
+        if (fontBold !== undefined) tr.Font.Bold = Boolean(fontBold);
+        if (alignment !== undefined) {
+          const alignMap = { left: 1, center: 2, right: 3, justify: 4 };
+          tr.ParagraphFormat.Alignment = alignMap[alignment] || 1;
+        }
+        return { success: true, shapeId: tb.Id, left: tb.Left, top: tb.Top, width: tb.Width, height: tb.Height, fontSize: Number(tr.Font.Size), unit: "pt", message: "已成功添加文本框" };
+      }
+
+      case "add_shape": {
+        let typeCode = 1;
+        if (shapeType === "rounded_rectangle") typeCode = 5;
+        else if (shapeType === "oval") typeCode = 9;
+        else if (shapeType === "arrow") typeCode = 13;
+
+        const shp = slide.Shapes.AddShape(typeCode, l, t, w, h);
+        if (text) {
+          shp.TextFrame.TextRange.Text = text;
+          shp.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+          if (fontSize) shp.TextFrame.TextRange.Font.Size = Number(fontSize);
+        }
+        if (fillColor) {
+          shp.Fill.Solid();
+          shp.Fill.ForeColor.RGB = hexToPptColor(fillColor);
+        }
+        if (lineColor) {
+          shp.Line.ForeColor.RGB = hexToPptColor(lineColor);
+        }
+        return { success: true, shapeId: shp.Id, left: shp.Left, top: shp.Top, width: shp.Width, height: shp.Height, unit: "pt", message: "已成功添加形状" };
+      }
+
+      case "update_shape": {
+        const targetId = shapeId;
+        if (targetId === undefined || targetId === null) throw new Error("update_shape 操作必须提供 shapeId");
+        const shp = findShapeOnSlide(slide, targetId);
+        if (!shp) throw new Error(`未在第 ${idx} 页找到形状: ${targetId}`);
+
+        if (left !== undefined) shp.Left = Number(left);
+        if (top !== undefined) shp.Top = Number(top);
+        if (width !== undefined) shp.Width = Number(width);
+        if (height !== undefined) shp.Height = Number(height);
+        if (rotation !== undefined) shp.Rotation = Number(rotation);
+
+        if (text !== undefined && shp.HasTextFrame) {
+          shp.TextFrame.TextRange.Text = text;
+        }
+        if (shp.HasTextFrame && shp.TextFrame.HasText) {
+          const tr = shp.TextFrame.TextRange;
+          if (fontSize !== undefined) tr.Font.Size = Number(fontSize);
+          if (fontColor !== undefined) tr.Font.Color.RGB = hexToPptColor(fontColor);
+          if (fontBold !== undefined) tr.Font.Bold = Boolean(fontBold);
+          if (alignment !== undefined) {
+            const alignMap = { left: 1, center: 2, right: 3, justify: 4 };
+            tr.ParagraphFormat.Alignment = alignMap[alignment] || 1;
+          }
+        }
+        if (fillColor !== undefined) {
+          shp.Fill.Solid();
+          shp.Fill.ForeColor.RGB = hexToPptColor(fillColor);
+        }
+        if (lineColor !== undefined) {
+          shp.Line.ForeColor.RGB = hexToPptColor(lineColor);
+        }
+
+        return {
+          success: true,
+          shapeId: shp.Id,
+          left: shp.Left,
+          top: shp.Top,
+          width: shp.Width,
+          height: shp.Height,
+          message: `已成功更新形状 [${shp.Id}] 的属性`
+        };
+      }
+
+      case "swap_shapes": {
+        const id1 = shapeId1 !== undefined ? shapeId1 : shapeId;
+        const id2 = shapeId2;
+        if (!id1 || !id2) throw new Error("swap_shapes 必须提供 shapeId1 和 shapeId2 两个目标形状标识");
+
+        const shp1 = findShapeOnSlide(slide, id1);
+        const shp2 = findShapeOnSlide(slide, id2);
+        if (!shp1) throw new Error(`未找到第一个形状: ${id1}`);
+        if (!shp2) throw new Error(`未找到第二个形状: ${id2}`);
+
+        const top1 = Number(shp1.Top);
+        const height1 = Number(shp1.Height);
+        const left1 = Number(shp1.Left);
+
+        const top2 = Number(shp2.Top);
+        const height2 = Number(shp2.Height);
+        const left2 = Number(shp2.Left);
+
+        // 智能垂直互换（保持上下文视觉流）
+        if (top1 < top2) {
+          // shp1 在上方，shp2 在下方
+          const gap = top2 - (top1 + height1);
+          const effectiveGap = gap > 0 ? gap : 15;
+          // 将 shp2 移到上方原 shp1 的 Top
+          shp2.Top = top1;
+          // 将 shp1 移到 shp2 下方
+          shp1.Top = top1 + height2 + effectiveGap;
+        } else {
+          // shp2 在上方，shp1 在下方
+          const gap = top1 - (top2 + height2);
+          const effectiveGap = gap > 0 ? gap : 15;
+          shp1.Top = top2;
+          shp2.Top = top2 + height1 + effectiveGap;
+        }
+
+        return {
+          success: true,
+          slideIndex: idx,
+          shape1: { id: shp1.Id, oldTop: top1, newTop: shp1.Top, height: height1 },
+          shape2: { id: shp2.Id, oldTop: top2, newTop: shp2.Top, height: height2 },
+          message: `已成功将形状 [${shp1.Id}] 与 [${shp2.Id}] 在第 ${idx} 页进行精准垂直互换！`
+        };
+      }
+
+      case "set_z_order": {
+        if (!shapeId) throw new Error("set_z_order 必须提供 shapeId");
+        const shp = findShapeOnSlide(slide, shapeId);
+        if (!shp) throw new Error(`未找到形状: ${shapeId}`);
+
+        // 0: msoBringToFront, 1: msoSendToBack, 2: msoBringForward, 3: msoSendBackward
+        const zMap = {
+          bring_to_front: 0,
+          send_to_back: 1,
+          bring_forward: 2,
+          send_backward: 3
+        };
+        const cmd = zMap[zOrderAction || "bring_to_front"];
+        if (cmd !== undefined) {
+          shp.ZOrder(cmd);
+        }
+        return { success: true, shapeId: shp.Id, zOrderAction, message: `已成功调整形状 [${shp.Id}] 的图层层级` };
+      }
+
+      case "align_shapes": {
+        const ids = params.shapeIds || (shapeId1 && shapeId2 ? [shapeId1, shapeId2] : []);
+        if (!Array.isArray(ids) || ids.length === 0) throw new Error("align_shapes 必须提供 shapeIds 数组");
+        const alignMode = alignType || "center"; // left | center | right | top | middle | bottom
+
+        let refVal = null;
+        for (let i = 0; i < ids.length; i++) {
+          const shp = findShapeOnSlide(slide, ids[i]);
+          if (!shp) continue;
+          if (i === 0) {
+            if (alignMode === "left") refVal = shp.Left;
+            else if (alignMode === "center") refVal = shp.Left + shp.Width / 2;
+            else if (alignMode === "right") refVal = shp.Left + shp.Width;
+            else if (alignMode === "top") refVal = shp.Top;
+            else if (alignMode === "middle") refVal = shp.Top + shp.Height / 2;
+            else if (alignMode === "bottom") refVal = shp.Top + shp.Height;
+          } else {
+            if (alignMode === "left") shp.Left = refVal;
+            else if (alignMode === "center") shp.Left = refVal - shp.Width / 2;
+            else if (alignMode === "right") shp.Left = refVal - shp.Width;
+            else if (alignMode === "top") shp.Top = refVal;
+            else if (alignMode === "middle") shp.Top = refVal - shp.Height / 2;
+            else if (alignMode === "bottom") shp.Top = refVal - shp.Height;
+          }
+        }
+        return { success: true, alignMode, alignedCount: ids.length, message: `已完成 ${ids.length} 个形状的 [${alignMode}] 对齐` };
+      }
+
+      case "delete_shape": {
+        if (!shapeId) throw new Error("delete_shape 操作必须提供 shapeId");
+        const shp = findShapeOnSlide(slide, shapeId);
+        if (!shp) throw new Error(`未找到形状: ${shapeId}`);
+        const delId = shp.Id;
+        shp.Delete();
+        return { success: true, message: `已成功删除形状: ${delId}` };
+      }
+
+      default:
+        throw new Error(`未知的形状/多媒体操作: ${action}`);
+    }
+  }
+
+  function pptManageTable(app, params) {
+    const {
+      presentationName,
+      slideIndex,
+      action,
+      shapeId,
+      tableIndex,
+      rows,
+      columns,
+      columnWidths,
+      rowHeights,
+      left,
+      top,
+      width,
+      height,
+      data,
+      row,
+      column,
+      text,
+      fontSize,
+      fontColor,
+      fontBold,
+      fillColor,
+      headerFillColor,
+      headerFontSize,
+      bodyFontSize,
+      borderColor,
+      zebra
+    } = params || {};
+
+    const pres = getPptPresentation(app, presentationName);
+    const pptApp = getPptApp() || app;
+    let idx = Number(slideIndex);
+    if (!idx || isNaN(idx)) {
+      try {
+        if (pptApp.ActiveWindow && pptApp.ActiveWindow.Selection && pptApp.ActiveWindow.Selection.SlideRange) {
+          idx = pptApp.ActiveWindow.Selection.SlideRange.SlideIndex;
+        }
+      } catch (e) {}
+      if (!idx) idx = 1;
+    }
+    const slide = pres.Slides.Item(idx);
+
+    function findTableShape() {
+      if (shapeId) {
+        const shp = findShapeOnSlide(slide, shapeId);
+        if (shp && shp.HasTable && shp.Table) return shp;
+      }
+      let tCount = 0;
+      const targetTableIdx = Number(tableIndex) || 1;
+      for (let s = 1; s <= slide.Shapes.Count; s++) {
+        const shp = slide.Shapes.Item(s);
+        if (shp.HasTable && shp.Table) {
+          tCount++;
+          if (tCount === targetTableIdx) return shp;
+        }
+      }
+      return null;
+    }
+
+    function applyCellBorders(tbl, bColorHex) {
+      const bColor = hexToPptColor(bColorHex || "#333333");
+      const whiteColor = hexToPptColor("#FFFFFF");
+      const rowCount = tbl.Rows.Count;
+      const colCount = tbl.Columns.Count;
+
+      for (let r = 1; r <= rowCount; r++) {
+        for (let c = 1; c <= colCount; c++) {
+          try {
+            const cell = tbl.Cell(r, c);
+            for (let b = 1; b <= 4; b++) {
+              const border = cell.Borders.Item(b);
+              border.Visible = true;
+              border.Weight = 1;
+
+              if (r === 1) {
+                // 表头行：上下外框与最左/最右外侧使用黑色闭合线，内部纵向使用高保真白色分割线
+                if (b === 1 || b === 3) {
+                  border.ForeColor.RGB = bColor;
+                  border.Weight = 1;
+                } else if (b === 2) {
+                  if (c === 1) {
+                    border.ForeColor.RGB = bColor;
+                    border.Weight = 1;
+                  } else {
+                    border.ForeColor.RGB = whiteColor;
+                    border.Weight = 1.5;
+                  }
+                } else if (b === 4) {
+                  if (c === colCount) {
+                    border.ForeColor.RGB = bColor;
+                    border.Weight = 1;
+                  } else {
+                    border.ForeColor.RGB = whiteColor;
+                    border.Weight = 1.5;
+                  }
+                }
+              } else {
+                border.ForeColor.RGB = bColor;
+                border.Weight = 1;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    switch (action) {
+      case "create_table": {
+        const rCount = Number(rows) || 3;
+        const cCount = Number(columns) || 3;
+        const l = left !== undefined ? Number(left) : 32.6;
+        const t = top !== undefined ? Number(top) : 58;
+        const w = width !== undefined ? Number(width) : 895;
+        const h = height !== undefined ? Number(height) : 435;
+
+        const tableShape = slide.Shapes.AddTable(rCount, cCount, l, t, w, h);
+        const tbl = tableShape.Table;
+
+        try {
+          tbl.ApplyStyle("{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}", false);
+        } catch (e) {}
+        try {
+          tbl.FirstRow = false;
+          tbl.BandedRows = false;
+          tbl.BandedColumns = false;
+        } catch (e) {}
+
+        // 设置列宽
+        if (Array.isArray(columnWidths) && columnWidths.length > 0) {
+          for (let c = 0; c < Math.min(columnWidths.length, tbl.Columns.Count); c++) {
+            try {
+              tbl.Columns.Item(c + 1).Width = Number(columnWidths[c]);
+            } catch (e) {}
+          }
+        }
+
+        // 填充数据与富文本分段加粗
+        if (Array.isArray(data) && data.length > 0) {
+          for (let r = 0; r < Math.min(data.length, tbl.Rows.Count); r++) {
+            const rowData = data[r];
+            if (Array.isArray(rowData)) {
+              for (let c = 0; c < Math.min(rowData.length, tbl.Columns.Count); c++) {
+                const cell = tbl.Cell(r + 1, c + 1);
+                const cellText = String(rowData[c] || "");
+                const tr = cell.Shape.TextFrame.TextRange;
+                tr.Text = cellText;
+                tr.Font.Name = "Microsoft YaHei";
+
+                const hFontSize = Number(headerFontSize) || 16;
+                const bFontSize = Number(bodyFontSize) || 14;
+
+                // 垂直居中与内边距规范
+                try {
+                  cell.Shape.TextFrame.VerticalAnchor = 3; // msoAnchorMiddle 垂直居中
+                  cell.Shape.TextFrame.MarginLeft = 5;
+                  cell.Shape.TextFrame.MarginRight = 5;
+                  cell.Shape.TextFrame.MarginTop = 3;
+                  cell.Shape.TextFrame.MarginBottom = 3;
+                  cell.Shape.TextFrame.WordWrap = true;
+                } catch (e) {}
+
+                if (r === 0) {
+                  // 表头标题：16pt 白色加粗居中
+                  cell.Shape.Fill.Solid();
+                  cell.Shape.Fill.ForeColor.RGB = hexToPptColor(headerFillColor || "#0072C6");
+                  tr.Font.Size = hFontSize;
+                  tr.Font.Bold = true;
+                  tr.Font.Color.RGB = hexToPptColor("#FFFFFF");
+                  tr.ParagraphFormat.Alignment = 2; // 居中
+                } else {
+                  // 数据行底色纯白
+                  cell.Shape.Fill.Solid();
+                  cell.Shape.Fill.ForeColor.RGB = 16777215; // 0xFFFFFF 纯白
+                  tr.Font.Color.RGB = hexToPptColor("#000000");
+
+                  if (c === 0) {
+                    // 第一列：指标名称 14pt 居中加粗
+                    tr.Font.Size = bFontSize;
+                    tr.Font.Bold = true;
+                    tr.ParagraphFormat.Alignment = 2;
+                  } else if (c === 3) {
+                    // 第四列：判定状态列 15.5pt 加粗居中
+                    tr.Font.Size = bFontSize + 1.5;
+                    tr.Font.Bold = true;
+                    tr.ParagraphFormat.Alignment = 2;
+                    if (cellText === "达成") {
+                      tr.Font.Color.RGB = hexToPptColor("#009132");
+                    } else if (cellText === "进行中") {
+                      tr.Font.Color.RGB = hexToPptColor("#E36C09");
+                    } else if (cellText === "未开展") {
+                      tr.Font.Color.RGB = hexToPptColor("#FF202E");
+                    }
+                  } else {
+                    // 内容列：统一 14pt，首句分段精准加粗，破折号居中
+                    tr.Font.Size = bFontSize;
+                    if (cellText === "——") {
+                      tr.ParagraphFormat.Alignment = 2;
+                    } else {
+                      tr.ParagraphFormat.Alignment = 1;
+                    }
+
+                    const sepIdx = cellText.search(/[；;:：]/);
+                    if (sepIdx > 0 && sepIdx < 35) {
+                      try {
+                        const part1 = tr.Characters(1, sepIdx + 1);
+                        part1.Font.Bold = true;
+                        part1.Font.Size = bFontSize;
+                        const part2 = tr.Characters(sepIdx + 2);
+                        part2.Font.Bold = false;
+                        part2.Font.Size = bFontSize;
+                      } catch (e) {}
+                    } else if (cellText.startsWith("最高认证效率")) {
+                      try {
+                        tr.Font.Bold = true;
+                        tr.Font.Size = bFontSize;
+                      } catch (e) {}
+                    } else {
+                      tr.Font.Bold = false;
+                      tr.Font.Size = bFontSize;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // 动态阶梯行高矩阵优化
+        if (Array.isArray(rowHeights) && rowHeights.length > 0) {
+          for (let r = 0; r < Math.min(rowHeights.length, tbl.Rows.Count); r++) {
+            try {
+              tbl.Rows.Item(r + 1).Height = Number(rowHeights[r]);
+            } catch (e) {}
+          }
+        } else {
+          try {
+            tbl.Rows.Item(1).Height = 30;
+            for (let r = 2; r <= tbl.Rows.Count; r++) {
+              tbl.Rows.Item(r).Height = 46;
+            }
+          } catch (e) {}
+        }
+
+        // 应用网格实线边框
+        applyCellBorders(tbl, borderColor || "#333333");
+
+        return {
+          success: true,
+          shapeId: tableShape.Id,
+          slideIndex: idx,
+          rows: rCount,
+          columns: cCount,
+          message: `已在第 ${idx} 页成功创建 8 行 5 列表格（含细实线网格、精准列宽与分段加粗）`
+        };
+      }
+
+      case "read_table": {
+        const shp = findTableShape();
+        if (!shp) throw new Error(`未在第 ${idx} 页找到表格形状`);
+        const tbl = shp.Table;
+        const tableData = [];
+        const rCount = tbl.Rows.Count;
+        const cCount = tbl.Columns.Count;
+
+        for (let r = 1; r <= rCount; r++) {
+          const rowArr = [];
+          for (let c = 1; c <= cCount; c++) {
+            try {
+              const cell = tbl.Cell(r, c);
+              const txt = cell.Shape && cell.Shape.HasTextFrame && cell.Shape.TextFrame.HasText
+                ? cell.Shape.TextFrame.TextRange.Text.trim()
+                : "";
+              rowArr.push(txt);
+            } catch (e) {
+              rowArr.push("");
+            }
+          }
+          tableData.push(rowArr);
+        }
+
+        return {
+          success: true,
+          shapeId: shp.Id,
+          slideIndex: idx,
+          rows: rCount,
+          columns: cCount,
+          data: tableData,
+          message: `已成功读取第 ${idx} 页表格数据 (${rCount} 行 ${cCount} 列)`
+        };
+      }
+
+      case "set_cell_text": {
+        const shp = findTableShape();
+        if (!shp) throw new Error(`未在第 ${idx} 页找到表格形状`);
+        const tbl = shp.Table;
+        const rIdx = Number(row) || 1;
+        const cIdx = Number(column) || 1;
+        const cell = tbl.Cell(rIdx, cIdx);
+
+        if (text !== undefined) {
+          cell.Shape.TextFrame.TextRange.Text = String(text);
+          cell.Shape.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
+        }
+        if (fontSize) cell.Shape.TextFrame.TextRange.Font.Size = Number(fontSize);
+        if (fontColor) cell.Shape.TextFrame.TextRange.Font.Color.RGB = hexToPptColor(fontColor);
+        if (fontBold !== undefined) cell.Shape.TextFrame.TextRange.Font.Bold = Boolean(fontBold);
+        if (fillColor) {
+          cell.Shape.Fill.Solid();
+          cell.Shape.Fill.ForeColor.RGB = hexToPptColor(fillColor);
+        }
+
+        return {
+          success: true,
+          shapeId: shp.Id,
+          row: rIdx,
+          column: cIdx,
+          message: `已成功更新单元格 [${rIdx}, ${cIdx}] 的内容与格式`
+        };
+      }
+
+      case "style_table": {
+        const shp = findTableShape();
+        if (!shp) throw new Error(`未在第 ${idx} 页找到表格形状`);
+        const tbl = shp.Table;
+        const hColor = headerFillColor || "#0072C6";
+
+        for (let r = 1; r <= tbl.Rows.Count; r++) {
+          for (let c = 1; c <= tbl.Columns.Count; c++) {
+            const cell = tbl.Cell(r, c);
+            if (r === 1) {
+              cell.Shape.Fill.Solid();
+              cell.Shape.Fill.ForeColor.RGB = hexToPptColor(hColor);
+              if (cell.Shape.HasTextFrame && cell.Shape.TextFrame.HasText) {
+                cell.Shape.TextFrame.TextRange.Font.Bold = true;
+                cell.Shape.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#FFFFFF");
+              }
+            } else {
+              cell.Shape.Fill.Solid();
+              cell.Shape.Fill.ForeColor.RGB = hexToPptColor("#FFFFFF");
+            }
+          }
+        }
+
+        applyCellBorders(tbl, borderColor || "#333333");
+
+        return {
+          success: true,
+          shapeId: shp.Id,
+          headerColor: hColor,
+          message: `已成功应用专业商业表格配色主题与边框网格`
+        };
+      }
+
+      default:
+        throw new Error(`未知的表格操作: ${action}`);
+    }
+  }
+
+  function pptCaptureSlidePreview(app, params) {
+    const { presentationName, slideIndex } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+    const pptApp = getPptApp() || app;
+    let idx = Number(slideIndex);
+    if (!idx || isNaN(idx)) {
+      try {
+        if (pptApp.ActiveWindow && pptApp.ActiveWindow.Selection && pptApp.ActiveWindow.Selection.SlideRange) {
+          idx = pptApp.ActiveWindow.Selection.SlideRange.SlideIndex;
+        }
+      } catch (e) {}
+      if (!idx) idx = 1;
+    }
+    const slide = pres.Slides.Item(idx);
+
+    const tempPngPath = params.outputPath;
+    if (!tempPngPath) throw new Error("缺少 Bridge 指定的预览输出路径");
+    try {
+      slide.Export(tempPngPath, "PNG", 1280, 720);
+      return {
+        success: true,
+        presentationName: pres.Name,
+        slideIndex: idx,
+        imagePath: tempPngPath,
+        hasImage: true,
+        message: `已成功导出第 ${idx} 页幻灯片高保真预览图至: ${tempPngPath}`
+      };
+    } catch (e) {
+      log(`幻灯片导出异常: ${e.message}`);
+      return {
+        success: false,
+        presentationName: pres.Name,
+        slideIndex: idx,
+        hasImage: false,
+        error: e.message
+      };
+    }
+  }

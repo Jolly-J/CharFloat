@@ -1,0 +1,19 @@
+=== P2.1 修复前：adapter 直接依赖 catalog 时的依赖回环 ===
+$ node --import tsx --test tests/contracts-boundary.test.ts
+✖ 依赖回环只减不增，且与台账一致 (2.400708ms)
+✖ P2.1 验收：执行层 adapter 不再反向依赖注册入口 catalog (0.116125ms)
+✔ 契约层不依赖执行层与服务实例 (0.089ms)
+✔ 契约层标识与既有兼容导出同源 (109.62425ms)
+✔ 契约层判定在搬迁中保持不变（回归护栏） (0.397292ms)
+ℹ tests 5
+ℹ pass 3
+ℹ fail 2
+✖ failing tests:
+✖ 依赖回环只减不增，且与台账一致 (2.400708ms)
+  AssertionError [ERR_ASSERTION]: 新增了未登记的依赖回环，请先消除而不是加入台账：
+  catalog.ts → gateway.ts → office/adapter.ts → catalog.ts
+  +   'catalog.ts → gateway.ts → office/adapter.ts → catalog.ts'
+    actual: [ 'catalog.ts → gateway.ts → office/adapter.ts → catalog.ts' ],
+✖ P2.1 验收：执行层 adapter 不再反向依赖注册入口 catalog (0.116125ms)
+
+（上面的回环清单即 P2.1 生效前的真实状态；其中第一条三节点回环 catalog → gateway → office/adapter → catalog 已被 P2.1 消除）

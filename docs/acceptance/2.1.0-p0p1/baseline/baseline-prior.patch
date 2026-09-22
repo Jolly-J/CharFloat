@@ -1,0 +1,1040 @@
+diff --git a/README.md b/README.md
+index 61b8f7f..bb984c9 100644
+--- a/README.md
++++ b/README.md
+@@ -98,4 +98,16 @@ powershell -NoProfile -File tests/windows-office.ps1 -RunOffice
+ 
+ WPS 和客户端验收步骤见 [验证矩阵](docs/validation.md)。构建成功和模拟宿主通过不等于 Windows 实机验收通过。
+ 
+-默认打包输出在 `release/`：macOS DMG / ZIP，Windows NSIS / portable。安装包签名与公证需要发布者凭据，源码不包含签名密钥。
++打包产物按版本与平台输出到 `release/<版本>/<平台>/`，平台名称为 `mac`、`win`。发布包统一命名为 `Office-Agent-Bridge-<版本>-<平台>-<架构>.<扩展名>`，即使是 x64 也不省略架构。
++
++当前默认生成 macOS / Windows ZIP 和解包目录；不默认生成 DMG 或 EXE 安装程序。ZIP 用于分发，`mac-*`、`win-*-unpacked` 等目录是可运行的解包程序，不能随意删除其中的 DLL、resources 或 locales。`.blockmap` 是包的配套校验数据，应与原包一起保留。`builder-*.yml/yaml` 是构建诊断信息，可能出现在版本目录中，不是安装包。
++
++已有旧发布包保留原名并按版本、平台归档；未确认版本的旧解包目录和辅助文件放在 `release/_legacy-build/`。该目录是历史归档，不是最新发布入口。后续构建不会自动删除旧版本，同版本同平台同架构再次打包会覆盖对应产物。开发编译输出仍在 `dist/`，与发布包分开。
++
++安装包签名与公证需要发布者凭据，源码不包含签名密钥。
++
++## AI 协作导航
++
++开发任务先读 [AGENTS.md](AGENTS.md)，按任务进入对应模块，避免默认扫描全项目。关键文件、调用链或验证命令变化时，同步更新对应导航及已证实的避坑条目。运行 `npm run check:agents` 检查路径和导航；该检查不替代对说明准确性的审核。
++
++项目结构改造见 [改造计划与执行台账](docs/refactoring-plan.md)，包括分阶段清单、双平台业务验收及执行备忘。
+diff --git a/office-addon/AGENTS.md b/office-addon/AGENTS.md
+new file mode 100644
+index 0000000..a258706
+--- /dev/null
++++ b/office-addon/AGENTS.md
+@@ -0,0 +1,28 @@
++# Office.js 加载项
++
++## 文件地图
++
++- [public/taskpane.js](public/taskpane.js)：Office.js 生命周期、RPC 与 Excel.run 实现。
++- [public/taskpane.html](public/taskpane.html)：任务窗格入口。
++- [public/taskpane.css](public/taskpane.css)：任务窗格样式。
++- [excel/manifest.xml](excel/manifest.xml)：Excel 加载项清单。
++
++## 定位与联动
++
++从 taskpane.js 对应 method 查实现；参数转换在 [normalizer](../src/bridge/office/normalizer.ts)，连接和回退在 [adapter](../src/bridge/office/adapter.ts)。
++
++## 修改边界
++
++Office.js 与 WPS/COM 对象模型不同。读取先 load/sync，写入完成后 sync 再返回结果；不能把代理对象直接返回。API 是否支持按宿主验证。不要把已完成写入后的错误当成可安全整批重试。
++
++## 验证
++
++`node --check office-addon/public/taskpane.js`；`node --import tsx --test tests/office.test.ts`；加载、授权与 sync 效果需真实 Excel 验证。
++
++## 避坑
++
++照搬 WPS 脚本 → Office.js 使用 context/Excel 且需同步 → 使用当前执行器约定 → 核对 taskpane.js 的 execute_script 与 normalizer，并实机读回。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/package.json b/package.json
+index b72f989..e8239d8 100644
+--- a/package.json
++++ b/package.json
+@@ -23,13 +23,14 @@
+     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+     "dev:desktop": "npm run build && electron .",
+     "dev:website": "npm --prefix website run dev",
+-    "build:website": "npm --prefix website run build"
++    "build:website": "npm --prefix website run build",
++    "check:agents": "node scripts/check-agents.mjs"
+   },
+   "build": {
+     "appId": "com.antigravity.officeagentbridge",
+     "productName": "Office Agent Bridge",
+     "directories": {
+-      "output": "release"
++      "output": "release/${version}/${os}"
+     },
+     "files": [
+       "dist/main/**/*",
+@@ -41,7 +42,8 @@
+       "resources/**/*",
+       "skills/**/*",
+       "prompts/**/*",
+-      "package.json"
++      "package.json",
++      "!**/AGENTS.md"
+     ],
+     "mac": {
+       "target": [
+@@ -66,7 +68,8 @@
+       "office-addon/**/*",
+       "wps-addon/**/*",
+       "skills/**/*"
+-    ]
++    ],
++    "artifactName": "Office-Agent-Bridge-${version}-${os}-${arch}.${ext}"
+   },
+   "keywords": [
+     "wps",
+diff --git a/resources/office/AGENTS.md b/resources/office/AGENTS.md
+new file mode 100644
+index 0000000..99b4777
+--- /dev/null
++++ b/resources/office/AGENTS.md
+@@ -0,0 +1,27 @@
++# Windows 原生 Office
++
++## 文件地图
++
++- [runner.ps1](runner.ps1)：JSON 输入与 action 分发。
++- [common.ps1](common.ps1)：宿主和目标公共操作。
++- [excel.ps1](excel.ps1)：Excel COM 结构化操作。
++
++## 定位与联动
++
++入口调用来自 [ms-office-driver.ts](../../src/bridge/office/ms-office-driver.ts)；先定位 action/method，再查脚本分支。
++
++## 修改边界
++
++参数通过 JSON stdin，避免拼接 shell。文档精确匹配且不唯一时停止。区分附着用户实例和测试自行创建实例，不退出用户 Office。stdout 保持协议 JSON，诊断不能污染响应。
++
++## 验证
++
++Windows 下检查 [native-contracts.ps1](../../tests/native-contracts.ps1)；实机要求见 [windows-office.ps1](../../tests/windows-office.ps1) 和 [验证文档](../../docs/validation.md)。先读脚本再运行。
++
++## 避坑
++
++模拟通过就承诺 Windows 兼容 → COM 行为依赖实际桌面宿主 → 在真实 Office 中验证 → 报告区分语法、模拟和实机结果。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/scripts/check-agents.mjs b/scripts/check-agents.mjs
+new file mode 100644
+index 0000000..e29d39a
+--- /dev/null
++++ b/scripts/check-agents.mjs
+@@ -0,0 +1,57 @@
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++// Read-only; exported for isolated fixture tests. Never traverse build/dependency trees.
++export function checkAgents(root) {
++  const errors = [], files = [];
++  const skip = new Set(['node_modules', 'dist', 'release', 'out', '.git']);
++  function walk(dir) {
++    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
++      if (entry.isSymbolicLink() || skip.has(entry.name) || entry.name.startsWith('.')) continue;
++      const full = path.join(dir, entry.name);
++      if (entry.isDirectory()) walk(full);
++      else if (/^agents\.md$/i.test(entry.name)) {
++        if (entry.name !== 'AGENTS.md') errors.push(`${path.relative(root, full)}: 文件名应为 AGENTS.md`);
++        files.push(full);
++      }
++    }
++  }
++  walk(root);
++  const rootGuide = path.join(root, 'AGENTS.md');
++  if (!files.includes(rootGuide)) errors.push('缺少根 AGENTS.md');
++  const linked = new Set();
++  for (const file of files) {
++    const text = fs.readFileSync(file, 'utf8');
++    const label = path.relative(root, file);
++    for (const match of text.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
++      let target = match[1].trim().replace(/^<|>$/g, '');
++      if (/^[a-z]+:/i.test(target) || target.startsWith('#')) continue;
++      target = decodeURIComponent(target.split('#')[0]);
++      const full = path.resolve(path.dirname(file), target);
++      if (!fs.existsSync(full)) errors.push(`${label}: 无效引用 ${target}`);
++      if (file === rootGuide) linked.add(full);
++    }
++    if (file !== rootGuide && !text.includes('## 同步维护')) errors.push(`${label}: 缺少同步维护约定`);
++    if (file !== rootGuide && !text.includes('## 避坑')) errors.push(`${label}: 缺少避坑入口`);
++  }
++  for (const file of files) {
++    if (file !== rootGuide && !linked.has(file)) errors.push(`${path.relative(root, file)}: 未纳入根导航`);
++  }
++  const pkgPath = path.join(root, 'package.json');
++  if (fs.existsSync(pkgPath)) {
++    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
++    for (const file of files) for (const match of fs.readFileSync(file, 'utf8').matchAll(/npm run ([\w:-]+)/g)) {
++      if (!pkg.scripts?.[match[1]]) errors.push(`${path.relative(root, file)}: 根 package.json 缺少命令 ${match[1]}`);
++    }
++    if (!pkg.build?.files?.includes('!**/AGENTS.md')) errors.push('打包配置缺少 !**/AGENTS.md 排除项');
++  }
++  return { errors, count: files.length };
++}
++if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++  const result = checkAgents(root);
++  if (result.errors.length) {
++    console.error(result.errors.join('\n')); process.exitCode = 1;
++  } else console.log(`协作导航检查通过：${result.count} 个 AGENTS.md；路径、根导航、维护入口和 npm 命令有效。职责准确性仍需人工核对。`);
++}
+diff --git a/skills/AGENTS.md b/skills/AGENTS.md
+new file mode 100644
+index 0000000..870a674
+--- /dev/null
++++ b/skills/AGENTS.md
+@@ -0,0 +1,30 @@
++# 面向使用者的技能
++
++## 文件地图
++
++- [office-agent-bridge/SKILL.md](office-agent-bridge/SKILL.md)：共享上下文、任务执行与恢复。
++- [office-agent-bridge-chart-style/SKILL.md](office-agent-bridge-chart-style/SKILL.md)：表格、图表与矢量。
++- [office-agent-bridge-ppt-design/SKILL.md](office-agent-bridge-ppt-design/SKILL.md)：页面批次与视觉验收。
++- [office-agent-bridge-word-batch-edit/SKILL.md](office-agent-bridge-word-batch-edit/SKILL.md)：结构定位与改稿。
++- [office-agent-bridge/references/native-scripting.md](office-agent-bridge/references/native-scripting.md)：脚本对象模型与示例。
++- [office-agent-bridge/scripts/bridge_client.py](office-agent-bridge/scripts/bridge_client.py)：本地 HTTP 辅助客户端。
++
++## 定位与联动
++
++按任务只读对应 skill。说明与工具不符时核对 [gateway](../src/bridge/gateway.ts)、[catalog](../src/bridge/catalog.ts) 及宿主实现。
++
++## 修改边界
++
++AGENTS.md 管开发，SKILL.md 管用户任务，不能混入发布技能。共享流程只写一份，子 skill 复用上下文。只读必要字段、按可恢复批次修改，避免逐对象往返。新增能力同步描述、示例和验证边界；不承诺跨宿主 API 等同。
++
++## 验证
++
++检查 YAML frontmatter、相对链接、示例与真实 schema；运行 `npm run check:agents`。复杂流程用代表性任务验证调用与结果，格式通过不代表执行效率已验证。
++
++## 避坑
++
++没有专用工具就拒绝绘图 → 工具清单不是原生 API 能力上限 → 只读探测后使用脚本 → 核验实际对象与预览。重复连接检查拖慢任务 → 每个子 skill 重复初始化 → 共享上下文，仅异常时刷新。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/skills/office-agent-bridge-chart-style/SKILL.md b/skills/office-agent-bridge-chart-style/SKILL.md
+index af9b849..1c4df3c 100644
+--- a/skills/office-agent-bridge-chart-style/SKILL.md
++++ b/skills/office-agent-bridge-chart-style/SKILL.md
+@@ -1,19 +1,29 @@
+ ---
+ name: office-agent-bridge-chart-style
+-description: 通过 Office Agent Bridge 读取或修改实时表格的图表、颜色、数字格式和布局；先查询实际样式与图表信息，避免凭截图猜参数或擅自删除重建。
++description: 通过 Office Agent Bridge 批量读写实时 Excel/WPS 表格，调整样式、编辑图表、绘制可编辑矢量形状及看板。适用于范围和对象操作，不用于离线表格文件生成。
+ ---
+ 
+-# 表格图表与样式
++# Excel 范围与对象工作流
+ 
+-先读取 `bridge_get_capabilities` 与工具清单。`excel_get_range_styles`、`excel_get_charts` 可以读取样式和图表元数据，统一入口需传 host。WPS 兼容入口为同名 `wps_*` 工具。
++本任务尚未建立宿主与目标上下文时，先读 [共享流程](../office-agent-bridge/SKILL.md)；已建立则复用，不重复查询连接与工具清单。
+ 
+-修改前读取工作簿、工作表、目标范围和现有图表信息。优先使用实际 `shapeName` 精确定位，避免按近似标题误删。
++## 读取与执行
+ 
+-- 日期序列号必须结合工作簿日期系统确认，不能默认所有文件都是 1900 系统。
+-- 百分比轴使用真实数值量纲：数据为 0.72 时轴范围可以是 0.7–1，显示格式用 `0%`，不能写成 70–100。
+-- 图表参数以 schema 为准；颜色可用 `seriesColors` / `seriesSettings`，轴范围用 `yAxis`。
+-- 当前没有专用统一 update_chart 工具。用户允许替换对象时才能删除重建，并保留数据源、标题、位置尺寸、图例、标签与轴设置；用户要求保留原图时先说明限制。
+-- 格式、图表没有统一审计回滚。`patch_cells` 才有值和公式快照。
+-- 审计支持分页、筛选和单条详情，不要一次拉取全部历史。
++| 用户目标 | 最小读取 | 执行与核验 |
++|---|---|---|
++| 修改数据或公式 | 目标范围、必要公式与维度 | 用范围写入，不逐单元格调用；核对关键值和公式 |
++| 统一样式 | 目标区域的样式摘要、合并与尺寸 | 相同样式按区域处理；完成区域后预览 |
++| 修改已有图表 | 实际名称、源数据、待改属性 | 定位原对象修改，读回相关属性并预览 |
++| 绘图或搭建看板 | 锚点区域几何、现有 Shapes 和数据摘要 | 同组形状一次 JS 批次创建；返回名称和边界，整体预览 |
+ 
+-完成后读回关键配置并检查原生预览，明确区分“设置接口成功”和“视觉验证通过”。Windows 适配未通过实机验收前，不沿用 macOS 的验证结论。
++`excel_get_range_styles` 使用 `mode: "summary"` 和 `include` 选择需要的字段；只有定位差异时才使用 `cells` 和 `maxCells`。数据过大时分块读取所需范围，汇总可在宿主脚本中计算并返回摘要，避免传回整个工作簿。不能因只读取了样本就声称核验了全部数据。
++
++保留已有内容、数据源和样式，不自动套用统一模板。日期数值结合工作簿日期系统判断；百分比轴保留真实量纲，例如 0.72 对应 72%。
++
++## 图表和原生矢量
++
++没有专用更新工具时，用 [原生脚本](../office-agent-bridge/references/native-scripting.md) 修改已有图表，不能直接推断必须删除重建。仅在无法原位完成且用户允许替换时重建，并保留源数据、位置尺寸、系列、图例和轴设置。
++
++矢量绘图操作 Shapes 层，与单元格和统计图表不同。以目标单元格 Left/Top/Width/Height 为锚点，以 pt 计算布局。同组矩形、文字、连接线在一个批次内处理；返回稳定名称或 ID、实际几何和完成数量。既有对象按精确名称定位，新建对象记录名称，便于失败后继续。
++
++修改后只补读工具结果缺失的关键字段；一组对象完成后再截取整体区域。接口执行、视觉验证和保存是不同状态。审计回滚范围遵循共享流程。
+diff --git a/skills/office-agent-bridge-ppt-design/SKILL.md b/skills/office-agent-bridge-ppt-design/SKILL.md
+index 58f97cd..13ff971 100644
+--- a/skills/office-agent-bridge-ppt-design/SKILL.md
++++ b/skills/office-agent-bridge-ppt-design/SKILL.md
+@@ -1,18 +1,33 @@
+ ---
+ name: office-agent-bridge-ppt-design
+-description: 使用 Office Agent Bridge 进行演示文稿基础读取、文本形状表格编辑和预览，识别复杂图表、母版、动画及宿主版本限制；不承诺完整高保真设计能力。
++description: 通过 Office Agent Bridge 在已打开的演示文稿中按页批量排版、编辑文本形状表格和图表，并验证字号、几何和真实预览；支持原生 JS 精细编辑。
+ ---
+ 
+-# Office Agent Bridge 演示编辑
++# PPT 页面工作流
+ 
+-PPT 当前是有限支持场景。先调用 bridge_get_capabilities 和实际工具清单，不把 Windows 分支存在等同于 Windows 实机已验证。
++复用 [共享流程](../office-agent-bridge/SKILL.md) 的宿主、目标和工具上下文；只有缺失时初始化。
+ 
+-操作前读取演示文稿、真实页面尺寸、目标页和形状元数据。16:9 是比例，不代表固定 960×540 或 720×405；坐标必须取自目标文件。
++## 从结构到页面
+ 
+-适合基础文本、形状、表格及页面操作。复杂母版、动画、可编辑嵌入图表与一比一复刻需要单独确认；原生脚本接口不能弥补未经验证的宿主 API。
++先用 `wps_ppt_read_presentation` 获取页面尺寸与全稿摘要，只对目标页使用 `wps_ppt_get_slide_shapes` 读取形状、字号与几何。已有足够信息时不反复读取全稿。读取接口的文本摘要可能截断；需要完整改稿时通过目标对象脚本读取完整文本。
+ 
+-图表返回成功后还需核验形状类型、系列数据和预览。创建失败必须报告失败；文字框、截图不能冒充可编辑原生图表。图表创建后数据配置失败属于部分完成，需要检查已创建对象，不能盲目重试。
++局部修改只处理指定对象。批量新建或统一排版时，先完成一个代表页并预览，通过后将相同规则应用到其他页；不同版式分别验证。使用已有批量生成工具或以一页为单位执行 JS，不逐个文字框发起 MCP 调用。页面复杂或操作风险高时拆成可核验的小批次。
+ 
+-既有 macOS 经验提示图表数据编辑窗口可能触发宿主崩溃。不要主动调用 ChartData.ActivateChartDataWindow 或 ChartData.Workbook 来试探；没有当前版本验证依据时，说明限制。用户同意离线生成时可另选专用 PPT 工具，但不要把其产出算作 Bridge 在线能力。
++## 布局规则
+ 
+-每页编辑后检查预览，确认无遮挡、溢出、母版重复元素。预览失败、保存未执行或结果未验证必须明确报告。PPT 没有统一审计回滚。
++- 读取真实 pageWidth/pageHeight，几何和字号单位为 pt。16:9 不等于固定 720×405，截图像素不能直接作为文稿坐标。
++- 根据内容划分页面区域，再计算位置和尺寸。新增文本框显式设置 left/top/width/height/fontSize，避免重复使用默认坐标。
++- 字号与页面尺寸和容量一起确定。720×405 pt 页面可从标题 24–36 pt、正文 16–22 pt 起步，其他尺寸相应调整；这不是固定限制。
++- 将换行、内边距、段落间距和 AutoSize 纳入布局。长文本优先调整可用区域；涉及精简内容或拆页时保持用户意图，不无限缩小字体。
++
++精细设置使用 [原生脚本](../office-agent-bridge/references/native-scripting.md)。页面批次返回 slideIndex、形状 ID、实际几何、字号及失败步骤；避免返回全部文本或整个宿主对象。
++
++## 验证与继续
++
++处理 `layoutWarnings`，再检查真实预览中的越界、遮挡、换行、留白和母版重复元素。每个修改页完成后检查一次，修正后复查受影响页，不在每个形状创建后截图。没有警告也不等于视觉通过。
++
++图表需读回类型和系列数据；文字框或图片不能当作可编辑图表。创建后配置失败时先定位已创建对象，不重放整页。
++
++复杂母版、动画与嵌入数据按实际宿主 API 验证。既有 macOS 经验提示图表数据编辑窗口可能导致崩溃；没有当前版本验证依据时，不调用 ChartData.ActivateChartDataWindow 或 ChartData.Workbook 试探。
++
++预览失败或保存未执行时明确报告。PPT 没有统一审计回滚。
+diff --git a/skills/office-agent-bridge-word-batch-edit/SKILL.md b/skills/office-agent-bridge-word-batch-edit/SKILL.md
+index 8e51342..1b0c1fc 100644
+--- a/skills/office-agent-bridge-word-batch-edit/SKILL.md
++++ b/skills/office-agent-bridge-word-batch-edit/SKILL.md
+@@ -1,16 +1,25 @@
+ ---
+ name: office-agent-bridge-word-batch-edit
+-description: 使用 Office Agent Bridge 批量修改正在 WPS 中打开的文字文档，处理段落、表格、格式继承和保存核验；不将旧版工具限制当作当前能力。
++description: 通过 Office Agent Bridge 批量修改已打开的 WPS Word 段落、表格和格式，按文档结构定位、分批读回并核验保存。适用于实时改稿和排版。
+ ---
+ 
+-# WPS Word 批量改稿
++# Word 结构与批量改稿
+ 
+-先查询工具清单和宿主连接。当前已有 `wps_word_create_document`、`wps_word_save_document` 等工具，不能继续声称无法新建或保存。
++复用 [共享流程](../office-agent-bridge/SKILL.md) 的宿主与精确 documentName；上下文已有连接和工具信息时不再初始化。新建和保存可使用 `wps_word_create_document`、`wps_word_save_document`，以当前 schema 为准。
+ 
+-多文档使用精确 documentName。修改前读取目标段落或表格；将标题与正文分开替换，避免正文继承标题的加粗和字号。
++## 定位一次，按结构执行
+ 
+-查找中的 `^p`、`^t` 及单元格多行文本在不同版本中需小范围确认。先做不含 replaceText 的查找，核对匹配范围后再修改。二维表格数据必须与目标结构相符，不能把丢弃多余列视为正常结果。
++局部改稿先搜索或读取目标段落、表格及必要邻接内容；全文任务先取得结构，再分段读取，不在每次修改前重读全文。工具若不提供目标范围或摘要参数，可通过 [只读脚本](../office-agent-bridge/references/native-scripting.md) 返回所需结构，不杜撰工具参数。
+ 
+-每批修改后读回。需要落盘时执行保存工具并验证返回结果；只有内存写入成功时，不报告“文件已保存”。旧 .doc 格式另存需确认实际格式，不能只根据扩展名判断。
++将修改整理为目标、原内容、预期内容和格式要求。同类格式操作尽量使用现有批量参数；专用工具不足时，以一节或一张表为边界执行 JS。标题、正文和表格分别处理，避免正文继承标题加粗与字号。
+ 
+-整篇排版会影响已有封面和表格，仅在用户要求时使用。Word 操作没有统一快照回滚，不用普通表格的 auditId 宣称可撤销全文。
++插入或删除会使后续段落索引变化。可从后向前处理已定位范围，或每批重定位受影响锚点；写入前核对目标文本。重复文本必须结合章节、段落或表格位置消歧，不能盲目全文替换。
++
++## 查找、表格与核验
++
++- `^p`、`^t` 和单元格多行文本先做不含 replaceText 的查找，核对匹配范围。对未验证的宿主行为用代表性小批次确认，通过后扩展。
++- 二维表格数据先校验目标行列和合并结构，不能把丢弃多余列视为成功。
++- 每批返回匹配数、修改数、已完成目标及关键内容的实际读回。失败返回当前步骤，先定位已生效部分再继续，不重复整篇改稿。
++- 纯内容修改核对目标文本；字号、段落或表格布局变化检查受影响页面预览，不逐段截图。大批统一格式先验证代表区域，完成后覆盖检查受影响页面；宿主无预览时明确视觉验证缺口。
++
++整篇排版可能影响封面和表格，仅在用户要求时执行。需要落盘时保存并核对结果；旧 .doc 另存确认实际格式，不能只看扩展名。Word 没有统一快照回滚，不能用表格 auditId 宣称能撤销全文。
+diff --git a/skills/office-agent-bridge/SKILL.md b/skills/office-agent-bridge/SKILL.md
+index 56ecbad..e485d63 100644
+--- a/skills/office-agent-bridge/SKILL.md
++++ b/skills/office-agent-bridge/SKILL.md
+@@ -1,45 +1,41 @@
+ ---
+ name: office-agent-bridge
+-description: 使用本机 Office Agent Bridge 连接已打开的 WPS 或 Microsoft Office 文档，优先处理 Excel 表格；负责启动检查、宿主与能力确认、连接排障和有限修复。适用于 Bridge/MCP 连接失败、实时表格操作及询问 Word/PPT 支持范围。
++description: 通过本机 Office Agent Bridge 的 MCP 操作已打开的 WPS 或 Microsoft Office 文件；提供目标定位、批量执行、JS 扩展和结果验证的共享流程，也处理连接排障。适用于实时办公文件操作，不用于普通离线文件生成。
+ ---
+ 
+ # Office Agent Bridge
+ 
+-Bridge 是用户本机的办公连接服务。推荐实时表格场景，不能将“有原生脚本接口”解释成所有功能都已支持。
++## 建立并复用任务上下文
+ 
+-## 接入后的第一步
++首次接入或上下文缺失时调用 `bridge_get_capabilities`，确认宿主、服务版本、连接与验证状态。工具定义已在当前会话可见时直接使用，不再重复拉取整份工具清单；仅缺少定义时查询相关工具。连接异常才调用 `bridge_diagnose`。
+ 
+-调用 `bridge_get_capabilities`，再按需要调用 `bridge_diagnose`。确认实际平台、服务版本、已连接宿主和验证程度。MCP 连接成功不代表 WPS 加载项或 Microsoft Office 可访问。
++读取工作区定位精确 workbookName/documentName/presentationName，以及 sheetName 或目标页。在后续调用显式携带目标，不依赖活动窗口焦点。保留本任务已取得的宿主、目标名称、页面尺寸和对象标识，不在每个子步骤或切换子 skill 时重复初始化。
+ 
+-- 统一表格工具使用 `excel_*`，显式选择 `host: "wps"` 或 `"microsoft"`。
+-- `wps_*` 兼容工具仅操作 WPS。Windows Microsoft Excel 结构化适配已实现，实机验收状态以能力返回及验证报告为准；macOS Microsoft Office 目前是原生脚本通道。
+-- 多文档必须用工作区返回的精确 `workbookName` / `documentName` / `presentationName`，不要猜路径或按相似名称挑文件。
+-- 没有连接时先修复连接，不要通过离线改另一份文件掩盖连接故障。用户明确要求离线处理时尊重其选择。
++断线、宿主重启、目标切换或对象不存在时重新确认相关上下文。插入/删除段落、页面、行列后刷新受影响的索引；用户同时编辑时重新读取即将覆盖的内容。缓存用于减少探测，不是跳过修改前的必要核对。
+ 
+-## 服务启动与检查
++## 按任务组织调用
+ 
+-GUI 窗口与后台进程独立。关闭窗口或退出管理器不停止 Bridge；“停止服务”会断开所有 AI。
++1. **定位并取够信息。**先摘要或搜索，再读目标区域和所需字段。已有足够数据就开始执行，不为“完整性”读取整份文件。
++2. **选择执行粒度。**单项修改用专用工具；连续单元格用范围写入；同一页或同组对象的相关修改可合成一次脚本。批次按失败后可核对、可继续的边界划分，不规定固定调用数。
++3. **执行并带回证据。**专用工具已有实际读回信息时直接复用；只有成功标志或缺少关键字段才补读。脚本在写入后读取实际属性并返回普通 JSON 摘要，不只回显输入参数。
++4. **针对结果验证。**值和公式检查关键范围；视觉变化在一页或区域完成后预览，不逐对象截图。批量统一版式先验证代表页再扩展，最终检查所有修改页。未改动区域无需重复验证。
++5. **按需保存。**用户要求落盘或任务交付需要保存时调用对应保存接口并核对结果。最终简述修改、验证、保存状态和确有的遗留项。
+ 
+-stdio MCP 会自动启动或复用后台。HTTP MCP 不会凭地址自动启动，须先启动管理器或运行已安装 CLI。
++优先使用可批量处理且满足需求的结构化工具。`excel_*` 需按 schema 显式选择 host，`wps_*` 只控制 WPS；Microsoft 通道依实际能力返回和工具定义选择，不照搬 WPS 对象模型。
+ 
+-本技能的 `scripts/bridge_client.py` 不依赖第三方 Python 包。先定位当前技能文件所在目录，再执行该目录下的脚本；不要照抄某个开发者的绝对路径。
++专用工具未覆盖不等于不支持。需要矢量绘图、已有对象深度编辑或精细布局时，按 [原生脚本](references/native-scripting.md) 只读探测相关 API，再批量执行；不因使用 JS 本身重复索要授权。已有已验证的 API 可复用，不必逐次反射。
+ 
+-```sh
+-python3 <技能目录>/scripts/bridge_client.py --doctor
+-python3 <技能目录>/scripts/bridge_client.py --start
+-python3 <技能目录>/scripts/bridge_client.py bridge_get_capabilities '{}'
+-```
++## 按需读取
+ 
+-启动仅使用安装时记录的可执行文件和入口。缺少安装记录时，提示用户从已安装的 Office Agent Bridge 应用启动一次；源码环境按项目 README 构建并运行 CLI。不要猜测 `node` 已安装，也不要下载来历不明的运行时。
++- 表格、图表、矢量绘图：[Excel 工作流](../office-agent-bridge-chart-style/SKILL.md)。
++- 演示文稿排版：[PPT 工作流](../office-agent-bridge-ppt-design/SKILL.md)。
++- 文字与表格改稿：[Word 工作流](../office-agent-bridge-word-batch-edit/SKILL.md)。
++- 连接或启动失败才读 [启动与排障](references/operations.md)；讨论宿主支持范围时读 [能力边界](references/capabilities.md)。不要预先加载所有引用。
+ 
+-具体检查、故障分类和修复步骤见 [启动与排障](references/operations.md)。需要介绍支持范围或选择方案时读取 [能力边界](references/capabilities.md)。
++## 批次与恢复
+ 
+-## 操作与交付
++同一宿主中的修改、激活与截图串行执行，避免争用焦点或剪贴板。脚本批次开始前检查目标、数据尺寸和必需参数；执行中记录已完成对象及当前步骤。遇到失败停止依赖该步骤的后续修改，返回部分结果，不吞掉错误继续报全量成功。
+ 
+-先读工作区与目标范围，再执行用户要求的修改。保留已有样式，按需用公式计算、使用原生图表和设置格式，不强制把所有表格改成统一模板。
++超时、断线或审计失败可能已经修改文件，先读回目标，不盲目重放整批。仅 `patch_cells` 的值与公式有审计回滚；不要为减少调用把要求审计的单元格写入改成任意脚本。格式、图表、Word/PPT 和脚本没有统一回滚。
+ 
+-写入后读回关键值和公式。视觉修改需检查真实预览；预览可能改变剪贴板或激活文档，应避免与并发桌面操作争用。
+-
+-只有 `patch_cells` 的值与公式进入审计回滚。格式、图表、结构、Word/PPT 和任意脚本没有统一回滚。写入成功不等于已保存文件；报告分别说明修改和保存结果。
+-
+-超时、断线或审计失败时可能已发生修改。先读回，禁止自动重试写入。明确报告失败或部分完成，不把占位文字框称为原生图表。
++没有连接时修复连接，不以离线修改另一份文件替代实时任务。用户明确选择离线时遵循其选择。
+diff --git a/skills/office-agent-bridge/references/capabilities.md b/skills/office-agent-bridge/references/capabilities.md
+index d7b1c7a..103763c 100644
+--- a/skills/office-agent-bridge/references/capabilities.md
++++ b/skills/office-agent-bridge/references/capabilities.md
+@@ -18,3 +18,5 @@
+ 回滚状态：仅恢复已记录的单元格值与公式；如果目标区域与修改后快照不一致，拒绝覆盖。无统一撤销保障的操作应按影响范围分批执行，用户要求保留原图表或样式时不能擅自删除重建。
+ 
+ Windows 验证需要在安装了真实 Office/WPS 的桌面会话进行。模拟宿主测试、PowerShell 语法检查和安装包生成都不能替代实机验收。
++
++没有专用工具不等于不支持；原生 JS 扩展路径见 [脚本能力与示例](native-scripting.md)。矢量形状与统计图表是不同对象，均应按实际宿主 API 探测、执行并验证。
+diff --git a/skills/office-agent-bridge/references/native-scripting.md b/skills/office-agent-bridge/references/native-scripting.md
+new file mode 100644
+index 0000000..7e4f6d7
+--- /dev/null
++++ b/skills/office-agent-bridge/references/native-scripting.md
+@@ -0,0 +1,55 @@
++# 原生脚本能力扩展
++
++专用工具 → 只读探测 → 原生脚本 → 读回和预览。没有专用工具不能直接判定不支持。脚本是正常的扩展通道，无需仅因使用 JS 再次要求用户授权；操作仍须在用户任务范围内。
++
++WPS 使用 `wps_execute_script`，明确传 component 和精确 workbookName/documentName/presentationName。上下文为 app、wb、doc、pres、wps、params 和 console；支持 async/await。Microsoft 应使用实际工具清单中的脚本入口和对应对象模型，不可照搬 WPS 示例。
++
++可用 `wps_inspect_api` 检查 `wb.Worksheets.Item(1).Shapes` 或 `pres.PageSetup`。部分宿主对象无法完整枚举成员，空列表不是 API 不支持的证据，可针对具体属性进行只读访问。捕获具体异常，区分 API 缺失、目标错误、参数错误和连接问题。
++
++## Excel 原生矢量绘图
++
++Shapes 是独立于单元格和统计图表的绘图层，可用于流程图、标注、信息卡片。下例是 WPS 对象模型示例，使用前检查当前宿主的 Shapes API。坐标为 pt，依据目标单元格 Left/Top/Width/Height 定位，不是行列号或屏幕像素。
++
++只读探测代码：
++
++```js
++const sheet = wb.Worksheets.Item(params.sheetName);
++const anchor = sheet.Range(params.address);
++return { workbookName: wb.Name, sheetName: sheet.Name,
++  left: anchor.Left, top: anchor.Top, width: anchor.Width, height: anchor.Height,
++  shapeCount: sheet.Shapes.Count };
++```
++
++绘制可编辑矩形的代码（params 传 sheetName、address、shapeName、text）：
++
++```js
++const sheet = wb.Worksheets.Item(params.sheetName);
++const anchor = sheet.Range(params.address);
++const shape = sheet.Shapes.AddShape(1, anchor.Left, anchor.Top, 180, 72);
++shape.Name = params.shapeName;
++shape.TextFrame.Characters().Text = params.text;
++return { name: shape.Name, left: shape.Left, top: shape.Top,
++  width: shape.Width, height: shape.Height, shapeCount: sheet.Shapes.Count };
++```
++
++连接线、自由曲线、组合可继续探测 AddConnector、BuildFreeform、Range(...).Group 等宿主 API。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
++
++## 编辑已有对象
++
++没有 update_chart 工具时，先读出现有对象名称和属性，再用脚本修改该对象。不能据此直接判定必须删除重建。返回普通 JSON：文档名、对象名称/ID、实际位置、字号、修改后的属性；不要返回整个宿主对象。
++
++PPT 使用 pres.PageSetup.SlideWidth/SlideHeight 获取尺寸。按页面比例计算几何，所有结果转为 pt 后写入；字体与版面一起考虑。先读现有形状，设置文本框内边距、换行和字号，读回后检查真实预览。需要拆页或改动内容时结合用户目标判断，不用无限缩小字体掩盖溢出。
++
++## 批量执行与返回
++
++把一页、一张表或一组相关形状作为批次边界。用 params 传操作列表，在脚本内循环，不为每个对象单独发起 MCP 调用。所需 API 已在当前宿主验证时复用，无需每次反射。
++
++执行前校验整批目标和输入；每步成功后记录对象标识。脚本可返回以下普通 JSON 结构（这是脚本自定义返回格式，不是新增 MCP 参数）：
++
++```json
++{"completed":[{"id":"实际对象标识","left":50,"top":30}],"failed":null,"pendingCount":0}
++```
++
++失败时记录当前对象、步骤和异常文本，并停止依赖该步骤的修改。completed 中使用宿主读回值；不返回完整宿主对象、全文或无关数据。Bridge 的脚本包装层可能仍返回 success，调用方必须同时检查 returnValue 中的 failed/pendingCount。响应超时导致整个结果丢失时，按目标标识重新读取，不依靠内存完成列表猜测。
++
++不要为省调用合并本来需要人工决策的内容，也不要将需要审计回滚的单元格写入移到脚本。
+diff --git a/skills/office-agent-bridge/references/operations.md b/skills/office-agent-bridge/references/operations.md
+index bfe7af1..a008c7f 100644
+--- a/skills/office-agent-bridge/references/operations.md
++++ b/skills/office-agent-bridge/references/operations.md
+@@ -1,5 +1,18 @@
+ # 启动与排障
+ 
++## 启动入口
++
++本节仅用于连接异常，不是每个文档任务的前置步骤。stdio MCP 自动启动或复用后台；HTTP 需要先启动管理器或已安装 CLI。关闭 GUI 不停止后台，“停止服务”会影响所有 AI。
++
++本技能 `scripts/bridge_client.py` 不依赖第三方 Python 包。从当前技能目录定位脚本：
++
++```sh
++python3 <技能目录>/scripts/bridge_client.py --doctor
++python3 <技能目录>/scripts/bridge_client.py --start
++```
++
++启动使用安装记录中的可执行文件和入口。记录缺失时从已安装应用启动一次；源码环境按项目 README 构建运行，不猜测或下载运行时。
++
+ ## 安装布局
+ 
+ macOS 默认 `~/.wps-bridge`；Windows 默认 `%LOCALAPPDATA%/WPSBridge`。`WPS_BRIDGE_HOME`、`WPS_BRIDGE_PORT` 可覆盖，必须与客户端安装记录一致。
+diff --git a/src/bridge/gateway.ts b/src/bridge/gateway.ts
+index 6d6c3c6..113769a 100644
+--- a/src/bridge/gateway.ts
++++ b/src/bridge/gateway.ts
+@@ -1048,11 +1048,14 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+         type: "function",
+         function: {
+           name: "wps_execute_script",
+-          description: "【WPS 图灵级超级脚本引擎】直接向当前 WPS 运行实例执行原生 JavaScript 自动化代码。已自动绑定锁定的文档上下文: app(WPS宿主), doc(当前Word文档), wb(当前Excel工作簿), pres(当前PPT演示文稿), wps(全局运行时), params(自定义参数)。支持任意生僻 API 与长尾操作！",
++          description: "【WPS 图灵级超级脚本引擎】直接向当前 WPS 运行实例执行原生 JavaScript 自动化代码。已自动绑定锁定的文档上下文: app(WPS宿主), doc(当前Word文档), wb(当前Excel工作簿), pres(当前PPT演示文稿), wps(全局运行时), params(自定义参数)。专用工具未覆盖时使用本工具，例如 Excel 可编辑矢量形状、连接线、组合及已有图表属性修改，PPT 精细布局。先用 wps_inspect_api 或只读脚本检查目标 API，再执行并读回验证；没有专用工具不等于不支持。返回普通 JSON，勿返回宿主对象。",
+           parameters: {
+             type: "object",
+             properties: {
+               code: { type: "string", description: "要执行的原生 JavaScript 代码。支持 async/await。" },
++              workbookName: { type: "string", description: "精确目标工作簿名" },
++              documentName: { type: "string", description: "精确目标 Word 文档名" },
++              presentationName: { type: "string", description: "精确目标 PPT 文稿名" },
+               component: { type: "string", enum: ["word", "excel", "ppt"], description: "指定组件类型，不传则自动适配" },
+               params: { type: "object", description: "传递给脚本的结构化数据，在代码中通过 params 对象访问" }
+             },
+@@ -1070,6 +1073,9 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+             type: "object",
+             properties: {
+               expression: { type: "string", description: "要反射探测的表达式，如 'app', 'pres', 'pres.Slides.Item(1)', 'doc', 'wb'" },
++              workbookName: { type: "string", description: "精确目标工作簿名" },
++              documentName: { type: "string", description: "精确目标 Word 文档名" },
++              presentationName: { type: "string", description: "精确目标 PPT 文稿名" },
+               component: { type: "string", enum: ["word", "excel", "ppt"], description: "组件类型" }
+             },
+             required: ["expression"],
+@@ -2422,7 +2428,7 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+         type: "function",
+         function: {
+           name: "wps_ppt_generate_deck",
+-          description: "【杀手级能力】根据结构化 JSON 演讲大纲，一键批量生成整套 5~15 页专业商务演示胶片（封面页、2/3/4栏商业卡片页、原生图表页、结束页）。",
++          description: "根据结构化 JSON 大纲，按目标文稿真实页面尺寸生成演示胶片；返回 layoutWarnings，需逐页预览验证（封面页、2/3/4栏商业卡片页、原生图表页、结束页）。",
+           parameters: {
+             type: "object",
+             properties: {
+@@ -2519,15 +2525,15 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+               tableIndex: { type: "integer", description: "页内第几个表格(默认 1)" },
+               rows: { type: "integer", description: "新建表格行数" },
+               columns: { type: "integer", description: "新建表格列数" },
+-              left: { type: "number", description: "X 坐标" },
+-              top: { type: "number", description: "Y 坐标" },
+-              width: { type: "number", description: "宽度" },
+-              height: { type: "number", description: "高度" },
++              left: { type: "number", description: "距页面左边缘的磅值 pt；先读取实际 pageWidth" },
++              top: { type: "number", description: "距页面上边缘的磅值 pt；先读取实际 pageHeight" },
++              width: { type: "number", description: "宽度，单位 pt，不是像素或百分比" },
++              height: { type: "number", description: "高度，单位 pt，不是像素或百分比" },
+               data: { type: "array", items: { type: "array", items: { type: "string" } }, description: "二维表格数据数组" },
+               row: { type: "integer", description: "目标行号(1-based)" },
+               column: { type: "integer", description: "目标列号(1-based)" },
+               text: { type: "string", description: "单元格文字内容" },
+-              fontSize: { type: "number", description: "字号大小" },
++              fontSize: { type: "number", description: "字号，单位 pt；依据页面尺寸和文本框容量设置，编辑后读回并预览" },
+               fontColor: { type: "string", description: "字体颜色十六进制" },
+               fontBold: { type: "boolean", description: "是否加粗" },
+               fillColor: { type: "string", description: "单元格填充底色十六进制" },
+@@ -2608,10 +2614,10 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+                   required: ["name", "values"]
+                 }
+               },
+-              left: { type: "number", description: "X 坐标" },
+-              top: { type: "number", description: "Y 坐标" },
+-              width: { type: "number", description: "宽度" },
+-              height: { type: "number", description: "高度" }
++              left: { type: "number", description: "距页面左边缘的磅值 pt；先读取实际 pageWidth" },
++              top: { type: "number", description: "距页面上边缘的磅值 pt；先读取实际 pageHeight" },
++              width: { type: "number", description: "宽度，单位 pt，不是像素或百分比" },
++              height: { type: "number", description: "高度，单位 pt，不是像素或百分比" }
+             },
+             required: ["categories", "series"],
+             additionalProperties: false
+@@ -2622,7 +2628,7 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+         type: "function",
+         function: {
+           name: "wps_ppt_manage_shapes_and_media",
+-          description: "【全功能排版与形状控制器】添加文本框、形状、修改已有形状位置与尺寸、智能互换两个形状位置(swap_shapes)、设置图层层级及对齐分布。",
++          description: "坐标和字号统一使用 pt。先读页面尺寸和现有形状；新增时显式提供 left/top/width/height，文本还需 fontSize，避免默认位置重叠。添加文本框、形状、修改已有形状位置与尺寸、智能互换两个形状位置(swap_shapes)、设置图层层级及对齐分布。",
+           parameters: {
+             type: "object",
+             properties: {
+@@ -2637,14 +2643,14 @@ else if let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tif
+               alignType: { type: "string", enum: ["left", "center", "right", "top", "middle", "bottom"], description: "对齐方式" },
+               zOrderAction: { type: "string", enum: ["bring_to_front", "send_to_back", "bring_forward", "send_backward"], description: "图层层级调整方式" },
+               text: { type: "string", description: "文本内容" },
+-              fontSize: { type: "number", description: "字号大小" },
++              fontSize: { type: "number", description: "字号，单位 pt；依据页面尺寸和文本框容量设置，编辑后读回并预览" },
+               fontColor: { type: "string", description: "字体颜色十六进制" },
+               fontBold: { type: "boolean", description: "是否加粗" },
+               alignment: { type: "string", enum: ["left", "center", "right", "justify"], description: "段落水平对齐" },
+-              left: { type: "number", description: "X 坐标" },
+-              top: { type: "number", description: "Y 坐标" },
+-              width: { type: "number", description: "宽度" },
+-              height: { type: "number", description: "高度" },
++              left: { type: "number", description: "距页面左边缘的磅值 pt；先读取实际 pageWidth" },
++              top: { type: "number", description: "距页面上边缘的磅值 pt；先读取实际 pageHeight" },
++              width: { type: "number", description: "宽度，单位 pt，不是像素或百分比" },
++              height: { type: "number", description: "高度，单位 pt，不是像素或百分比" },
+               rotation: { type: "number", description: "旋转角度" },
+               fillColor: { type: "string", description: "填充颜色十六进制" },
+               lineColor: { type: "string", description: "边框线条颜色十六进制" }
+diff --git a/src/bridge/mcp-server.ts b/src/bridge/mcp-server.ts
+index 99a7df3..0a023a2 100644
+--- a/src/bridge/mcp-server.ts
++++ b/src/bridge/mcp-server.ts
+@@ -8,7 +8,7 @@ import { VERSION, resourcePath } from './runtime.js';
+ 
+ export const INSTRUCTIONS = `WPS Bridge 是本机办公软件桥接服务，推荐用于已打开的 Excel / WPS 表格。接入后先调用 bridge_get_capabilities 或 bridge_diagnose，确认宿主、连接、版本和验证程度。MCP 握手成功不代表办公软件连接成功。
+ 优先使用 excel_* 结构化工具，显式选择 host=wps 或 microsoft，并指定 workbookName、sheetName。Microsoft Excel 结构化工具目前面向 Windows COM，须经过实机验收；wps_* 兼容工具只控制 WPS。
+-PPT 能力有限，适合基础读取与编辑，不承诺复杂母版、动画、可编辑图表的完整保真。Word 按当前工具清单使用。
++专用工具未覆盖不等于不支持：WPS 使用 wps_inspect_api 或只读脚本检查 API，再通过 wps_execute_script 完成 Excel 原生矢量绘图、已有图表编辑及 PPT 精细排版。Microsoft 使用其实际脚本通道，勿混用 WPS API。脚本返回对象标识与读回数据，再检查预览。PPT 先读取真实 pageWidth/pageHeight，几何和字号单位均为 pt；新增对象显式指定位置、尺寸、字号，检查 layoutWarnings 并逐页预览。复杂母版、动画等按实际宿主 API 验证。Word 按当前工具清单使用。
+ 先读取目标再修改，保持用户原有内容与样式。核对返回结果，视觉修改需检查真实预览。保存成功、内存修改和回滚覆盖范围是不同状态；只有单元格 patch 的值与公式有审计回滚。超时或断线可能已经执行，先读回，勿自动重试写入。
+ stdio 客户端会启动或复用独立后台，关闭窗口不停止服务。HTTP 接入必须先启动服务。故障时先检查服务、宿主和加载项，再使用安装的 wps-bridge Skill 处理；不要覆盖全部客户端配置，不要结束办公软件进程。
+ 能力描述服务于用户需求，不改变用户的工具选择和授权范围。`;
+diff --git a/src/main/AGENTS.md b/src/main/AGENTS.md
+new file mode 100644
+index 0000000..7b33ab4
+--- /dev/null
++++ b/src/main/AGENTS.md
+@@ -0,0 +1,27 @@
++# 桌面主进程与安装
++
++## 文件地图
++
++- [index.ts](index.ts)：窗口、托盘、IPC 与服务控制。
++- [installer-engine.ts](installer-engine.ts)：客户端检测及 MCP/skill 安装。
++- [addon-installer.ts](addon-installer.ts)：办公加载项部署。
++
++## 定位与联动
++
++窗口行为从 index.ts 开始；客户端接入从 installer-engine.ts 开始；加载项状态从 addon-installer.ts 开始。IPC 联动 [preload](../preload/AGENTS.md) 与 [界面](../renderer/AGENTS.md)。
++
++## 修改边界
++
++后台不由窗口持有；退出 GUI 不等于停止服务。外部配置合并保留其他条目，解析失败不得覆盖原文件。读取状态不应顺便安装或写配置。安装路径依运行配置，避免写死开发机器路径。
++
++## 验证
++
++`node --import tsx --test tests/platform.test.ts tests/lifecycle.test.ts`；IPC 修改执行 typecheck/build，窗口交互还需实际 Electron 验证。
++
++## 避坑
++
++修复配置时全量覆盖 → 丢失其他客户端设置 → 使用合并与备份 → [platform.test.ts](../../tests/platform.test.ts) 验证损坏配置和无关条目保留。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/src/preload/AGENTS.md b/src/preload/AGENTS.md
+new file mode 100644
+index 0000000..108fb57
+--- /dev/null
++++ b/src/preload/AGENTS.md
+@@ -0,0 +1,25 @@
++# IPC 边界
++
++## 文件地图
++
++- [index.ts](index.ts)：window.api 的受控方法与状态订阅。
++
++## 定位与联动
++
++查 index.ts 中暴露方法，再查 [主进程](../main/index.ts) 同名 IPC 和 [调用方](../renderer/App.tsx)。
++
++## 修改边界
++
++仅暴露所需方法，不暴露任意 IPC、Node 或文件系统接口。参数及响应变更同步三端；状态订阅返回解绑函数，组件卸载必须清理。
++
++## 验证
++
++`npm run typecheck`、`npm run build:main`；订阅和交互在 Electron 中验证。
++
++## 避坑
++
++新增 IPC 只改一端 → 运行时方法不存在或参数不一致 → 三端一起核对 → 实际触发并核验结果，构建通过不代表通道可用。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/src/renderer/AGENTS.md b/src/renderer/AGENTS.md
+new file mode 100644
+index 0000000..b369ec6
+--- /dev/null
++++ b/src/renderer/AGENTS.md
+@@ -0,0 +1,32 @@
++# 桌面界面
++
++## 文件地图
++
++- [App.tsx](App.tsx)：状态与操作编排。
++- [index.css](index.css)：公共样式。
++- [components/AgentHub.tsx](components/AgentHub.tsx)：客户端接入。
++- [components/LiveWorkspaceCard.tsx](components/LiveWorkspaceCard.tsx)：工作区显示。
++- [components/SafetyTimeMachine.tsx](components/SafetyTimeMachine.tsx)：审计界面。
++- [components/DiffModal.tsx](components/DiffModal.tsx)：差异详情。
++- [components/SettingsDrawer.tsx](components/SettingsDrawer.tsx)：设置。
++- [components/TopologyView.tsx](components/TopologyView.tsx)：连接拓扑。
++
++## 定位与联动
++
++从 App.tsx 找状态来源和事件，再进入对应组件；接口追到 [preload](../preload/index.ts)，不要直接在 UI 调宿主实现。
++
++## 修改边界
++
++区分服务在线、加载项连接、文件打开和操作成功。保留加载、失败和部分完成状态；不能用静态文案冒充实时能力。订阅需解绑。
++
++## 验证
++
++`npm run typecheck`、`npm run build:renderer`；受影响交互需实际界面或截图核验。
++
++## 避坑
++
++只看构建就声称交互完成 → IPC 与真实状态未被覆盖 → 实际触发操作并读回状态 → 区分静态验证与界面验收。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/tests/ppt-layout.test.ts b/tests/ppt-layout.test.ts
+new file mode 100644
+index 0000000..a662d95
+--- /dev/null
++++ b/tests/ppt-layout.test.ts
+@@ -0,0 +1,44 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import vm from 'node:vm';
++import { UniversalGateway } from '../src/bridge/gateway.js';
++const source = fs.readFileSync('wps-addon/addon-core.js', 'utf8');
++const helpers = source.slice(source.indexOf('  function pptPageSize('), source.indexOf('  function addSlideHeader('));
++const ctx = vm.createContext({});
++vm.runInContext(helpers, ctx);
++function shape(text = '内容', size = 24) {
++  return { Id: 1, Left: 50, Top: 30, Width: 620, Height: 50, HasTextFrame: true,
++    TextFrame: { HasText: true, MarginLeft: 0, MarginRight: 0, MarginTop: 0, MarginBottom: 0,
++      TextRange: { Text: text, Font: { Size: size } } } };
++}
++for (const [width, height] of [[720,405],[960,540],[1440,810],[720,540]]) {
++  test(`generated content follows actual ${width} x ${height} page`, () => {
++    const sh = shape(); const warnings: unknown[] = [];
++    const page = ctx.pptPageSize({ PageSetup: { SlideWidth: width, SlideHeight: height } });
++    ctx.fitGeneratedPptShapes({ Shapes: { Count: 1, Item: () => sh } }, 1, page, warnings);
++    assert.ok(Math.abs(sh.Left / width - 50 / 720) < 1e-12);
++    assert.ok(Math.abs(sh.Width / width - 620 / 720) < 1e-12);
++    assert.ok(Math.abs(sh.Top / height - 30 / 405) < 1e-12);
++    assert.equal(sh.TextFrame.TextRange.Font.Size, 24 * Math.min(width/720, height/405));
++    assert.equal(warnings.length, 0);
++  });
++}
++test('invalid page size stops layout', () => {
++  assert.throws(() => ctx.pptPageSize({ PageSetup: { SlideWidth: 0, SlideHeight: 405 } }), /页面尺寸/);
++});
++test('long text warns and existing shapes remain unchanged', () => {
++  const old = shape(); const long = shape('长内容'.repeat(500), 16); const warnings: unknown[] = [];
++  ctx.fitGeneratedPptShapes({ Shapes: { Count: 2, Item: (i: number) => i === 1 ? old : long } }, 2,
++    { pageWidth: 1440, pageHeight: 810 }, warnings);
++  assert.equal(old.Left, 50); assert.equal(old.TextFrame.TextRange.Font.Size, 24);
++  assert.equal(long.TextFrame.TextRange.Font.Size, 24); assert.equal(warnings.length, 1);
++});
++test('native script tools expose exact target names', () => {
++  for (const name of ['wps_execute_script', 'wps_inspect_api']) {
++    const tool = UniversalGateway.getOpenAiTools().find(t => t.function.name === name)!;
++    for (const key of ['workbookName', 'documentName', 'presentationName']) {
++      assert.ok(key in tool.function.parameters.properties);
++    }
++  }
++});
+diff --git a/website/AGENTS.md b/website/AGENTS.md
+new file mode 100644
+index 0000000..e17f228
+--- /dev/null
++++ b/website/AGENTS.md
+@@ -0,0 +1,32 @@
++# 官网
++
++## 文件地图
++
++- [package.json](package.json)：官网独立依赖及构建命令。
++- [src/App.tsx](src/App.tsx)：页面编排。
++- [src/index.css](src/index.css)：公共样式。
++- [src/components/QuickStartModal.tsx](src/components/QuickStartModal.tsx)：接入引导。
++- [src/components/ArchitectureFlow.tsx](src/components/ArchitectureFlow.tsx)：架构展示。
++- [src/components/ComparisonTable.tsx](src/components/ComparisonTable.tsx)：能力对比。
++- [src/components/OfficeSlides.tsx](src/components/OfficeSlides.tsx)：演示展示。
++- [src/components/OfficeSpreadsheet.tsx](src/components/OfficeSpreadsheet.tsx)：表格展示。
++
++## 定位与联动
++
++先从 App.tsx 找对应组件。官网与桌面 renderer 是独立应用，不因页面相似改错目录。
++
++## 修改边界
++
++能力文案依据实现和验证证据，演示动画不能冒充真实运行状态。安装命令、平台与打包格式和根 package.json 保持一致。发布是独立操作，不因本地构建成功自动部署。
++
++## 验证
++
++根目录执行 `npm run build:website`，交互和响应式需真实浏览器核验。
++
++## 避坑
++
++将演示效果当作平台全量支持 → 用户预期与实际验证不符 → 对照 [验证文档](../docs/validation.md) 与运行能力 → 检查文案和实际入口。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/wps-addon/AGENTS.md b/wps-addon/AGENTS.md
+new file mode 100644
+index 0000000..f2b3d96
+--- /dev/null
++++ b/wps-addon/AGENTS.md
+@@ -0,0 +1,29 @@
++# WPS 宿主执行
++
++## 文件地图
++
++- [addon-core.js](addon-core.js)：RPC 分发与 Excel/Word/PPT 实现。
++- [index.html](index.html)：加载项入口。
++- [manifest.xml](manifest.xml)：加载项元信息。
++- [ribbon.xml](ribbon.xml)：功能区入口。
++- [status.html](status.html)：状态页面。
++
++## 定位与联动
++
++先在 addon-core.js 定位 RPC method，再读对应函数，不需通读全文件。入参来源见 [gateway](../src/bridge/gateway.ts)。
++
++## 修改边界
++
++精确定位文档，宿主对象不要直接序列化。修改批次保留部分失败信息，超时先读回。PPT 使用真实 PageSetup 尺寸和 pt；矢量绘图与统计图表分开判断。只修改目标对象，避免重建无关内容。
++
++## 验证
++
++`node --check wps-addon/addon-core.js`；`node --import tsx --test tests/addon.test.ts tests/ppt-layout.test.ts`；视觉变化还需真实宿主预览。
++
++## 避坑
++
++PPT 在大页面集中左上角 → 固定 720×405 坐标直接用于所有页面 → 布局未换算真实尺寸 → 按实际宽高映射并检查字号容量 → [ppt-layout.test.ts](../tests/ppt-layout.test.ts) 加真实预览。公式结果为 0 → 用真假判断空值会丢数据 → 区分 null/undefined 与 0 → [addon.test.ts](../tests/addon.test.ts)。
++
++## 同步维护
++
++文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
+diff --git a/wps-addon/addon-core.js b/wps-addon/addon-core.js
+index 45c5f5a..d7b05be 100644
+--- a/wps-addon/addon-core.js
++++ b/wps-addon/addon-core.js
+@@ -3706,6 +3706,44 @@
+     return (b << 16) | (g << 8) | r;
+   }
+ 
++  // Office geometry and font sizes are points (72 pt = 1 inch).
++  function pptPageSize(pres) {
++    const width = Number(pres.PageSetup.SlideWidth);
++    const height = Number(pres.PageSetup.SlideHeight);
++    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
++      throw new Error("无法读取有效的 PPT 页面尺寸，停止布局；请检查 PageSetup");
++    }
++    return { pageWidth: width, pageHeight: height, unit: "pt" };
++  }
++
++  // Adapt only newly generated shapes; existing slide content stays untouched.
++  function fitGeneratedPptShapes(slide, firstIndex, page, warnings) {
++    const sx = page.pageWidth / 720, sy = page.pageHeight / 405;
++    const scale = Math.min(sx, sy);
++    for (let i = firstIndex; i <= slide.Shapes.Count; i++) {
++      const shape = slide.Shapes.Item(i);
++      shape.Left *= sx; shape.Top *= sy;
++      shape.Width *= sx; shape.Height *= sy;
++      if (!shape.HasTextFrame || !shape.TextFrame.HasText) continue;
++      const frame = shape.TextFrame, range = frame.TextRange;
++      frame.AutoSize = 0;
++      frame.WordWrap = true;
++      const preferred = Number(range.Font.Size) * scale;
++      const minimum = Math.min(preferred, 12 * scale);
++      const innerW = Math.max(1, shape.Width - Number(frame.MarginLeft || 0) - Number(frame.MarginRight || 0));
++      const innerH = Math.max(1, shape.Height - Number(frame.MarginTop || 0) - Number(frame.MarginBottom || 0));
++      const text = String(range.Text || "");
++      const linesAt = size => text.split(/\r\n|\r|\n/).reduce((sum, line) => {
++        const units = Array.from(line).reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 1 : 0.6), 0);
++        return sum + Math.max(1, Math.ceil(units * size / innerW));
++      }, 0);
++      let size = preferred;
++      while (size > minimum && linesAt(size) * size * 1.25 > innerH) size = Math.max(minimum, size - scale);
++      range.Font.Size = size;
++      if (linesAt(size) * size * 1.25 > innerH) warnings.push({ shapeId: shape.Id, reason: "文字可能溢出，请缩短内容或扩大文本框并检查预览" });
++    }
++  }
++
+   function addSlideHeader(slide, title, themeColor) {
+     const titleBox = slide.Shapes.AddTextbox(1, 50, 30, 620, 50);
+     titleBox.TextFrame.TextRange.Text = title || "主题要点";
+@@ -3723,11 +3761,13 @@
+ 
+   function renderPptCards(slide, cards, colCount, themeColor, customTop, customH) {
+     const cols = Math.max(1, Math.min(Number(colCount) || 3, 4));
+-    const count = Math.min(cards.length, cols);
++    if (cards.length > cols) throw new Error("卡片数量超过分栏数，请拆分为多页，避免内容被截断");
++    const count = cards.length;
+     const totalW = 620;
+     const startX = 50;
+-    const startY = Number(customTop) || 100;
+-    const cardH = Number(customH) || 260;
++    const startY = customTop === undefined ? 100 : Number(customTop);
++    const cardH = customH === undefined ? 260 : Number(customH);
++    if (!Number.isFinite(startY) || !Number.isFinite(cardH) || startY < 0 || cardH <= 0 || startY + cardH > 405) throw new Error("卡片位置或高度超出页面");
+     const gap = 16;
+     const cardW = (totalW - (cols - 1) * gap) / cols;
+ 
+@@ -3935,6 +3975,7 @@
+     return {
+       presentationName: pres.Name,
+       fullName: pres.FullName || pres.Name,
++      ...pptPageSize(pres),
+       slideCount: count,
+       activeSlideIndex: activeIdx,
+       slides
+@@ -3949,6 +3990,9 @@
+     const pres = getPptPresentation(app, presentationName);
+     const baseColor = themeColor || (themePreset === "tech_purple" ? "#4B38B3" : "#0F4C81");
+     const createdIndices = [];
++    const page = pptPageSize(pres);
++    const warnings = [];
++    // Design coordinates are mapped to the actual page before returning.
+     const pageWidth = 720;
+     const pageHeight = 405;
+ 
+@@ -4013,6 +4057,8 @@
+         }
+       }
+ 
++      fitGeneratedPptShapes(slide, 1, page, warnings);
++
+       if (spec.notes) {
+         try {
+           if (slide.NotesPage && slide.NotesPage.Shapes) {
+@@ -4027,6 +4073,9 @@
+ 
+     return {
+       success: true,
++      ...page,
++      layoutWarnings: warnings,
++      visualVerificationRequired: true,
+       presentationName: pres.Name,
+       createdSlidesCount: slides.length,
+       createdSlideIndices: createdIndices,
+@@ -4085,11 +4134,20 @@
+     const slide = pres.Slides.Item(idx);
+     const cols = columnCount || (cards.length === 2 ? 2 : (cards.length === 4 ? 4 : 3));
+ 
+-    renderPptCards(slide, cards, cols, "#0F4C81", topY, cardHeight);
++    const page = pptPageSize(pres);
++    const warnings = [];
++    const firstIndex = slide.Shapes.Count + 1;
++    renderPptCards(slide, cards, cols, "#0F4C81",
++      topY === undefined ? undefined : Number(topY) * 405 / page.pageHeight,
++      cardHeight === undefined ? undefined : Number(cardHeight) * 405 / page.pageHeight);
++    fitGeneratedPptShapes(slide, firstIndex, page, warnings);
+     return {
+       success: true,
+       presentationName: pres.Name,
+       slideIndex: idx,
++      ...page,
++      layoutWarnings: warnings,
++      visualVerificationRequired: true,
+       columns: cols,
+       cardsCount: cards.length,
+       message: `已在第 ${idx} 页成功排版 ${cards.length} 张现代化商业信息卡片`
+@@ -4102,10 +4160,11 @@
+     const idx = Number(slideIndex) || (pres.Slides.Count > 0 ? 1 : 1);
+     const slide = pres.Slides.Item(idx);
+ 
+-    const l = left !== undefined ? Number(left) : 60;
+-    const t = top !== undefined ? Number(top) : 90;
+-    const w = width !== undefined ? Number(width) : 600;
+-    const h = height !== undefined ? Number(height) : 280;
++    const page = pptPageSize(pres);
++    const l = left !== undefined ? Number(left) : page.pageWidth / 12;
++    const t = top !== undefined ? Number(top) : page.pageHeight * 90 / 405;
++    const w = width !== undefined ? Number(width) : page.pageWidth * 600 / 720;
++    const h = height !== undefined ? Number(height) : page.pageHeight * 280 / 405;
+ 
+     renderPptChart(slide, { chartType: chartType || "column", title, categories, series }, l, t, w, h);
+     return {
+@@ -4182,6 +4241,7 @@
+           rotation: shp.Rotation || 0,
+           zOrderPosition: shp.ZOrderPosition || s,
+           hasText,
++          fontSize: hasText ? Number(shp.TextFrame.TextRange.Font.Size) : undefined,
+           text: textContent ? (textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent) : undefined,
+           hasTable,
+           table: tableMeta || undefined,
+@@ -4196,6 +4256,7 @@
+       success: true,
+       presentationName: pres.Name,
+       slideIndex: idx,
++      ...pptPageSize(pres),
+       shapeCount: count,
+       shapes,
+       message: `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
+@@ -4287,7 +4348,7 @@
+           const alignMap = { left: 1, center: 2, right: 3, justify: 4 };
+           tr.ParagraphFormat.Alignment = alignMap[alignment] || 1;
+         }
+-        return { success: true, shapeId: tb.Id, message: "已成功添加文本框" };
++        return { success: true, shapeId: tb.Id, left: tb.Left, top: tb.Top, width: tb.Width, height: tb.Height, fontSize: Number(tr.Font.Size), unit: "pt", message: "已成功添加文本框" };
+       }
+ 
+       case "add_shape": {
+@@ -4309,7 +4370,7 @@
+         if (lineColor) {
+           shp.Line.ForeColor.RGB = hexToPptColor(lineColor);
+         }
+-        return { success: true, shapeId: shp.Id, message: "已成功添加形状" };
++        return { success: true, shapeId: shp.Id, left: shp.Left, top: shp.Top, width: shp.Width, height: shp.Height, unit: "pt", message: "已成功添加形状" };
+       }
+ 
+       case "update_shape": {

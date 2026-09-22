@@ -13,23 +13,30 @@
     "dev:web": "vite",
     "build:renderer": "vite build",
     "build:main": "tsup",
-    "build": "npm run build:renderer && npm run build:main",
+    "build": "npm run build:renderer && npm run build:main && npm run build:addons",
     "mcp": "tsx src/bridge/cli.ts",
     "setup": "tsx src/bridge/setup.ts",
     "inspect": "tsx scripts/inspect.ts",
     "start": "electron .",
-    "dist": "npm run build && electron-builder",
+    "dist": "npm run build && npm run build:win-icon && electron-builder",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
     "dev:desktop": "npm run build && electron .",
     "dev:website": "npm --prefix website run dev",
-    "build:website": "npm --prefix website run build"
+    "build:website": "npm --prefix website run build",
+    "check:agents": "node scripts/check-agents.mjs",
+    "snapshot:tools": "tsx scripts/snapshot-tools.ts",
+    "check:claims": "tsx scripts/check-capability-claims.ts",
+    "build:wps-addon": "node scripts/build-wps-addon.mjs",
+    "build:office-addon": "node scripts/build-office-addon.mjs",
+    "build:addons": "npm run build:wps-addon && npm run build:office-addon",
+    "build:win-icon": "node scripts/build-win-icon.mjs"
   },
   "build": {
     "appId": "com.antigravity.officeagentbridge",
     "productName": "Office Agent Bridge",
     "directories": {
-      "output": "release"
+      "output": "release/${version}/${os}"
     },
     "files": [
       "dist/main/**/*",
@@ -41,7 +48,10 @@
       "resources/**/*",
       "skills/**/*",
       "prompts/**/*",
-      "package.json"
+      "package.json",
+      "!**/AGENTS.md",
+      "!wps-addon/src/**",
+      "!office-addon/src/**"
     ],
     "mac": {
       "target": [
@@ -58,7 +68,8 @@
       "target": [
         "zip",
         "dir"
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "asarUnpack": [
       "dist/bridge/cli.cjs",
@@ -66,7 +77,8 @@
       "office-addon/**/*",
       "wps-addon/**/*",
       "skills/**/*"
-    ]
+    ],
+    "artifactName": "Office-Agent-Bridge-${version}-${os}-${arch}.${ext}"
   },
   "keywords": [
     "wps",
