@@ -193,7 +193,7 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   // 真机确认：`wb.CustomViews` 可用（实测能建视图并读回 Name），而 `wb.LinkedDataTypes` 不存在，
   // 所以「链接数据类型（富值）」在本机**做不到**（工具会如实拒绝），只实现自定义视图与切片器清单。
   // 该能力**仅 WPS 实现**，已同时声明进 `HOST_IMPLEMENTATION_GAPS.microsoft`。**有意扩展。**
-  assert.equal(c.EXCEL_METHODS.length, 51, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
+  assert.equal(c.EXCEL_METHODS.length, 52, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
   assert.equal(c.isReadOnlyTool('excel_read_range'), true);
   assert.equal(c.isReadOnlyTool('wps_inspect_api'), false, '表达式探测不是只读');
   assert.equal(c.isReplaySafeMethod('read_range'), true);
@@ -212,7 +212,7 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
     microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view',
       'manage_hyperlink', 'manage_named_range', 'manage_document_properties', 'manage_table', 'manage_pictures',
       // CAP-14：自定义视图（wb.CustomViews）在 WPS 可用、Office.js 侧未实现 → 声明为 MS 缺口
-      'manage_workbook_views',
+      'manage_workbook_views', 'manage_sheet_changes',
       'create_workbook']
   });
 });

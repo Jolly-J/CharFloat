@@ -3854,6 +3854,107 @@
   //   `wb.CustomViews` **可用**（Add/Item/Show 都在，实测能建成并读回 Name）
   //   `wb.SlicerCaches` 可用（Count/Add/Add2）；`ws.Slicers` **不存在**
   //   `wb.LinkedDataTypes` **不存在** → **链接数据类型（富值）本机做不到**，如实拒绝
+  // ── CAP-11 变更感知（基线比对版）
+  //
+  // 真机探测结论：WPS 的**事件机制不可用** ——
+  //   `wps.ApiEvent.AddApiEventListener("SheetChange"/"WorkbookBeforeSave", fn)` **注册不报错**，
+  //   但真机写入单元格后**事件从不触发**（命中恒为 0），与线程批注同属"API 存在但功能是空壳"。
+  //   因此"保存前拦一手"这类**必须依赖事件**的能力本机做不到。
+  //
+  // 能做到的是 CAP-11 的核心价值：**回答"用户刚改了哪个单元格"** ——
+  // 用基线快照 + 差异比对实现，不依赖事件。
+  const CHANGE_BASELINES = {};   // key: 工作簿!工作表 → { cells: {addr: value}, at, range }
+
+  function captureOrDiffChanges(app, params) {
+    const { workbookName, sheetName, action = "capture", maxCells = 2000 } = params || {};
+    const wb = getWorkbook(app, workbookName);
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+    const key = `${wb.Name}!${sheet.Name}`;
+
+    // 读当前已用区域的值（有上限，避免大表卡死）
+    const readNow = () => {
+      const used = sheet.UsedRange;
+      const base = String(g(() => used.Address(), ""));
+      const rows = Math.min(Number(g(() => used.Rows.Count, 0)), 500);
+      const cols = Math.min(Number(g(() => used.Columns.Count, 0)), 60);
+      if (!rows || !cols) return { cells: {}, range: base, truncated: false, count: 0 };
+      const m = base.split(":")[0].replace(/\$/g, "").match(/^([A-Za-z]+)(\d+)$/);
+      if (!m) return { cells: {}, range: base, truncated: false, count: 0 };
+      const colName = (n) => { let s = ""; while (n > 0) { const x = (n - 1) % 26; s = String.fromCharCode(65 + x) + s; n = Math.floor((n - 1) / 26); } return s; };
+      const col0 = m[1].toUpperCase().split("").reduce((a, c) => a * 26 + (c.charCodeAt(0) - 64), 0);
+      const row0 = Number(m[2]);
+      const addr = `${colName(col0)}${row0}:${colName(col0 + cols - 1)}${row0 + rows - 1}`;
+      const vals = g(() => sheet.Range(addr).Value2, null);
+      const cells = {};
+      let count = 0;
+      if (Array.isArray(vals)) {
+        for (let r = 0; r < vals.length && count < maxCells; r++) {
+          const row = vals[r];
+          if (!Array.isArray(row)) { cells[`${colName(col0)}${row0 + r}`] = row; count++; continue; }
+          for (let c = 0; c < row.length && count < maxCells; c++) {
+            cells[`${colName(col0 + c)}${row0 + r}`] = row[c];
+            count++;
+          }
+        }
+      } else if (vals !== null && vals !== undefined) {
+        cells[`${colName(col0)}${row0}`] = vals; count = 1;
+      }
+      const total = rows * cols;
+      return { cells, range: addr, truncated: total > maxCells, count, total };
+    };
+
+    if (action === "capture") {
+      const snap = readNow();
+      CHANGE_BASELINES[key] = { cells: snap.cells, at: Date.now(), range: snap.range };
+      return {
+        success: true, workbookName: wb.Name, sheetName: sheet.Name, action,
+        range: snap.range, cellCount: snap.count, truncated: snap.truncated,
+        warnings: snap.truncated ? [`只记录了前 ${maxCells} 个单元格，超出部分不会参与后续比对`] : [],
+        message: `已记录 [${sheet.Name}] ${snap.range} 的基线（${snap.count} 个单元格），之后可用 action='diff' 查看谁改了什么`
+      };
+    }
+
+    if (action === "diff") {
+      const base = CHANGE_BASELINES[key];
+      if (!base) throw new Error(`工作表 [${sheet.Name}] 还没有基线；先调 action='capture' 记一次`);
+      const now = readNow();
+      const norm = (v) => (v === null || v === undefined) ? "" : String(v);
+      const changed = [], added = [], removed = [];
+      const seen = new Set();
+      for (const [addr, v] of Object.entries(now.cells)) {
+        seen.add(addr);
+        if (!(addr in base.cells)) { added.push({ address: addr, after: v }); continue; }
+        if (norm(base.cells[addr]) !== norm(v)) changed.push({ address: addr, before: base.cells[addr], after: v });
+      }
+      for (const [addr, v] of Object.entries(base.cells)) {
+        if (!seen.has(addr)) removed.push({ address: addr, before: v });
+      }
+      const all = [...changed, ...added, ...removed];
+      return {
+        success: true, workbookName: wb.Name, sheetName: sheet.Name, action,
+        baselineAt: new Date(base.at).toISOString(),
+        baselineRange: base.range, currentRange: now.range,
+        changedCount: changed.length, addedCount: added.length, removedCount: removed.length,
+        totalChanged: all.length,
+        changed: changed.slice(0, 200), added: added.slice(0, 200), removed: removed.slice(0, 200),
+        truncated: all.length > 200,
+        warnings: now.truncated ? ["当前读取被 maxCells 截断，差异可能不完整"] : [],
+        message: all.length === 0
+          ? `[${sheet.Name}] 自基线以来没有任何变化`
+          : `[${sheet.Name}] 自基线以来有 ${all.length} 处变化（改 ${changed.length} / 增 ${added.length} / 删 ${removed.length}）`
+      };
+    }
+
+    if (action === "clear") {
+      const had = !!CHANGE_BASELINES[key];
+      delete CHANGE_BASELINES[key];
+      return { success: true, workbookName: wb.Name, sheetName: sheet.Name, action, hadBaseline: had, warnings: [], message: had ? `已清除 [${sheet.Name}] 的基线` : `[${sheet.Name}] 本来就没有基线` };
+    }
+
+    throw new Error(`未知的变更感知操作 action: ${action}（支持 capture / diff / clear）`);
+  }
+
   function manageWorkbookViews(app, params) {
     const { workbookName, action = "list", viewName } = params || {};
     const wb = getWorkbook(app, workbookName);

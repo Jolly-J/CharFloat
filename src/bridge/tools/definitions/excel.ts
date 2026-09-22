@@ -1381,6 +1381,24 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         additionalProperties: false
       }
     }
+  }  ,
+  {
+    type: "function",
+    function: {
+      name: "wps_manage_sheet_changes",
+      description: "**变更感知**：回答「用户刚改了哪个单元格」。action='capture' 记一次基线；之后 action='diff' 比对出改/增/删的单元格（含改动前后的值）；action='clear' 清基线。⚠️ 这是**基线比对**实现，不是事件监听——本机 WPS 的事件 API（ApiEvent.AddApiEventListener）注册不报错但从不触发，「保存前拦一手」做不到。",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["capture", "diff", "clear"], description: "capture 记基线 / diff 比对出变化 / clear 清基线" },
+          sheetName: { type: "string", description: "工作表名称" },
+          workbookName: { type: "string", description: "工作簿名称" },
+          maxCells: { type: "number", description: "最多记录多少个单元格，默认 2000（超出部分不参与比对，会写 warnings）" }
+        },
+        required: ["action"],
+        additionalProperties: false
+      }
+    }
   }
 ]
 }
