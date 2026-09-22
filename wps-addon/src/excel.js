@@ -5724,6 +5724,21 @@
         }
         return { success: true, workbookName: wb.Name, oldName, newName, actualName: actual, warnings: [], message: `工作表 [${oldName}] 已重命名为 [${newName}]` };
       }
+      case "activate": {
+        // shape 相关操作**依赖工作表处于激活状态**（分组代码里已有 sheet.activate()，
+        // 真机实测非活动表会报「当前对象不允许此操作」）。此前没有对外暴露的动作，
+        // 使用者想先激活再操作却做不到。
+        const wasActive = (() => { try { return wb.ActiveSheet.Name === sheet.Name; } catch (e) { return null; } })();
+        sheet.Activate();
+        const nowActive = (() => { try { return String(wb.ActiveSheet.Name); } catch (e) { return null; } })();
+        const ok = nowActive === String(sheet.Name);
+        return {
+          success: ok, workbookName: wb.Name, action: "activate",
+          sheetName: String(sheet.Name), wasActive, activeSheet: nowActive,
+          warnings: ok ? [] : [`激活未生效：请求 ${sheet.Name}，宿主当前活动表为 ${nowActive}`],
+          message: ok ? `已激活工作表 [${sheet.Name}]` : `工作表 [${sheet.Name}] 激活未生效`
+        };
+      }
       case "move": {
         if (!targetIndex) throw new Error("move 操作必须提供 targetIndex (1-indexed)");
         const total = wb.Worksheets.Count;
