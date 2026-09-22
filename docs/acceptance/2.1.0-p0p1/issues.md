@@ -38,11 +38,11 @@
 | ISS-08 | `macOS x64` 无依据、DP1 决定不扩大（保留登记） | 低 | 不修（DP1 已决议） | 发布矩阵 |
 | ISS-09 | D8/D9 能力声明残留（WPS PPT 支持范围、capabilities 不能作为完整来源） | 中 | 待使用者裁决 | 能力声明 |
 | ISS-10 | 9 条未确认项（实机可用性、部署版本一致性、超时阈值等） | 中 | 待修 | 验证缺口 |
-| ISS-11 | 绘图对齐传字符串被**静默吞掉**成左对齐，不报错 | **高** | 待修 | 宿主 API 语义 + skill 说明 |
-| ISS-12 | `TextFrame.TextRange` / `ParagraphFormat` 在 WPS JS API 中不存在，说明与 VBA 文档混用会直接中断 | 中高 | 待修 | skill 说明 |
-| ISS-13 | `wps_inspect_api` 只反射方法名，**不返回枚举常量**，而绘图/格式化全靠枚举 | 中高 | 待修 | 工具能力 + skill 说明 |
+| ISS-11 | 绘图对齐传字符串被**静默吞掉**成左对齐，不报错 | **高** | **已修已验证**（文档类） | 宿主 API 语义 + skill 说明 |
+| ISS-12 | `TextFrame.TextRange` / `ParagraphFormat` 在 WPS JS API 中不存在，说明与 VBA 文档混用会直接中断 | 中高 | **已修已验证**（文档类） | skill 说明 |
+| ISS-13 | `wps_inspect_api` 只反射方法名，**不返回枚举常量**，而绘图/格式化全靠枚举 | 中高 | **已修已验证**（文档类） | 工具能力 + skill 说明 |
 | ISS-14 | `Shapes.Range([...]).Group()` 不报错但产出损坏的分组对象 | 中 | 待修 | 宿主 API 语义 |
-| ISS-15 | `native-scripting.md` 缺多元素构图范例与画布换算 | 中 | 待修 | skill 说明 |
+| ISS-15 | `native-scripting.md` 缺多元素构图范例与画布换算 | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 待修 | 并发语义 + 说明 |
 | ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | **已修待验** | 宿主实现 + 说明 |
 | ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | 待修 | 宿主实现 + 说明 |
@@ -53,17 +53,17 @@
 | ISS-23 | `get_charts` 的 `leftCell` 与实际位置不自洽，`detail` 不返回类型枚举名与颜色 | 中 | 待修 | 宿主实现 |
 | ISS-24 | `seriesColors` 对单系列图表是**逐点染色**，导致彩虹柱 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-25 | `capture_sheet_preview` 的参数优先级与返回字段未说明 | 低中 | 待修 | 工具说明 |
-| ISS-26 | 脚本 API 差异：`ws.Cells(r,c)` 不存在；`AddChart2` 默认按行取系列须 `PlotBy=2` | 中 | 待修 | skill 说明 |
+| ISS-26 | 脚本 API 差异：`ws.Cells(r,c)` 不存在；`AddChart2` 默认按行取系列须 `PlotBy=2` | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-27 | 缺少**选型指引**：27 对 `excel_*`/`wps_*` 完全同构，`tools/list` 里无法区分 | **高** | 待修 | 工具说明 + skill |
 | ISS-28 | `wps_rollback` 说"原地恢复表格"，实际只覆盖 `patch_cells` 的值/公式 | **高** | 待修 | 工具说明 |
 | ISS-29 | `search_cells` 声称能搜公式，实测 0 命中**却返回 `success:true`** | **高** | **已修待验** | 宿主实现 + 说明 |
-| ISS-30 | 审计族说明近乎空白（15–17 字 + 9 个参数全无说明） | **高** | 待修 | 工具说明 |
+| ISS-30 | 审计族说明近乎空白（15–17 字 + 9 个参数全无说明） | **高** | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-31 | 11 个参数缺 JSON Schema `type`，1 个用非标准类型 | 中 | 待修 | 工具契约 |
 | ISS-32 | 装配层正则误伤说明文本，出现**残句**（`office_execute_script`） | 中 | 待修 | 工具说明 |
-| ISS-33 | "Windows Microsoft Excel 尚待实机验收"措辞把范围写窄，读者会以为 macOS 已验证 | 中 | 待修 | 工具说明 |
+| ISS-33 | "Windows Microsoft Excel 尚待实机验收"措辞把范围写窄，读者会以为 macOS 已验证 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-34 | 枚举成员与参数说明不齐（如 `preset` 含 `academic` 却未解释） | 中 | 待修 | 工具说明 |
 | ISS-35 | 17 个写工具**零必填参数**（连目标都不是必填） | 中 | 待修 | 工具契约 |
-| ISS-36 | 说明营销化，6549 字符里约 13% 是样板套话，挤占有效信息 | 低中 | 待修 | 工具说明 |
+| ISS-36 | 说明营销化，6549 字符里约 13% 是样板套话，挤占有效信息 | 低中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-37 | 错误提示不给允许值清单，参数集不一致时尤其费轮次 | 低 | 待修 | 工具契约 |
 | ISS-38 | `set_filter_and_sort` **假成功**：返回 `success` + `sortedRuleCount:1`，数据根本没排序 | **高** | **已修已验证** | 宿主实现 + 说明 |
 | ISS-39 |  `auto_fit_columns` 不传 `columnRules` 时静默 no-op；`address` 参数被完全忽略 | 中高 | **已修已验证** | 宿主实现 + 说明 |
@@ -79,7 +79,7 @@
 | ISS-49 | 两个不同的 MCP 客户端在审计里都记成 `MCP Agent`，**无法区分归属** | 中高 | 待修 | 审计归属 |
 | ISS-50 | 后台未运行时错误不可操作（`fetch failed` / 原始 urlopen 错误，不给服务名/端口/恢复方式） | 中 | 待修 | 错误文案 |
 | ISS-51 | HTTP `/mcp` 会话硬上限 64 且**无空闲过期**，累积后 429，需手动 DELETE 释放 | 中 | 待修 | 会话生命周期 |
-| ISS-52 | `SKILL.md` 称脚本里 `doc`"已自动绑定"，实测 Excel 场景 `doc` 为 `null`，须用 `wb` | 中 | 待修 | skill 说明 |
+| ISS-52 | `SKILL.md` 称脚本里 `doc`"已自动绑定"，实测 Excel 场景 `doc` 为 `null`，须用 `wb` | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-53 | `generate_deck` 标题页背景**超框 33%**（1280×720 / 960×540），根因待干净实验 | 中高 | **现象确认，根因待定** | 宿主实现 |
 | ISS-54 |  `generate_deck` 的 `content` 布局缺 `bulletPoints` 时**静默只出标题**，无警告 | 中高 | **已修已验证** | 宿主实现 |
 | ISS-55 | `generate_deck` 坐标基准与说明不符，调用方被迫自己再换算一次 | 中 | 待修 | 宿主实现 + 说明 |
@@ -101,7 +101,7 @@
 | ISS-71 | `wps_word_capture_preview` **已实现但未注册**（调用报"未知工具"），Word 视觉验收有缺口 | 中 | 待修 | 死分支（DP3 实例） |
 | ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-73 | Word 侧无样式/书签/内容控件/交叉引用/分节/行列尺寸/文档属性工具，全需脚本 | 中 | 待修 | 工具能力缺口 |
-| ISS-74 | `native-scripting.md` 只有 Excel/PPT 示例，Word 表格/分节/样式零示例 | 中 | 待修 | skill 说明 |
+| ISS-74 | `native-scripting.md` 只有 Excel/PPT 示例，Word 表格/分节/样式零示例 | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-75 | `generate_deck` **原生图表数据写不进去**：`ser.Values=` 不生效也不抛错，图表显示宿主默认值，却返回 success | **高** | 待修 | 宿主实现 |
 | ISS-76 | `wps_ppt_capture_slide_preview` 恒 422"PPT 未生成预览"，但同一 API 用脚本可成功 → **真实错误被兜底文案替换** | 中高 | 待修 | 宿主实现 |
 | ISS-77 | **目标锁语义不一致**：宿主 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测 | **高** | 待修 | 架构不一致（解释 ISS-02） |
