@@ -115,7 +115,20 @@ export function getOrGenerateCerts() {
 
   // 2. 备用尝试调用 openssl
   try {
-    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`, { stdio: 'ignore' });
+    // ⚠️ 必须生成**叶证书**而不是 CA：
+      // 旧版用的是默认的 `CA:TRUE` 且不带 keyUsage —— 等于签发了一张**能签任意域名**的根证书，
+      // 而它还会被装进系统受信任根存储（见 addon-installer）。同一个私钥随包分发给所有用户，
+      // 任何拿到包的人都能签发"被所有用户机器信任"的任意站点证书。
+      // 这里显式声明 CA:FALSE + keyUsage + EKU，把它限制成"只能表示 localhost 的服务器证书"。
+      execSync(
+        `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes ` +
+        `-subj "/CN=localhost" ` +
+        `-addext "subjectAltName=DNS:localhost,IP:127.0.0.1" ` +
+        `-addext "basicConstraints=critical,CA:FALSE" ` +
+        `-addext "keyUsage=critical,digitalSignature,keyEncipherment" ` +
+        `-addext "extendedKeyUsage=serverAuth"`,
+        { stdio: 'ignore' },
+      );
     if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
       return {
         key: fs.readFileSync(keyPath, 'utf8'),
