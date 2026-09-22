@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 8f0410799ba089bec8ebacfa742439aece8acf27eb6e0d236a3cd962ed61c1d0
+// ADDON_BUILD_FINGERPRINT: 0650daee1519e62b59f617a89fcc8576655f33001963f5b3342bae004b5cea53
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "8f0410799ba089bec8ebacfa742439aece8acf27eb6e0d236a3cd962ed61c1d0";
+  var ADDON_BUILD_FINGERPRINT = "0650daee1519e62b59f617a89fcc8576655f33001963f5b3342bae004b5cea53";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -1214,6 +1214,30 @@
 
         case "inspect_api": {
           const targetExpr = params?.expression || params?.path || "app";
+          // ISS-89 护栏：反射**默认只列成员名，不对成员求值**。
+          // 真机取证：逐成员 `obj[name]` 求值会撞进宿主原生层，实测令 WPS 进程崩溃
+          //（3 份崩溃报告，2 份调用栈逐帧一致：kso → etcore → etapi → jsetapi → ksojscore；
+          // 崩溃点定位在整表 `Worksheet.Cells` 那一类表达式）。列名字用
+          // Object.getOwnPropertyNames 是安全的，求值才是危险动作。
+          const evaluateMembers = params?.evaluate === true;
+          const maxMembers = Number.isFinite(Number(params?.maxMembers)) ? Number(params.maxMembers) : 150;
+
+          /**
+           * 已证实/高度可疑的危险成员：即使用户显式要求求值也跳过。
+           * - 一组：**已有崩溃取证**——整表/整列/整行范围与整表集合，
+           *   求值会构造覆盖整表的原生对象，实测崩溃。
+           * - 另一组：**未经证实但保守跳过**——会触达宿主内部集合的原生 getter，
+           *   历来是最容易出问题的一类；如需探测请单独用 wps_execute_script 并自行承担风险。
+           */
+          const DANGEROUS_CONFIRMED = new Set(['Cells', 'Rows', 'Columns', 'UsedRange', 'EntireRow', 'EntireColumn']);
+          const DANGEROUS_SUSPECT = new Set([
+            'CurrentRegion', 'Precedents', 'Dependents', 'SpecialCells',
+            'Comment', 'CommentThreaded', 'Comments', 'CommentsThreaded',
+            'Sort', 'SortFields', 'AutoFilter', 'Filters',
+            'FormatConditions', 'Validation', 'Names', 'QueryTables', 'Connections',
+            'ChartObjects', 'PivotCaches', 'PivotTables', 'ListObjects', 'Styles', 'CommandBars'
+          ]);
+
           let targetDoc = null;
           let targetWb = null;
           let targetPres = null;
@@ -1245,7 +1269,9 @@
 
           const propList = [];
           const methodList = [];
+          const skipped = [];
           const memberMap = new Set();
+          let evaluatedCount = 0;
 
           // 遍历对象属性与原型链
           let curr = obj;
@@ -1256,6 +1282,27 @@
               for (const name of names) {
                 if (memberMap.has(name) || name.startsWith("__")) continue;
                 memberMap.add(name);
+
+                // 不求值：连 typeof 都不取（取 typeof 同样会触发一次属性访问）
+                if (!evaluateMembers) {
+                  methodList.push(name);
+                  continue;
+                }
+
+                if (DANGEROUS_CONFIRMED.has(name)) {
+                  skipped.push({ name, reason: "已证实：求值会构造整表范围对象并令 WPS 进程崩溃（ISS-89）" });
+                  continue;
+                }
+                if (DANGEROUS_SUSPECT.has(name)) {
+                  skipped.push({ name, reason: "保守跳过：会触达宿主内部集合的原生 getter；如确需探测请用 wps_execute_script 自行承担风险" });
+                  continue;
+                }
+                if (evaluatedCount >= maxMembers) {
+                  skipped.push({ name, reason: `已达 maxMembers(${maxMembers}) 上限，未求值` });
+                  continue;
+                }
+                evaluatedCount++;
+
                 try {
                   const val = obj[name];
                   const type = typeof val;
@@ -1282,11 +1329,16 @@
             expression: targetExpr,
             typeName: typeof obj,
             constructorName: obj.constructor ? obj.constructor.name : "Object",
+            evaluatedMembers: evaluateMembers,
             propertyCount: propList.length,
             methodCount: methodList.length,
             properties: propList.slice(0, 100),
             methods: methodList.sort(),
-            message: `成功完成对 [${targetExpr}] 的运行时 API 反射探测`
+            skippedCount: skipped.length,
+            skipped: skipped.slice(0, 40),
+            message: evaluateMembers
+              ? `成功完成对 [${targetExpr}] 的运行时反射（已求值 ${evaluatedCount} 个成员，跳过 ${skipped.length} 个危险/超限成员）`
+              : `已列出 [${targetExpr}] 的成员名（**未求值**）。默认不求值是为了避免触及宿主原生 getter 导致 WPS 崩溃（ISS-89）；需要类型/取值时传 evaluate:true，并接受危险成员会被跳过。`
           };
           break;
         }
