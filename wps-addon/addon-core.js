@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 6f0b5c7ce628365b889ff4fd503b94f298fd214b189cea45b491b20dd08f7589
+// ADDON_BUILD_FINGERPRINT: f048b016101dc304d9dba8327f01558cd88b7c013df9f9dc5e941b0d67927f63
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "6f0b5c7ce628365b889ff4fd503b94f298fd214b189cea45b491b20dd08f7589";
+  var ADDON_BUILD_FINGERPRINT = "f048b016101dc304d9dba8327f01558cd88b7c013df9f9dc5e941b0d67927f63";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -1945,8 +1945,10 @@
     if (rowHeight) {
       // 本机 WPS 上给跨多行的 `range.RowHeight` 赋值会被静默忽略（问题台账 ISS-22）。
       // 改为逐行写 Rows.Item(n).RowHeight，并读回校验。
-      const firstRow = targetRange.Row;
-      const rowTotal = targetRange.Rows.Count;
+      // 注意：本函数的区域变量名是 `range`（不是 targetRange）——写成 targetRange 会抛
+      // ReferenceError，而 npm test 未覆盖该路径，只会在真机调用时暴露。
+      const firstRow = range.Row;
+      const rowTotal = range.Rows.Count;
       for (let i = 0; i < rowTotal; i++) {
         sheet.Rows.Item(firstRow + i).RowHeight = Number(rowHeight);
       }
@@ -6573,7 +6575,15 @@
     if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) return;
     try {
       const host = detectHostComponent();
-      sendPacket({ type: "register", client: host === "word" ? "wps-word-addon" : host === "ppt" ? "wps-ppt-addon" : "wps-et-addon", version: "2.1.0", summary: getWorkspaceSummary(getApp()) });
+      // 心跳 register 与 connection.js 的首次 register 是**两处**发报文的地方，
+      // 字段必须一致：漏了 buildFingerprint 会让桥接永远判不出"进程里跑的是哪一版"（ISS-59）。
+      sendPacket({
+        type: "register",
+        client: host === "word" ? "wps-word-addon" : host === "ppt" ? "wps-ppt-addon" : "wps-et-addon",
+        version: "2.1.0",
+        buildFingerprint: typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT : null,
+        summary: getWorkspaceSummary(getApp())
+      });
     } catch (error) { log("工作区状态更新失败: " + error.message); }
   }, 5000);
 
