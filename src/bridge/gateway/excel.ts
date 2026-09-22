@@ -948,3 +948,28 @@ export const managePictures: Handler = async (ctx) => {
     action: args?.action, filePath: args?.filePath, pictureName: args?.pictureName, pictureIndex: args?.pictureIndex,
     left: args?.left, top: args?.top, width: args?.width, height: args?.height });
 };
+
+/** CAP-22 图表导图。宿主只负责调用 Export；**落盘与否由桥接侧用文件系统核对**——
+ *  写到 WPS 沙箱不可达的路径时宿主不报错但文件不存在，这里如实回填 fileWritten。 */
+export const exportChartImage: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  const result: any = await callOffice("export_chart_image", {
+    sheetName: args?.sheetName, workbookName: args?.workbookName,
+    chartName: args?.chartName, chartIndex: args?.chartIndex,
+    outputPath: args?.outputPath, format: args?.format
+  });
+  const p = typeof result?.outputPath === "string" ? result.outputPath : null;
+  if (p) {
+    try {
+      const st = await import("node:fs").then(fs => fs.statSync(p));
+      result.fileWritten = true;
+      result.fileSizeBytes = st.size;
+      result.message = `已导出图表 ${result.chartName ?? ""} → ${p}（${result.fileSizeBytes} 字节）`;
+    } catch (e) {
+      result.fileWritten = false;
+      result.warnings = [...(result.warnings ?? []), `宿主已执行导出，但文件不存在：${p}。请确认 outputPath 落在 WPS 可写目录内。`];
+      result.message = `图表导出未落盘：${p}`;
+    }
+  }
+  return result;
+};

@@ -83,6 +83,7 @@ const HANDLERS: Record<string, Handler> = {
   "wps_list_shapes": excel.listShapes,
   "wps_update_shape": excel.updateShape,
   "wps_clear_range": excel.clearRange,
+  "wps_export_chart_image": excel.exportChartImage,
   "wps_auto_fit_columns": excel.autoFitColumns,
   "wps_read_range": excel.readRange,
   "wps_get_range_styles": excel.getRangeStyles,

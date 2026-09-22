@@ -1307,6 +1307,26 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_export_chart_image",
+        description: "把**图表导出为图片文件**（PNG/JPG/GIF/BMP）。⚠️ outputPath 必须落在 **WPS 可写目录**内（容器 tmp、用户文稿目录等）；写到 /tmp 之类不可达位置会「调用成功但不落盘」——桥接侧会用文件系统核对，返回值里的 fileWritten / fileSizeBytes 才是真实结果。工作表上有多个图表时须用 chartName 或 chartIndex 指定。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            chartName: { type: "string", description: "图表名（多个图表时必须指定其一）" },
+            chartIndex: { type: "number", description: "或按图表序号，从 1 开始" },
+            outputPath: { type: "string", description: "导出文件的绝对路径，须在 WPS 可写目录内" },
+            format: { type: "string", enum: ["PNG", "JPG", "JPEG", "GIF", "BMP"], description: "图片格式，默认 PNG" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: ["outputPath"],
+          additionalProperties: false
+        }
+      }
     }
   ];
 }
