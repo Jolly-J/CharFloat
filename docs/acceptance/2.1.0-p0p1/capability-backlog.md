@@ -33,8 +33,8 @@
 | **CAP-06** | **条件格式图标集与完整规则族**：红黄绿灯、Top10、重复值、文本包含、公式规则、规则列表与更新 | 两边都支持（WPS `AddIconSetCondition`/`Top10`；Office.js 1.17） | 文档可证 | 两侧 | 报表缺"红黄绿灯"这类最常见的业务信号 | ✅ 已完成（真机验证：图标集/Top-N/重复值/公式/文字包含 全部通过） |
 | **CAP-07** | **WPS 表格侧矢量绘图与 SmartArt**：`AddShape`/`AddTextEffect`/`AddSmartArt`/`BuildFreeform`/`ThreeD`/`Shadow`/格式刷 | WPS 宿主对象模型 | 文档可证 | WPS 侧 | WPS 明明能画，我们只会 `add_chart` | ✅ 已完成（真机 11/11：几何/直线/文本框/**艺术字**/**分组解组**/层级/改删/读回全部通过；WPS 比 MS Excel 更能画） |
 | **CAP-08** | **MS 侧矢量绘图**：几何形状、连接符、SVG、文本框、分组、层级、旋转缩放、形状导图 | Office.js ExcelApi 1.9 `Shape` 全套 | 文档可证 | Office.js 侧 | MS 用户完全用不上那套 134 元素信息图 | ✅ 部分完成（真机：矩形/文本框/层级/导图/缩放/删除读回可用；**直线报宿主限制、SVG 与 getActiveShape 本机无 API、组合经工具未打通**） |
-| **CAP-09** | **PPT 页面尺寸与母版/版式控制、批量导出** | MS `SlideMaster`/`SlideLayout`（**无页面尺寸、无导出**）；WPS 有 `PageSetup` | 文档可证 | 两侧 | 没法把 4:3 改 16:9、没法套公司母版、没法批量导图 | 待排期 |
-| **CAP-10** | **数据验证读回与违规定位** | MS `getInvalidCells`；WPS 读 `Validation` 属性 | 文档可证 / 推测 | 两侧 | AI 写完下拉/范围校验，**无法自检哪些值越界** | 待排期 |
+| **CAP-09** | **PPT 页面尺寸与母版/版式控制、批量导出** | MS `SlideMaster`/`SlideLayout`（**无页面尺寸、无导出**）；WPS 有 `PageSetup` | 文档可证 | 两侧 | 没法把 4:3 改 16:9、没法套公司母版、没法批量导图 | ✅ 已完成已验证（真机：11 个版式可列；preset 4:3→720x540、16:9→960x540；方向切换；非法 preset 被拒） |
+| **CAP-10** | **数据验证读回与违规定位** | MS `getInvalidCells`；WPS 读 `Validation` 属性 | 文档可证 / 推测 | 两侧 | AI 写完下拉/范围校验，**无法自检哪些值越界** | ✅ 已完成（WPS 侧： 列出违规单元格与期望；**Microsoft 侧未实现**，描述已写明宿主差异） |
 | **CAP-11** | **事件驱动的"变更感知"**：用户刚改了哪个单元格、保存前拦一手 | WPS 45+ Application 事件 + `wps.ApiEvent`；Office.js 仅 3 个事件 | 文档可证 | WPS 侧 | AI 只能盲写，无法基于用户刚做的修改做增量协作 | 待排期 |
 | **CAP-12** | **Excel 线程化批注完整语义**：回复、@提及、标记已解决 | Office.js `Comment` | 文档可证 | Office.js 侧 | AI 只能"贴一条"，不能参与讨论 | 待排期 |
 | **CAP-13** | **数据透视表字段编排与刷新** | Office.js `PivotTable` 可加行/列/数据字段；WPS `PivotFields` | 文档可证 | 两侧 | MS 侧"建透视表"目前只能建空壳 | 待排期 |
@@ -48,7 +48,7 @@
 | **CAP-21** | **图表更新（`update_chart`）** | WPS 加载项缺该 RPC 分支（已知缺口） | 源码可证 | WPS 侧 | 唯一被声明的宿主缺口 | ✅ 已完成已验证（真机：改标题后读回；宿主 API 一直可用，缺的是 WPS 侧 RPC 分支，已补） |
 | **CAP-22** | **图表图片导出（`export_chart_image`）** | Office.js `chart.getImage()`；WPS 只有整表截图 | 源码可证 | WPS 侧补齐 | 单图导出 | ✅ 已完成已验证（真机：导出 PNG **确实落盘 8040 字节**；`fileWritten=true`。反例已验：写到不可达路径时 `fileWritten=false` 并给出 warnings，**不假报成功**） |
 | **CAP-23** | **工作表保护 / 标签色** | MS 侧有 `protect`/`tabColor`；WPS **未实现且 schema 不含** | 源码可证 | 两侧 | 双向不通 | ✅ 已完成已验证（写入 tab_color/protect 走 wps_manage_sheet，读回走 CAP-34 的 read；真机验过 保护=true 标签色=#0F9D58） |
-| **CAP-24** | **Word 关键词加粗（按 `searchQueries`）** | **宿主已实现**，schema 未暴露 | 源码可证 | 只差工具定义 | 零成本 | ⬜ 待排期（Word 按 searchQueries 加粗，走 Range.Find + Font.Bold） |
+| **CAP-24** | **Word 关键词加粗（按 `searchQueries`）** | **宿主已实现**，schema 未暴露 | 源码可证 | 只差工具定义 | 零成本 | ✅ 已完成（宿主早实现，只缺 schema；补 searchQuery/searchQueries，并修掉查找死循环、零命中谎报、范围异常误加粗三个真缺陷） |
 
 ## B 类：可验证性补强（能写不能读 → AI 无法自检）
 
@@ -69,15 +69,15 @@
 | 编号 | 工具 | 说明 | 状态 |
 |---|---|---|---|
 | **CAP-40** | `clear_range` | 清空区域。现在只能写 `null` 矩阵，极易残留 | ✅ 已完成已验证（复核：**该能力早已实现**——`clearRange` 宿主函数、RPC 分支、`wps_clear_range` 工具均在；真机调用返回 `clearedAddress`。此条台账此前未标注，属记录滞后） |
-| **CAP-41** | `get_style_token` | 读原表设计语言（主题/样式令牌） | 本轮在做（ISS-45） |
-| **CAP-42** | `word_capture_preview` | Word 页面预览。**实现后 Word 才有视觉验收通路** | 本轮在做（ISS-71/95） |
+| **CAP-41** | `get_style_token` | 读原表设计语言（主题/样式令牌） | ✅ 已完成（重写为探测式：主题色板/字体层级/表格样式/条件格式风格；**删除了旧实现编造的默认值**） |
+| **CAP-42** | `word_capture_preview` | Word 页面预览。**实现后 Word 才有视觉验收通路** | ✅ 已完成（复核确认 HEAD 已注册齐全：schema + 工具清单 + 网关分支 + 分类 + dispatch + 产物） |
 
 ## D 类：契约与一致性补强（跨宿主）
 
 | 编号 | 内容 | 依据 | 状态 |
 |---|---|---|---|
-| **CAP-50** | 修 **M1–M8 跨宿主字段错位**：`set_data_validation`（先清校验再什么都不设）、`find_and_replace`（空串搜索→全局替换）、`manage_sheet` 4 个 action 静默 no-op、`get_charts` 忽略选择器、`add_chart` 忽略 5 参数、`manage_rows_and_columns` 想插列却插行 | 源码可证 | 本轮在做（ISS-93） |
-| **CAP-51** | COM 回退白名单按**实际覆盖**生成（现在把整张 30 项路由表当白名单，COM 实际只覆盖 28/30） | 源码可证 | 本轮在做（ISS-97） |
+| **CAP-50** | 修 **M1–M8 跨宿主字段错位**：`set_data_validation`（先清校验再什么都不设）、`find_and_replace`（空串搜索→全局替换）、`manage_sheet` 4 个 action 静默 no-op、`get_charts` 忽略选择器、`add_chart` 忽略 5 参数、`manage_rows_and_columns` 想插列却插行 | 源码可证 | ✅ 已完成（修 5 处：数据有效性 read 在 MS 变写、缺 listItems 先删后错、**空串护栏被跨通道回退绕过**、borders 颜色被覆盖；M3–M8 核对为已修） |
+| **CAP-51** | COM 回退白名单按**实际覆盖**生成（现在把整张 30 项路由表当白名单，COM 实际只覆盖 28/30） | 源码可证 | ✅ 已完成（COM 白名单由  实际分支派生：48→**28**，缺口 22 项派生得出，不再手写） |
 | **CAP-52** | MS 侧**矢量绘图域**整体补齐（与 CAP-08 同源） | 文档可证 | 待排期 |
 
 ---

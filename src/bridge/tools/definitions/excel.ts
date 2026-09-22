@@ -105,7 +105,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_range_styles",
-        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。可通过 include 追加 **validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。可通过 include 追加：**validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效；**validationViolations**（数据有效性**违规定位**）——逐格比对规则并列出**取值越界的单元格**（地址+值+命中的规则+期望），同时给出规则清单与无法判定的单元格；区域大时只扫描前 maxCells 个（默认 300，上限 2000），截断时返回 truncated=true 并在 warnings 说明。判定不了的一律进 unevaluated，**不会当作通过**。**宿主差异**：validation / validationViolations 仅在 WPS 表格侧实现（host=microsoft 会忽略 include，只返回基础样式，不要据此判断校验是否生效）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -115,10 +115,10 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             mode: { type: "string", enum: ["summary", "cells"], description: "返回模式，默认 summary" },
             include: {
               type: "array",
-              items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation"] },
-              description: "只返回指定样式字段；不传时返回常用字段"
+              items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation", "validationViolations"] },
+              description: "只返回指定样式字段；不传时返回常用字段。validation=只读回规则；validationViolations=规则+违规定位（两者可同时给）"
             },
-            maxCells: { type: "number", description: "cells 模式最多展开的单元格数，默认 100，最大 500" }
+            maxCells: { type: "number", description: "cells 模式最多展开的单元格数，默认 100，最大 500；include 含 validationViolations 时同时作为违规扫描上限（默认 300，上限 2000）" }
           },
           required: ["address"],
           additionalProperties: false
@@ -662,7 +662,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_set_data_validation",
-        description: "为指定区域设置数据有效性（下拉列表或数值区间），可配选中提示与非法输入报错。写入后需用 wps_execute_script 探测 Validation 读回（本工具族暂无数据有效性读回工具）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "为指定区域设置数据有效性（下拉列表或数值区间），可配选中提示与非法输入报错。**先校验参数、后动手**：参数不合法（list 缺 listItems、number_range 缺 minVal/maxVal、operator 或 validationType 非法）会在**任何修改发生前**报错，原有校验保持不变；宿主写入失败时尽力写回原规则并如实报告是否恢复。写入成功后**读回核对**（类型/运算符/上下限/候选项/下拉开关），不一致则 success=false 并在 warnings 给出请求值与宿主读回值。读回规则用 wps_get_range_styles 的 include:['validation']；要找**存量数据里哪些单元格越界**用 include:['validationViolations']。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -914,7 +914,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_get_style_token",
-        description: "读取原表的**设计语言**（取样单元格的字体、字号、字色、底色、边框与数字格式），用于让新写的内容与既有表格风格一致。做看板/报表前先调它，不要自己臆造配色。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "读取原表的**设计语言**，用于让新写的内容与既有表格风格一致（做看板/报表前先调它，不要自己臆造配色）。返回：① 取样格真实样式 `sampledCell`（字体/字号/粗斜体/字色/底色/数字格式/对齐/行高列宽/下框线）② `fonts` 字体层级 title/header/body/caption（**启发式**，判据见 `fonts.heuristic`，每级附代表单元格与出现次数）③ `palette` 配色（主题色 `themeColors`、工作簿 56 色调色板 `workbookPalette`、以及从实际用色统计出的 `observed` 排行）④ `tableStyles` 结构化表格样式名 ⑤ `conditionalFormatStyles` 条件格式风格 ⑥ `census` 样式普查分组明细 ⑦ `probes`/`unavailable`/`warnings` 探测记录。**读不到的字段一律 null 或进 unavailable，不会编默认值**（旧实现曾把读不到的字体/底色编成「微软雅黑 / #1E3A8A」）；字体层级是启发式推断，不是宿主读数。参数：`sampleAddress`（取样格，默认 'A3'）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host；Microsoft 侧尚未实现）。",
         parameters: {
           type: "object",
           properties: {

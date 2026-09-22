@@ -38,6 +38,33 @@ function msUnsupported(feature: string, alternative: string): Error {
   );
 }
 
+/**
+ * 参数安全护栏错误（CAP-50）。
+ *
+ * 与 {@link msUnsupported} 的区别只有一条：**能不能换通道重放**。
+ * 能力缺口可以交给 Windows 原生 COM（那边有独立实现：多级排序、只开筛选按钮、透视表字段编排…），
+ * 参数安全护栏不行——原生脚本没有等价校验，把请求转手过去等于绕过护栏：
+ * `excel.ps1` 的 find_and_replace 对空查询走 `IndexOf('')`（恒真）并按空正则逐格替换，
+ * 会把整片内容改坏。所以这里用独立类型标记，`errors.routeOfficeFailure` 见到就拒绝回退。
+ */
+export class UnsafeParamError extends Error {
+  readonly unsafe = true;
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsafeParamError';
+  }
+}
+
+/** 是否为参数安全护栏拒绝（跨模块判定，不依赖 instanceof 的单一实例）。 */
+export function isUnsafeParamError(value: unknown): boolean {
+  if (value instanceof UnsafeParamError) return true;
+  return (value as { unsafe?: unknown } | null | undefined)?.unsafe === true;
+}
+
+function unsafeParam(feature: string, alternative: string): Error {
+  return new UnsafeParamError(`已阻断不安全的参数组合（${feature}）：${alternative}`);
+}
+
 /** 从 schema 参数里挑出 Microsoft 通道无法实现、但不阻断主效果的字段，用于在响应里如实暴露。 */
 function reportUnsupportedFields(method: string, params: ToolArgs = {}): string[] {
   const p: any = params || {};
@@ -108,6 +135,14 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
         normalizedBorders = null;
       }
 
+      // CAP-50 同类（非破坏性）：schema 的 `borders` 既接受 true 也接受 '#RRGGBB'，WPS 宿主按该色上边框；
+      // 而 Office.js 侧读的是 `params.borderColor`（缺失时用固定 #D9D9D9）→ 只传 borders:'#EF4444'
+      // 时**颜色被静默忽略**（调用方以为按自己的品牌色画了框）。这里把同一色值补到 borderColor，
+      // 两个宿主的观感一致；`borders:false/'none'` 仍是文档化的 no-op（schema 已写明不会去边框）。
+      const borderColor = typeof normalizedBorders === 'string' && /^#[0-9a-fA-F]{6}$/.test(normalizedBorders)
+        ? normalizedBorders
+        : undefined;
+
       return {
         method: 'format_cells',
         params: {
@@ -127,6 +162,7 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
           columnWidth: p.columnWidth,
           wrapText: p.wrapText,
           borders: normalizedBorders,
+          borderColor,
           merge: p.merge,
           unmerge: p.unmerge,
           font: {
@@ -239,16 +275,31 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
     case 'wps_search_cells':
     case 'excel_search_cells':
     case 'search_cells':
-    case 'find_replace':
+    case 'find_replace': {
+      // ISS-93（M2 同源）：空搜索串会让每个非空单元格都"命中"（`includes('')` 恒为 true）。
+      // MS 侧 Office.js 自己也会拒绝，但那是**宿主已收到请求之后**的拒绝 → 失败种类是"结果不可判定"，
+      // Windows 上会因此回退原生 COM；而 excel.ps1 的 search_cells 用 `IndexOf('')` 把整片区域
+      // 都算命中（结果造假，调用方拿着"满表命中"去做后续判断）。
+      // 因此这里在**调用宿主之前**拒绝，并标记为不可换通道重放（errors.ts 的 unsafe 分支）。
+      const suppliedKeywords = ['text', 'query', 'keyword', 'findText', 'searchQuery']
+        .filter(key => p[key] !== undefined);
+      const text = p.text || p.query || p.keyword || p.findText || p.searchQuery;
+      if (suppliedKeywords.length && (text === undefined || text === null || String(text) === '')) {
+        throw unsafeParam(
+          `空搜索串检索（${suppliedKeywords.join('/')} 显式传了空值）`,
+          '空串会命中整个区域、结果不可信；请显式提供要查找的关键词。'
+        );
+      }
       return {
         method: 'find_replace',
         params: {
           ...p,
-          text: p.text || p.query || p.keyword || p.findText || '',
+          text: text ?? '',
           matchCase: !!p.matchCase,
           matchEntireCell: !!p.matchEntireCell
         }
       };
+    }
 
     case 'wps_save_workbook':
     case 'excel_save_workbook':
@@ -289,12 +340,27 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
 
     case 'wps_set_data_validation':
     case 'excel_set_data_validation':
-    case 'set_data_validation':
+    case 'set_data_validation': {
       // ISS-93（M1）：早期加载项只认 params.rule → 先 clear() 再什么都不设（静默清空既有校验）。
       // Office.js 侧现在直接用 schema 字段（validationType / listItems / operator / minVal / maxVal /
       // prompt* / error*）构造规则，并在构造失败时**在 clear() 之前**报错；桥接侧不再自建 rule，
       // 避免两处各维护一份映射（遵循"不重复维护能力集合"）。
+      //
+      // CAP-50 补的一条：`action:"read"` 只有 WPS 宿主实现（wps-addon/src/excel.js 的读回分支）。
+      // Office.js 的 handleSetDataValidation 与 excel.ps1 的 set_data_validation **都没有 action 分支**：
+      //   · Office.js：照 validationType 构造规则并 `clear()` 后写入 → 名义上的"读"变成**写**；
+      //   · 原生 COM：`Validation.Delete()` 之后 `Add(2,1,operator,$null,$null)` → 清掉既有校验再写一条空规则。
+      // 两者都不该由一次"只读"请求触发，所以在调用宿主前拒绝，并标记为**禁止换通道重放**
+      // （否则 Windows 上这次拒绝会被转手给 COM，正好触发上面那条破坏路径）。
+      if (String(p.action || '') === 'read') {
+        throw unsafeParam(
+          'Microsoft 通道的 set_data_validation(action="read")',
+          '该通道没有"读回数据有效性"的实现（Office.js 与原生 COM 脚本都没有 action 分支），继续下发会把一次"读"变成"写"（COM 会先清掉既有校验）。' +
+          '替代路径：① 改用 host=wps 的 wps_set_data_validation(action="read")（WPS 侧已实现读回）；② 用 wps_execute_script 读 Range.Validation。'
+        );
+      }
       return { method: 'set_data_validation', params: p };
+    }
 
     case 'wps_set_filter_and_sort':
     case 'excel_set_filter_and_sort':
@@ -400,7 +466,13 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
       const supplied = ['searchQuery', 'text', 'query', 'findText'].filter(k => (p as any)[k] !== undefined);
       const text = p.searchQuery ?? p.text ?? p.query ?? p.findText;
       if (supplied.length && (text === undefined || text === null || String(text) === '')) {
-        throw msUnsupported('空搜索串的查找替换', '空串会命中整个区域并可能破坏内容，已阻断；请显式提供 searchQuery。');
+        // ISS-98：空串会命中整个区域并可能破坏内容 → 执行前阻断，且**禁止**换通道重放
+        // （原生 COM 的 find_and_replace 对空查询 `IndexOf('')` 恒真，还会按空正则替换——
+        // 把"已判定为破坏性"的请求转手执行一遍，比不阻断更糟）。
+        throw unsafeParam(
+          `空搜索串的查找替换（${supplied.join('/')} 显式传了空值）`,
+          '空串会命中整个区域并可能破坏内容，已阻断；请显式提供 searchQuery。'
+        );
       }
       return {
         method: 'find_and_replace',

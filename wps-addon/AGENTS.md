@@ -27,6 +27,10 @@
 
 PPT 在大页面集中左上角 → 固定 720×405 坐标直接用于所有页面 → 布局未换算真实尺寸 → 按实际宽高映射并检查字号容量 → [ppt-layout.test.ts](../tests/ppt-layout.test.ts) 加真实预览。公式结果为 0 → 用真假判断空值会丢数据 → 区分 null/undefined 与 0 → [addon.test.ts](../tests/addon.test.ts)。
 
+写脚本读回 Word/表格文本、想清掉段落标记与单元格标记 → 用 `.replace(/[\r\n\a]/g, "")`——**JS 正则里 `\a` 是恒等转义、等于字母 `a`**（`\a` = BEL `0x07` 是 C/PCRE/.NET 的语义）→ 于是探针**先把读回文本里所有小写 `a` 删掉再比对**，得出"宿主吞掉了所有小写字母 `a`"的假报警：ISS-67 据此被记成"高严重度静默改坏内容"，实际宿主写入一直正确（原始输出 `strippedMatch:[148]`／共 149 段，恰好证明内容写到了文末），差点去改正常的写入路径 → 控制符一律写 `\x07`（本文件已有的读回代码就是这么写的），**看到"宿主行为诡异"先逐行回读探针自己的清洗/比较/断言逻辑** → 证据：[03-word.md §10 撤稿记录](../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md)、[issues.md 撤稿记录](../docs/acceptance/2.1.0-p0p1/issues.md)；同类"测试工具出错却指向产品"本轮已 4 次。
+
+`watermarkText` 与 `AddTextEffect` → 以为只是"水印落在正文层、只在第 1 页"这种效果问题 → 真机实测该调用会让 **WPS 主进程 SIGSEGV 崩溃**（崩溃报告已核实：`wpsapi` 栈帧连续重复 6 帧＝无限递归；Word/PPT/Excel 同时掉线，可能带走用户未保存数据）→ **该参数已在源码层硬禁用**：`wordPageLayoutAndWatermark` 在任何宿主写操作之前拒绝、已删除 `AddTextEffect` 实现、`action:"read"` 读回通路保留；解除禁用前必须换宿主版本并在**独立测试文档**上单独验证不再崩 → 证据：[issues.md ISS-125](../docs/acceptance/2.1.0-p0p1/issues.md)、[agent-tests/word-fixes.md §2](../docs/acceptance/2.1.0-p0p1/agent-tests/word-fixes.md)。
+
 ## 同步维护
 
 文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。

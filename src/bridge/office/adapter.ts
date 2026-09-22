@@ -3,7 +3,7 @@ import { currentHost } from '../context.js';
 import { MsOfficeDriver } from './ms-office-driver.js';
 import { COM_EXCEL_METHODS } from '../contracts/host-methods.js';
 import { previewPath } from '../runtime.js';
-import { normalizeOfficeRequest, normalizeOfficeResponse } from './normalizer.js';
+import { normalizeOfficeRequest, normalizeOfficeResponse, isUnsafeParamError } from './normalizer.js';
 import { BridgeError, routeOfficeFailure, toBridgeError } from '../errors.js';
 import type { ChannelParams, ToolResult } from '../contracts/boundary.js';
 
@@ -39,11 +39,16 @@ export async function callOffice<T = ToolResult>(method: string, params: Channel
     if (host === 'wps') return bridgeServer.callWps<T>(method, params, timeout);
 
     // 1. 客户端参数转换：发生在任何宿主调用之前，可确认宿主未执行 → 明确拒绝。
+    //    其中"参数安全护栏"（空搜索串等，CAP-50）标记 unsafe：这类拒绝不得换通道重放，
+    //    原生脚本没有等价校验，转手过去等于绕过护栏。能力缺口仍可让 COM 接管（见 errors.ts）。
     let normalized: { method: string; params: ChannelParams };
     try {
       normalized = normalizeOfficeRequest(method, params);
     } catch (error: any) {
-      return fallbackToNative<T>(method, params, toBridgeError(error, { kind: 'rejected', channel: 'microsoft-officejs', method, executed: 'no' }));
+      return fallbackToNative<T>(method, params, toBridgeError(error, {
+        kind: 'rejected', channel: 'microsoft-officejs', method, executed: 'no',
+        unsafe: isUnsafeParamError(error)
+      }));
     }
 
     // 2. 宿主调用：失败种类由 ws-server 在通道边界分类（unavailable / failed / unknown）。

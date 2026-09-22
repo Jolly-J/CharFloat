@@ -293,3 +293,42 @@ test('审计归属：会话隔离，记录归属各自客户端', async () => {
     (bridgeServer as any).callWps = original;
   }
 });
+
+test('CAP-50：破坏性前置条件在调用宿主前拦截（M1 数据有效性 / M2 空搜索串）', async () => {
+  const original = bridgeServer.callWps;
+  const hostCalls: string[] = [];
+  (bridgeServer as any).callWps = async (method: string) => {
+    hostCalls.push(method);
+    return { success: true, sheetName: 'S1', address: 'E5:E20' };
+  };
+  const wps = (name: string, args: any) => requestContext.run({ sessionId: 'cap50-guards', host: 'wps' }, () =>
+    executeCatalogTool(name, args, '测试'));
+  try {
+    // M1-a：validationType='list' 缺 listItems —— WPS 宿主会**先** Validation.Delete() 再抛错，
+    // 既有校验被清空；桥接必须在调用宿主之前拦住（hostCalls 里不能出现这次调用）。
+    const e1: any = await wps('wps_set_data_validation', { address: 'E5:E20', validationType: 'list', sheetName: 'S1', workbookName: 'x.xlsx' })
+      .then(() => null, (e: unknown) => e);
+    assert.ok(e1, '缺 listItems 必须报错');
+    assert.match(String(e1.message), /listItems/);
+
+    // M1-b：只传 minVal/maxVal（网关把 validationType 默认成 'list'）→ 报错要直接给出能生效的写法
+    const e2: any = await wps('wps_set_data_validation', { address: 'E5:E20', minVal: 0, maxVal: 100, sheetName: 'S1', workbookName: 'x.xlsx' })
+      .then(() => null, (e: unknown) => e);
+    assert.ok(e2);
+    assert.match(String(e2.message), /number_range/);
+
+    // M1-c：合法请求仍照常下发（不因收紧误伤正常能力）
+    const ok: any = await wps('wps_set_data_validation', { address: 'E5:E20', validationType: 'list', listItems: ['已通过'], sheetName: 'S1', workbookName: 'x.xlsx' });
+    assert.equal(ok.success, true);
+
+    // M2：空搜索串 + 替换 —— WPS 宿主只拦 undefined/null，空串会命中全区域并逐格替换
+    const e3: any = await wps('wps_find_and_replace', { searchQuery: '', replaceText: 'X', sheetName: 'S1', workbookName: 'x.xlsx' })
+      .then(() => null, (e: unknown) => e);
+    assert.ok(e3, '空搜索串必须报错');
+    assert.match(String(e3.message), /空串/);
+
+    assert.deepEqual(hostCalls, ['set_data_validation'], '只有合法请求可以触达宿主：两次拦截都发生在调用宿主之前');
+  } finally {
+    (bridgeServer as any).callWps = original;
+  }
+});

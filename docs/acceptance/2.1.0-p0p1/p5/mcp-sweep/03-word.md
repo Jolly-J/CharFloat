@@ -318,37 +318,76 @@ LineSpacing=28  LineSpacingRule=4(固定值)  CharacterUnitFirstLineIndent=2
 1. **`Cell.Formula` 全签名试错**：`(f)`、`(f,0)`、`(f,null,0)`、`(f,"\\# 0.0")` 都返回 null 无效果；`(f,0,"0")`、`(f,true,0)` 抛 `Too many parameters.`。已用静态求和绕过，结论是宿主不支持。
 2. **`doc.ExportAsFixedFormat` 不落盘**：脚本通道直接调用与工具通道都返回成功但文件不存在。**未找到可用的 Word→PDF 路径**，因此本轮的"视觉验证"只能依赖 native 属性读回 + 分页统计（`ComputeStatistics(2)=8`），**没有真实 PDF/截图**证据。
 3. **书签在后续操作后被清除**：先建的 `OAB_验收结果` / `OAB_交付状态` 两个书签，在删除一个被误插入目录的段落后**双双消失**（`D.Bookmarks.Count` 回到 0，`refFields` 也被清空）；重建的 `OAB_复测锚点` 在两次 TOC `Update()` 后仍存活。**怀疑**（标注为猜测）是删除段落时 Range 重叠导致书签失效，未做进一步隔离验证。
-4. **`wps_word_write_content` 会吃掉小写字母 `a`**：见 §10，已用精确等值匹配确认，但没有在源码里找到对应实现，怀疑与 `Paragraphs.Add(targetRange)` + `Range.Text` 复合路径的宿主行为有关（**猜测**）。
+4. ~~**`wps_word_write_content` 会吃掉小写字母 `a`**~~ → **【2026-09-22 复核后撤回：非缺陷，是探针自己造的】** 见 §10。**注意：本文件 §10 当年的结论是错的**，保留原文仅为留痕"验证方法出错"这一类问题。
 
-## 10. ⚠️ 重点缺陷：写入路径吞掉小写字母 `a`（可复现）
+## 10. 【已撤回】写入路径吞掉小写字母 `a`——实为验证探针的正则坑
 
-**现象**：`wps_word_write_content` 返回 `success=true`，但写入文本里**所有小写字母 `a` 消失**。
+> **本节的原始结论已被推翻（2026-09-22 复核）。** 下面先写"当年怎么错的"，再写"复核结论与原始证据"，最后留下真正可复用的教训。**不要**再按本节的"规避"改写入路径。
 
-**证明（精确等值匹配，不是肉眼）**：
+### 10.1 当年（错误）的结论
+
+现象被描述为：`wps_word_write_content` 返回 `success=true`，但写入文本里**所有小写字母 `a` 消失**；并用下表"隔离"到 `Paragraphs.Add(targetRange)` 路径：
+
+| 写法（当年的表） | 当年写的读回 | **复核后的真相** |
+|---|---|---|
+| `doc.Paragraphs.Add()` 无参 + `p.Range.Text = S` | ✅ `S` 完整保留 | ❌ 该行原始输出其实是**空串**，不是 `S` |
+| `doc.Paragraphs.Add(targetRange)` + `p.Range.Text = S` | ❌ 变 `"X  b bc bnn A A 啊阿"` | 写入**完好**；读回串被探针自己删了 `a` |
+| `doc.Range(endPos,endPos).InsertAfter(S)` | ❌ 同样吞 `a` | 同上，写入完好 |
+| `doc.Paragraphs.Add(targetRange)` + `InsertAfter(S)` | ❌ 同样吞 `a` | 该行原始输出是**空串** |
+| transport 回显 | ✅ 完整 | ✅ 这条是对的（传输没问题） |
+
+教训之一：**上表把"空串"读成了"完整保留"，把"探针删的"读成了"宿主吞的"**——一张表同时犯了两个方向的反向误读。
+
+### 10.2 复核结论：原现象不成立
+
+`wps_word_write_content` 写入的内容**一直是对的**，本仓库代码里也没有任何删 `a` 的逻辑。假象来自本文件当年的验证探针：
+
+```js
+// 当年的 verify_tool.js（逐字引用）
+const t = String(D.Paragraphs.Item(i).Range.Text).replace(/[\r\a]/g, "");  // ← 这里删掉了所有 a
+if (t === want) found.want.push(i);
+if (t === stripped) found.stripped.push(i);     // stripped = want.replace(/a/g, "")
 ```
-Python 发送: "确认字符: a ab abc banana A Aa 啊阿"
-工具返回    : success=true
-native 读回 : 段落 148 的文本 === "确认字符:  b bc bnn A A 啊阿"   ← 与小写 a 被删后的版本逐字相等
-             段落文本 === 原串的匹配数 = 0
-全部小写 a 被删；大写 A 完好；中文完好
+
+**原因**：`/[\r\a]/` 在 **JavaScript** 里 `\a` 是**恒等转义**＝字母 `a`（`\a` = BEL `0x07` 是 C/PCRE/.NET 的语义，JS 里 BEL 必须写 `\x07`）→ 探针先把读回文本里所有小写 `a` 删掉，再与原始串比较，必然得出"少了 `a`"。大写 `A`、中文完好也正因如此。
+
+**原始输出（逐字引用，来自本子代理会话的 tool/result）**：
+
 ```
-工具返回体里没有任何读回信息，只有 `insertedLines` 和 message，调用方不可能发现。
+SENT to tool: '确认字符: a ab abc banana A Aa 啊阿'
+tool success: True
+{ "sentByPython": "确认字符: a ab abc banana A Aa 啊阿",
+  "exactMatch": [], "strippedMatch": [148],
+  "strippedForm": "确认字符:  b bc bnn A A 啊阿", "total": 149 }
+```
 
-**第二轮隔离（脚本通道，同一段文本）**：
-| 写法 | 读回 |
-|---|---|
-| `doc.Paragraphs.Add()` 无参 + `p.Range.Text = S` | ✅ `S` 完整保留（`"Xa a ab abc banana A Aa 啊阿"`） |
-| `doc.Paragraphs.Add(targetRange)` + `p.Range.Text = S` | ❌ 变 `"X  b bc bnn A A 啊阿"`（**正是 `word.js:284` 工具的写法**） |
-| `doc.Range(endPos,endPos).InsertAfter(S)` | ❌ 同样吞 `a` |
-| `doc.Paragraphs.Add(targetRange)` + `InsertAfter(S)` | ❌ 同样吞 `a` |
-| transport 回显（`params.s` 原样返回） | ✅ 完整 → **不是 MCP/HTTP 传输问题** |
+`strippedMatch:[148]`（共 **149** 段）恰好证明内容**正确写到了文末**（`location:"end"` 语义正确）。
 
-**影响面**：
-- 所有走 `Paragraphs.Add(targetRange)` / `Range.InsertAfter` 的写入（含 `wordWriteContent`、`wps_word_manage_table` 的 `write_matrix`）都可能中招
-- 本次实测中 `location:"bookmark"` 写入的正文被毁成 `loction` / `bookmrk`
-- 同一脚本里用 `Range.Text =` 直接赋值给**新建空段落**则不受影响（我的表格写入与属性写入都完好）
+**第二轮隔离的原始输出（同样是逐字引用）**——四个写法**每个**都以同一行 `.replace(/[\r\a]/g, "")` 收尾：
 
-**规避**：写入前避免在 `Paragraphs.Add(targetRange)` 后赋 `Range.Text`，改为 `Paragraphs.Add()` 无参 + `Range.Text`，或写完立刻 native 读回做等值校验。
+```
+SENT: 'Xa a ab abc banana A Aa 啊阿'
+Paragraphs.Add(targetRange)+Range.Text     -> X  b bc bnn A A 啊阿   （= S 去掉全部 a → 写入正确）
+Paragraphs.Add()+Range.Text                -> （空串）
+Paragraphs.Add(targetRange)+InsertAfter    -> （空串）
+ContentEnd Range.InsertAfter               -> X  b bc bnn A A 啊阿   （写入正确）
+```
+
+### 10.3 排除清单（方法可复核）
+
+| 假设 | 方法 | 结果 |
+|---|---|---|
+| 本仓库有删 `a` 的代码 | 把 `src/**`、`wps-addon/src/**`、`office-addon/src/**`、`scripts/**` 里 1161 条正则字面量 + `new RegExp` 逐条当清洗器实测 | **0 条**能删掉每个 `a` |
+| 历史版本曾用 `\a` | `git log --all -S` 搜 `[\r\n\a]` / `\a` | 从未出现 |
+| 构建改坏转义 | 比对 `addon-core.js` 与 `src/**` 的 `[\r\n\x07]` | 一致 |
+| 传输吞字符 | transport 回显 + 已部署副本与仓库产物同 sha256 | 排除 |
+| 宿主 API 吞 `a` | 上面原始输出：读回串只差探针删掉的部分 | **不成立** |
+
+### 10.4 真正可复用的教训（比原结论有价值）
+
+**触发条件**：写脚本读回 Word 文本、想清掉段落标记/单元格标记 → **错误做法**：`.replace(/[\r\n\a]/g, "")` → **已证实原因**：JS 正则里 `\a` 是恒等转义＝字母 `a`（BEL 要写 `\x07`），会把读回文本里所有小写 `a` 删掉，制造"宿主吞字符"的假报警（本文件当年据此浪费了一整轮排查，还差点去改正常的写入路径） → **正确做法**：一律写 `[\r\n\x07]`；看到"宿主行为诡异"时**先逐行回读探针的清洗/比较/断言逻辑** → **证据**：本节 10.2 的原始探针与原始输出。
+
+**现行处置**：`wordWriteContent` 的读回校验已从"只比长度"升级为**逐字比对**（等长改写也拦）+ 报错带出写入/读回原文 + 每行返回 `readBackMatches`；**写入路径未改**。详见 [agent-tests/word-fixes.md](../../agent-tests/word-fixes.md) §1 与 [issues.md](../../issues.md) 的"撤稿记录：ISS-67"。
 
 ## 11. MCP / skill 说明的不足
 

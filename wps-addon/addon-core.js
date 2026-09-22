@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: fc3597b3fc515bb85031c30d38813d45ee400e6f909cc20856395515bd26b4fd
+// ADDON_BUILD_FINGERPRINT: 76ae602c5d766227516e320589d1ac94771634b3759c4b1687ceb03bdeac4b80
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "fc3597b3fc515bb85031c30d38813d45ee400e6f909cc20856395515bd26b4fd";
+  var ADDON_BUILD_FINGERPRINT = "76ae602c5d766227516e320589d1ac94771634b3759c4b1687ceb03bdeac4b80";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -1476,34 +1476,482 @@ case "ppt_read_presentation":
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
   // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
   // ---------------------------------------------------------------------------
-  // 2. 提取原表设计语言 (Design Token)
+  // ---------------------------------------------------------------------------
+  // 2. 提取原表设计语言 (Design Token) — CAP-41
+  // ---------------------------------------------------------------------------
+  // 原实现只读一个取样格的字体+底色，而且**读不到就编一个默认值**（"微软雅黑" / "#1E3A8A"）——
+  // 调用方拿到的是臆造值而不是原表状态，正是本仓库在修的那类"看着成功其实没生效"。
+  // 现在：
+  //   1) 读得到什么报什么，读不到一律 null + warnings，**绝不编默认值**；
+  //   2) 追加 主题色板 / 字体层级 / 表格样式 / 条件格式风格 四类设计语言；
+  //   3) 宿主 API **先探测后使用**：每个候选逐个 try，成功与失败都记进 probes，
+  //      整体失败进 unavailable（附宿主错误），不静默缺字段。
+  //   4) 明确不碰已知危险成员：wb.Styles、SpecialCells、整列/整行范围（见 dispatch.js 的反射护栏），
+  //      这些在本机未验证且可能让 WPS 崩溃，宁可不读也不赌。
+  const STYLE_CENSUS_MAX_CELLS = 240;
+  const STYLE_CENSUS_MAX_ROWS = 60;
+  const STYLE_CENSUS_MAX_COLS = 20;
+  const STYLE_BLOCK_ADDRESS = "A1:L40";
+  const STYLE_CF_FORMAT_TYPES = {
+    1: "cell_value", 2: "formula", 3: "color_scale", 4: "data_bar", 5: "top10",
+    6: "icon_set", 8: "unique_values", 9: "text_contains", 10: "blanks", 11: "time_period",
+    12: "above_average", 13: "no_blanks", 16: "duplicate_values"
+  };
+
+  /** 宿主属性安全读取：异常/undefined 都收敛到 fallback。 */
+  function styleRead(fn, fallback) {
+    try {
+      const value = fn();
+      return value === undefined ? fallback : value;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  /**
+   * 单元格/区域的设计快照。
+   * `hasFill` 用 Interior.Pattern 判定（xlNone = -4142）：无填充时 Interior.Color 仍返回白色
+   * （16777215），只看 Color 会把"白底=无填充"当成"刻意设了白色"，所以两者都给。
+   */
+  function readDesignSnapshot(rng) {
+    const pattern = styleRead(() => Number(rng.Interior.Pattern), null);
+    const backgroundColor = excelColorToHex(styleRead(() => rng.Interior.Color, null));
+    const hasFill = pattern === null ? null : pattern !== -4142;
+    return {
+      address: styleRead(() => rng.Address(), null),
+      fontName: styleRead(() => rng.Font.Name, null),
+      fontSize: styleRead(() => Number(rng.Font.Size), null),
+      bold: styleRead(() => rng.Font.Bold, null),
+      italic: styleRead(() => rng.Font.Italic, null),
+      fontColor: excelColorToHex(styleRead(() => rng.Font.Color, null)),
+      backgroundColor: backgroundColor,
+      backgroundColorEffective: hasFill === false ? null : backgroundColor,
+      hasFill: hasFill,
+      fillPattern: pattern,
+      numberFormat: styleRead(() => rng.NumberFormat, null),
+      horizontalAlignment: alignmentName(styleRead(() => rng.HorizontalAlignment, null), false),
+      rowHeight: styleRead(() => Number(rng.RowHeight), null),
+      columnWidth: styleRead(() => Number(rng.ColumnWidth), null),
+      borderBottom: styleRead(() => Number(rng.Borders.Item(9).LineStyle), null)
+    };
+  }
+
+  /** 设计指纹：把"同一套字体+字色+底色+数字格式"归成一组。 */
+  function designSignature(snapshot) {
+    return [
+      snapshot.fontName, snapshot.fontSize, snapshot.bold, snapshot.italic,
+      snapshot.fontColor,
+      snapshot.hasFill === false ? "no-fill" : String(snapshot.backgroundColor),
+      snapshot.numberFormat
+    ].join("|");
+  }
+
+  /**
+   * 设计语言普查：扫描已用区域左上角的有界窗口，按设计指纹统计出现次数，
+   * 给出每套样式的代表单元格与出现次数——这是"字体层级"的原始读数。
+   * 有界（默认 240 格）是为了控制只读探测的宿主调用量，截断时如实上报。
+   */
+  function censusDesignStyles(sheet, usedRange) {
+    const warnings = [];
+    const rows = Math.max(1, Math.min(styleRead(() => Math.trunc(Number(usedRange.Rows.Count)) || 1, 1), STYLE_CENSUS_MAX_ROWS));
+    const cols = Math.max(1, Math.min(styleRead(() => Math.trunc(Number(usedRange.Columns.Count)) || 1, 1), STYLE_CENSUS_MAX_COLS));
+    const firstRow = Math.max(1, styleRead(() => Math.trunc(Number(usedRange.Row)) || 1, 1));
+    const firstCol = Math.max(1, styleRead(() => Math.trunc(Number(usedRange.Column)) || 1, 1));
+    const blockCells = rows * cols;
+    const scanned = Math.min(blockCells, STYLE_CENSUS_MAX_CELLS);
+    if (scanned < blockCells) {
+      warnings.push(`设计普查只扫了已用区域左上角 ${scanned}/${blockCells} 个单元格（上限 ${STYLE_CENSUS_MAX_CELLS}），统计是抽样而非全量`);
+    }
+
+    // 一次调用取回取值矩阵（用于识别"这一格有没有内容"和取代表性文本），避免逐格读值
+    let values = null;
+    if (blockCells <= STYLE_CENSUS_MAX_CELLS * 4) {
+      values = styleRead(() => normalize2DArray(usedRange.Value2, rows, cols), null);
+    }
+    const valueAt = (r, c) => {
+      if (!values) return null;
+      const row = values[r];
+      if (Array.isArray(row)) return c < row.length ? row[c] : null;
+      if (values.length === 1 && r === 0) return c === 0 ? values[0] : null;
+      return null;
+    };
+
+    const groups = {};
+    const order = [];
+    for (let i = 0; i < scanned; i++) {
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      const cell = styleRead(() => sheet.Cells.Item(firstRow + r, firstCol + c), null);
+      if (!cell) continue;
+      const snapshot = readDesignSnapshot(cell);
+      const rawValue = valueAt(r, c);
+      const hasContent = rawValue !== null && rawValue !== undefined && String(rawValue).trim() !== "";
+      const key = designSignature(snapshot);
+      if (!groups[key]) {
+        groups[key] = Object.assign({}, snapshot, {
+          signature: key,
+          cellCount: 0,
+          contentCellCount: 0,
+          sampleCells: [],
+          sampleText: null,
+          address: undefined
+        });
+        order.push(key);
+      }
+      const group = groups[key];
+      group.cellCount++;
+      if (group.sampleCells.length < 3) group.sampleCells.push(snapshot.address);
+      if (hasContent) {
+        group.contentCellCount++;
+        if (group.sampleText === null) group.sampleText = String(rawValue).slice(0, 40);
+      }
+    }
+    const list = order.map((key) => groups[key]);
+    return { rows: rows, cols: cols, firstRow: firstRow, firstCol: firstCol, scannedCells: scanned, blockCells: blockCells, truncated: scanned < blockCells, styles: list, warnings: warnings };
+  }
+
+  /**
+   * 字体层级（title / header / body / caption）。
+   * 这是**启发式**，判据写进 heuristic 字段，避免调用方把猜测当读数：
+   *   title   = 字号最大的一组；header = "加粗且有底色"里出现最多的那一组；
+   *   body    = 出现次数最多的一组；caption = 字号最小的一组（与 body 相同则为 null）。
+   */
+  function deriveDesignHierarchy(census) {
+    const heuristic = "启发式判据：title=字号最大的一组；header=加粗且有底色中出现最多的一组；body=出现最多的一组；caption=字号最小的一组（等于 body 时为 null）";
+    const groups = (census.styles || []).filter((g) => g.cellCount > 0);
+    if (groups.length === 0) return { title: null, header: null, body: null, caption: null, heuristic: heuristic };
+    const brief = (g, role) => ({
+      role: role,
+      signature: g.signature,
+      sampleAddress: g.sampleCells[0] || null,
+      sampleCells: g.sampleCells,
+      sampleText: g.sampleText,
+      cellCount: g.cellCount,
+      contentCellCount: g.contentCellCount,
+      fontName: g.fontName,
+      fontSize: g.fontSize,
+      bold: g.bold,
+      italic: g.italic,
+      fontColor: g.fontColor,
+      backgroundColor: g.backgroundColorEffective,
+      hasFill: g.hasFill,
+      numberFormat: g.numberFormat,
+      horizontalAlignment: g.horizontalAlignment
+    });
+    const bySizeDesc = groups.slice().sort((a, b) => (b.fontSize || 0) - (a.fontSize || 0) || b.contentCellCount - a.contentCellCount || b.cellCount - a.cellCount);
+    const byCountDesc = groups.slice().sort((a, b) => b.contentCellCount - a.contentCellCount || b.cellCount - a.cellCount);
+    const title = bySizeDesc[0];
+    const body = byCountDesc[0];
+    const header = groups.filter((g) => g.bold === true && g.hasFill === true)
+      .sort((a, b) => b.contentCellCount - a.contentCellCount || b.cellCount - a.cellCount)[0] || null;
+    const caption = bySizeDesc[bySizeDesc.length - 1];
+    return {
+      title: brief(title, "title"),
+      header: header ? brief(header, "header") : null,
+      body: brief(body, "body"),
+      caption: caption && caption !== body && caption.fontSize !== body.fontSize ? brief(caption, "caption") : null,
+      heuristic: heuristic
+    };
+  }
+
+  /**
+   * 主题色板探测。宿主对"主题色"没有统一入口，候选逐个试，成功与失败都记进 probes。
+   * 已知可靠的兜底是**实际用到的颜色**（observed），它才是"原表长什么样"的直接证据。
+   */
+  function probeDesignPalette(app, wb, census) {
+    const probes = [];
+    const palette = { themeColors: null, themeColorsSource: null, workbookPalette: null, workbookPaletteSource: null, observed: [] };
+
+    const candidates = [
+      { key: "themeColors", source: "Workbook.ThemeColorScheme", read: () => wb.ThemeColorScheme },
+      { key: "themeColors", source: "Workbook.Theme", read: () => wb.Theme },
+      { key: "themeColors", source: "Application.Theme", read: () => app.Theme }
+    ];
+    candidates.forEach((candidate) => {
+      if (palette.themeColors !== null) return;
+      const toHex = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? excelColorToHex(n) : null;
+      };
+      try {
+        const raw = candidate.read();
+        if (raw === null || raw === undefined) {
+          probes.push({ target: candidate.source, ok: false, detail: "返回 " + String(raw) });
+          return;
+        }
+        if (Array.isArray(raw)) {
+          const entries = [];
+          raw.slice(0, 12).forEach((item) => {
+            const hex = toHex(item && item.Color !== undefined ? item.Color : item);
+            if (hex) entries.push(hex);
+          });
+          if (entries.length === 0) {
+            probes.push({ target: candidate.source, ok: false, detail: "数组存在但取不到颜色" });
+            return;
+          }
+          palette.themeColors = entries;
+          palette.themeColorsSource = candidate.source;
+          probes.push({ target: candidate.source, ok: true, detail: `读到 ${entries.length} 个主题色槽` });
+          return;
+        }
+        if (typeof raw === "object") {
+          const entries = [];
+          const count = styleRead(() => Math.trunc(Number(raw.Count)) || 0, 0);
+          for (let i = 1; i <= Math.min(count, 12); i++) {
+            const item = styleRead(() => raw.Item(i), null);
+            if (item === null) continue;
+            const hex = toHex(styleRead(() => Number(item.Color), null));
+            entries.push(hex || String(item).slice(0, 40));
+          }
+          if (entries.length === 0) {
+            probes.push({ target: candidate.source, ok: false, detail: "对象存在但取不到颜色条目（Count=" + count + "）" });
+            return;
+          }
+          palette.themeColors = entries;
+          palette.themeColorsSource = candidate.source;
+          probes.push({ target: candidate.source, ok: true, detail: `读到 ${entries.length} 个主题色槽` });
+          return;
+        }
+        probes.push({ target: candidate.source, ok: false, detail: "返回值不是颜色集合" });
+      } catch (e) {
+        probes.push({ target: candidate.source, ok: false, detail: e.message });
+      }
+    });
+
+    // 56 色工作簿调色板（VBA 通用入口）。整体数组读不到就退化为按下标读。
+    try {
+      let colors = null;
+      const toHex = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? excelColorToHex(n) : null;
+      };
+      const whole = styleRead(() => wb.Colors, null);
+      if (Array.isArray(whole)) {
+        colors = whole.map(toHex);
+      } else {
+        const entries = [];
+        for (let i = 1; i <= 56; i++) {
+          const v = styleRead(() => wb.Colors(i), null);
+          if (v === null) break;
+          entries.push({ index: i, color: toHex(v) });
+        }
+        if (entries.length > 0) colors = entries;
+      }
+      if (colors && colors.length > 0) {
+        palette.workbookPalette = colors;
+        palette.workbookPaletteSource = "Workbook.Colors";
+        probes.push({ target: "Workbook.Colors", ok: true, detail: `读到 ${colors.length} 个调色板颜色` });
+      } else {
+        probes.push({ target: "Workbook.Colors", ok: false, detail: "读取为空（宿主可能不暴露该属性）" });
+      }
+    } catch (e) {
+      probes.push({ target: "Workbook.Colors", ok: false, detail: e.message });
+    }
+
+    // 实际用到的颜色：来自设计普查，按出现次数排序 —— 这是最可靠的"原表配色"
+    const observed = {};
+    (census.styles || []).forEach((style) => {
+      const add = (color, kind) => {
+        if (!color) return;
+        const key = kind + ":" + color;
+        if (!observed[key]) observed[key] = { color: color, kind: kind, cellCount: 0, sampleCells: [] };
+        observed[key].cellCount += style.cellCount;
+        style.sampleCells.forEach((addr) => { if (observed[key].sampleCells.length < 3) observed[key].sampleCells.push(addr); });
+      };
+      add(style.fontColor, "font");
+      if (style.hasFill !== false) add(style.backgroundColorEffective, "fill");
+    });
+    palette.observed = Object.keys(observed).map((k) => observed[k]).sort((a, b) => b.cellCount - a.cellCount).slice(0, 20);
+    probes.push({ target: "observed(设计普查统计)", ok: palette.observed.length > 0, detail: `统计到 ${palette.observed.length} 个实际使用的颜色` });
+    return { palette: palette, probes: probes };
+  }
+
+  /** 结构化表格（ListObject）样式：与 manage_table 读回同一条已验证路径。 */
+  function readTableStyleTokens(sheet) {
+    let listObjects;
+    try {
+      listObjects = sheet.ListObjects;
+    } catch (e) {
+      return { ok: false, count: null, items: [], error: e.message, limit: 20 };
+    }
+    const count = styleRead(() => Math.trunc(Number(listObjects.Count)) || 0, 0);
+    const items = [];
+    for (let i = 1; i <= Math.min(count, 20); i++) {
+      const lo = styleRead(() => listObjects.Item(i), null);
+      if (!lo) continue;
+      items.push({
+        index: i,
+        name: styleRead(() => String(lo.Name), null),
+        range: styleRead(() => lo.Range.Address(), null),
+        tableStyleName: styleRead(() => (lo.TableStyle ? String(lo.TableStyle.Name) : null), null),
+        showHeaderRow: styleRead(() => Boolean(lo.ShowHeaderRow), null),
+        showTotals: styleRead(() => Boolean(lo.ShowTotals), null)
+      });
+    }
+    return { ok: true, count: count, tableCount: count, returnedTables: items.length, items: items, truncated: count > items.length, limit: 20 };
+  }
+
+  /**
+   * 条件格式风格。**只扫有界区域**：已用区域、左上角 40×12 区块、以及该区块的前若干行。
+   * 不碰整行/整列范围——dispatch.js 的反射护栏已取证"整表范围对象求值会令 WPS 崩溃"。
+   */
+  function readConditionalFormatStyleTokens(sheet, blockRows) {
+    const probes = [];
+    const areas = [];
+    const seenAddresses = {};
+    const attempts = [];
+    const usedRange = styleRead(() => sheet.UsedRange, null);
+    if (usedRange) attempts.push({ label: "usedRange", range: usedRange });
+    const block = styleRead(() => sheet.Range(STYLE_BLOCK_ADDRESS), null);
+    if (block) {
+      attempts.push({ label: STYLE_BLOCK_ADDRESS, range: block });
+      for (let r = 1; r <= Math.min(blockRows, 12); r++) {
+        const rowRange = styleRead(() => sheet.Range("A" + r + ":L" + r), null);
+        if (rowRange) attempts.push({ label: "A" + r + ":L" + r, range: rowRange });
+      }
+    }
+    let readErrors = 0;
+    attempts.forEach((attempt) => {
+      let fcs = null;
+      try {
+        fcs = attempt.range.FormatConditions;
+      } catch (e) {
+        readErrors++;
+        return;
+      }
+      const count = styleRead(() => Math.trunc(Number(fcs.Count)) || 0, 0);
+      if (count <= 0) return;
+      const address = styleRead(() => attempt.range.Address(), attempt.label);
+      if (seenAddresses[address]) return;
+      seenAddresses[address] = true;
+      const rules = [];
+      for (let i = 1; i <= Math.min(count, 10); i++) {
+        const fc = styleRead(() => fcs.Item(i), null);
+        if (!fc) continue;
+        const typeCode = styleRead(() => Number(fc.Type), null);
+        rules.push({
+          index: i,
+          type: STYLE_CF_FORMAT_TYPES[typeCode] || "unknown(" + typeCode + ")",
+          typeCode: typeCode,
+          operator: styleRead(() => Number(fc.Operator), null),
+          formula1: styleRead(() => (fc.Formula1 === undefined ? null : fc.Formula1), null),
+          fillColor: excelColorToHex(styleRead(() => Number(fc.Interior.Color), null)),
+          fontColor: excelColorToHex(styleRead(() => Number(fc.Font.Color), null)),
+          fontBold: styleRead(() => Boolean(fc.Font.Bold), null)
+        });
+      }
+      if (rules.length > 0) areas.push({ address: address, probe: attempt.label, ruleCount: count, returnedRules: rules.length, rules: rules });
+    });
+    probes.push({
+      target: "FormatConditions(有界区域)",
+      ok: areas.length > 0,
+      detail: areas.length > 0
+        ? `在 ${areas.length} 个区域读到条件格式规则`
+        : (readErrors > 0 ? `尝试的 ${attempts.length} 个区域中有 ${readErrors} 个读取失败，其余无规则` : `尝试的 ${attempts.length} 个区域都没有条件格式规则`)
+    });
+    return { probes: probes, areas: areas, scannedAreas: attempts.length, readErrors: readErrors };
+  }
+
   function getStyleToken(app, params) {
     const { sheetName, sampleAddress = "A3", workbookName } = params || {};
     const sheet = getWorksheet(app, sheetName, workbookName);
-    const range = sheet.Range(sampleAddress);
+    const wb = sheet.Parent;
+    const warnings = [];
+    const unavailable = [];
+    const probes = [];
 
-    const fontName = range.Font.Name || "微软雅黑";
-    const fontSize = range.Font.Size || 11;
-    const fontBold = !!range.Font.Bold;
-    const fontColor = excelColorToHex(range.Font.Color);
-    const headerBg = excelColorToHex(range.Interior.Color);
+    const sampleRange = styleRead(() => sheet.Range(sampleAddress), null);
+    if (!sampleRange) throw new Error(`取样地址无法解析: "${sampleAddress}"`);
+    const sample = readDesignSnapshot(sampleRange);
+    const unreadable = [];
+    if (sample.fontName === null) unreadable.push("fontName");
+    if (sample.fontSize === null) unreadable.push("fontSize");
+    if (sample.fontColor === null) unreadable.push("fontColor");
+    if (sample.backgroundColor === null || sample.hasFill === null) unreadable.push("backgroundColor");
+    if (unreadable.length > 0) {
+      warnings.push(`取样格 ${sample.address || sampleAddress} 的 ${unreadable.join(" / ")} 读不到（空单元格或宿主未返回该属性）；对应字段为 **null 而不是默认值**，请勿当成原表风格`);
+    }
 
-    // 尝试探测大标题
-    let titleFontName = fontName;
-    try {
-      const titleCell = sheet.Range("A1");
-      if (titleCell.Font.Name) titleFontName = titleCell.Font.Name;
-    } catch (e) {}
+    // 大标题：A1 若与取样格不同就一并给出，读不到就 null（旧实现在这里编了"微软雅黑"）
+    const titleCell = styleRead(() => sheet.Range("A1"), null);
+    const titleSnapshot = titleCell ? readDesignSnapshot(titleCell) : null;
+
+    // 设计普查 → 字体层级
+    const usedRange = styleRead(() => sheet.UsedRange, null);
+    let census = null;
+    let fonts = null;
+    if (usedRange) {
+      census = censusDesignStyles(sheet, usedRange);
+      census.warnings.forEach((w) => warnings.push(w));
+      fonts = deriveDesignHierarchy(census);
+      probes.push({ target: "设计普查(已用区域左上角有界窗口)", ok: census.styles.length > 0, detail: `扫描 ${census.scannedCells} 格，识别出 ${census.styles.length} 套不同样式` });
+    } else {
+      unavailable.push("设计普查: 读不到 UsedRange");
+      probes.push({ target: "设计普查(已用区域左上角有界窗口)", ok: false, detail: "读不到 UsedRange" });
+    }
+
+    // 主题色板 + 实际用色
+    const paletteResult = probeDesignPalette(app, wb, census || { styles: [] });
+    paletteResult.probes.forEach((p) => probes.push(p));
+    if (paletteResult.palette.themeColors === null) {
+      unavailable.push("themeColors: 宿主的主题色入口（Workbook.ThemeColorScheme / Workbook.Theme / Application.Theme）在本机全部探测失败，见 probes；色板请参考 workbookPalette 与 observed");
+    }
+
+    // 表格样式
+    const tableStyles = readTableStyleTokens(sheet);
+    probes.push({
+      target: "ListObjects(结构化表格样式)",
+      ok: tableStyles.ok,
+      detail: tableStyles.ok ? `工作表中 ${tableStyles.tableCount} 个结构化表格` : ("读取 ListObjects 失败: " + tableStyles.error)
+    });
+    if (!tableStyles.ok) unavailable.push("tableStyles: 读不到 ListObjects（" + tableStyles.error + "）");
+
+    // 条件格式风格
+    const cf = readConditionalFormatStyleTokens(sheet, census ? census.rows : 10);
+    cf.probes.forEach((p) => probes.push(p));
+    if (cf.areas.length === 0) {
+      unavailable.push("conditionalFormatStyles: 有界扫描未发现条件格式规则（工作表中仍可能存在，本工具不做全表枚举）");
+    }
 
     return {
-      workbookName: sheet.Parent.Name,
+      success: true,
+      workbookName: wb.Name,
       sheetName: sheet.Name,
-      fontName: fontName,
-      titleFontName: titleFontName,
-      sampleFontSize: fontSize,
-      sampleBold: fontBold,
-      fontColor: fontColor,
-      headerBackgroundColor: headerBg || "#1E3A8A"
+      sampleAddress: sample.address || sampleAddress,
+      sampledCell: sample,
+      // 兼容旧字段名：值全部来自真实读回，读不到就是 null（旧实现在这里编造 "微软雅黑"/"#1E3A8A"）
+      fontName: sample.fontName,
+      titleFontName: titleSnapshot ? titleSnapshot.fontName : null,
+      sampleFontSize: sample.fontSize,
+      sampleBold: sample.bold,
+      fontColor: sample.fontColor,
+      headerBackgroundColor: sample.backgroundColorEffective,
+      titleCell: titleSnapshot,
+      fonts: fonts,
+      palette: paletteResult.palette,
+      census: census ? { scannedCells: census.scannedCells, blockCells: census.blockCells, truncated: census.truncated, styleGroups: census.styles.length, styles: census.styles.map((g) => ({
+        signature: g.signature,
+        cellCount: g.cellCount,
+        contentCellCount: g.contentCellCount,
+        sampleCells: g.sampleCells,
+        sampleText: g.sampleText,
+        fontName: g.fontName,
+        fontSize: g.fontSize,
+        bold: g.bold,
+        fontColor: g.fontColor,
+        backgroundColor: g.backgroundColorEffective,
+        hasFill: g.hasFill,
+        numberFormat: g.numberFormat
+      })) } : null,
+      tableStyles: tableStyles,
+      conditionalFormatStyles: { scannedAreas: cf.scannedAreas, areaCount: cf.areas.length, areas: cf.areas },
+      probes: probes,
+      unavailable: unavailable,
+      warnings: warnings,
+      message: `已读取 [${sheet.Name}] 的设计语言：取样格 ${sample.address || sampleAddress}` +
+        (fonts && fonts.body ? `，主样式 ${fonts.body.fontName || "?"} ${fonts.body.fontSize === null ? "?" : fonts.body.fontSize}pt` : "") +
+        `；${probes.filter((p) => p.ok).length}/${probes.length} 项探测成功` +
+        (unavailable.length ? `，${unavailable.length} 项不可用（见 unavailable/probes）` : "")
     };
   }
 
@@ -1839,11 +2287,478 @@ case "ppt_read_presentation":
     return result;
   }
 
+  // ---------------------------------------------------------------------------
+  // CAP-10：数据验证**违规定位**
+  // ---------------------------------------------------------------------------
+  // CAP-32 已经能读回"区域上挂了什么校验规则"，但读不回"**存量数据里哪些单元格越界了**"，
+  // 于是 AI 写完下拉/范围校验后仍然只能盲信 success。这里在读取区域时逐格比对规则，
+  // 列出违规单元格（值 + 命中的规则 + 期望）。
+  //
+  // 判定原则（与仓库"success:true 不算数"的规矩一致）：
+  //   - 规则读失败、规则值解析不了（自定义公式、无法解析的日期写法）→ 进 `unevaluated` 并附原因，
+  //     **绝不当成"通过"**；
+  //   - 扫描有上限，截断时 `truncated: true` 并在 warnings 里说清扫了多少 / 还剩多少；
+  //   - 只用已证实可用的宿主 API（`Range.Value2` / `Range.Validation`）。
+  //     整表枚举校验区域的 `SpecialCells(xlCellTypeAllValidation)` 未在本机验证过，
+  //     且 dispatch.js 的反射护栏把它列为保守跳过项，故本轮**不采用**，改用有上限的逐格扫描。
+  const VALIDATION_TYPE_NAMES = { 1: "whole_number", 2: "decimal", 3: "list", 4: "date", 5: "time", 6: "text_length", 7: "custom" };
+  const VALIDATION_OPERATOR_NAMES = { 1: "between", 2: "not_between", 3: "equal", 4: "not_equal", 5: "greater_than", 6: "less_than", 7: "greater_equal", 8: "less_equal" };
+  const VALIDATION_TYPE_NONE = -4142; // xlValidateInputOnly：宿主用它表示"该格没有校验"
+  const VALIDATION_SCAN_DEFAULT = 300;
+  const VALIDATION_SCAN_MAX = 2000;
+  const VALIDATION_REPORT_MAX = 200;
+  const VALIDATION_RULE_CELLS_MAX = 20;
+
+  /** 1 基列号 → 列名（A/B/.../AA）；只用来拼地址字符串，不做宿主调用。 */
+  function excelColumnName(index) {
+    let n = Math.trunc(Number(index) || 0);
+    let name = "";
+    while (n > 0) {
+      const m = (n - 1) % 26;
+      name = String.fromCharCode(65 + m) + name;
+      n = Math.floor((n - 1) / 26);
+    }
+    return name;
+  }
+
+  /**
+   * 读取单格的校验规则。**三态返回**，"读失败"与"没有规则"必须分开：
+   *   { ok: true,  rule: null }   宿主明确表示该格没有校验（Type = -4142）
+   *   { ok: true,  rule: {...} }  读到规则
+   *   { ok: false, error }        读取失败 → 调用方记 unevaluated，不能当"没规则"
+   */
+  function readCellValidationRule(cell) {
+    let v;
+    try { v = cell.Validation; } catch (e) { return { ok: false, error: "读取 Validation 失败: " + e.message }; }
+    if (!v) return { ok: false, error: "Validation 对象为空" };
+    let type;
+    try { type = Number(v.Type); } catch (e) { return { ok: false, error: "读取 Validation.Type 失败: " + e.message }; }
+    if (!Number.isFinite(type) || type === VALIDATION_TYPE_NONE) return { ok: true, rule: null };
+    const g = (fn, fallback) => { try { const x = fn(); return x === undefined ? fallback : x; } catch (e) { return fallback; } };
+    const operator = g(() => Number(v.Operator), null);
+    const rule = {
+      type: type,
+      typeName: VALIDATION_TYPE_NAMES[type] || ("unknown(" + type + ")"),
+      operator: Number.isFinite(operator) ? operator : null,
+      operatorName: Number.isFinite(operator) ? (VALIDATION_OPERATOR_NAMES[operator] || ("unknown(" + operator + ")")) : null,
+      formula1: g(() => (v.Formula1 === undefined || v.Formula1 === null ? null : String(v.Formula1)), null),
+      formula2: g(() => (v.Formula2 === undefined || v.Formula2 === null ? null : String(v.Formula2)), null),
+      ignoreBlank: g(() => Boolean(v.IgnoreBlank), null),
+      inCellDropdown: g(() => Boolean(v.InCellDropdown), null),
+      alertStyle: g(() => Number(v.AlertStyle), null)
+    };
+    rule.signature = [rule.type, rule.operator, rule.formula1, rule.formula2, rule.ignoreBlank].join("|");
+    return { ok: true, rule: rule };
+  }
+
+  /** 拆字面量候选项：半角逗号优先（Excel 的列表分隔符），没有半角逗号时退回全角逗号。 */
+  function splitValidationListLiteral(text) {
+    const separator = text.indexOf(",") >= 0 ? "," : (text.indexOf("，") >= 0 ? "，" : ",");
+    return text.split(separator).map((s) => s.trim()).filter((s) => s !== "");
+  }
+
+  /**
+   * 解析 list 规则的 Formula1。Excel/WPS 读回时有三种形态：
+   *   1. 字面量列表（读回常带外层双引号）："通过,不通过"
+   *   2. 区域引用：=$D$1:$D$5 或 =Sheet1!$D$1:$D$5
+   *   3. 裸区域引用（个别宿主不带等号）：$D$1:$D$5
+   */
+  function parseValidationListFormula(formula) {
+    if (formula === null || formula === undefined) return { ok: false, reason: "list 规则没有给出 Formula1" };
+    const text = String(formula).trim();
+    if (text === "") return { ok: false, reason: "list 规则的 Formula1 为空" };
+    if (text.charAt(0) === "=") return { ok: true, kind: "reference", reference: text };
+    const unquoted = text.replace(/^"/, "").replace(/"$/, "");
+    if (unquoted !== text) return { ok: true, kind: "literal", items: splitValidationListLiteral(unquoted) };
+    if (/^'?[^!']*'?![$A-Za-z]/.test(text) || /^\$?[A-Za-z]{1,3}\$?\d+(:\$?[A-Za-z]{1,3}\$?\d+)?$/.test(text)) {
+      return { ok: true, kind: "reference", reference: text };
+    }
+    return { ok: true, kind: "literal", items: splitValidationListLiteral(text) };
+  }
+
+  /** 读取 list 规则引用的区域，把其中的非空值作为候选列表。 */
+  function readValidationListReference(sheet, reference) {
+    let text = String(reference).replace(/^=/, "").trim();
+    let targetSheet = sheet;
+    const bang = text.lastIndexOf("!");
+    if (bang >= 0) {
+      const namePart = text.slice(0, bang).trim().replace(/^'/, "").replace(/'$/, "").replace(/''/g, "'");
+      text = text.slice(bang + 1).trim();
+      try { targetSheet = sheet.Parent.Worksheets.Item(namePart); } catch (e) {
+        return { ok: false, error: `候选项引用的工作表 "${namePart}" 不存在` };
+      }
+    }
+    let rng;
+    try { rng = targetSheet.Range(text); } catch (e) {
+      return { ok: false, error: `候选项引用 ${reference} 无法解析: ${e.message}` };
+    }
+    let values;
+    try { values = rng.Value2; } catch (e) {
+      return { ok: false, error: `读取候选项引用 ${reference} 的值失败: ${e.message}` };
+    }
+    const items = [];
+    const push = (v) => { if (v !== null && v !== undefined && String(v).trim() !== "") items.push(String(v)); };
+    if (Array.isArray(values)) {
+      values.forEach((row) => { if (Array.isArray(row)) row.forEach(push); else push(row); });
+    } else {
+      push(values);
+    }
+    return { ok: true, items: items, reference: reference };
+  }
+
+  function excelSerialFromTimestamp(ms) {
+    return ms / 86400000 + 25569; // Excel 序列号 25569 = 1970-01-01（UTC）
+  }
+
+  /** 把规则里的比较值解析成可比较的数字（日期/时间统一转 Excel 序列号）。 */
+  function parseValidationBound(text) {
+    if (text === null || text === undefined) return { ok: false, reason: "规则未给出比较值" };
+    let s = String(text).trim().replace(/^=/, "").trim();
+    if (s === "") return { ok: false, reason: "规则的比较值为空" };
+    if (/^-?\d+(\.\d+)?$/.test(s)) return { ok: true, value: Number(s) };
+    const d = s.match(/^DATE\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (d) return { ok: true, value: excelSerialFromTimestamp(Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]))) };
+    const t = s.match(/^TIME\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (t) return { ok: true, value: (Number(t[1]) * 3600 + Number(t[2]) * 60 + Number(t[3])) / 86400 };
+    const plain = s.replace(/^"|"$/g, "");
+    const parsed = Date.parse(plain);
+    if (!Number.isNaN(parsed)) return { ok: true, value: excelSerialFromTimestamp(parsed), fromText: plain };
+    return { ok: false, reason: `无法把规则比较值 "${text}" 解析为数值/日期` };
+  }
+
+  /** 单元格值 → 可比较的数字；非数值文本不算"跳过"，而是明确不满足数值校验。 */
+  function coerceValidationNumber(value) {
+    if (typeof value === "number") return { ok: true, value: value };
+    if (typeof value === "boolean") return { ok: false, reason: "布尔值不是数值" };
+    const raw = String(value).trim();
+    if (raw === "") return { ok: false, reason: "空值" };
+    const cleaned = raw.replace(/,/g, "").replace(/^[¥$€£]\s*/, "");
+    if (/^-?\d+(\.\d+)?$/.test(cleaned)) return { ok: true, value: Number(cleaned), fromText: raw };
+    const pct = cleaned.match(/^(-?\d+(\.\d+)?)%$/);
+    if (pct) return { ok: true, value: Number(pct[1]) / 100, fromText: raw };
+    const parsed = Date.parse(cleaned.replace(/^"|"$/g, ""));
+    if (!Number.isNaN(parsed)) return { ok: true, value: excelSerialFromTimestamp(parsed), fromText: raw };
+    return { ok: false, reason: `"${raw}" 不是可比较的数值/日期` };
+  }
+
+  /** 规则的自然语言"期望"，直接进违规明细，AI 不用自己翻译运算符。 */
+  function describeValidationRule(rule, listInfo) {
+    const t = rule.typeName;
+    const op = rule.operatorName;
+    const f1 = rule.formula1 === null ? "(空)" : rule.formula1;
+    const f2 = rule.formula2 === null ? "(空)" : rule.formula2;
+    if (t === "list") {
+      if (listInfo && listInfo.kind === "reference" && listInfo.ok) {
+        return `必须是 ${listInfo.reference} 中的一项（共 ${listInfo.items.length} 项）`;
+      }
+      if (listInfo && listInfo.kind === "literal") {
+        const shown = listInfo.items.slice(0, 12);
+        return `必须是列表中的一项: ${shown.join(" / ")}${listInfo.items.length > shown.length ? ` …（共 ${listInfo.items.length} 项）` : ""}`;
+      }
+      return `必须是 ${f1} 中的一项`;
+    }
+    if (t === "custom") return `自定义公式规则: ${f1}（宿主外无法求值）`;
+    const unit = t === "date" ? "日期" : (t === "time" ? "时间" : (t === "text_length" ? "文本长度" : "数值"));
+    if (t === "text_length") {
+      const map = { between: `长度必须介于 ${f1} 与 ${f2} 之间`, not_between: `长度必须不在 ${f1}~${f2} 之间`, equal: `长度必须等于 ${f1}`, not_equal: `长度必须不等于 ${f1}`, greater_than: `长度必须大于 ${f1}`, less_than: `长度必须小于 ${f1}`, greater_equal: `长度必须不小于 ${f1}`, less_equal: `长度必须不大于 ${f1}` };
+      return map[op] || `长度校验（运算符 ${op === null ? "未知" : op}，比较值 ${f1}）`;
+    }
+    const map = {
+      between: `${unit}必须介于 ${f1} 与 ${f2} 之间（含端点）`,
+      not_between: `${unit}必须不在 ${f1}~${f2} 之间`,
+      equal: `${unit}必须等于 ${f1}`,
+      not_equal: `${unit}必须不等于 ${f1}`,
+      greater_than: `${unit}必须大于 ${f1}`,
+      less_than: `${unit}必须小于 ${f1}`,
+      greater_equal: `${unit}必须不小于 ${f1}`,
+      less_equal: `${unit}必须不大于 ${f1}`
+    };
+    return map[op] || `${unit}校验（运算符 ${op === null ? "未知" : op}，比较值 ${f1}${rule.formula2 === null ? "" : " / " + f2}）`;
+  }
+
+  /**
+   * 解析（并按签名缓存）list 规则的候选项来源。同一签名只解析一次，
+   * 避免每个单元格都去重读引用的区域。
+   */
+  function resolveValidationListInfo(rule, listCache) {
+    if (listCache[rule.signature]) return listCache[rule.signature];
+    const parsed = parseValidationListFormula(rule.formula1);
+    let info;
+    if (!parsed.ok) {
+      info = { kind: "error", ok: false, reason: parsed.reason };
+    } else if (parsed.kind === "reference") {
+      const referenced = readValidationListReference(listCache.__sheet, parsed.reference);
+      info = referenced.ok
+        ? { kind: "reference", ok: true, items: referenced.items, reference: parsed.reference }
+        : { kind: "reference", ok: false, reason: referenced.error, reference: parsed.reference };
+    } else {
+      info = { kind: "literal", ok: true, items: parsed.items };
+    }
+    listCache[rule.signature] = info;
+    return info;
+  }
+
+  /**
+   * 逐格比对规则。返回:
+   *   { status: "pass" } / { status: "violate", reason, expectation } / { status: "unevaluated", reason }
+   */
+  function evaluateValidationRule(rule, value, listCache) {
+    if (rule.type === 7) {
+      return { status: "unevaluated", reason: "自定义公式规则（xlValidateCustom）无法在宿主外求值" };
+    }
+    if (rule.type === 3) {
+      const info = resolveValidationListInfo(rule, listCache);
+      const expectation = describeValidationRule(rule, info);
+      if (!info.ok) return { status: "unevaluated", reason: info.reason, expectation: expectation };
+      const actual = String(value).trim();
+      const hit = info.items.find((item) => item === actual)
+        || info.items.find((item) => item.toLowerCase() === actual.toLowerCase());
+      if (hit !== undefined) return { status: "pass", expectation: expectation };
+      return { status: "violate", reason: "值不在允许的候选项中", expectation: expectation, allowed: info.items.slice(0, 30) };
+    }
+    if (rule.type === 4 || rule.type === 5 || rule.type === 6) {
+      // date / time / text_length 都按数值比较（date/time 用序列号，text_length 用字符数）
+      const left = rule.type === 6 ? { ok: true, value: String(value).length } : coerceValidationNumber(value);
+      const expectation = describeValidationRule(rule);
+      if (!left.ok) return { status: "violate", reason: left.reason, expectation: expectation };
+      const f1 = parseValidationBound(rule.formula1);
+      const f2 = parseValidationBound(rule.formula2);
+      if (!f1.ok) return { status: "unevaluated", reason: "规则下限无法解析：" + f1.reason, expectation: expectation };
+      const isBetween = rule.operator === 1 || rule.operator === 2;
+      if (isBetween && !f2.ok) return { status: "unevaluated", reason: "规则上限无法解析：" + f2.reason, expectation: expectation };
+      const verdict = compareByOperator(rule.operator, left.value, f1.value, isBetween ? f2.value : null);
+      if (verdict === null) return { status: "unevaluated", reason: "未知运算符 " + rule.operator, expectation: expectation };
+      return verdict ? { status: "pass", expectation: expectation } : { status: "violate", reason: "不满足 " + expectation, expectation: expectation };
+    }
+    if (rule.type === 1 || rule.type === 2) {
+      const expectation = describeValidationRule(rule);
+      const left = coerceValidationNumber(value);
+      if (!left.ok) return { status: "violate", reason: left.reason, expectation: expectation };
+      const f1 = parseValidationBound(rule.formula1);
+      const f2 = parseValidationBound(rule.formula2);
+      if (!f1.ok) return { status: "unevaluated", reason: "规则下限无法解析：" + f1.reason, expectation: expectation };
+      const isBetween = rule.operator === 1 || rule.operator === 2;
+      if (isBetween && !f2.ok) return { status: "unevaluated", reason: "规则上限无法解析：" + f2.reason, expectation: expectation };
+      const verdict = compareByOperator(rule.operator, left.value, f1.value, isBetween ? f2.value : null);
+      if (verdict === null) return { status: "unevaluated", reason: "未知运算符 " + rule.operator, expectation: expectation };
+      return verdict ? { status: "pass", expectation: expectation } : { status: "violate", reason: "不满足 " + expectation, expectation: expectation };
+    }
+    return { status: "unevaluated", reason: `暂不支持的校验类型 ${rule.typeName}`, expectation: describeValidationRule(rule) };
+  }
+
+  /** 运算符判定；返回 null 表示运算符未知（→ unevaluated，不猜通过）。 */
+  function compareByOperator(operator, value, f1, f2) {
+    switch (operator) {
+      case 1: return f2 === null ? null : (value >= f1 && value <= f2);
+      case 2: return f2 === null ? null : (value < f1 || value > f2);
+      case 3: return value === f1;
+      case 4: return value !== f1;
+      case 5: return value > f1;
+      case 6: return value < f1;
+      case 7: return value >= f1;
+      case 8: return value <= f1;
+      default: return null;
+    }
+  }
+
+  /**
+   * 区域级违规定位。扫描范围内每个单元格自己的规则（同一区域可能有多种规则），
+   * 用一次性 `Range.Value2` 取回区块值，逐格判定。
+   */
+  function collectValidationViolations(sheet, range, options) {
+    const config = options || {};
+    const warnings = [];
+    const unevaluated = [];
+    const violations = [];
+    const rules = [];
+    const rulesByKey = {};
+    const ruleObjectsByKey = {};
+    const listCache = { __sheet: sheet };
+    let violationsOverflow = 0;
+    const maxScanCells = Math.max(1, Math.min(VALIDATION_SCAN_MAX, Math.trunc(Number(config.maxCells) || VALIDATION_SCAN_DEFAULT)));
+
+    const rows = Math.max(1, Math.trunc(Number(safeRead(() => Number(range.Rows.Count), 1)) || 1));
+    const cols = Math.max(1, Math.trunc(Number(safeRead(() => Number(range.Columns.Count), 1)) || 1));
+    // range.Row / range.Column 是区域左上角的 1 基坐标；读不到就置 0，改用 cell.Address() 兜底。
+    const firstRow = Math.trunc(Number(safeRead(() => Number(range.Row), 0)) || 0);
+    const firstCol = Math.trunc(Number(safeRead(() => Number(range.Column), 0)) || 0);
+    const totalCells = rows * cols;
+    const scannedCells = Math.min(totalCells, maxScanCells);
+    const truncated = totalCells > scannedCells;
+    if (truncated) {
+      warnings.push(`范围内共 ${totalCells} 个单元格，本次只扫描前 ${scannedCells} 个（含表头行优先）；如需覆盖其余部分请缩小 address 或调大 maxCells`);
+    }
+
+    // 值一次性取回（1 次宿主调用）；超上限时逐格读，避免为少数单元格拉整块大矩阵。
+    let blockValues = null;
+    let blockValuesError = null;
+    if (!truncated) {
+      try {
+        blockValues = normalize2DArray(range.Value2, rows, cols);
+      } catch (e) {
+        blockValuesError = "一次性读取区域值失败: " + e.message;
+      }
+    }
+
+    let validatedCells = 0;
+    let skippedBlankCells = 0;
+    let blankWithUnknownIgnoreBlank = 0;
+    let readErrorCells = 0;
+    for (let i = 0; i < scannedCells; i++) {
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      // 地址：range.Row/Column 是区域左上角的 **1 基**坐标，r/c 是 0 基偏移，
+      // 所以是 firstRow + r 而不是 firstRow + r + 1（多 +1 会把违规定位到邻居格上——模拟宿主已复现）。
+      const knownOrigin = firstRow > 0 && firstCol > 0;
+      let address = knownOrigin ? (excelColumnName(firstCol + c) + (firstRow + r)) : null;
+
+      let cell;
+      try {
+        cell = range.Cells.Item(r + 1, c + 1);
+      } catch (e) {
+        readErrorCells++;
+        unevaluated.push({ address: address || `#${i + 1}`, reason: "定位单元格失败: " + e.message });
+        continue;
+      }
+      if (!address) address = safeRead(() => cell.Address(), null) || `#${i + 1}`;
+
+      let value;
+      if (blockValues && blockValuesError === null) {
+        const row = blockValues[r];
+        if (Array.isArray(row)) value = c < row.length ? row[c] : null;
+        else if (blockValues.length === 1 && r === 0) value = c === 0 ? blockValues[0] : null;
+        else value = null;
+      } else {
+        value = safeRead(() => cell.Value2, null);
+      }
+
+      const readRes = readCellValidationRule(cell);
+      if (!readRes.ok) {
+        readErrorCells++;
+        unevaluated.push({ address: address, reason: readRes.error });
+        continue;
+      }
+      if (!readRes.rule) continue; // 该格没有校验 → 与"越界"无关
+
+      validatedCells++;
+      const rule = readRes.rule;
+      if (!rulesByKey[rule.signature]) {
+        const group = {
+          ruleKey: "R" + (rules.length + 1),
+          type: rule.type, typeName: rule.typeName,
+          operator: rule.operator, operatorName: rule.operatorName,
+          formula1: rule.formula1, formula2: rule.formula2,
+          ignoreBlank: rule.ignoreBlank, inCellDropdown: rule.inCellDropdown,
+          cellCount: 0, sampleCells: []
+        };
+        rulesByKey[rule.signature] = group;
+        ruleObjectsByKey[group.ruleKey] = rule;
+        rules.push(group);
+      }
+      const group = rulesByKey[rule.signature];
+      group.cellCount++;
+      if (group.sampleCells.length < VALIDATION_RULE_CELLS_MAX) group.sampleCells.push(address);
+
+      const isBlank = value === null || value === undefined || (typeof value === "string" && value.trim() === "");
+      if (isBlank) {
+        // 规则明确不允许空值（Excel 的"忽略空值"未勾选，IgnoreBlank=false）时，
+        // 空单元格本身就越界——Excel 的"圈释无效数据"也是这么算的。
+        if (rule.ignoreBlank === false) {
+          if (violations.length < VALIDATION_REPORT_MAX) {
+            violations.push({
+              address: address,
+              value: null,
+              ruleKey: group.ruleKey,
+              ruleType: rule.typeName,
+              operator: rule.operatorName,
+              formula1: rule.formula1,
+              formula2: rule.formula2,
+              expectation: describeValidationRule(rule, rule.type === 3 ? resolveValidationListInfo(rule, listCache) : null),
+              reason: "规则未允许空值（IgnoreBlank=false），该单元格为空"
+            });
+          } else {
+            violationsOverflow++;
+          }
+        } else {
+          skippedBlankCells++;
+          if (rule.ignoreBlank === null) blankWithUnknownIgnoreBlank++;
+        }
+        continue;
+      }
+
+      const verdict = evaluateValidationRule(rule, value, listCache);
+      if (verdict.status === "pass") continue;
+      if (verdict.status === "unevaluated") {
+        unevaluated.push({ address: address, ruleKey: group.ruleKey, value: value, reason: verdict.reason });
+        continue;
+      }
+      if (violations.length < VALIDATION_REPORT_MAX) {
+        const entry = {
+          address: address,
+          value: value,
+          ruleKey: group.ruleKey,
+          ruleType: rule.typeName,
+          operator: rule.operatorName,
+          formula1: rule.formula1,
+          formula2: rule.formula2,
+          expectation: verdict.expectation,
+          reason: verdict.reason
+        };
+        if (verdict.allowed) entry.allowedValues = verdict.allowed;
+        violations.push(entry);
+      } else {
+        violationsOverflow++;
+      }
+    }
+
+    // 规则清单补上"期望"文案（list 规则要按签名去解析引用/字面量，缓存在 listCache 里）
+    rules.forEach((group) => {
+      const rule = ruleObjectsByKey[group.ruleKey];
+      if (!rule) return;
+      const info = rule.type === 3 ? resolveValidationListInfo(rule, listCache) : null;
+      group.expectation = describeValidationRule(rule, info);
+    });
+
+    const violationsTruncated = violationsOverflow > 0;
+    if (violationsTruncated) {
+      warnings.push(`违规条目已达上报上限 ${VALIDATION_REPORT_MAX} 条，另有 ${violationsOverflow} 个越界单元格未逐条列出（validatedCells=${validatedCells}）`);
+    }
+    if (unevaluated.length > 0) {
+      warnings.push(`有 ${unevaluated.length} 个单元格无法判定（规则读失败/自定义公式/无法解析的比较值），已列入 unevaluated，**未计入通过**`);
+    }
+    if (blankWithUnknownIgnoreBlank > 0) {
+      warnings.push(`有 ${blankWithUnknownIgnoreBlank} 个空格没能读到 IgnoreBlank，无法确定"空值是否算越界"，已按跳过处理（可能漏报）`);
+    }
+    if (blockValuesError) warnings.push(blockValuesError);
+
+    return {
+      rangeAddress: safeRead(() => range.Address(), null),
+      scannedCells: scannedCells,
+      totalCells: totalCells,
+      truncated: truncated,
+      validatedCells: validatedCells,
+      skippedBlankCells: skippedBlankCells,
+      blankWithUnknownIgnoreBlank: blankWithUnknownIgnoreBlank,
+      readErrorCells: readErrorCells,
+      ruleCount: rules.length,
+      rules: rules,
+      violations: violations,
+      violationCount: violations.length,
+      violationsTruncated: violationsTruncated,
+      unevaluated: unevaluated.slice(0, VALIDATION_REPORT_MAX),
+      unevaluatedCount: unevaluated.length,
+      warnings: warnings,
+      message: `已比对 [${sheet.Name}] ${safeRead(() => range.Address(), "")}：${validatedCells} 个带校验的单元格中 ${violations.length} 个取值越界` +
+        (unevaluated.length ? `，另有 ${unevaluated.length} 个无法判定` : "") +
+        (truncated ? "（扫描被截断，见 warnings）" : "")
+    };
+  }
+
   function getRangeStyles(app, params) {
     const config = params || {};
     const { sheetName, workbookName, address, mode = "summary" } = config;
     if (!address) throw new Error("缺少必要参数: address (例如 'A1:C10')");
-    const allowed = ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation"];
+    const allowed = ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation", "validationViolations"];
     const defaults = ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea"];
     const include = Array.isArray(config.include) ? config.include.filter((field) => allowed.indexOf(field) >= 0) : defaults;
     const sheet = getWorksheet(app, sheetName, workbookName);
@@ -1863,7 +2778,13 @@ case "ppt_read_presentation":
         if (field === "mergeArea" && styles.merged === false) return false;
         return styles[field] === null;
       });
-      return Object.assign(base, { styles, mixedOrUnavailableFields });
+      const result = Object.assign(base, { styles, mixedOrUnavailableFields });
+      // CAP-10：把 include 里的 validationViolations 当作**区域级附加读取**——
+      // 逐格比对规则，列出越界单元格（值 + 命中的规则 + 期望）。
+      if (include.indexOf("validationViolations") >= 0) {
+        result.validationCheck = collectValidationViolations(sheet, range, { maxCells: config.maxCells });
+      }
+      return result;
     }
 
     const maxCells = Math.max(1, Math.min(500, Math.trunc(Number(config.maxCells) || 100)));
@@ -1875,7 +2796,12 @@ case "ppt_read_presentation":
         cells.push(Object.assign({ address: cell.Address() }, readStyleFields(cell, include)));
       }
     }
-    return Object.assign(base, { totalCells, returnedCells: cells.length, truncated: totalCells > cells.length, cells });
+    const result = Object.assign(base, { totalCells, returnedCells: cells.length, truncated: totalCells > cells.length, cells });
+    // CAP-10：cells 模式同样可以顺带做违规定位（区域级结果，不按格重复）
+    if (include.indexOf("validationViolations") >= 0) {
+      result.validationCheck = collectValidationViolations(sheet, range, { maxCells: config.maxCells });
+    }
+    return result;
   }
 
   // 8. 单元格搜索
@@ -2395,6 +3321,45 @@ case "ppt_read_presentation":
     const sheet = getWorksheet(app, sheetName, workbookName);
     const range = sheet.Range(address);
 
+    // ⚠️ 与 set_data_validation 同一类问题（Lead 追修「先校验、后动手」）：
+    // `clearExisting` 会**先删掉该区域既有条件格式**，而原有的参数校验分散在下面各分支里
+    // （未知 ruleType / 不支持的 iconSet / text_contains 缺 containsText / formula 缺 formula1），
+    // 于是"拼错一个参数 + clearExisting"会先把用户的规则清干净、再报错。
+    // 这里把这几项校验**整体前移**到任何修改之前，报错文案与分支内保持一致。
+    const ICON_SET_CODES = {
+      "3_arrows": 1, "3_arrows_gray": 2, "3_flags": 3,
+      "3_traffic_lights": 4, "3_traffic_lights_rimmed": 5,
+      "3_signs": 6, "3_symbols": 7, "3_symbols_circled": 8,
+      "4_arrows": 9, "4_arrows_gray": 10, "4_red_to_black": 11,
+      "4_ratings": 12, "4_traffic_lights": 13,
+      "5_arrows": 14, "5_arrows_gray": 15, "5_quarters": 16,
+      "5_ratings": 17, "5_boxes": 18
+    };
+    const KNOWN_RULE_TYPES = ["cell_value", "data_bar", "color_scale", "icon_set", "top10", "duplicate_values", "unique_values", "formula", "text_contains", "clear"];
+    const untouched = "；本次未做任何修改（原有条件格式保持不变，若传了 clearExisting 也**没有**执行清除）";
+    if (KNOWN_RULE_TYPES.indexOf(String(ruleType)) < 0) {
+      throw new Error(
+        `未知的条件格式类型: ${ruleType}（支持 cell_value, data_bar, color_scale, icon_set, ` +
+        `top10, duplicate_values, unique_values, formula, text_contains, clear）` + untouched
+      );
+    }
+    if (ruleType === "icon_set") {
+      const iconSetName = iconSet || "3_traffic_lights";
+      if (ICON_SET_CODES[iconSetName] === undefined) {
+        throw new Error(`不支持的 iconSet: ${iconSetName}（可用: ${Object.keys(ICON_SET_CODES).join(" / ")}）` + untouched);
+      }
+    }
+    if (ruleType === "text_contains" && !containsText) {
+      throw new Error("text_contains 规则必须提供 containsText" + untouched);
+    }
+    if (ruleType === "formula" && !formula1) {
+      throw new Error("formula 规则必须提供 formula1（如 '=A1>100'）" + untouched);
+    }
+    if (ruleType === "cell_value" && operator === "between" && formula2 === undefined) {
+      // between 少了上限时宿主 Add 会抛错，而那时条件格式已经被 Delete 掉了（同一破坏路径）
+      throw new Error("operator='between' 必须同时提供 formula1 与 formula2（上限）" + untouched);
+    }
+
     if (clearExisting) {
       try { range.FormatConditions.Delete(); } catch (e) {}
     }
@@ -2437,18 +3402,11 @@ case "ppt_read_presentation":
     } else if (ruleType === "icon_set") {
       // CAP-06：红黄绿灯这类"业务信号"是最常见的报表诉求。
       // 真机探测：宿主有 AddIconSetCondition（AddTextString 不存在，文字规则走公式规则）。
-      const ICON_SET_CODES = {
-        "3_arrows": 1, "3_arrows_gray": 2, "3_flags": 3,
-        "3_traffic_lights": 4, "3_traffic_lights_rimmed": 5,
-        "3_signs": 6, "3_symbols": 7, "3_symbols_circled": 8,
-        "4_arrows": 9, "4_arrows_gray": 10, "4_red_to_black": 11,
-        "4_ratings": 12, "4_traffic_lights": 13,
-        "5_arrows": 14, "5_arrows_gray": 15, "5_quarters": 16,
-        "5_ratings": 17, "5_boxes": 18
-      };
+      // ICON_SET_CODES 已在函数开头（校验前移时）声明，这里直接复用。
       const iconSetName = iconSet || "3_traffic_lights";
       const code = ICON_SET_CODES[iconSetName];
       if (code === undefined) {
+        // 兜底（正常路径已在前面拦下）
         throw new Error(`不支持的 iconSet: ${iconSetName}（可用: ${Object.keys(ICON_SET_CODES).join(" / ")}）`);
       }
       const icons = range.FormatConditions.AddIconSetCondition();
@@ -3426,6 +4384,17 @@ case "ppt_read_presentation":
     const { sheetName, workbookName, searchQuery, replaceText, matchCase = false, matchEntireCell = false, searchRange, maxResults = 50 } = params || {};
     if (searchQuery === undefined || searchQuery === null) {
       throw new Error("缺少必要参数: searchQuery (要查找的文本或数值)");
+    }
+    // ISS-98 同源护栏（**宿主侧最后一道，不依赖上游**）：空串在宿主侧是"恒真匹配"——
+    // `String(val).includes("")` 对每个非空单元格都成立，配合 replaceText 还会按**空正则**逐格替换
+    // （`"abc".replace(new RegExp("","gi"), "X")` → 每个字符之间都插入 X），**整片内容被改坏**。
+    // 桥接层已在工具入口拦截（src/bridge/gateway/excel.ts），但加载项可被 WebSocket RPC 直接调用，
+    // 护栏只留一层就等于没有。拦截发生在**任何读取/写入之前**，被拒时文档零改动。
+    if (String(searchQuery) === "") {
+      throw new Error(
+        "searchQuery 不能为空串：空串在宿主侧会命中区域内每个非空单元格（includes('') 恒真），" +
+        "配合 replaceText 会把整片内容改坏；请显式提供要查找的文本或数值。本次未做任何修改。"
+      );
     }
     const sheet = getWorksheet(app, sheetName, workbookName);
     const range = searchRange ? sheet.Range(searchRange) : sheet.UsedRange;
@@ -5321,6 +6290,24 @@ case "ppt_read_presentation":
     const targetRange = sheet.Range(range);
     const warnings = [];
 
+    // ⚠️ 同一类问题（Lead 追修「先校验、后动手」）：sortRules 的越界校验原先排在 AutoFilter 之后，
+    // 于是 `enableAutoFilter:true` + 越界 colIndex 会**先把筛选打开、再报错**。
+    // 前移到任何写入之前（只读 Columns.Count，无副作用）；读不到列数时不拦，避免误拒。
+    if (Array.isArray(sortRules) && sortRules.length > 0) {
+      const colCountForCheck = Math.trunc(Number(safeRead(() => Number(targetRange.Columns.Count), 0)) || 0);
+      if (colCountForCheck > 0) {
+        for (const rule of sortRules) {
+          const ci = Number(rule && rule.colIndex);
+          if (!Number.isFinite(ci) || ci < 1 || ci > colCountForCheck) {
+            throw new Error(
+              `sortRules.colIndex=${rule && rule.colIndex} 越界：目标区域 ${range} 只有 ${colCountForCheck} 列（1..${colCountForCheck}）` +
+              "；本次未做任何修改（未开启/关闭筛选，未排序）"
+            );
+          }
+        }
+      }
+    }
+
     // 自动筛选控制
     let appliedFilterRange = null;
     if (enableAutoFilter !== undefined) {
@@ -5369,13 +6356,8 @@ case "ppt_read_presentation":
     if (Array.isArray(sortRules) && sortRules.length > 0) {
       const rowCount = targetRange.Rows.Count;
       const colCount = targetRange.Columns.Count;
-      // colIndex 越界时宿主静默 no-op（excel-tester M-6）——先做边界校验
-      for (const rule of sortRules) {
-        const ci = Number(rule && rule.colIndex);
-        if (!Number.isFinite(ci) || ci < 1 || ci > colCount) {
-          throw new Error(`sortRules.colIndex=${rule && rule.colIndex} 越界：目标区域 ${range} 只有 ${colCount} 列（1..${colCount}）`);
-        }
-      }
+      // colIndex 越界时宿主静默 no-op（excel-tester M-6）。
+      // 边界校验已在函数开头（任何写入之前）执行过，这里不再重复抛错，直接用列数做后续计算。
       const before = normalize2DArray(targetRange.Value2, rowCount, colCount);
       const attempts = [];
       let after = before;
@@ -5463,17 +6445,189 @@ case "ppt_read_presentation":
     };
   }
 
+  /**
+   * 写入前的**参数校验**（必须在 `Validation.Delete()` 之前跑完）。
+   *
+   * 为什么单独成函数：原实现是 `Validation.Delete()` → 再校验 `listItems` / `validationType`，
+   * 调用方少传一个参数就会**先被清掉该区域原有的数据有效性、然后才收到报错**——
+   * 比"静默 no-op"更具破坏性。原则：**先校验、后动手**，任何"校验失败还会留下副作用"
+   * 的顺序都是错的。校验通过后返回可直接交给宿主 Add 的计划。
+   */
+  function buildDataValidationPlan(params) {
+    const validationType = params.validationType === undefined || params.validationType === null ? "list" : params.validationType;
+    const operator = params.operator === undefined || params.operator === null ? "between" : params.operator;
+    const untouched = "；本次未做任何修改（原有校验保持不变）";
+
+    if (validationType === "list") {
+      const raw = params.listItems;
+      const items = Array.isArray(raw)
+        ? raw.map((x) => String(x).trim()).filter((x) => x !== "")
+        : String(raw === undefined || raw === null ? "" : raw).split(",").map((x) => x.trim()).filter((x) => x !== "");
+      if (items.length === 0) {
+        throw new Error("validationType='list' 必须提供非空的 listItems（候选项数组），否则宿主会静默不设任何校验" + untouched);
+      }
+      return { kind: "list", listStr: items.join(","), requestedItems: items };
+    }
+
+    if (validationType === "number_range") {
+      const opMap = { between: 1, greater_than: 5, less_than: 6, equal: 3 };
+      const op = opMap[operator];
+      if (op === undefined) {
+        throw new Error(`未知的 operator: "${operator}"（支持 between / greater_than / less_than / equal）` + untouched);
+      }
+      const numeric = (label, v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) throw new Error(`${label} 必须是有限数值，收到 "${v}"` + untouched);
+        return String(n);
+      };
+      if (op === 1) {
+        if (params.minVal === undefined || params.maxVal === undefined) {
+          throw new Error("operator='between' 必须同时提供 minVal 与 maxVal（缺一个会写出没有上下限的规则）" + untouched);
+        }
+        return { kind: "number_range", op, f1: numeric("minVal", params.minVal), f2: numeric("maxVal", params.maxVal), boundSource: "minVal+maxVal" };
+      }
+      if (op === 6) {
+        // schema 文档写的是"小于 maxVal"，旧实现取的却是 minVal。两者都接受，优先 maxVal（文档口径），
+        // 用的是哪个如实回传，不再静默按 minVal 走。
+        const useMax = params.maxVal !== undefined && params.maxVal !== null;
+        const chosen = useMax ? params.maxVal : params.minVal;
+        if (chosen === undefined || chosen === null) {
+          throw new Error("operator='less_than' 必须提供 maxVal（上限，也兼容 minVal）" + untouched);
+        }
+        return { kind: "number_range", op, f1: numeric(useMax ? "maxVal" : "minVal", chosen), f2: undefined, boundSource: useMax ? "maxVal" : "minVal" };
+      }
+      if (params.minVal === undefined || params.minVal === null) {
+        throw new Error(`operator='${operator}' 必须提供 minVal` + untouched);
+      }
+      return { kind: "number_range", op, f1: numeric("minVal", params.minVal), f2: undefined, boundSource: "minVal" };
+    }
+
+    throw new Error(`未知的 validationType: "${validationType}" (支持 list, number_range)` + untouched);
+  }
+
+  /** Add 抛错后的**尽力回滚**：把写入前读到的规则写回去，并读回核对是否真的回去了。 */
+  function restoreValidationRule(targetRange, previous) {
+    if (!previous || previous.ok === false) {
+      return { attempted: false, restored: false, reason: previous && previous.ok === false ? "写入前未能读到原规则（" + previous.error + "）" : "读取原规则失败" };
+    }
+    if (!previous.rule) return { attempted: false, restored: false, reason: "写入前该区域本就没有校验" };
+    const rule = previous.rule;
+    try {
+      try { targetRange.Validation.Delete(); } catch (e) {}
+      const alertStyle = Number.isFinite(rule.alertStyle) ? rule.alertStyle : 1;
+      if (rule.type === 3) {
+        targetRange.Validation.Add(3, alertStyle, 1, rule.formula1 === null ? "" : rule.formula1);
+      } else {
+        targetRange.Validation.Add(rule.type, alertStyle, Number.isFinite(rule.operator) ? rule.operator : 1, rule.formula1, rule.formula2 === null ? undefined : rule.formula2);
+      }
+    } catch (e) {
+      return { attempted: true, restored: false, reason: "回滚调用失败: " + e.message };
+    }
+    const after = readCellValidationRule(targetRange);
+    if (after.ok && after.rule && after.rule.signature === rule.signature) return { attempted: true, restored: true };
+    return { attempted: true, restored: false, reason: "回滚后读回与原规则不一致" };
+  }
+
+  /**
+   * 写后读回核对：把宿主**真实状态**与请求值逐项比较。
+   * 返回 { ok, warnings, readBack }；ok=false 表示核心规则没落上（调用方已为此返回失败）。
+   */
+  function verifyDataValidationRule(targetRange, sheet, plan, requested) {
+    const warnings = [];
+    const readBack = readCellValidationRule(targetRange);
+    if (readBack.ok === false) {
+      return { ok: false, warnings: ["写后读回失败：" + readBack.error], readBack: null };
+    }
+    const rule = readBack.rule;
+    if (!rule) {
+      return { ok: false, warnings: ["写后读回：该区域没有任何校验规则（宿主未落上）"], readBack: null };
+    }
+    const summary = {
+      type: rule.type, typeName: rule.typeName,
+      operator: rule.operator, operatorName: rule.operatorName,
+      formula1: rule.formula1, formula2: rule.formula2,
+      inCellDropdown: rule.inCellDropdown, ignoreBlank: rule.ignoreBlank
+    };
+    let ok = true;
+
+    if (plan.kind === "list") {
+      if (rule.type !== 3) {
+        ok = false;
+        warnings.push(`写后读回类型不符：请求 list(xlValidateList=3)，宿主读回 ${rule.typeName}(${rule.type})`);
+      } else {
+        const parsed = parseValidationListFormula(rule.formula1);
+        let got = null;
+        if (parsed.ok && parsed.kind === "literal") got = parsed.items;
+        else if (parsed.ok && parsed.kind === "reference") {
+          const resolved = readValidationListReference(sheet, parsed.reference);
+          if (resolved.ok) got = resolved.items;
+          else warnings.push("写后读回的候选项引用无法解析：" + resolved.error);
+        } else if (!parsed.ok) {
+          warnings.push("写后读回的候选项无法解析：" + parsed.reason);
+        }
+        if (got === null) {
+          // 解析不了就不敢说"一致"，如实降级为未核对
+          warnings.push(`候选项未能逐项核对：请求 ${plan.requestedItems.length} 项，宿主 Formula1 = ${rule.formula1 === null ? "null" : rule.formula1}`);
+        } else {
+          const norm = (arr) => arr.map((x) => String(x).trim()).sort();
+          const a = norm(plan.requestedItems), b = norm(got);
+          if (a.length !== b.length || a.some((x, i) => x !== b[i])) {
+            ok = false;
+            warnings.push(`候选项与请求不一致：请求 [${a.join(", ")}]，宿主读回 [${b.join(", ")}]`);
+          }
+        }
+        if (rule.inCellDropdown === false) warnings.push("写后读回：InCellDropdown 为 false，下拉箭头未生效");
+      }
+    } else {
+      if (rule.type !== 2) {
+        ok = false;
+        warnings.push(`写后读回类型不符：请求 decimal(xlValidateDecimal=2)，宿主读回 ${rule.typeName}(${rule.type})`);
+      }
+      if (rule.operator !== plan.op) {
+        ok = false;
+        warnings.push(`写后读回运算符不符：请求 ${plan.op}，宿主读回 ${rule.operator}`);
+      }
+      const sameNumber = (a, b) => {
+        if (a === null || a === undefined || b === null || b === undefined) return false;
+        const na = Number(String(a).replace(/^=/, "")), nb = Number(String(b));
+        return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
+      };
+      if (!sameNumber(plan.f1, rule.formula1)) {
+        ok = false;
+        warnings.push(`写后读回下限不符：请求 ${plan.f1}，宿主读回 ${rule.formula1 === null ? "null" : rule.formula1}`);
+      }
+      if (plan.op === 1 && !sameNumber(plan.f2, rule.formula2)) {
+        ok = false;
+        warnings.push(`写后读回上限不符：请求 ${plan.f2}，宿主读回 ${rule.formula2 === null ? "null" : rule.formula2}`);
+      }
+    }
+
+    // 提示/报错文案：属于附加项，落不上只报警告（核心规则已核对通过）
+    const g = (fn) => { try { const x = fn(); return x === undefined ? null : x; } catch (e) { return null; } };
+    if (requested.promptMessage) {
+      const got = g(() => targetRange.Validation.InputMessage);
+      if (String(got === null ? "" : got) !== String(requested.promptMessage)) {
+        warnings.push(`提示文案未落上：请求 "${requested.promptMessage}"，宿主读回 ${got === null ? "null" : `"${got}"`}`);
+      }
+    }
+    if (requested.errorMessage) {
+      const got = g(() => targetRange.Validation.ErrorMessage);
+      if (String(got === null ? "" : got) !== String(requested.errorMessage)) {
+        warnings.push(`报错文案未落上：请求 "${requested.errorMessage}"，宿主读回 ${got === null ? "null" : `"${got}"`}`);
+      }
+    }
+    return { ok: ok, warnings: warnings, readBack: summary };
+  }
+
   // 18. 单元格下拉验证菜单 (第三梯队)
   function setDataValidation(app, params) {
+    // 写入参数（validationType / listItems / operator / minVal / maxVal）**不在这里解构**：
+    // 它们统一由 buildDataValidationPlan(params) 校验后再用，避免"读了却没校验"或
+    // "解构出默认值后误以为已校验"这两类问题。
     const {
       sheetName,
       workbookName,
       address,
-      validationType = "list",
-      listItems = [],
-      operator = "between",
-      minVal,
-      maxVal,
       promptTitle,
       promptMessage,
       errorTitle,
@@ -5540,52 +6694,97 @@ case "ppt_read_presentation":
 
     if (!address) throw new Error("缺少必要参数: address (例如 'E5:E20')");
 
+    // ⚠️ 顺序铁律（Lead 追修）：**先校验、后动手**。
+    // 原实现是 `Validation.Delete()` → 再校验 listItems / validationType，
+    // 少传一个参数会先把该区域原有的数据有效性清掉、然后才报错——破坏性比"静默 no-op"更强。
+    const plan = buildDataValidationPlan(params || {});
+
     const targetRange = sheet.Range(address);
+
+    // 写入前先记录原规则：① 失败时能告诉调用方被清掉了什么；② Add 抛错时尽力回滚。
+    const previousRuleProbe = readCellValidationRule(targetRange);
+    const previousRule = previousRuleProbe.ok && previousRuleProbe.rule ? {
+      type: previousRuleProbe.rule.type,
+      typeName: previousRuleProbe.rule.typeName,
+      operator: previousRuleProbe.rule.operator,
+      formula1: previousRuleProbe.rule.formula1,
+      formula2: previousRuleProbe.rule.formula2
+    } : null;
 
     try {
       targetRange.Validation.Delete();
     } catch (e) {}
 
-    if (validationType === "list") {
-      const listStr = Array.isArray(listItems) ? listItems.join(",") : String(listItems || "");
-      // 缺候选项时宿主会静默 no-op（excel-tester M-5）——直接报错而不是假装设上了
-      if (listStr.trim() === "") throw new Error("validationType='list' 必须提供 listItems（候选项数组），否则宿主会静默不设任何校验");
-      // Type: 3 (xlValidateList), AlertStyle: 1 (xlValidAlertStop), Operator: 1 (xlBetween)
-      targetRange.Validation.Add(3, 1, 1, listStr);
-      targetRange.Validation.InCellDropdown = true;
-    } else if (validationType === "number_range") {
-      let op = 1; // xlBetween
-      if (operator === "greater_than") op = 5;
-      else if (operator === "less_than") op = 6;
-      else if (operator === "equal") op = 3;
-
-      const f1 = minVal !== undefined ? String(minVal) : "0";
-      const f2 = maxVal !== undefined ? String(maxVal) : undefined;
-      // Type: 2 (xlValidateDecimal)
-      targetRange.Validation.Add(2, 1, op, f1, f2);
-    } else {
-      throw new Error(`未知的 validationType: ${validationType} (支持 list, number_range)`);
+    let addError = null;
+    try {
+      if (plan.kind === "list") {
+        // Type: 3 (xlValidateList), AlertStyle: 1 (xlValidAlertStop), Operator: 1 (xlBetween)
+        targetRange.Validation.Add(3, 1, 1, plan.listStr);
+        targetRange.Validation.InCellDropdown = true;
+      } else {
+        // Type: 2 (xlValidateDecimal)
+        targetRange.Validation.Add(2, 1, plan.op, plan.f1, plan.f2);
+      }
+    } catch (e) {
+      addError = e;
     }
 
-    if (promptMessage) {
-      targetRange.Validation.InputTitle = promptTitle || "选择提示";
-      targetRange.Validation.InputMessage = promptMessage;
+    if (addError) {
+      // 宿主 Add 失败时原规则已被 Delete 掉 —— 尽力写回并读回核对，结果如实上报，不假装无事发生。
+      const rollback = restoreValidationRule(targetRange, previousRuleProbe);
+      return {
+        success: false,
+        workbookName: sheet.Parent.Name,
+        sheetName: sheet.Name,
+        address,
+        validationType: plan.kind,
+        hostError: addError.message,
+        previousRule: previousRule,
+        rollback: rollback,
+        warnings: [
+          `宿主写入数据有效性失败: ${addError.message}`,
+          rollback.restored
+            ? "写入前的原有校验已尽力写回并读回核对通过"
+            : `原有校验未能恢复（${rollback.reason}）——该区域现在可能没有校验，请重新设置`
+        ],
+        message: `在 [${sheet.Name}] ${address} 配置数据有效性失败（原校验${rollback.restored ? "已恢复" : "未恢复"}）`
+      };
+    }
+
+    if (params.promptMessage) {
+      targetRange.Validation.InputTitle = params.promptTitle || "选择提示";
+      targetRange.Validation.InputMessage = params.promptMessage;
       targetRange.Validation.ShowInput = true;
     }
 
-    if (errorMessage) {
-      targetRange.Validation.ErrorTitle = errorTitle || "输入无效";
-      targetRange.Validation.ErrorMessage = errorMessage;
+    if (params.errorMessage) {
+      targetRange.Validation.ErrorTitle = params.errorTitle || "输入无效";
+      targetRange.Validation.ErrorMessage = params.errorMessage;
       targetRange.Validation.ShowError = true;
     }
 
+    // 写后读回核对：状态文案已承诺"写入并读回核对"，就必须真的核对，不能只回 success。
+    const verify = verifyDataValidationRule(targetRange, sheet, plan, params || {});
+    const warnings = verify.warnings.slice();
+    if (plan.boundSource === "minVal") {
+      warnings.push("operator='less_than' 未传 maxVal，本次按 minVal 作为上限写入（schema 文档口径是 maxVal，建议显式传 maxVal）");
+    }
+
     return {
-      success: true,
+      success: verify.ok,
       workbookName: sheet.Parent.Name,
       sheetName: sheet.Name,
       address,
-      validationType,
-      message: `已成功在 [${sheet.Name}] ${address} 配置数据有效性验证`
+      validationType: plan.kind === "list" ? "list" : "number_range",
+      requested: plan.kind === "list"
+        ? { listItems: plan.requestedItems }
+        : { operator: plan.operator === undefined ? params.operator : params.operator, operatorCode: plan.op, formula1: plan.f1, formula2: plan.f2 === undefined ? null : plan.f2 },
+      readBack: verify.readBack,
+      replacedPreviousRule: previousRule,
+      warnings: warnings,
+      message: verify.ok
+        ? `已在 [${sheet.Name}] ${address} 配置数据有效性并读回核对通过`
+        : `已在 [${sheet.Name}] ${address} 调用宿主写入数据有效性，但**读回与请求不一致**（见 warnings），请勿当作已生效`
     };
   }
 
@@ -6310,6 +7509,14 @@ case "ppt_read_presentation":
     }
   }
 
+  // 写入/读回共用的归一化：宿主会在段末补段落标记，表格单元格补 \x07 单元格标记，
+  // 换行符在不同路径下可能被换成 \r/\n/\v/\f，这些都不算"吞改内容"。
+  // ⚠️ 控制符必须写 `\x07`，**不能写 `\a`**：JS 正则里 `\a` 是恒等转义，等于字母 a，
+  //    写成 `/[\r\a]/g` 会把文本里所有小写 a 删掉。ISS-67 的假报警就是这么来的（见 wordWriteContent 注释）。
+  function wordNormalizeWrittenText(s) {
+    return String(s === undefined || s === null ? "" : s).replace(/[\r\n\v\f\x07]/g, "");
+  }
+
   function wordWriteContent(app, params) {
     const { documentName, location, targetBookmark, paragraphIndex, type, content, formatting } = params || {};
     const doc = getWordDocument(app, documentName);
@@ -6341,27 +7548,37 @@ case "ppt_read_presentation":
     }
 
     const meta = { insertedParagraphs: [], bookmarkPreserved: undefined };
-    const writtenRanges = [];
     for (const raw of nonEmpty) {
       const text = String(raw);
-      // 先查宿主是否吞字符：旧构建曾在 Paragraphs.Add(targetRange) + Range.Text 路径上吞掉小写字母，
-      // 所以写入后按长度读回一次，长度不符就明确报错，而不是返回 success 让调用方踩坑（ISS-67）。
       const range = wordWriteOneLine(doc, wordApp, loc, targetBookmark, paragraphIndex, text, meta);
       wordApplyLineFormat(doc, range, type, formatting);
-      writtenRanges.push(range);
+
+      // 写入后逐字核对读回内容（不只比长度：等长改写同样是静默改坏用户内容）。
+      // 说明：这一层是"宿主真的吞改字符"的兜底。ISS-67（2026-09-22 报的"吞掉所有小写字母 a"）
+      // 事后用原始会话取证复核为**假报警**——当时的验证探针自己写了 `.replace(/[\r\a]/g, "")`，
+      // 而 JS 正则里 `\a` 是恒等转义、等于字母 a（C/PCRE/.NET 里才是 BEL 0x07，本项目内部一律写 `\x07`），
+      // 于是探针先把读回文本里的 a 全删掉再比对，必然得出"少了 a"的结论；同一探针的原始输出里
+      // `Paragraphs.Add()+Range.Text` 其实返回空串，却被写成"完整保留"。因此这里**没有**改写入路径。
+      let readBack = null;
       try {
-        const readBack = (range.Text || "").replace(/[\r\n\x07]/g, "");
-        if (readBack.length !== text.length) {
+        readBack = wordNormalizeWrittenText(range.Text);
+      } catch (e) {
+        // 读回失败（宿主偶发）不算吞字符，不阻断写入，如实标注未核对
+      }
+      if (readBack !== null) {
+        const expected = wordNormalizeWrittenText(text);
+        if (readBack !== expected) {
           throw new Error(
-            `写入后读回长度不一致：写入 ${text.length} 个字符，读回 ${readBack.length} 个。` +
-            `疑似宿主在 Range 文本赋值时吞字符；请勿重试覆盖，先读回核对，或改用 wps_execute_script 的 Range.InsertAfter。`
+            `写入后逐字校验失败：写入 ${JSON.stringify(text.slice(0, 60))}（${text.length} 字符），` +
+            `读回 ${JSON.stringify(String(readBack).slice(0, 60))}（${readBack.length} 字符）。` +
+            `第 ${meta.insertedParagraphs.length + 1} 行内容与预期不一致，**不要直接重试覆盖**：先读回该段落核对。` +
+            `提示：若宿主做了排版类自动替换（如直引号转弯引号），也会被这里拦下，请按读回内容判断。`
           );
         }
-      } catch (e) {
-        if (/疑似宿主在 Range 文本赋值时吞字符/.test(e.message)) throw e;
       }
       meta.insertedParagraphs.push({
         textLength: text.length,
+        readBackMatches: readBack === null ? null : true,
         start: range.Start,
         end: range.End,
         style: (() => { try { return range.Style ? range.Style.NameLocal : undefined; } catch (e) { return undefined; } })()
@@ -6423,18 +7640,35 @@ case "ppt_read_presentation":
       if (spaceAfterPt !== undefined) para.Format.SpaceAfter = Number(spaceAfterPt);
     }
 
-    // 1. 基于搜索词强力加粗/排版 (支持正文与全量表格穿透)
-    const queries = Array.isArray(searchQueries) ? searchQueries : (searchQuery ? [searchQuery] : []);
-    if (queries.length > 0) {
+    // 1. 基于搜索词强力加粗/排版（CAP-24：Word 关键词加粗，正文 + 全量表格穿透）
+    //    宿主侧这条通路一直可用，此前缺的只是工具 schema 里的 searchQuery/searchQueries（schema 已补）。
+    //    这里补三件此前没有的东西：① 查找循环上限（原来 while(f.Execute()) 无上限，宿主不推进就是死循环→WPS 卡死）；
+    //    ② 逐处读回校验，避免"报了多少处、其实一处没生效"的假成功；③ 命中范围异常时**不赋格式**（防止误把整篇加粗）。
+    const rawQueries = Array.isArray(searchQueries) ? searchQueries : (searchQuery ? [searchQuery] : []);
+    if (rawQueries.length > 0) {
+      const queries = rawQueries
+        .map(q => String(q === undefined || q === null ? "" : q))
+        .filter(q => q.trim() !== "");
+      if (queries.length === 0) {
+        throw new Error("searchQueries / searchQuery 里没有非空关键词（纯空白也按空处理），未对文档做任何修改");
+      }
+      const warnings = [];
       const ranges = [doc.Content];
       if (doc.Tables) {
         for (let t = 1; t <= doc.Tables.Count; t++) {
           try { ranges.push(doc.Tables.Item(t).Range); } catch (te) {}
         }
       }
+      const queryStats = [];
+      // 表格范围嵌在 doc.Content 里，同一个命中会被查两遍；按命中区间去重，计数才是"处数"而不是"次数"
       let formattedCount = 0;
+      let verifiedCount = 0;
       for (const q of queries) {
-        if (!q) continue;
+        const seen = Object.create(null);
+        let matched = 0;
+        let verified = 0;
+        let skippedUnexpected = 0;
+        let truncated = false;
         for (const rng of ranges) {
           try {
             const f = rng.Find;
@@ -6445,26 +7679,62 @@ case "ppt_read_presentation":
             f.MatchWildcards = false;
             f.Forward = true;
             f.Wrap = 0; // wdFindStop
-            while (f.Execute()) {
-              formattedCount++;
-              if (bold !== undefined) f.Parent.Font.Bold = Boolean(bold);
-              if (italic !== undefined) f.Parent.Font.Italic = Boolean(italic);
-              if (fontSizePt !== undefined) f.Parent.Font.Size = Number(fontSizePt);
+            let guard = 0;
+            while (f.Execute() && guard++ < 5000) {
+              const hit = f.Parent; // 宿主命中后会把 Range 收缩到命中文本上（与 wordFindAndReplace 同一约定）
+              let hitLen = null;
+              try { hitLen = String(hit.Text === undefined || hit.Text === null ? "" : hit.Text).length; } catch (e) { hitLen = null; }
+              // 长度差 > 2 说明这个"命中"范围远大于关键词（多半是宿主没有收缩 Range）。
+              // 此时**绝不能赋格式**：那会把整个范围（极端情况是整篇）加粗，宁可跳过并告警。
+              if (hitLen !== null && Math.abs(hitLen - q.length) > 2) { skippedUnexpected++; continue; }
+              const key = `${hit.Start}:${hit.End}`;
+              if (seen[key]) continue;
+              seen[key] = true;
+              matched++;
+              if (bold !== undefined) hit.Font.Bold = Boolean(bold);
+              if (italic !== undefined) hit.Font.Italic = Boolean(italic);
+              if (fontSizePt !== undefined) hit.Font.Size = Number(fontSizePt);
               if (fontName) {
-                f.Parent.Font.NameFarEast = fontName;
-                f.Parent.Font.NameAscii = fontName;
+                hit.Font.NameFarEast = fontName;
+                hit.Font.NameAscii = fontName;
+              }
+              if (bold !== undefined) {
+                try { if (Boolean(hit.Font.Bold) === Boolean(bold)) verified++; } catch (e) {}
+              } else {
+                verified++; // 没请求加粗时没有可读回的属性，按"已应用"计
               }
             }
-          } catch (fe) {}
+            if (guard >= 5000) truncated = true;
+          } catch (fe) {
+            warnings.push(`关键词「${q}」查找过程出错：${fe.message}`);
+          }
         }
+        if (truncated) warnings.push(`关键词「${q}」命中达到 5000 次上限已停止，可能只处理了前 5000 处`);
+        if (skippedUnexpected > 0) {
+          warnings.push(`关键词「${q}」有 ${skippedUnexpected} 处返回的范围与关键词长度不符（疑似宿主未把 Range 收缩到命中处），已跳过、未赋格式`);
+        }
+        formattedCount += matched;
+        verifiedCount += verified;
+        queryStats.push({ query: q, matches: matched, verified: verified, skippedUnexpected: skippedUnexpected || undefined });
       }
+      const notFound = formattedCount === 0;
+      if (notFound) warnings.push(`关键词 ${queries.map(x => `「${x}」`).join("、")} 一处都没命中，未修改文档`);
       return {
         success: true,
         documentName: doc.Name,
         target: "search_matches",
         queries,
         formattedMatches: formattedCount,
-        message: `已成功为 ${queries.length} 个关键词匹配项 (${formattedCount} 处) 应用排版`
+        verifiedMatches: verifiedCount,
+        matched: !notFound,
+        queryStats: queryStats,
+        warnings: warnings.length ? warnings : undefined,
+        message: notFound
+          ? `未在 [${doc.Name}] 中找到这些关键词：${queries.map(x => `「${x}」`).join("、")}，未应用任何排版`
+          : `已为 ${queries.length} 个关键词的 ${formattedCount} 处匹配应用排版` +
+            (verifiedCount < formattedCount
+              ? `（逐处读回只确认了 ${verifiedCount} 处，其余请复核）`
+              : `（已逐处读回确认 ${verifiedCount} 处）`)
       };
     }
 
@@ -6887,77 +8157,40 @@ case "ppt_read_presentation":
     }
   }
 
-  // 水印：优先尝试"页眉层"（跨页可见），失败则回退正文层并给出告警。
-  //
-  // 已实测的宿主事实（WPS for Mac 12.0 / 12.1.28496）：
-  //   - `section.Headers.Item(1).Shapes.AddTextEffect(...)` **会静默把形状加到正文层**：
-  //     调用后 `header.Shapes.Count` 恒为 0、`doc.Shapes.Count` +1（同一形状对象）；
-  //   - `header.Range.ShapeRange.AddTextEffect` 是 undefined（"is not a function"）；
-  //   - `Range.InsertXML`（VML `<w:pict>`）对页眉 story 无效，页眉 XML 长度不变；
-  //   - `doc.Shapes.AddTextEffect` 落正文层：正文层浮动图形**只在第 1 页渲染**，不是"每页可见"。
-  // 因此这里如实返回 placement，并把"跨页水印需另想办法"写进 warnings。
-  function wordAddWatermarkToSection(doc, section, text, colorHex, pageSetup, warnings, sectionIndex) {
-    const fontSize = 54;
-    const shapeColor = hexToExcelColor(colorHex || "#C0C0C0") || 0xc0c0c0;
-    let shape = null;
-    let placement = "body";
-
-    // 路径 1：页眉层
-    try {
-      const header = section.Headers.Item(1);
-      header.Shapes.AddTextEffect(0, text, "Microsoft YaHei", fontSize, false, false, 0, 0);
-      let headerCount = 0;
-      try { headerCount = header.Shapes.Count; } catch (e) {}
-      if (headerCount > 0) {
-        placement = "header";
-        try { shape = header.Shapes.Item(headerCount); } catch (e) {}
-      }
-    } catch (e) {
-      warnings.push(`第 ${sectionIndex} 节页眉层水印写入失败：${e.message}`);
-    }
-
-    // 路径 2：正文层（页眉层不可用时的回退；宿主会把页眉 Shapes 的写入落到这里）
-    if (!shape) {
-      try {
-        shape = doc.Shapes.AddTextEffect(0, text, "Microsoft YaHei", fontSize, false, false, 0, 0);
-        placement = "body";
-      } catch (e) {
-        warnings.push(`第 ${sectionIndex} 节水印创建失败：${e.message}`);
-        return { ok: false, error: e.message };
-      }
-    }
-
-    let geometry = null;
-    try {
-      shape.Rotation = -315;
-      try { shape.Fill.Transparency = 0.85; } catch (e) {}
-      try { shape.Fill.ForeColor.RGB = shapeColor; } catch (e) {}
-      try { shape.Line.Visible = false; } catch (e) {}
-      try { shape.WrapFormat.Type = 3; } catch (e) {}
-      // 居中：先把版式设为"相对页面"，再按页面尺寸居中（属性名在 WPS 上为 Range.ParagraphFormat 同族对象）
-      const pw = pageSetup.pageWidth, ph = pageSetup.pageHeight;
-      const w = Number(shape.Width) || 0, h = Number(shape.Height) || 0;
-      shape.Left = Math.round(((pw - w) / 2) * 100) / 100;
-      shape.Top = Math.round(((ph - h) / 2) * 100) / 100;
-      geometry = { left: shape.Left, top: shape.Top, width: shape.Width, height: shape.Height, rotation: shape.Rotation };
-    } catch (e) {
-      warnings.push(`第 ${sectionIndex} 节水印属性设置部分失败：${e.message}`);
-    }
-
-    return {
-      ok: true,
-      sectionIndex: sectionIndex,
-      placement: placement,
-      shapeName: (() => { try { return shape.Name; } catch (e) { return undefined; } })(),
-      geometry: geometry
-    };
-  }
+  // ⛔ 水印写入已在源码层**禁用**（ISS-125）。原实现（wordAddWatermarkToSection）走
+  //    `header.Shapes.AddTextEffect(...)` / `doc.Shapes.AddTextEffect(...)`，真机上会让
+  //    WPS 主进程 SIGSEGV 崩溃：崩溃报告 ~/Library/Logs/DiagnosticReports/wpsoffice-2026-09-22-204903.ips
+  //    由 Lead 独立核实为 EXC_BAD_ACCESS/SIGSEGV，故障线程栈 `wpsapi +3272704` **连续重复 6 帧**（无限递归），
+  //    调用链 ksojscore → jswpsapi → wpsapi，即本工具的 JS API 调用触发；同一天另外 5 次 wpsoffice 崩溃签名都不同。
+  //    Word/PPT/Excel 三组件会一起掉线（code 1001），未保存的用户数据一起丢——代价远高于缺这个功能。
+  //    因此这里不再保留任何可被调用的水印写入路径，参数直接在 wordPageLayoutAndWatermark 里拒绝。
+  //    解除禁用前必须：宿主换版本 → 在**独立测试文档**上单独验证 AddTextEffect 不再崩溃 → 才能恢复实现。
+  //    另注：即便不崩，原实现也只把水印落在正文层（`Headers.Shapes` 的写入被宿主静默落到正文层），
+  //    只在第 1 页渲染，本来就不是"每页可见"；跨页水印应走 WPS 内手动插入或 Windows/COM 通道。
 
   function wordPageLayoutAndWatermark(app, params) {
     const { documentName, headerText, footerText, pageNumberFormat, differentFirstPage, differentOddEvenPages, watermarkText, watermarkColor } = params || {};
     const doc = getWordDocument(app, documentName);
     const warnings = [];
     const sectionCount = doc.Sections.Count;
+
+    // ⛔ ISS-125：水印写入**在源码层硬拒绝**，且必须发生在任何宿主写操作之前——
+    // 这样"传了 watermarkText"的调用不会留下半成品（页眉/页脚/页码一律不写）。
+    // 原因见上面的证据块：AddTextEffect 会让 WPS 主进程 SIGSEGV（wpsapi 无限递归），
+    // 崩溃会带走用户未保存的数据，风险远高于"少一个功能"。
+    const watermarkRequested = watermarkText !== undefined && watermarkText !== null && String(watermarkText) !== "";
+    if (watermarkRequested) {
+      throw new Error(
+        "watermarkText 已禁用：在当前宿主（WPS for Mac 12.0 / 12.1.28496）写水印会让 **WPS 主进程崩溃**（SIGSEGV，" +
+        "崩溃报告已核实为 wpsapi 无限递归，Word/PPT/Excel 会同时掉线），可能让用户丢掉未保存的数据。" +
+        "本次调用**未修改文档**（页眉/页脚/页码也没写）。" +
+        "替代路径：① 在 WPS 内「插入 → 水印」手动加；② 程序化水印走 Windows/COM 通道的 Section.Headers.Shapes；" +
+        "③ 若确认宿主版本已修复，先在一份独立测试文档上单独验证 AddTextEffect 不再崩溃，再从源码解除禁用。"
+      );
+    }
+    if (watermarkColor !== undefined) {
+      warnings.push("watermarkColor 已忽略：水印写入本体（watermarkText）因会导致宿主崩溃而被禁用。");
+    }
 
     // CAP-35 页眉页脚与水印读回：此前只能写不能读，AI 无法确认
     // "现在页眉里是什么""有没有水印"，也无法在改写前先看现状。
@@ -7009,9 +8242,9 @@ case "ppt_read_presentation":
       };
     }
 
-    if (headerText === undefined && footerText === undefined && pageNumberFormat === undefined && watermarkText === undefined &&
+    if (headerText === undefined && footerText === undefined && pageNumberFormat === undefined && !watermarkRequested &&
         differentFirstPage === undefined && differentOddEvenPages === undefined) {
-      throw new Error("headerText / footerText / pageNumberFormat / watermarkText / differentFirstPage / differentOddEvenPages 至少传一项，否则本调用不产生任何变化");
+      throw new Error("headerText / footerText / pageNumberFormat / differentFirstPage / differentOddEvenPages 至少传一项，否则本调用不产生任何变化（watermarkText 已因宿主崩溃风险禁用）");
     }
 
     // 文档级选项
@@ -7053,31 +8286,12 @@ case "ppt_read_presentation":
         }
       }
       if (watermarkText) {
-        const ps = (() => {
-          try {
-            return { pageWidth: Number(doc.PageSetup.PageWidth) || 0, pageHeight: Number(doc.PageSetup.PageHeight) || 0 };
-          } catch (e) { return { pageWidth: 0, pageHeight: 0 }; }
-        })();
-        const wm = wordAddWatermarkToSection(doc, section, String(watermarkText), watermarkColor, ps, warnings, i);
-        if (wm.ok) entry.watermark = wm;
+        // 不可达：watermarkRequested 已经在函数开头抛错。保留这条显式分支是为了让"有人绕过守卫"
+        // 时立刻暴露，而不是沉默地什么都不做。
+        throw new Error("内部错误：水印写入路径已禁用，不应到达这里（ISS-125）。");
       }
 
       appliedSections.push(entry);
-    }
-
-    if (watermarkText && sectionCount > 1) {
-      warnings.push(
-        `水印已按 ${sectionCount} 个节分别写入，但宿主 WPS for Mac 无法把形状放进页眉层` +
-        `（Headers.Shapes 的写入会静默落到正文层），因此水印仍是**正文层浮动图形**：` +
-        `实测只在第 1 页渲染，不是"每页可见"。跨页水印需在 Word 内手动插入（插入 → 水印），` +
-        `或由调用方在 Windows/COM 通道用 Section.Headers.Shapes 处理。`
-      );
-    } else if (watermarkText) {
-      warnings.push(
-        `水印落在正文层（宿主 WPS for Mac 的 Headers.Shapes 写入会静默落到正文层）：` +
-        `正文层浮动图形只在第 1 页渲染，不是"每页可见"。跨页水印需在 Word 内手动插入（插入 → 水印），` +
-        `或改用 Windows/COM 通道。`
-      );
     }
 
     return {
@@ -7088,14 +8302,13 @@ case "ppt_read_presentation":
       header: headerText,
       footer: footerText,
       pageNumberFormat: pageNumberFormat || undefined,
-      watermark: watermarkText || undefined,
+      watermark: undefined,
       warnings: warnings,
       message:
         `已更新 [${doc.Name}] 页面版式：${sectionCount} 个节` +
         (headerText !== undefined ? "，页眉" : "") +
         (footerText !== undefined ? "，页脚" : "") +
         (pageNumberFormat !== undefined ? `，页码(${pageNumberFormat})` : "") +
-        (watermarkText ? "，水印" : "") +
         (warnings.length ? `；有 ${warnings.length} 条告警，请逐条查看 warnings` : "")
     };
   }

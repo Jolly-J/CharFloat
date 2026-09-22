@@ -572,6 +572,22 @@ export const setFilterAndSort: Handler = async (ctx) => {
 export const setDataValidation: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.address) throw new Error("缺少必要参数: address (例如 'E5:E20')");
+    // CAP-50（M1）：`validationType='list'` 却缺 listItems 时，WPS 宿主的 setDataValidation **先**
+    // `Validation.Delete()` **再**抛错（wps-addon/src/excel.js）→ 既有校验被清空、调用方只看到报错。
+    // Office.js 与原生 COM 都已在删除前拦截，这里补桥接层的统一前置校验：三个通道一致，且不再
+    // 走到"先破坏再报错"。注意网关为 validationType 提供了 'list' 默认值，所以"只传 minVal/maxVal"
+    // 也会落到这里——报错里直接给出正确写法。
+    const validationType = args?.validationType || "list";
+    const rawListItems = args?.listItems;
+    const hasListItems = (Array.isArray(rawListItems) && rawListItems.length > 0)
+      || (typeof rawListItems === "string" && rawListItems.trim() !== "");
+    if (String(args?.action || "") !== "read" && validationType === "list" && !hasListItems) {
+      throw new Error(
+        "validationType='list' 必须提供非空的 listItems 数组（如 ['已通过','待复测']）：" +
+        "缺候选项时宿主会先清空该区域既有的数据有效性、再报错（先破坏后失败），已在调用宿主前拦截。" +
+        "想设数值区间请显式传 validationType='number_range' + minVal/maxVal；只读现有效验请传 action='read'。"
+      );
+    }
     const result = await callOffice("set_data_validation", {
       action: args?.action,
       sheetName: args?.sheetName,
@@ -666,6 +682,13 @@ export const manageCellComments: Handler = async (ctx) => {
 export const findAndReplace: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (args?.searchQuery === undefined || args?.searchQuery === null) throw new Error("缺少必要参数: searchQuery");
+    // CAP-50（M2）：schema 允许空串（JSON-schema 不拦空字符串），而空串在**每个通道**都会退化成
+    // "命中整片区域"：WPS 宿主 `includes('')` 恒真、且带 replaceText 时按空正则逐格替换
+    // （wps-addon/src/excel.js 的 findAndReplace 只拦 undefined/null）→ 真实数据被改坏；
+    // COM 脚本同理（`IndexOf('')`）。这里在调用宿主前统一拦截，三个通道一起受保护。
+    if (String(args.searchQuery) === '') {
+      throw new Error("searchQuery 不能为空串：空串会命中整个区域，配合 replaceText 会改写整片内容；请显式提供要查找的文本或数值。");
+    }
     const result = await callOffice("find_and_replace", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,

@@ -4,7 +4,7 @@
 
 **用法**：每条问题一个编号，记录证据、影响面、建议修法与验证方式。修复时把状态改成「修复中 → 已修待验 → 已修已验证」，并在"验证"列写清用什么证明的。**不删条目**；判定不修的写进"状态"并说明理由。
 
-状态口径：`待修` / `修复中` / `已修待验` / `已修已验证` / `不修`
+状态口径：`待修` / `修复中` / `已修待验` / `已修已验证` / `不修` / `撤销·非缺陷`（经原始证据复核，原现象**不成立**——不是宿主缺陷也不是产品缺陷，通常是验证方法本身出错；按"不删条目"保留原记录与撤稿原因）
 
 > **本文件只管"现有能力做错了"。** "宿主能做、但 MCP 还没让 AI 用上"的**能力缺口**单独维护在
 > [capability-backlog.md](capability-backlog.md)（能力补强专项台账，37 条，待排期）——两者不要混。
@@ -97,7 +97,7 @@
 | ISS-64 | 条件格式无图标集/公式规则参数入口，也无读取/清除工具 | 中 | **部分完成**（读回已补；图标集/公式规则**入口**未加，属能力补强 CAP-06） | 工具能力缺口 |
 | ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 台账已补记录；**说明文案待工具说明批次** | 工具说明 |
 | ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | **已修已验证** | 宿主实现 |
-| ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | **部分完成**（本轮未复现；已加写入后逐行读回长度兜底，说明如实标注"未复现"） | 宿主实现 |
+| ISS-67 | ~~`wps_word_write_content` **吞掉所有小写字母 `a`**~~ → **【撤销·非缺陷】原结论错误**：现象是**验证探针自己造的**——探针写 `.replace(/[\r\a]/g, "")`，而 **JS 正则里 `\a` 是恒等转义 = 字母 `a`**（BEL 必须写 `\x07`，那是 C/PCRE/.NET 的语义），于是探针**先把读回文本里每个小写 `a` 删掉再比对**，必然"少 a"。宿主写入一直是正确的：原始输出里 `strippedMatch:[148]`（共 149 段）证明内容**正确落在文末** | **撤销**（原判"高"是误判） | **已澄清·非缺陷**（原始会话逐字取证；全仓库 1161 条正则穷举 **0 条**能删 `a`；无裸 `\a` 转义）。兜底仍保留并升级为**逐字比对**（等长改写也拦，超出原"比长度"） | **验证方法出错**（既非宿主实现，也非本仓库代码） |
 | ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修已验证** | 宿主实现 |
 | ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修已验证** | 宿主实现 |
 | ISS-70 | `write_content` 的 `location:"bookmark"` 没插到书签处，还污染了另一个书签范围 | 中 | **已修已验证** | 宿主实现 |
@@ -150,10 +150,10 @@
 | ISS-122 | **图表数据源必须是交叉表，否则每行都变成一个系列**：把平铺明细（月份/区域/营收 18 行）直接当 `dataRange` → 宿主生成 **18 个系列**，图例挤成一团、颜色随机、完全不可读。用户一眼看出"图表不对"。正确做法：先做**月份 × 区域 的交叉表**再画图 → 3 个系列。**这条不是产品缺陷，是使用方法**——已写进能力验证脚本与 skill 提示 | 中 | **已修正用法** | 使用方式 |
 | ISS-123 | **图表数据标签关不掉却报成功**：`update_chart` 传 `showDataLabels=false` 返回 success 但图表上标签仍在——宿主 `chart.ApplyDataLabels(0)` 不报错也关不掉。**由开关测试发现**。已修：改为**逐系列设 `HasDataLabels`** 再读回每个系列的真实状态，并返回 `dataLabelsMatchRequest`（命名直说含义：实际是否与请求一致），不一致时写 warnings | 中 | **已修已验证** | WPS 宿主实现 |
 | ISS-124 | **`wps_update_chart` schema 与宿主实现不符**：宿主支持 `chartIndex`/`chartType`/`hasLegend`/`showDataLabels`，schema 里没有，反而有个宿主不读的 `legendPosition` → 数据标签等能力**调不到**。已对齐并补网关转发。**暴露 `check:params` 的盲区**：它只查 schema→处理器（声明了没读），查不出反方向的"处理器实现了、schema 没暴露" | 中 | **已修** | 契约一致性 |
-| ISS-125 | 🔴 **`wps_word_page_layout_and_watermark` 写水印导致 WPS 主进程崩溃（SIGSEGV）**。真机：调用 `action:apply, watermarkText:内部机密严禁外传, watermarkColor:#C0C0C0` 返回 success 并给出「水印落在正文层」告警，**~1 秒后 WPS 整体退出**，Word/PPT/Excel 三组件同时掉线（code 1001）。崩溃报告 `~/Library/Logs/DiagnosticReports/wpsoffice-2026-09-22-204903.ips` 已由 Lead 独立核实：`EXC_BAD_ACCESS/SIGSEGV`，故障线程栈 `wpsapi +3272704` **连续重复 6 帧**（无限递归），调用链 `ksojscore → jswpsapi → wpsapi`，即我们的 JS API 调用触发；当天其它 5 次 wpsoffice 崩溃签名均不同。**影响面**：宿主崩溃会带走用户未保存的数据。**处置：立即禁止在该工具上传 watermarkText/watermarkColor；禁止受控复现**（代价太高）。另有一个独立问题：实现把水印写到了**正文层**而非页眉层，本身就不对 | **最高** | **待修（禁止触碰水印写入）** | WPS 宿主 + 我们的实现 |
-| ISS-126 | **宿主重启后残留目标锁，导致 Word 工具集体解析不到文档**。真机（崩溃重启后）：`bridge_get_capabilities` 报「未在 WPS 中找到目标 Word 文档 [agent-word.docx]，当前已打开: 测试文字文稿.docx」——残留锁指向一个**已经不存在的文档**；此时**不传 documentName 的 Word 工具全部拿到 `doc = null`**，报错信息也没指向"该重新锁目标"，使用者会以为工具坏了。绕法：`wps_unlock_target_document` 清残留锁、或每次显式传名。**由 word-ppt-tester 在崩溃恢复过程中发现** | 中 | **待修**（宿主机重启后应校验目标锁有效性，失效即自动清理并提示） | 桥接实现 |
-| ISS-127 | **`wps_word_read_document` 的 `scope="paragraphs"` 与工具描述不符**：描述说返回"仅连续段落文本数组"，实测返回的是 `paragraphDetails` + `previewText`，**没有 `paragraphs` 数组**。调用方按描述取 `paragraphs` 会拿到 undefined。待复核 `maxParagraphs` 是否一并失效。**由 word-ppt-tester 发现** | 中 | **已修**（补 `paragraphs` 数组；待真机复核 Word 侧） |
-| ISS-128 | **越界错误的呈现不统一**：`wps_word_format_document` 传 `paragraphIndex=999`（越界）报内部错误 `Cannot read properties of null (reading 'Range')`；而同类越界在 `write_content` 里是**中文可读报错**。错误信息不统一会让使用者分不清"我传错了"还是"工具有 bug" | 低 | **已修**（段落越界改中文可读报错，含有效范围提示） |
+| ISS-125 | 🔴 **`wps_word_page_layout_and_watermark` 写水印导致 WPS 主进程崩溃（SIGSEGV）**。真机：调用 `action:apply, watermarkText:内部机密严禁外传, watermarkColor:#C0C0C0` 返回 success 并给出「水印落在正文层」告警，**~1 秒后 WPS 整体退出**，Word/PPT/Excel 三组件同时掉线（code 1001）。崩溃报告 `~/Library/Logs/DiagnosticReports/wpsoffice-2026-09-22-204903.ips` 已由 Lead 独立核实：`EXC_BAD_ACCESS/SIGSEGV`，故障线程栈 `wpsapi +3272704` **连续重复 6 帧**（无限递归），调用链 `ksojscore → jswpsapi → wpsapi`，即我们的 JS API 调用触发；当天其它 5 次 wpsoffice 崩溃签名均不同。**影响面**：宿主崩溃会带走用户未保存的数据。**处置：立即禁止在该工具上传 watermarkText/watermarkColor；禁止受控复现**（代价太高）。另有一个独立问题：实现把水印写到了**正文层**而非页眉层，本身就不对 | **最高** | **待修（禁止触碰水印写入）** | **已修（禁用）**：watermarkText 在任何宿主写操作前硬拒绝、删除 AddTextEffect 实现、read 通路保留；真机验证「被拒且不崩」 |
+| ISS-126 | **宿主重启后残留目标锁，导致 Word 工具集体解析不到文档**。真机（崩溃重启后）：`bridge_get_capabilities` 报「未在 WPS 中找到目标 Word 文档 [agent-word.docx]，当前已打开: 测试文字文稿.docx」——残留锁指向一个**已经不存在的文档**；此时**不传 documentName 的 Word 工具全部拿到 `doc = null`**，报错信息也没指向"该重新锁目标"，使用者会以为工具坏了。绕法：`wps_unlock_target_document` 清残留锁、或每次显式传名。**由 word-ppt-tester 在崩溃恢复过程中发现** | 中 | **待修**（宿主机重启后应校验目标锁有效性，失效即自动清理并提示） | **已修**：锁目标不存在且由会话锁注入时自动解除 + 三步可操作提示；三场景回归测试 |
+| ISS-127 | **`wps_word_read_document` 的 `scope="paragraphs"` 与工具描述不符**：描述说返回"仅连续段落文本数组"，实测返回的是 `paragraphDetails` + `previewText`，**没有 `paragraphs` 数组**。调用方按描述取 `paragraphs` 会拿到 undefined。待复核 `maxParagraphs` 是否一并失效。**由 word-ppt-tester 发现** | 中 | **已修** | 补 `paragraphs` 数组（待真机复核 Word 侧） | agent 测试 |
+| ISS-128 | **越界错误的呈现不统一**：`wps_word_format_document` 传 `paragraphIndex=999`（越界）报内部错误 `Cannot read properties of null (reading 'Range')`；而同类越界在 `write_content` 里是**中文可读报错**。错误信息不统一会让使用者分不清"我传错了"还是"工具有 bug" | 低 | **已修** | 段落越界改中文可读报错（含有效范围提示） | agent 测试 |
 | ISS-129 | **`check:params` 的 `KNOWN_EXCEPTIONS` 声明了却从未被使用**——登记例外也不生效，等于这个逃生口是假的。已修复：problems 循环里真正过滤。**由本轮修复 readOnly 例外时发现** | 中 | **已修** | 检查脚本自身 |
 | ISS-130 | **`manage_named_range` 的两条宿主限制已证实并写进工具描述**：① `comment` **宿主不存储**（写后读回恒为空）——现在如实给 warnings 而不是静默忽略；② **名字不能看起来像单元格地址**（如 `fz1` 会被宿主拒绝）。 | 低 | **已修（如实告知）** | WPS 宿主 |
 | ISS-121 | **能力验证脚本的断言太弱**：只断言"调用成功"，没断言"结果对"。图表建出来是空的（跨表数据源无效）却判定为通过，是靠截图肉眼才发现。已在脚本里补"系列数 > 0"这类结果断言 | 中 | **已修**（补结果断言） | 验证方法 |
@@ -385,7 +385,7 @@ node docs/acceptance/2.1.0-p0p1/evidence/iss-06-rpc-sequence.mjs \
 | 5 | 无专用读回工具的写操作失败判定未确认 | ✅ 已澄清 | 缺口成立并升级为 ISS-44/ISS-64/ISS-94（C 类只写不读 7 项）；修法已决策（补读回工具）；判定路径已用脚本读回实测走通（ISS-41） |
 | 6 | host=microsoft 下审计快照缺失的实际后果未确认 | ❌ **仍未确认** | Microsoft 通道自始未连接，属外部前置条件；静态结论已知（无快照 → 回滚被拒），但落库形态与文案未验 |
 | 7 | Microsoft 侧 Word/PPT 能力边界未确认 | ✅ 已澄清 | `mcp-sweep/08-ms-vs-wps.md`（552 行双通道对照）+ ISS-93（21 个 Word/PPT 工具在该宿主是死路）；"Office.js 原生通道"说法已判不实并改写 |
-| 8 | 8 行的"部分成功语义"未逐函数核对 | ✅ **已澄清 8/8** | 8 个函数全部拿到实测或代码复核结论：`freeze_panes` 两条判"不修"（ISS-41）；`set_data_validation` 两条实测"清除原校验却返回 success"；`wps_word_write_content` → ISS-67；`page_layout_and_watermark` → ISS-57/58/72；`ppt_add_business_cards` **可用**（超栏有明确报错）；`ppt_insert_native_chart` → ISS-80/81 |
+| 8 | 8 行的"部分成功语义"未逐函数核对 | ✅ **已澄清 8/8** | 8 个函数全部拿到实测或代码复核结论：`freeze_panes` 两条判"不修"（ISS-41）；`set_data_validation` 两条实测"清除原校验却返回 success"；`wps_word_write_content` → ISS-67（**该条已复核撤销·非缺陷**，见文末"撤稿记录"）；`page_layout_and_watermark` → ISS-57/58/72；`ppt_add_business_cards` **可用**（超栏有明确报错）；`ppt_insert_native_chart` → ISS-80/81 |
 | 9 | 审计记录条数上限（500）的副作用未确认 | ❌ **仍未确认** | 代码事实已复核（`audit-store.ts:47-48` 静默淘汰），但从未有测试触及上限（P5 期间只 34 条留痕）；淘汰后的回滚文案、是否影响 ISS-46 判定，均未验 |
 
 **说明**：标记"已澄清"**不等于"问题已解决"**——#1/#2/#5/#8 澄清出来的都是真实缺陷，已各自登记为独立 ISS 条目。"澄清"指的是"这条未知项不再是未知"。#4/#6/#9 的确认依赖外部前置条件（宿主会话 / Microsoft 通道），已写明可执行的下一步，**不当作已完成**。
@@ -1287,11 +1287,11 @@ test('isSortedByRules 必须比较**最后一对**相邻行（"漏最后一行"�
 - [04-sheet-advanced.md](p5/mcp-sweep/04-sheet-advanced.md) — 表格高级能力
 - [05-e2e.md](p5/mcp-sweep/05-e2e.md) — 跨组件端到端
 
-新增条目 **ISS-60 ~ ISS-74**（见汇总表）。其中三条最重：
+新增条目 **ISS-60 ~ ISS-74**（见汇总表）。其中两条最重（**原列的 ISS-67 已撤稿，见文末"撤稿记录"**）：
 
 | 编号 | 为什么重 |
 |---|---|
-| **ISS-67** | `wps_word_write_content` **吞掉所有小写字母 `a`**：发 `a ab abc banana A Aa 啊阿` 读回 ` b bc bnn A A 啊阿`。子代理做了精确等值对照并隔离到 `Paragraphs.Add(targetRange)` 路径。**现象确凿、根因待定**（子代理也标为猜测），需要独立复现与源码复核 |
+| ~~**ISS-67**~~ | **【撤销·非缺陷，2026-09-22 复核】** 原文：`wps_word_write_content` **吞掉所有小写字母 `a`**：发 `a ab abc banana A Aa 啊阿` 读回 ` b bc bnn A A 啊阿`，被"隔离到 `Paragraphs.Add(targetRange)` 路径"。**复核结论：原现象不成立**——那条"精确等值对照"的探针自己写了 `.replace(/[\r\a]/g, "")`，JS 里 `\a` 恒等转义等于字母 `a`，探针先删掉读回文本里所有 `a` 再比对；原始输出 `strippedMatch:[148]`（共 149 段）恰好证明内容**正确写入文末**。所谓的"隔离表"同一个坑，且其原始输出中 `Paragraphs.Add()+Range.Text` 实为**空串**，被误写成"完整保留"。**教训：验证方法本身出错也会指向产品** |
 | **ISS-69** | 导出 PDF 返回 `success` + `savedPath`，但**磁盘上根本没有这个文件**——这条同时被上一轮 Word 子代理的 `run.log` 佐证（当时 `.scratch/word/export/` 里只有截图、没有 PDF） |
 | **ISS-71** | `wps_word_capture_preview` **已实现但未注册**，调用报"未知工具"——正是 P2.5 台账里 6 条死分支的实例，且它恰好卡住 Word 侧视觉验收 |
 
@@ -1324,12 +1324,12 @@ test('isSortedByRules 必须比较**最后一对**相邻行（"漏最后一行"�
 | `sheet-adv` | [04-sheet-advanced.md](p5/mcp-sweep/04-sheet-advanced.md) | 透视表/条件格式五种/大数据量（5000 格 0.34s）/合并做成；**行隐藏假成功**等 6 条新问题 |
 | `pipeline` | [05-e2e.md](p5/mcp-sweep/05-e2e.md) | **端到端链路走通**，三份成品落盘并经 OOXML 独立解包校验；**跨组件一致性 18/18 全对**；失败恢复无半成品、指纹不变 |
 
-**新增条目 ISS-60 ~ ISS-88**（29 条）。本轮最重的四条：
+**新增条目 ISS-60 ~ ISS-88**（29 条）。本轮最重的四条（**ISS-67 已于 2026-09-22 复核撤稿，见文末"撤稿记录"**）：
 
 | 编号 | 内容 |
 |---|---|
 | **ISS-77** | **目标锁语义不一致**：宿主 `shared.js` 的 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测（同一无参调用一次报错命中残留锁、一次静默指向别的代理正在用的文稿）。**这条解释了 ISS-02** |
-| **ISS-67** | `wps_word_write_content` 吞掉所有小写字母 `a`（现象确凿、根因待定） |
+| ~~**ISS-67**~~ | **【撤销·非缺陷】** 原文"`wps_word_write_content` 吞掉所有小写字母 `a`（现象确凿、根因待定）"**不成立**：探针自己用 `.replace(/[\r\a]/g, "")` 删掉了读回文本里的 `a`（JS 里 `\a` = 字母 `a`）。详情见文末"撤稿记录" |
 | **ISS-80** | `insert_native_chart` 100% 失败且文案误导（宿主 `AddChart/AddChart2` 返回 `null` 不建形状，却报"数据配置未完成"） |
 | **ISS-87** | `set_background` **串改全部页**（设第 1 页后第 2 页也变红） |
 
@@ -1591,7 +1591,64 @@ Microsoft 侧子代理在交付报告里提出："`excel_create_sheet` 的 schem
 1. **源码**：`src/bridge/gateway/excel.ts` 的 `createSheet` 读的是 `args?.sheetName`（并且 `if (!args?.sheetName) throw` 就是它的必填校验），全文没有 `args?.name` 这一读法——`args?.name` 只出现在图表/形状类工具里（作为别名）。
 2. **真机**：对 Microsoft Excel 实调一次 `excel_create_sheet{host:"microsoft", sheetName:"probe_create_sheet"}` → 返回 `{"success":true,"name":"probe_create_sheet","position":4}`，**表确实建出来了**（随后已用 `excel_delete_sheet` 删除，工作簿恢复为原来的 4 张表）。
 
-**教训**：子代理的结论要回代码或真机复核再采纳——本轮已累计推翻 3 条（ISS-41 `freeze_panes` 错位、ISS-47 "样式未恢复=缺陷"、本条）。**误报若被直接采纳，会去"修"一个本来正常的功能。**
+**教训**：子代理的结论要回代码或真机复核再采纳——本轮已累计推翻 **4** 条（ISS-41 `freeze_panes` 错位、ISS-47 "样式未恢复=缺陷"、本条、以及文末的 **ISS-67 撤稿记录**）。**误报若被直接采纳，会去"修"一个本来正常的功能。**
+
+---
+
+## 撤稿记录：ISS-67（2026-09-22，撤销·非缺陷）
+
+**原结论（现已被推翻）**：`wps_word_write_content` **吞掉所有小写字母 `a`**——"发 `a ab abc banana A Aa 啊阿`，读回 ` b bc bnn A A 啊阿`"，被"精确等值匹配"确认，并被"隔离到 `Paragraphs.Add(targetRange)` + `Range.Text` 复合路径的宿主行为"。当时严重度按 **高** 记（静默改坏用户内容）。
+
+**复核结论：原现象不成立，宿主从未吞字符，本仓库代码也没有任何删 `a` 的逻辑。** 是**验证探针自己**制造的假象：
+
+```js
+// 子代理当时的 verify_tool.js（逐字引用）
+const t = String(D.Paragraphs.Item(i).Range.Text).replace(/[\r\a]/g, "");   // ← 这里删掉了所有 a
+if (t === want) found.want.push(i);
+if (t === stripped) found.stripped.push(i);      // stripped = want.replace(/a/g, "")
+```
+
+**已证实原因**：`/[\r\a]/` 在 **JavaScript** 正则里 `\a` 是**恒等转义**，等于字母 `a`（`\a` = BEL `0x07` 是 C/PCRE/.NET 的语义）。所以探针**先把读回文本里每个小写 `a` 删掉**再与原始串比较，必然得出"少了 `a`"的结论。这也解释了大写 `A` 与中文完好——删的就是字面 `a`。
+
+**原始输出（逐字引用，来自子代理会话 `629ea463-…` 的 tool/result）**：
+
+```
+SENT to tool: '确认字符: a ab abc banana A Aa 啊阿'
+tool success: True
+{ "sentByPython": "确认字符: a ab abc banana A Aa 啊阿",
+  "exactMatch": [], "strippedMatch": [148],
+  "strippedForm": "确认字符:  b bc bnn A A 啊阿", "total": 149 }
+```
+
+`strippedMatch:[148]`（共 **149** 段）恰好证明内容**正确写入文末**（`location:"end"` 语义正确），`exactMatch:[]` 与"少 a"完全由探针那行造成。
+
+**同时撤回的"第二轮隔离表"**：四个写法**每一个**都以同一行 `.replace(/[\r\a]/g, "")` 收尾，其**原始输出**为：
+
+```
+SENT: 'Xa a ab abc banana A Aa 啊阿'
+Paragraphs.Add(targetRange)+Range.Text     -> X  b bc bnn A A 啊阿   （读回串 = S 去掉全部 a，即写入正确）
+Paragraphs.Add()+Range.Text                -> （空串）
+Paragraphs.Add(targetRange)+InsertAfter    -> （空串）
+ContentEnd Range.InsertAfter               -> X  b bc bnn A A 啊阿   （同上，写入正确）
+```
+
+原表把第 2 行写成"✅ `S` 完整保留"，实际是**空串**；把第 1/4 行写成"❌ 吞 a"，实际是探针自己删的。**该表不能作为"哪些宿主 API 会吞字符"的依据。**
+
+**已排除的可能性（方法可复核）**：
+
+| 假设 | 排除方法 | 结果 |
+|---|---|---|
+| 本仓库源码里有删 `a` 的代码 | 把 `src/**`、`wps-addon/src/**`、`office-addon/src/**`、`scripts/**` 里 **1161 条正则字面量 + `new RegExp`** 逐条当"逐字符清洗器"实测 | **0 条**能把样本串的每个 `a` 删掉 |
+| 历史版本曾用 `\a` | `git log --all -S` 全历史搜 `[\r\n\a]` 与 `\a` | **从未出现**（现存唯一出现处是本次新增的注释） |
+| 构建时改坏转义 | 逐行比对 `wps-addon/addon-core.js` 与 `src/**` 的 `[\r\n\x07]` | 完全一致 |
+| MCP/HTTP 传输吞字符 | 子代理 transport 回显 + 磁盘 15 份已部署 `addon-core.js` 与仓库产物同一 sha256 | 排除 |
+| 宿主 `Range.Text`/`InsertAfter` 吞 `a` | 上表原始输出第 1/4 行：读回串只差被探针删掉的 `a` → 写入本身完好 | **不成立**（原核心猜测） |
+
+**处置**：
+1. 严重的**兜底**保留并加强：`wordWriteContent` 的读回校验从"只比长度"升级为**逐字比对**（等长改写同样报错），报错带出写入/读回原文，每行返回 `readBackMatches`。**没有改写入路径**——前提不成立，改动它属无据风险。
+2. 全量结论与代码证据见 [agent-tests/word-fixes.md](agent-tests/word-fixes.md) §1。
+
+**教训（本轮已出现 4 次同类模式）**：测试/探针**自身**出错，结论却指向产品。前三次：BGR 常量算错、`Item(name)` 假阳性、`$M$1` 断言错误；本条是第 4 次。**看到"宿主/产品行为诡异"时，先怀疑探针**：把探针的清洗、比较、断言逻辑逐行回读一遍，再决定要不要动产品代码。
 
 ## 待补充
 
