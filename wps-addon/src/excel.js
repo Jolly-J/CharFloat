@@ -3372,6 +3372,21 @@
     const before = Number(app.Workbooks.Count);
     const wb = app.Workbooks.Add();
     const created = wb && wb.Name ? String(wb.Name) : null;
+    // ⚠️ 宿主 **可能拒绝新建**：长会话累积状态下 `Workbooks.Add()` 会**返回 null 且数量不变**
+    // （真机复现过：连续两次都失败，重启 WPS 后恢复）。
+    // 此时必须**直接说是宿主拒绝**，不要报成"已新建工作簿 [null]"——那文案会被误读成代码 bug。
+    if (!wb || !created) {
+      return {
+        success: false,
+        workbookName: null,
+        hostRefused: true,
+        workbooksBefore: before,
+        workbooksAfter: Number(app.Workbooks.Count),
+        warnings: ["宿主拒绝新建工作簿：app.Workbooks.Add() 返回空且工作簿数未增加"],
+        message: "宿主拒绝了新建工作簿（Workbooks.Add() 返回空）。常见原因：WPS 会话运行过久进入异常状态——" +
+                 "**重启 WPS 后重试**；若仍失败请检查是否有未关闭的模态对话框。"
+      };
+    }
 
     let saved = null, saveError = null;
     if (savePath) {

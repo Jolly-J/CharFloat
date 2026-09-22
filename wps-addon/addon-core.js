@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: e502712c102a403b74cea0002defb01c5c7deef4153789d5ef5bba209b76f213
+// ADDON_BUILD_FINGERPRINT: 383c1091856a65668f7368752f04330ff3da3fd4f5051db735f6cba118ddb7db
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "e502712c102a403b74cea0002defb01c5c7deef4153789d5ef5bba209b76f213";
+  var ADDON_BUILD_FINGERPRINT = "383c1091856a65668f7368752f04330ff3da3fd4f5051db735f6cba118ddb7db";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -4883,6 +4883,21 @@ case "ppt_read_presentation":
     const before = Number(app.Workbooks.Count);
     const wb = app.Workbooks.Add();
     const created = wb && wb.Name ? String(wb.Name) : null;
+    // ⚠️ 宿主 **可能拒绝新建**：长会话累积状态下 `Workbooks.Add()` 会**返回 null 且数量不变**
+    // （真机复现过：连续两次都失败，重启 WPS 后恢复）。
+    // 此时必须**直接说是宿主拒绝**，不要报成"已新建工作簿 [null]"——那文案会被误读成代码 bug。
+    if (!wb || !created) {
+      return {
+        success: false,
+        workbookName: null,
+        hostRefused: true,
+        workbooksBefore: before,
+        workbooksAfter: Number(app.Workbooks.Count),
+        warnings: ["宿主拒绝新建工作簿：app.Workbooks.Add() 返回空且工作簿数未增加"],
+        message: "宿主拒绝了新建工作簿（Workbooks.Add() 返回空）。常见原因：WPS 会话运行过久进入异常状态——" +
+                 "**重启 WPS 后重试**；若仍失败请检查是否有未关闭的模态对话框。"
+      };
+    }
 
     let saved = null, saveError = null;
     if (savePath) {
