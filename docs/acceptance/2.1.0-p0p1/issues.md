@@ -146,6 +146,8 @@
 | ISS-117 | ~~筛选写入静默不生效~~ **误报，已撤销**。复核真因：验证脚本用错了 patch_cells 参数（传 `cells:[{address,value}]`，正确是 `address` + 二维 `values`），数据从未写进表；空区域上 `Range.AutoFilter()` 自然 no-op。**根本教训是脚本没检查写入结果**——已加「造数据后立即读回核对」 | — | **撤销**（非产品缺陷） | 验证方法 |
 | ISS-118 | **透视表创建报 `CreatePivotTable` 为 null**。复核确认**双因**：① 源区域为空（同 ISS-117 的脚本错误）；② 非活动表上 `PivotCaches().Create(1, srcRange)` 返回 null。补防御性 `Activate()` 后真机通过（`refreshedBy: RefreshTable`、`tableRange: $D$1:$E$4`） | 中 | **已修已验证** | WPS 宿主实现 |
 | ISS-119 | **结构化表格上设表级筛选会假成功**：目标区域若已是 ListObject（结构化表格），它自带筛选器，此时 `Range.AutoFilter()` 不生效、`sheet.AutoFilterMode` 仍为 false，但工具此前返回 `success:true`，调用方会以为筛选已开。**由最终验收测试发现**（CAP-33 在 CAP-19 建表之后失败）。已修：写入后读回核对，不生效即写入 warnings，并指明是哪个表格导致的 | 中 | **已修已验证** | WPS 宿主实现 |
+| ISS-120 | **图表数据源不支持跨工作表**：`dataRange` / `sourceAddress` 传 `明细!A1:C19` 一律报 `Parameter type error source (arg 0)`；`dataRanges` 只收字符串数组，传对象报类型错。**后果**：图表只能建在数据所在的那张表上，没法把明细数据画到独立的看板页。**由能力验证测试发现**（图表建好后只有坐标轴没有数据，起初断言太弱没看出来） | 中高 | **待修**（需探宿主 AddChart2 的正确跨表引用写法） | WPS 宿主实现 |
+| ISS-121 | **能力验证脚本的断言太弱**：只断言"调用成功"，没断言"结果对"。图表建出来是空的（跨表数据源无效）却判定为通过，是靠截图肉眼才发现。已在脚本里补"系列数 > 0"这类结果断言 | 中 | **已修**（补结果断言） | 验证方法 |
 | ISS-114 | MS 侧形状自检**存在级联依赖**：后续检查引用前面创建的 `cap08_line`/`cap08_svg`，一旦前面失败就报「请求的资源不存在」，把「分组/删除不支持」误报成结论（修正为各项独立后，真实结果是 10/13 而非 5/12） | 中高 | **已修**（每项自查前置形状） | 测试设计 |
 | ISS-115 | Office.js 的 `getTargetSheet` 从不 `load("name")`，而返回体普遍写 `sheet.name` → 读未 load 的属性直接抛「属性 name 不可用」，**形状工具全套因此全挂** | 中高 | **已修**（共享助手统一 load） | Office.js 宿主实现 |
 | ISS-116 | MS 侧热重载失效：`window.location.reload(true)` 的 forceGet 参数在 Excel for Mac 的 WKWebView 中不生效（信号发出、返回成功、代码不变） | 中高 | **已修已验证**（改为 `location.replace` + 时间戳查询串强制不命中缓存） | 桥接 + 宿主 |
