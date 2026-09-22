@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 1d2c2070c148206e64ecec7bf0cb3654b4e8a54da5ef3ae856ba89523bfec0fe
+// ADDON_BUILD_FINGERPRINT: 6599aa06045a1dae602dcc20b49ce359757a8bb7399fb9b4afd6d0bcfb67d9f3
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "1d2c2070c148206e64ecec7bf0cb3654b4e8a54da5ef3ae856ba89523bfec0fe";
+  var ADDON_BUILD_FINGERPRINT = "6599aa06045a1dae602dcc20b49ce359757a8bb7399fb9b4afd6d0bcfb67d9f3";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -2230,6 +2230,9 @@
     if (action === "add") {
       if (!text) throw new Error("添加批注时必须提供 text 参数");
       const cell = targetRange.Cells.Item(1, 1);
+      // 地址必须在 AddComment **之前**取：真机实测 AddComment 之后该单元格的 Address 取不到，
+      // 会让成功消息变成"已在单元格  添加批注"（地址为空）。
+      const cellAddressText = addressOf(cell); // 先取地址，AddComment 后取不到
       try {
         if (cell.Comment) cell.Comment.Delete();
       } catch (e) {}
@@ -2257,13 +2260,13 @@
         success: true,
         workbookName: sheet.Parent.Name,
         sheetName: sheet.Name,
-        address: addressOf(cell),
+        address: cellAddressText,
         action: "add",
         commentText: text,
         authorRequested: author || null,
         authorOnHost,
         authorApplied: authorOnHost === author,
-        message: `已在单元格 ${addressOf(cell)} 添加批注${author && authorOnHost !== author ? `（宿主未接受自定义作者，已把作者写进正文；当前宿主作者为 ${authorOnHost ?? "未知"}）` : ""}`
+        message: `已在单元格 ${cellAddressText} 添加批注${author && authorOnHost !== author ? `（宿主未接受自定义作者，已把作者写进正文；当前宿主作者为 ${authorOnHost ?? "未知"}）` : ""}`
       };
     } else if (action === "read") {
       const comments = [];
