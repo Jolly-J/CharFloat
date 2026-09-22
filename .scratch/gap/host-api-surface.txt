@@ -1,0 +1,36 @@
+# 宿主 API 面证据（反向 grep）@ 2026-09-22 16:12
+
+## WPS excel.js 出现的成员
+  10 .Validation
+  10 .Sort
+  10 .Shapes
+   4 .FormatConditions
+   3 .FreezePanes
+   2 .SplitRow
+   1 .Visible
+   1 .Tab
+   1 .Protect
+   1 .PivotCaches
+
+## WPS word.js 出现的成员
+  10 .PageSetup
+   5 .Comments
+   3 .Styles
+   2 .Words
+   2 .Find
+   2 .Bookmarks
+   1 .TablesOfContents
+   1 .Shapes
+   1 .Sections
+   1 .Headers
+   1 .Footers
+
+## WPS ppt.js 出现的成员
+   6 .NotesPage
+   1 .Export
+   1 .AddTable
+   1 .AddLine
+   1 .AddChart
+
+## office-addon RPC 方法全表（77）
+add_chart add_comment add_conditional_formatting add_sheet apply_filter auto_fit_columns autofit_columns calculate capture_sheet_preview clear_cells clear_range copy_range copy_sheet create_chart create_pivot_table create_sheet create_table delete_chart delete_rows delete_sheet duplicate_sheet execute_script export_chart_image find_and_replace find_replace find_replace_cells format_cells format_range freeze_panes get_charts get_document_properties get_range_data get_range_styles get_sheet_outline get_sheets get_used_range get_workbook_info get_workbook_state get_workspace_summary insert_dimension insert_image insert_rows list_comments list_conditional_formats list_named_items list_shapes list_sheets manage_cell_comments manage_rows_and_columns manage_sheet modify_rows_columns patch_cells read_range rename_sheet run_script save save_workbook search_cells set_cell_formula set_data_validation set_filter_and_sort set_formula set_hyperlink set_range_data set_range_format sort_range update_chart update_comment update_conditional_format update_document_properties update_named_item update_pivot_table update_range_structure update_shape update_sheet update_table write_range 

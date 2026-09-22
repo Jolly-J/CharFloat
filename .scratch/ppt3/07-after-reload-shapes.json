@@ -1,0 +1,40 @@
+page = 960 x 540 pt
+
+slide 1  (3 shapes)
+   i=1 type=  1 L=0.00 T=0.00 W=720.00 H=405.00 fs=None t=None
+   i=2 type= 17 L=60.00 T=140.00 W=600.00 H=50.80 fs=36 t='实验标题页'
+   i=3 type= 17 L=60.00 T=230.00 W=600.00 H=29.00 fs=18 t='几何复现 · 干净实验'
+
+slide 2  (3 shapes)
+   i=1 type= 17 L=50.00 T=30.00 W=620.00 H=36.25 fs=24 t='内容页A（有正文）'
+   i=2 type=  9 L=50.00 T=75.00 W=70.00 H=0.05 fs=None t=None
+   i=3 type= 17 L=60.00 T=100.00 W=600.00 H=65.35 fs=16 t='要点一\n要点二\n要点三'
+
+slide 3  (2 shapes)
+   i=1 type= 17 L=50.00 T=30.00 W=620.00 H=36.25 fs=24 t='内容页B（故意不传正文）'
+   i=2 type=  9 L=50.00 T=75.00 W=70.00 H=0.05 fs=None t=None
+
+slide 4  (2 shapes)
+   i=1 type=  1 L=0.00 T=0.00 W=720.00 H=405.00 fs=None t=None
+   i=2 type= 17 L=60.00 T=160.00 W=600.00 H=55.65 fs=40 t='谢谢观看'
+
+slide 5  (0 shapes)
+
+slide 6  (3 shapes)
+   i=1 type=  1 L=0.00 T=0.00 W=960.00 H=540.00 fs=None t=None
+   i=2 type= 17 L=80.00 T=186.67 W=800.00 H=67.73 fs=48 t='指纹标题'
+   i=3 type= 17 L=80.00 T=306.67 W=800.00 H=38.67 fs=24 t='第二次生成'
+
+slide 7  (12 shapes)
+   i=1 type= 17 L=66.67 T=40.00 W=826.67 H=48.33 fs=32 t='卡片页'
+   i=2 type=  9 L=66.67 T=100.00 W=93.33 H=0.07 fs=None t=None
+   i=3 type=  1 L=66.67 T=133.33 W=402.67 H=346.67 fs=None t=None
+   i=4 type=  1 L=80.00 T=149.33 W=48.00 H=5.33 fs=None t=None
+   i=5 type= 17 L=80.00 T=160.00 W=376.00 H=25.73 fs=13.399999618530273 t='A'
+   i=6 type= 17 L=80.00 T=189.33 W=376.00 H=35.40 fs=21.399999618530273 t='卡1'
+   i=7 type= 17 L=80.00 T=237.33 W=376.00 H=28.93 fs=16 t='描述1'
+   i=8 type=  1 L=490.67 T=133.33 W=402.67 H=346.67 fs=None t=None
+   i=9 type=  1 L=504.00 T=149.33 W=48.00 H=5.33 fs=None t=None
+   i=10 type= 17 L=504.00 T=160.00 W=376.00 H=25.73 fs=13.399999618530273 t='B'
+   i=11 type= 17 L=504.00 T=189.33 W=376.00 H=35.40 fs=21.399999618530273 t='卡2'
+   i=12 type= 17 L=504.00 T=237.33 W=376.00 H=28.93 fs=16 t='描述2'

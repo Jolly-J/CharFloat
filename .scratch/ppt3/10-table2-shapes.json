@@ -1,0 +1,215 @@
+{
+  "add_slide11": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 11,
+      "message": "已在位置 11 新增幻灯片"
+    }
+  },
+  "create_table_with_string_data": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 2,
+      "slideIndex": 11,
+      "rows": 3,
+      "columns": 3,
+      "message": "已在第 11 页成功创建 8 行 5 列表格（含细实线网格、精准列宽与分段加粗）"
+    }
+  },
+  "read_table11": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 2,
+      "slideIndex": 11,
+      "rows": 3,
+      "columns": 3,
+      "data": [
+        [
+          "企业",
+          "环节",
+          "产能(MW)"
+        ],
+        [
+          "协鑫光电",
+          "电池组件",
+          "1000"
+        ],
+        [
+          "极电光能",
+          "电池组件",
+          "500"
+        ]
+      ],
+      "message": "已成功读取第 11 页表格数据 (3 行 3 列)"
+    }
+  },
+  "set_cell_text_ok": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 2,
+      "row": 2,
+      "column": 2,
+      "message": "已成功更新单元格 [2, 2] 的内容与格式"
+    }
+  },
+  "read_table11_after": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 2,
+      "slideIndex": 11,
+      "rows": 3,
+      "columns": 3,
+      "data": [
+        [
+          "企业",
+          "环节",
+          "产能(MW)"
+        ],
+        [
+          "协鑫光电",
+          "改过的单元格",
+          "1000"
+        ],
+        [
+          "极电光能",
+          "电池组件",
+          "500"
+        ]
+      ],
+      "message": "已成功读取第 11 页表格数据 (3 行 3 列)"
+    }
+  },
+  "add_textbox": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 3,
+      "left": 80,
+      "top": 40,
+      "width": 600,
+      "height": 36.25,
+      "fontSize": 24,
+      "unit": "pt",
+      "message": "已成功添加文本框"
+    }
+  },
+  "add_shape_rect": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 4,
+      "left": 100,
+      "top": 420,
+      "width": 200,
+      "height": 80,
+      "unit": "pt",
+      "message": "已成功添加形状"
+    }
+  },
+  "add_shape_oval": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 5,
+      "left": 400,
+      "top": 420,
+      "width": 160,
+      "height": 80,
+      "unit": "pt",
+      "message": "已成功添加形状"
+    }
+  },
+  "shapes_after_add": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 11,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "shapeCount": 4,
+      "shapes": [
+        {
+          "shapeIndex": 1,
+          "shapeId": 2,
+          "name": "表格 1",
+          "typeCode": 19,
+          "typeName": "table",
+          "left": 80,
+          "top": 120,
+          "width": 800,
+          "height": 122,
+          "rotation": 0,
+          "zOrderPosition": 1,
+          "hasText": true,
+          "fontSize": 14,
+          "text": "企业",
+          "hasTable": true,
+          "table": {
+            "rows": 3,
+            "columns": 3
+          },
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 2,
+          "shapeId": 3,
+          "name": "文本框 2",
+          "typeCode": 17,
+          "typeName": "textbox",
+          "left": 80,
+          "top": 40,
+          "width": 600,
+          "height": 36.3,
+          "rotation": 0,
+          "zOrderPosition": 2,
+          "hasText": true,
+          "fontSize": 24,
+          "text": "手动文本框",
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 3,
+          "shapeId": 4,
+          "name": "圆角矩形 3",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 100,
+          "top": 420,
+          "width": 200,
+          "height": 80,
+          "rotation": 0,
+          "zOrderPosition": 3,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 4,
+          "shapeId": 5,
+          "name": "椭圆 4",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 400,
+          "top": 420,
+          "width": 160,
+          "height": 80,
+          "rotation": 0,
+          "zOrderPosition": 4,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        }
+      ],
+      "message": "已成功获取第 11 页幻灯片中全部 4 个形状的几何与属性信息"
+    }
+  }
+}

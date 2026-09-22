@@ -358,9 +358,16 @@
       case "freeze_panes":
         return await handleFreezePanes(params);
       case "add_conditional_formatting":
+        return await handleAddConditionalFormatting(params);
+      // 危险别名修复（问题台账 ISS-91）：`list_conditional_formats` / `update_conditional_format`
+      // 原来和"新增条件格式"走同一个写处理函数 —— 调"读条件格式"会**新增一条规则**。
+      // Office.js 侧暂无对应的读/改实现，这里**显式报错**，绝不再落到写路径。
       case "list_conditional_formats":
       case "update_conditional_format":
-        return await handleAddConditionalFormatting(params);
+        throw new Error(
+          `Office.js 通道尚未实现 "${method}"：原先它会落到"新增条件格式"的写路径，造成误写，已阻断。` +
+          `如需读取或修改条件格式，请改用 host=wps 的对应能力，或先用 wps_execute_script 探测。`
+        );
 
       // 6. 排序与筛选
       case "sort_range":
@@ -404,11 +411,18 @@
         return await handleUpdateShape(params);
 
       // 11. 审阅与批注
+      // 危险别名修复（问题台账 ISS-92）：`handleManageComments` 的 action 默认是 "add"，
+      // 原来 `list_comments` 走同一条路 —— 调"列批注"会在 A1 **插一条空批注**；`update_comment` 则静默返回成功。
       case "manage_cell_comments":
       case "add_comment":
+        return await handleManageComments({ ...params, action: params.action || "add" });
       case "list_comments":
+        return await handleManageComments({ ...params, action: "list" });
       case "update_comment":
-        return await handleManageComments(params);
+        throw new Error(
+          'Office.js 通道尚未实现 "update_comment"：原实现会落到未知 action 的静默成功分支，不做任何事却报成功，已阻断。' +
+          '如需修改批注，请先 list_comments 取 id、delete 后再 add。'
+        );
 
       // 12. 任意脚本自由运行
       case "run_script":
@@ -898,7 +912,15 @@
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
       const range = params.address ? sheet.getRange(params.address) : sheet.getUsedRange();
-      const text = params.text || params.query || params.findText || "";
+      // 字段名兼容：网关（WPS 语义）传的是 searchQuery，Office.js 侧原来只认 text/query/findText。
+      // 名字对不上 → text 落成空串 → `replaceAll("", …)` 会命中整片区域并可能破坏内容（问题台账 ISS-93）。
+      const text = params.text || params.query || params.findText || params.searchQuery || "";
+      if (!text) {
+        throw new Error(
+          "find_and_replace 缺少搜索文本（Office.js 通道识别 text / query / findText / searchQuery，当前都为空）。" +
+          "空搜索串会命中整个区域并可能破坏内容，已阻断；请显式提供要查找的文本。"
+        );
+      }
       const replaceText = params.replaceText;
       const matchCase = !!params.matchCase;
       const matchEntireCell = !!params.matchEntireCell;
@@ -1807,14 +1829,20 @@
           comments: comments.items.map(c => ({ id: c.id, content: c.content, author: c.authorName, created: c.creationDate }))
         };
       } else if (action === "delete") {
-        if (params.id || params.commentId) {
-          const comment = sheet.comments.getItem(params.id || params.commentId);
-          comment.delete();
+        if (!params.id && !params.commentId) {
+          throw new Error("删除批注必须提供 id 或 commentId：请先 list 取得批注 id");
         }
+        const comment = sheet.comments.getItem(params.id || params.commentId);
+        comment.delete();
         await context.sync();
         return { success: true, message: "批注已删除" };
       }
-      return { success: true };
+      // 不再对未知 action 静默返回成功（问题台账 ISS-92）：
+      // 原来 `update_comment` 就是掉进这里——什么都没做却报 success。
+      throw new Error(
+        `未支持的批注操作: ${action}（可用: add / list / delete）。` +
+        `若要修改批注，请先 list 取 id、delete 后再 add。`
+      );
     });
   }
 

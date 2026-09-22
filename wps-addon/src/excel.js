@@ -358,7 +358,26 @@
 
     try {
       if (values !== undefined && values !== null) range.Value2 = values;
-      if (formulas !== undefined && formulas !== null) range.Formula = formulas;
+      if (formulas !== undefined && formulas !== null) {
+        // 空项（''/null/undefined）表示"该单元格只写值、不改公式"，必须**跳过**而不是写入：
+        // 给 range.Formula 赋空字符串等于清空单元格，会把上一步刚写入的值一起抹掉，
+        // 而且仍返回 success + modifiedCount，属于静默数据丢失（见问题台账 ISS-01 / DP7）。
+        // 只有在整张矩阵都没有空项时才用整批赋值，保住批量性能。
+        const hasBlank = formulas.some(row => Array.isArray(row) && row.some(cell => cell === '' || cell === null || cell === undefined));
+        if (hasBlank) {
+          for (let r = 0; r < rowCount; r++) {
+            const row = formulas[r];
+            if (!Array.isArray(row)) continue;
+            for (let c = 0; c < colCount; c++) {
+              const cellFormula = row[c];
+              if (cellFormula === '' || cellFormula === null || cellFormula === undefined) continue;
+              range.Cells.Item(r + 1, c + 1).Formula = cellFormula;
+            }
+          }
+        } else {
+          range.Formula = formulas;
+        }
+      }
     } catch (writeError) {
       try { range.Formula = oldFormulas; }
       catch (restoreError) { throw new Error("写入部分失败且恢复失败，请检查目标区域：" + writeError.message); }
@@ -488,17 +507,21 @@
     }
 
     // 7. 合并 / 拆分单元格
-    if (params.merge === true) {
+    // 执行后必须读回校验：原来 catch 里只 log，失败也会返回 success —— 调用方以为合并成功（问题台账 ISS-42）。
+    if (params.merge === true || params.unmerge === true) {
+      const wantMerged = params.merge === true;
+      const actionLabel = wantMerged ? "合并" : "取消合并";
+      let failure = null;
       try {
-        range.Merge();
+        if (wantMerged) range.Merge(); else range.UnMerge();
       } catch (e) {
-        log("Merge 操作提示: " + e.message);
+        failure = e.message;
       }
-    } else if (params.unmerge === true) {
-      try {
-        range.UnMerge();
-      } catch (e) {
-        log("UnMerge 操作提示: " + e.message);
+      let mergedNow = null;
+      try { mergedNow = range.MergeCells === true; } catch (e) { mergedNow = null; }
+      if (failure) throw new Error(`${actionLabel}失败：${failure}`);
+      if (mergedNow !== null && mergedNow !== wantMerged) {
+        throw new Error(`${actionLabel}未生效（读回 merged=${mergedNow}）；若目标区域与已有合并区部分重叠，请先取消原有合并`);
       }
     }
 
@@ -648,10 +671,23 @@
         rowRange.Insert(-4121); // xlDown
       } else if (action === "delete") {
         rowRange.Delete(-4162); // xlUp
-      } else if (action === "hide") {
-        rowRange.Hidden = true;
-      } else if (action === "unhide") {
-        rowRange.Hidden = false;
+      } else if (action === "hide" || action === "unhide") {
+        const want = action === "hide";
+        // 本机 WPS 上给 `Range("5:6").Hidden` 赋值是**静默 no-op**（列走 Columns.Item 就正常），
+        // 因此改为逐行写 Rows.Item(n).Hidden，并在写完后**读回校验**，未生效即报错（问题台账 ISS-60）。
+        for (let r = startRow; r <= endRow; r++) {
+          sheet.Rows.Item(r).Hidden = want;
+        }
+        const readBack = [];
+        for (let r = startRow; r <= endRow; r++) {
+          readBack.push(sheet.Rows.Item(r).Hidden === true);
+        }
+        if (readBack.some(applied => applied !== want)) {
+          throw new Error(
+            `${want ? "隐藏" : "取消隐藏"}第 ${startRow}-${endRow} 行未生效（逐行读回 ${JSON.stringify(readBack)}）。` +
+            `已改用 Rows.Item(n).Hidden 逐行写入，若仍失败请检查该行是否被工作表保护。`
+          );
+        }
       } else if (action === "set_size") {
         if (size === undefined) throw new Error("设置行高时必须传入 size 参数 (单位: 磅值)");
         rowRange.RowHeight = Number(size);
@@ -910,34 +946,54 @@
 
     const results = [];
 
-    if (Array.isArray(columnRules)) {
-      for (const rule of columnRules) {
-        const { colIndex, minWidth = 12, maxWidth = 30, wrapText = true } = rule;
-        const col = sheet.Columns.Item(colIndex);
-
-        // 先执行自适应计算
+    if (!Array.isArray(columnRules) || columnRules.length === 0) {
+      // 说明承诺"不传 columnRules 则自适应全表已用区域"，但原实现直接返回 success + results: []，
+      // 列宽纹丝不动（静默 no-op，问题台账 ISS-39）。这里按已用区域的列范围逐列自适应。
+      const used = sheet.UsedRange;
+      const firstColumn = used && typeof used.Column === "number" ? used.Column : 1;
+      const columnCount = used && used.Columns && used.Columns.Count ? used.Columns.Count : 0;
+      for (let index = firstColumn; index < firstColumn + columnCount; index++) {
+        const col = sheet.Columns.Item(index);
         col.AutoFit();
-        let currentWidth = col.ColumnWidth;
-
-        // 应用下限
-        if (currentWidth < minWidth) {
-          currentWidth = minWidth;
-        }
-        // 应用上限
-        if (maxWidth && currentWidth > maxWidth) {
-          currentWidth = maxWidth;
-          if (wrapText) {
-            col.WrapText = true;
-          }
-        }
-        col.ColumnWidth = currentWidth;
-
-        results.push({
-          colIndex: colIndex,
-          finalWidth: currentWidth,
-          wrapped: col.WrapText
-        });
+        results.push({ colIndex: index, finalWidth: col.ColumnWidth, wrapped: !!col.WrapText });
       }
+      return {
+        success: true,
+        workbookName: sheet.Parent.Name,
+        mode: "usedRange",
+        results,
+        message: columnCount > 0
+          ? `已按已用区域自适应 ${results.length} 列`
+          : "已用区域为空，未调整任何列"
+      };
+    }
+
+    for (const rule of columnRules) {
+      const { colIndex, minWidth = 12, maxWidth = 30, wrapText = true } = rule;
+      const col = sheet.Columns.Item(colIndex);
+
+      // 先执行自适应计算
+      col.AutoFit();
+      let currentWidth = col.ColumnWidth;
+
+      // 应用下限
+      if (currentWidth < minWidth) {
+        currentWidth = minWidth;
+      }
+      // 应用上限
+      if (maxWidth && currentWidth > maxWidth) {
+        currentWidth = maxWidth;
+        if (wrapText) {
+          col.WrapText = true;
+        }
+      }
+      col.ColumnWidth = currentWidth;
+
+      results.push({
+        colIndex: colIndex,
+        finalWidth: currentWidth,
+        wrapped: col.WrapText
+      });
     }
 
     return { success: true, workbookName: sheet.Parent.Name, results };
@@ -1410,8 +1466,6 @@
     const sheet = getWorksheet(app, sheetName, workbookName);
     const shapes = sheet.Shapes;
     const count = shapes.Count;
-    let deletedCount = 0;
-    const deletedNames = [];
     const chartOrdinals = {};
     let chartOrdinal = 0;
     for (let i = 1; i <= count; i++) {
@@ -1431,36 +1485,59 @@
       } catch (e) {}
     }
 
-    for (let i = count; i >= 1; i--) {
+    // 先收集候选、再决定删不删。
+    // `leftCell` 是按**像素邻近（±30px）**匹配的，多张图叠在同一位置时会**全部命中**——
+    // 实测传 leftCell:"H2" 一次删掉了 14 张图（问题台账 ISS-19）。破坏性操作必须先设卡。
+    const candidates = [];
+    for (let i = 1; i <= count; i++) {
       const shp = shapes.Item(i);
-      let isMatch = false;
-
-      if (shp.HasChart) {
-        if (clearAll) {
-          isMatch = true;
-        } else if (shapeName && shp.Name === shapeName) {
-          isMatch = true;
-        } else if (chartIndex && chartOrdinals[i] === Number(chartIndex)) {
-          isMatch = true;
-        } else if (targetLeft !== null && targetTop !== null) {
-          if (Math.abs(shp.Left - targetLeft) < 30 && Math.abs(shp.Top - targetTop) < 30) {
-            isMatch = true;
-          }
-        } else if (chartTitle) {
-          try {
-            if (shp.Chart.HasTitle && shp.Chart.ChartTitle.Text.includes(chartTitle)) {
-              isMatch = true;
-            }
-          } catch (e) {}
+      if (!shp.HasChart) continue;
+      let reason = null;
+      if (clearAll) {
+        reason = "clearAll";
+      } else if (shapeName && shp.Name === shapeName) {
+        reason = "shapeName";
+      } else if (chartIndex && chartOrdinals[i] === Number(chartIndex)) {
+        reason = "chartIndex";
+      } else if (targetLeft !== null && targetTop !== null) {
+        if (Math.abs(shp.Left - targetLeft) < 30 && Math.abs(shp.Top - targetTop) < 30) {
+          reason = "leftCell(±30px)";
         }
+      } else if (chartTitle) {
+        try {
+          if (shp.Chart.HasTitle && shp.Chart.ChartTitle.Text.includes(chartTitle)) {
+            reason = "chartTitle";
+          }
+        } catch (e) {}
       }
-
-      if (isMatch) {
-        deletedNames.push(shp.Name);
-        shp.Delete();
-        deletedCount++;
+      if (reason) {
+        candidates.push({ index: i, name: shp.Name, reason: reason, left: Math.round(shp.Left), top: Math.round(shp.Top) });
       }
     }
+
+    if (candidates.length === 0) {
+      throw new Error(
+        `未匹配到任何图表：工作表 [${sheet.Name}] 上没有符合条件的图表。` +
+        `请先用 wps_get_charts 读回图表清单（shapeName / 序号 / 标题 / 位置），再指定要删除的那一张。`
+      );
+    }
+
+    if (!clearAll && candidates[0].reason === "leftCell(±30px)" && candidates.length > 1) {
+      throw new Error(
+        `leftCell 按像素邻近（±30px）匹配，本次命中 ${candidates.length} 张图表，**已拒绝批量删除**以免误伤。` +
+        `命中清单：${candidates.map(c => `${c.name}(左${c.left},上${c.top})`).join("；")}。` +
+        `请改用 shapeName 或 chartIndex 精确指定；确认要全删请显式传 clearAll: true。`
+      );
+    }
+
+    const deletedNames = [];
+    // 从后往前删，避免索引位移
+    for (let k = candidates.length - 1; k >= 0; k--) {
+      const shp = shapes.Item(candidates[k].index);
+      deletedNames.push(shp.Name);
+      shp.Delete();
+    }
+    const deletedCount = deletedNames.length;
 
     return {
       success: true,
@@ -1468,7 +1545,8 @@
       sheetName: sheet.Name,
       deletedCount,
       deletedNames,
-      message: `已成功在工作表 [${sheet.Name}] 中删除 ${deletedCount} 张图表`
+      matchedBy: candidates[0].reason,
+      message: `已成功在工作表 [${sheet.Name}] 中删除 ${deletedCount} 张图表（匹配方式：${candidates[0].reason}）`
     };
   }
 
@@ -1567,8 +1645,10 @@
 
     const sheet = getWorksheet(app, sheetName, workbookName);
     const targetRange = sheet.Range(range);
+    const warnings = [];
 
     // 自动筛选控制
+    let appliedFilterRange = null;
     if (enableAutoFilter !== undefined) {
       if (enableAutoFilter) {
         if (!sheet.AutoFilterMode) {
@@ -1579,32 +1659,97 @@
           sheet.AutoFilterMode = false;
         }
       }
+      // 回读筛选实际覆盖范围：宿主会把筛选自动扩展到相邻的整块数据区，
+      // 传入的 range 只是锚点而不是约束（问题台账 ISS-40）。这里把真实范围报出来，不再让调用方以为是自己传的那个。
+      try {
+        appliedFilterRange = sheet.AutoFilterMode && sheet.AutoFilter && sheet.AutoFilter.Range
+          ? sheet.AutoFilter.Range.Address()
+          : null;
+      } catch (e) {
+        appliedFilterRange = null;
+      }
+      if (appliedFilterRange && appliedFilterRange !== targetRange.Address()) {
+        warnings.push(`筛选实际覆盖 ${appliedFilterRange}，与传入的 ${range} 不一致：宿主会把筛选扩展到相邻数据块。若需精确范围，请在目标区与其它数据之间留一个空行。`);
+      }
     }
 
-    // 数据排序
+    // 数据排序：旧式 Range.Sort(...) 在本机 WPS 上会静默 no-op（问题台账 ISS-38），
+    // 因此先走 SortFields，再读回校验，都无效时**报错而不是返回假成功**。
+    let sortApplied = null;
     if (Array.isArray(sortRules) && sortRules.length > 0) {
-      const rule1 = sortRules[0];
-      const col1 = Number(rule1.colIndex);
-      const key1 = targetRange.Columns.Item(col1);
-      const order1 = rule1.order === "desc" ? 2 : 1; // 1 = xlAscending, 2 = xlDescending
+      const rowCount = targetRange.Rows.Count;
+      const colCount = targetRange.Columns.Count;
+      const before = normalize2DArray(targetRange.Value2, rowCount, colCount);
+      const attempts = [];
+      let after = before;
+      let sorted = false;
 
-      let key2, order2, key3, order3;
-      if (sortRules[1]) {
-        key2 = targetRange.Columns.Item(Number(sortRules[1].colIndex));
-        order2 = sortRules[1].order === "desc" ? 2 : 1;
-      }
-      if (sortRules[2]) {
-        key3 = targetRange.Columns.Item(Number(sortRules[2].colIndex));
-        order3 = sortRules[2].order === "desc" ? 2 : 1;
+      const readCurrent = () => normalize2DArray(targetRange.Value2, rowCount, colCount);
+      const sortKeyOf = (rule) => targetRange.Columns.Item(Number(rule.colIndex));
+      const orderOf = (rule) => (rule.order === "desc" ? 2 : 1);
+
+      // 本机 WPS 实测：`Range.Sort` 是**方法**而不是对象（访问 .SortFields 抛
+      // "Cannot read properties of undefined (reading 'Clear')"），而 `sheet.Sort` 才是可用的 Sort 对象。
+      // 因此按下面顺序逐条尝试，每一条都**读回校验**，全都不生效就报错（问题台账 ISS-38）。
+      const sortPaths = [
+        {
+          name: "sheet.Sort.SortFields",
+          run: () => {
+            const s = sheet.Sort;
+            s.SortFields.Clear();
+            for (let i = 0; i < sortRules.length; i++) s.SortFields.Add(sortKeyOf(sortRules[i]), 0, orderOf(sortRules[i]));
+            s.SetRange(targetRange);
+            s.Header = 1; // 包含表头
+            s.Apply();
+          }
+        },
+        {
+          name: "range.Sort.SortFields",
+          run: () => {
+            const s = targetRange.Sort;
+            s.SortFields.Clear();
+            for (let i = 0; i < sortRules.length; i++) s.SortFields.Add(sortKeyOf(sortRules[i]), 0, orderOf(sortRules[i]));
+            s.SetRange(targetRange);
+            s.Header = 1;
+            s.Apply();
+          }
+        },
+        {
+          name: "range.Sort(旧式)",
+          run: () => {
+            const key1 = sortKeyOf(sortRules[0]), order1 = orderOf(sortRules[0]);
+            let key2, order2;
+            if (sortRules[1]) {
+              key2 = sortKeyOf(sortRules[1]);
+              order2 = orderOf(sortRules[1]);
+            }
+            targetRange.Sort(key1, order1, key2, order2, undefined, undefined, 1);
+          }
+        }
+      ];
+
+      for (let p = 0; p < sortPaths.length; p++) {
+        const path = sortPaths[p];
+        let error = null;
+        try {
+          path.run();
+        } catch (e) {
+          error = e.message;
+        }
+        // 即使抛错也读回：某条路径可能已经部分生效
+        after = readCurrent();
+        sorted = isSortedByRules(after, sortRules);
+        attempts.push(path.name + (error ? ":异常(" + error + ")" : ":ok") + (sorted ? ":已生效" : ":未生效"));
+        if (sorted) break;
       }
 
-      if (key3) {
-        targetRange.Sort(key1, order1, key2, order2, key3, order3, 1); // 1 = xlYes (包含表头)
-      } else if (key2) {
-        targetRange.Sort(key1, order1, key2, order2, undefined, undefined, 1);
-      } else {
-        targetRange.Sort(key1, order1, undefined, undefined, undefined, undefined, 1);
+      if (!sorted) {
+        throw new Error(
+          `排序未生效：区域 ${range} 读回后的顺序不满足请求的排序规则。已尝试：${attempts.join("；")}。` +
+          `请核对 colIndex 是否为**区域内相对列号**（1 = 区域第一列），或改用 wps_execute_script 的 sheet.Sort.SortFields 路径。`
+        );
       }
+      sortApplied = { changed: JSON.stringify(before) !== JSON.stringify(after), attempts };
     }
 
     return {
@@ -1613,7 +1758,10 @@
       sheetName: sheet.Name,
       range,
       enableAutoFilter: enableAutoFilter !== undefined ? !!enableAutoFilter : sheet.AutoFilterMode,
+      appliedFilterRange,
       sortedRuleCount: Array.isArray(sortRules) ? sortRules.length : 0,
+      sortApplied,
+      warnings,
       message: `已成功在 [${sheet.Name}] ${range} 应用筛选与排序`
     };
   }

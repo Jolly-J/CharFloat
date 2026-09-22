@@ -1,0 +1,15 @@
+{
+  "previews_dir": "/Users/jolin/.wps-bridge/previews",
+  "writable_by_python": false,
+  "rpc": true,
+  "rpc_err": null,
+  "returnValue": "{\"ret\":\"null\"}",
+  "exists_at_return": true,
+  "size": 84466,
+  "exists_after_1s": true
+}
+--- tool call ---
+{
+  "success": false,
+  "error": "PPT 未生成预览"
+}

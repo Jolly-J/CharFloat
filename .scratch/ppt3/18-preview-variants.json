@@ -1,0 +1,23 @@
+{
+  "lock_status": {
+    "success": true,
+    "data": {
+      "gatewayLocks": {},
+      "addonStatus": null,
+      "message": "当前文档锁定状态查询完成"
+    }
+  },
+  "cap_no_index": {
+    "success": false,
+    "error": "PPT 未生成预览"
+  },
+  "cap_other_pres": {
+    "success": false,
+    "error": "PPT 未生成预览"
+  },
+  "cap_no_pres": {
+    "success": false,
+    "error": "PPT 未生成预览"
+  },
+  "new_files_in_previews": []
+}

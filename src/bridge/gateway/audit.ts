@@ -37,7 +37,10 @@ export const rollback: Handler = async (ctx) => {
 
     return {
       success: true,
-      message: `成功恢复区域 ${rec.address} 的数据`,
+      message: `成功恢复区域 ${rec.address} 的值与公式`,
+      // 说清范围：该记录只覆盖 patch_cells 写入的值/公式，样式、图表、结构变更既不在快照里、
+      // 也不在本记录的回滚范围内。原文案"成功恢复区域的数据"被测试者误读为"整表还原"（ISS-47 / ISS-28）。
+      restoredScope: { values: true, formulas: true, styles: false, charts: false, structure: false },
       result: res
     };
 };

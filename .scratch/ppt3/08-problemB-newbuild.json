@@ -1,0 +1,119 @@
+{
+  "gen_slide8_content_nobullets": {
+    "success": true,
+    "data": {
+      "success": true,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "layoutWarnings": [],
+      "visualVerificationRequired": true,
+      "presentationName": "ppt3-blank.pptx",
+      "createdSlidesCount": 2,
+      "createdSlideIndices": [
+        8,
+        9
+      ],
+      "themeColor": "#0F4C81",
+      "message": "已成功基于大纲批量生成 2 页专业商业演示胶片！"
+    }
+  },
+  "read_slide8": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 8,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "shapeCount": 2,
+      "shapes": [
+        {
+          "shapeIndex": 1,
+          "shapeId": 2,
+          "name": "文本框 1",
+          "typeCode": 17,
+          "typeName": "textbox",
+          "left": 66.7,
+          "top": 40,
+          "width": 826.7,
+          "height": 48.3,
+          "rotation": 0,
+          "zOrderPosition": 1,
+          "hasText": true,
+          "fontSize": 32,
+          "text": "新版构建下的无正文内容页",
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 2,
+          "shapeId": 3,
+          "name": "直接连接符 2",
+          "typeCode": 9,
+          "typeName": "type_9",
+          "left": 66.7,
+          "top": 100,
+          "width": 93.3,
+          "height": 0.1,
+          "rotation": 0,
+          "zOrderPosition": 2,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        }
+      ],
+      "message": "已成功获取第 8 页幻灯片中全部 2 个形状的几何与属性信息"
+    }
+  },
+  "read_slide9": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 9,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "shapeCount": 2,
+      "shapes": [
+        {
+          "shapeIndex": 1,
+          "shapeId": 2,
+          "name": "文本框 1",
+          "typeCode": 17,
+          "typeName": "textbox",
+          "left": 66.7,
+          "top": 40,
+          "width": 826.7,
+          "height": 48.3,
+          "rotation": 0,
+          "zOrderPosition": 1,
+          "hasText": true,
+          "fontSize": 32,
+          "text": "新版构建下的空数组正文页",
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 2,
+          "shapeId": 3,
+          "name": "直接连接符 2",
+          "typeCode": 9,
+          "typeName": "type_9",
+          "left": 66.7,
+          "top": 100,
+          "width": 93.3,
+          "height": 0.1,
+          "rotation": 0,
+          "zOrderPosition": 2,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        }
+      ],
+      "message": "已成功获取第 9 页幻灯片中全部 2 个形状的几何与属性信息"
+    }
+  }
+}

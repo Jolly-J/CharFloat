@@ -1,0 +1,467 @@
+{
+  "success": true,
+  "data": {
+    "documentName": "e2e-钙钛矿产业现状说明.docx",
+    "fullName": "/Users/jolin/Downloads/e2e-钙钛矿产业现状说明.docx",
+    "paragraphCount": 120,
+    "tableCount": 1,
+    "wordCount": 783,
+    "outline": [
+      {
+        "level": 1,
+        "text": "钙钛矿光伏产业链现状说明",
+        "paragraphIndex": 1
+      },
+      {
+        "level": 2,
+        "text": "一、数据来源与口径",
+        "paragraphIndex": 3
+      },
+      {
+        "level": 2,
+        "text": "二、核心数据集",
+        "paragraphIndex": 8
+      },
+      {
+        "level": 2,
+        "text": "三、市场空间与产业化节奏",
+        "paragraphIndex": 110
+      },
+      {
+        "level": 2,
+        "text": "四、结论与建议",
+        "paragraphIndex": 115
+      }
+    ],
+    "tables": [
+      {
+        "tableIndex": 1,
+        "rowCount": 20,
+        "columnCount": 4,
+        "preview": [
+          [
+            "指标",
+            "数值",
+            "单位",
+            "来源工作表"
+          ],
+          [
+            "企业总数",
+            "37",
+            "家",
+            "企业现状总览"
+          ],
+          [
+            "中国",
+            "36",
+            "家",
+            "企业现状总览"
+          ]
+        ]
+      }
+    ],
+    "paragraphDetails": [
+      {
+        "index": 1,
+        "text": "钙钛矿光伏产业链现状说明",
+        "bold": true,
+        "italic": false,
+        "fontSize": 22,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 1
+      },
+      {
+        "index": 2,
+        "text": "本文档为 e2e 端到端交付场景的配套说明，全部数据取自工作簿《钙钛矿各家企业现状.xlsx》中已存在的「企业现状总览」「市场预测」「行业概览」三张工作表，未引入外部数据。汇总口径已写入新增工作表「e2e_钙钛矿数据集」，便于逐项回溯。",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 3,
+        "text": "一、数据来源与口径",
+        "bold": true,
+        "italic": false,
+        "fontSize": 16,
+        "fontName": "黑体",
+        "alignment": 3,
+        "outlineLevel": 2
+      },
+      {
+        "index": 4,
+        "text": "企业样本：企业现状总览表第 3–39 行，共 37 家企业，字段含国家、省份、类型、技术路线、最新进展。",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 5,
+        "text": "市场预测：市场预测表 2025 / 2030 / 2035 三列的产能、产量、需求数据。",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 6,
+        "text": "技术与成本指标：行业概览表 18 行指标，含理论效率、实测效率、成本目标与瓶颈。",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 7,
+        "text": "类型归并：按「类型」字段分组统计，专业钙钛矿 8 + 传统光伏 8 + 跨界龙头 3 = 电池与组件 19 家。",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 8,
+        "text": "二、核心数据集",
+        "bold": true,
+        "italic": false,
+        "fontSize": 16,
+        "fontName": "黑体",
+        "alignment": 3,
+        "outlineLevel": 2
+      },
+      {
+        "index": 9,
+        "text": "下表与工作簿「e2e_钙钛矿数据集」工作表逐行对应，演示文稿中的图表数值同样取自该数据集。",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 10,
+        "text": "指标",
+        "bold": true,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 11,
+        "text": "数值",
+        "bold": true,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 12,
+        "text": "单位",
+        "bold": true,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 13,
+        "text": "来源工作表",
+        "bold": true,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 14,
+        "text": "",
+        "bold": true,
+        "italic": false,
+        "fontSize": 10,
+        "fontName": "宋体",
+        "alignment": 0,
+        "outlineLevel": 10
+      },
+      {
+        "index": 15,
+        "text": "企业总数",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 16,
+        "text": "37",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 17,
+        "text": "家",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 18,
+        "text": "企业现状总览",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 19,
+        "text": "",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10,
+        "fontName": "宋体",
+        "alignment": 0,
+        "outlineLevel": 10
+      },
+      {
+        "index": 20,
+        "text": "中国",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 21,
+        "text": "36",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 22,
+        "text": "家",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 23,
+        "text": "企业现状总览",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 24,
+        "text": "",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10,
+        "fontName": "宋体",
+        "alignment": 0,
+        "outlineLevel": 10
+      },
+      {
+        "index": 25,
+        "text": "海外",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 26,
+        "text": "1",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 27,
+        "text": "家",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 28,
+        "text": "企业现状总览",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 29,
+        "text": "",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10,
+        "fontName": "宋体",
+        "alignment": 0,
+        "outlineLevel": 10
+      },
+      {
+        "index": 30,
+        "text": "专业钙钛矿",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 31,
+        "text": "8",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 32,
+        "text": "家",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 33,
+        "text": "企业现状总览",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 34,
+        "text": "",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10,
+        "fontName": "宋体",
+        "alignment": 0,
+        "outlineLevel": 10
+      },
+      {
+        "index": 35,
+        "text": "传统光伏",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 36,
+        "text": "8",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 37,
+        "text": "家",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 38,
+        "text": "企业现状总览",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      },
+      {
+        "index": 39,
+        "text": "",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10,
+        "fontName": "宋体",
+        "alignment": 0,
+        "outlineLevel": 10
+      },
+      {
+        "index": 40,
+        "text": "设备",
+        "bold": false,
+        "italic": false,
+        "fontSize": 10.5,
+        "fontName": "宋体",
+        "alignment": 3,
+        "outlineLevel": 10
+      }
+    ],
+    "previewText": "[P1] 钙钛矿光伏产业链现状说明\n[P2] 本文档为 e2e 端到端交付场景的配套说明，全部数据取自工作簿《钙钛矿各家企业现状.xlsx》中已存在的「企业现状总览」「市场预测」「行业概览」三张工作表，未引入外部数据。汇总口径已写入新增工作表「e2e_钙钛矿数据集」，便于逐项回溯。\n[P3] 一、数据来源与口径\n[P4] 企业样本：企业现状总览表第 3–39 行，共 37 家企业，字段含国家、省份、类型、技术路线、最新进展。\n[P5] 市场预测：市场预测表 2025 / 2030 / 2035 三列的产能、产量、需求数据。\n[P6] 技术与成本指标：行业概览表 18 行指标，含理论效率、实测效率、成本目标与瓶颈。\n[P7] 类型归并：按「类型」字段分组统计，专业钙钛矿 8 + 传统光伏 8 + 跨界龙头 3 = 电池与组件 19 家。\n[P8] 二、核心数据集\n[P9] 下表与工作簿「e2e_钙钛矿数据集」工作表逐行对应，演示文稿中的图表数值同样取自该数据集。\n[P10] 指标\n[P11] 数值\n[P12] 单位\n[P13] 来源工作表\n[P14] \n[P15] 企业总数\n[P16] 37\n[P17] 家\n[P18] 企业现状总览\n[P19] \n[P20] 中国\n[P21] 36\n[P22] 家\n[P23] 企业现状总览\n[P24] \n[P25] 海外\n[P26] 1\n[P27] 家\n[P28] 企业现状总览\n[P29] \n[P30] 专业钙钛矿\n[P31] 8\n[P32] 家\n[P33] 企业现状总览\n[P34] \n[P35] 传统光伏\n[P36] 8\n[P37] 家\n[P38] 企业现状总览\n[P39] \n[P40] 设备"
+  }
+}

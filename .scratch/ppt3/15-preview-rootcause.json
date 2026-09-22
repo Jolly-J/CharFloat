@@ -1,0 +1,42 @@
+{
+  "probe": {
+    "success": true,
+    "data": {
+      "success": true,
+      "executionTimeMs": 102,
+      "returnValue": "{\"hasExport\":\"function\",\"export_ret\":\"null\",\"export2_throw\":\"Missing required parameter filtername.\",\"pres_export\":\"null\",\"savecopy\":\"null\"}",
+      "logs": [],
+      "message": "WPS 原生图灵脚本执行完毕（耗时 102ms）"
+    }
+  }
+}
+--- files in .scratch/ppt3 ---
+   .~ppt3-blank.pptx 165
+   01-generate-deck.json 316
+   02-raw-shapes.json 3467
+   02-raw-shapes.parsed.json 3265
+   03-existing-deck-scan.json 14025
+   04-build-scan.json 4951
+   05-chart-fingerprint.json 368
+   06-slide5-readback.json 322
+   07-after-reload-shapes.json 1991
+   08-problemB-newbuild.json 3025
+   09-table.json 2796
+   10-table2-shapes.json 4730
+   11-shapes-ops.json 3342
+   12-chart-2.json 1470
+   13-chart-rootcause.json 3616
+   14-slides-notes-preview.json 2753
+   15-preview-rootcause.json 0
+   __pycache__ 96
+   call.py 1063
+   ppt3-blank.pptx 76217
+   probe-copy.pptx 92607
+   probe-slide1.png 99804
+--- previews dir ---
+   d 416
+   e.pptx 107232
+   e2e-test1.png 160738
+   e2e-test2.PNG 160738
+   render-153649 416
+   render-153902 384

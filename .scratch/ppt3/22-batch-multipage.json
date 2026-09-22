@@ -1,0 +1,45 @@
+{
+  "batch5": {
+    "success": true,
+    "data": {
+      "success": true,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "layoutWarnings": [],
+      "visualVerificationRequired": true,
+      "presentationName": "ppt3-blank.pptx",
+      "createdSlidesCount": 5,
+      "createdSlideIndices": [
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "themeColor": "#4B38B3",
+      "message": "已成功基于大纲批量生成 5 页专业商业演示胶片！"
+    }
+  },
+  "batch5_elapsed_s": 0.24,
+  "geometry_check": {
+    "success": true,
+    "data": {
+      "success": true,
+      "executionTimeMs": 7,
+      "returnValue": "{\"page\":[960,540],\"slides\":[{\"idx\":20,\"shapes\":3,\"overflow\":[]},{\"idx\":21,\"shapes\":3,\"overflow\":[]},{\"idx\":22,\"shapes\":17,\"overflow\":[]},{\"idx\":23,\"shapes\":22,\"overflow\":[]},{\"idx\":24,\"shapes\":2,\"overflow\":[]}]}",
+      "logs": [],
+      "message": "WPS 原生图灵脚本执行完毕（耗时 7ms）"
+    }
+  },
+  "export": {
+    "success": true,
+    "data": {
+      "success": true,
+      "executionTimeMs": 99,
+      "returnValue": "ok",
+      "logs": [],
+      "message": "WPS 原生图灵脚本执行完毕（耗时 99ms）"
+    }
+  }
+}

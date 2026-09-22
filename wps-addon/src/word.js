@@ -831,6 +831,8 @@
     }
 
     let matchCount = 0;
+    let replacedAny = false;
+    const errors = [];
     const hasFmt = Boolean(replaceFormatting && typeof replaceFormatting === "object");
 
     for (const rng of targetRanges) {
@@ -858,8 +860,9 @@
             }
           }
 
-          // 核心修复：第 9 个参数 Format 传入 hasFmt，使 Replacement.Font 格式化必定生效
-          findObj.Execute(
+          // 第 9 个参数 Format 传入 hasFmt，使 Replacement.Font 格式化必定生效。
+          // 返回值必须看：原实现忽略了它并无条件 matchCount++，导致"没命中"也报成功（问题台账 ISS-68）。
+          const did = findObj.Execute(
             searchQuery,
             Boolean(matchCase),
             Boolean(matchWholeWord),
@@ -872,21 +875,31 @@
             replaceText,
             2 // wdReplaceAll
           );
-          matchCount++;
-        } else if (hasFmt) {
-          // 纯格式化定位赋属性
-          while (findObj.Execute()) {
+          if (did) {
             matchCount++;
-            if (replaceFormatting.bold !== undefined) findObj.Parent.Font.Bold = Boolean(replaceFormatting.bold);
-            if (replaceFormatting.italic !== undefined) findObj.Parent.Font.Italic = Boolean(replaceFormatting.italic);
-            if (replaceFormatting.fontSizePt !== undefined) findObj.Parent.Font.Size = Number(replaceFormatting.fontSizePt);
-            if (replaceFormatting.fontName) {
-              findObj.Parent.Font.NameFarEast = replaceFormatting.fontName;
-              findObj.Parent.Font.NameAscii = replaceFormatting.fontName;
+            replacedAny = true;
+          }
+        } else {
+          // 纯查找 / 查找并格式化：**原实现缺这一支**，所以只查找时 matchCount 恒为 0、
+          // 文案却写"已找到并应用格式化"。这里真正遍历计数（带上限防死循环）。
+          let guard = 0;
+          while (findObj.Execute() && guard++ < 5000) {
+            matchCount++;
+            if (hasFmt) {
+              if (replaceFormatting.bold !== undefined) findObj.Parent.Font.Bold = Boolean(replaceFormatting.bold);
+              if (replaceFormatting.italic !== undefined) findObj.Parent.Font.Italic = Boolean(replaceFormatting.italic);
+              if (replaceFormatting.fontSizePt !== undefined) findObj.Parent.Font.Size = Number(replaceFormatting.fontSizePt);
+              if (replaceFormatting.fontName) {
+                findObj.Parent.Font.NameFarEast = replaceFormatting.fontName;
+                findObj.Parent.Font.NameAscii = replaceFormatting.fontName;
+              }
             }
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        // 不再静默吞异常：把原始错误带回给调用方
+        errors.push(e.message);
+      }
     }
 
     if (replaceText !== undefined) {
@@ -895,8 +908,12 @@
         documentName: doc.Name,
         searchQuery,
         replaceText,
-        action: "replaced_all",
-        message: `已将 [${doc.Name}] 中的 "${searchQuery}" 全文穿透替换为 "${replaceText}"`
+        action: replacedAny ? "replaced_all" : "no_match",
+        matchCount,
+        errors: errors.length ? errors : undefined,
+        message: replacedAny
+          ? `已将 [${doc.Name}] 中的 "${searchQuery}" 全文穿透替换为 "${replaceText}"（命中 ${matchCount} 段）`
+          : `未在 [${doc.Name}] 中找到 "${searchQuery}"，未做任何替换`
       };
     }
 
@@ -905,7 +922,10 @@
       documentName: doc.Name,
       searchQuery,
       matchCount,
-      message: `已为 "${searchQuery}" 找到并应用格式化 (${matchCount} 处)`
+      errors: errors.length ? errors : undefined,
+      message: hasFmt
+        ? `已为 "${searchQuery}" 找到并应用格式化（${matchCount} 处）`
+        : `在 [${doc.Name}] 中找到 "${searchQuery}" ${matchCount} 处`
     };
   }
 

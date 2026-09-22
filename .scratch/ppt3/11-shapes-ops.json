@@ -1,0 +1,144 @@
+{
+  "update_shape_4": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 4,
+      "left": 120,
+      "top": 400,
+      "width": 260,
+      "height": 90,
+      "message": "已成功更新形状 [4] 的属性"
+    }
+  },
+  "swap_4_5": {
+    "success": true,
+    "data": {
+      "success": true,
+      "slideIndex": 11,
+      "shape1": {
+        "id": 4,
+        "oldTop": 400,
+        "newTop": 495,
+        "height": 90
+      },
+      "shape2": {
+        "id": 5,
+        "oldTop": 420,
+        "newTop": 400,
+        "height": 80
+      },
+      "message": "已成功将形状 [4] 与 [5] 在第 11 页进行精准垂直互换！"
+    }
+  },
+  "set_z_front_4": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 4,
+      "zOrderAction": "bring_to_front",
+      "message": "已成功调整形状 [4] 的图层层级"
+    }
+  },
+  "align_center": {
+    "success": true,
+    "data": {
+      "success": true,
+      "alignMode": "center",
+      "alignedCount": 3,
+      "message": "已完成 3 个形状的 [center] 对齐"
+    }
+  },
+  "delete_shape_5": {
+    "success": true,
+    "data": {
+      "success": true,
+      "message": "已成功删除形状: 5"
+    }
+  },
+  "read_back": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 11,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "shapeCount": 3,
+      "shapes": [
+        {
+          "shapeIndex": 1,
+          "shapeId": 2,
+          "name": "表格 1",
+          "typeCode": 19,
+          "typeName": "table",
+          "left": 80,
+          "top": 120,
+          "width": 800,
+          "height": 122,
+          "rotation": 0,
+          "zOrderPosition": 1,
+          "hasText": true,
+          "fontSize": 14,
+          "text": "企业",
+          "hasTable": true,
+          "table": {
+            "rows": 3,
+            "columns": 3
+          },
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 2,
+          "shapeId": 3,
+          "name": "文本框 2",
+          "typeCode": 17,
+          "typeName": "textbox",
+          "left": 80,
+          "top": 40,
+          "width": 600,
+          "height": 36.3,
+          "rotation": 0,
+          "zOrderPosition": 2,
+          "hasText": true,
+          "fontSize": 24,
+          "text": "手动文本框",
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 3,
+          "shapeId": 4,
+          "name": "圆角矩形 3",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 250,
+          "top": 495,
+          "width": 260,
+          "height": 90,
+          "rotation": 0,
+          "zOrderPosition": 3,
+          "hasText": true,
+          "fontSize": 18,
+          "text": "更新后的矩形",
+          "hasTable": false,
+          "hasChart": false
+        }
+      ],
+      "message": "已成功获取第 11 页幻灯片中全部 3 个形状的几何与属性信息"
+    }
+  },
+  "update_missing_shape": {
+    "success": false,
+    "error": "未在第 11 页找到形状: 999"
+  },
+  "delete_missing_shape": {
+    "success": false,
+    "error": "未找到形状: 999"
+  },
+  "add_shape_bad_type": {
+    "success": false,
+    "error": "arguments.shapeType: 不在允许值中"
+  }
+}

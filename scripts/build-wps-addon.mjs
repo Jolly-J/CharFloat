@@ -40,12 +40,15 @@ const HEADER = "// 本文件由 scripts/build-wps-addon.mjs 生成，请勿手�
  *   - bootstrap.js 必须最后：它执行 initWebSocket()、注册心跳、挂载 DOM 监听，是启动副作用。
  *   - ppt-layout.js 必须紧跟 ppt.js 之前，保证 pptPageSize/fitGeneratedPptShapes 在产物里相邻
  *     （tests/ppt-layout.test.ts 按这两个函数名截取源码片段做纯几何验证）。
+ *   - sheet-sort.js 必须紧跟 excel.js 之前：它是排序写完后"读回校验"用的纯函数，
+ *     由 tests/sheet-sort.test.ts 直接 import 验证（尤其是不得漏比较最后一行）。
  */
 const MODULES = [
   "shared.js",
   "connection.js",
   "ribbon.js",
   "dispatch.js",
+  "sheet-sort.js",
   "excel.js",
   "word.js",
   "ppt-layout.js",
