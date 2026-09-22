@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: d2bd8f15cc2174d935ac106f6814f4495d1e7290b992e161911318e986aaf5f2
+// ADDON_BUILD_FINGERPRINT: 7e26fe187100292d822a2eff534cbb584ca956135faee167bca3a7feb05587c7
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "d2bd8f15cc2174d935ac106f6814f4495d1e7290b992e161911318e986aaf5f2";
+  var ADDON_BUILD_FINGERPRINT = "7e26fe187100292d822a2eff534cbb584ca956135faee167bca3a7feb05587c7";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -3757,7 +3757,7 @@
   /** 就地更新已有图表：标题、图表类型、图例、数据标签。写后逐项读回核对。 */
   function updateChart(app, params) {
     const { sheetName, workbookName, chartName, chartIndex, title, chartType, hasLegend, showDataLabels,
-            fontName, legendPosition, dataLabelColorMatchesSeries } = params || {};
+            fontName, legendPosition, dataLabelColorMatchesSeries, position } = params || {};
     const sheet = getWorksheet(app, sheetName, workbookName);
     try { sheet.Activate(); } catch (e) {}
 
@@ -3860,6 +3860,29 @@
       } catch (e) { warnings.push(`设置数据标签颜色失败: ${e.message}`); }
       applied.dataLabelColorMatchesSeries = matched;
       if (!matched) warnings.push("没有系列成功匹配到颜色，数据标签颜色未改");
+    }
+
+    // 移动/改尺寸（单位：磅）。支持绝对定位与相对位移——
+    // 「把图表往下挪一点」这种调整本该一条指令完成，不必重建图表或跑脚本。
+    if (position && typeof position === "object") {
+      const moved = {};
+      const setIf = (key, cur, next) => { if (Number.isFinite(Number(next))) { try { target[key] = Number(next); moved[key] = Number(next); } catch (e) { warnings.push(`设置 ${key} 失败: ${e.message}`); } } };
+      setIf("Left", null, position.left);
+      setIf("Top", null, position.top);
+      setIf("Width", null, position.width);
+      setIf("Height", null, position.height);
+      // 相对位移：在当前位置基础上加减
+      if (Number.isFinite(Number(position.leftDelta))) {
+        try { target.Left = Number(target.Left) + Number(position.leftDelta); moved.left = Number(target.Left); } catch (e) { warnings.push(`左移失败: ${e.message}`); }
+      }
+      if (Number.isFinite(Number(position.topDelta))) {
+        try { target.Top = Number(target.Top) + Number(position.topDelta); moved.top = Number(target.Top); } catch (e) { warnings.push(`下移失败: ${e.message}`); }
+      }
+      // 单元格锚点：左上角对齐到指定单元格
+      if (position.leftCell) {
+        try { const c = sheet.Range(String(position.leftCell)); target.Left = Number(c.Left) + 2; target.Top = Number(c.Top) + 2; moved.leftCell = String(position.leftCell); } catch (e) { warnings.push(`按单元格定位失败: ${e.message}`); }
+      }
+      applied.position = moved;
     }
 
     if (showDataLabels !== undefined) {

@@ -506,6 +506,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
+            position: { type: "object", description: "移动/改尺寸（磅）：{ left, top, width, height } 绝对定位；{ topDelta, leftDelta } 相对位移（如往下挪 30 磅传 {'topDelta': 30}）；{ leftCell } 左上角对齐到单元格" },
             fontName: { type: "string", description: "图表字体（标题/图例/坐标轴/数据标签统一设置），如「微软雅黑」" },
             legendPosition: { type: "string", enum: ["right", "left", "top", "bottom"], description: "图例位置" },
             dataLabelColorMatchesSeries: { type: "boolean", description: "数据标签文字颜色自动匹配所属柱/点的颜色" },
