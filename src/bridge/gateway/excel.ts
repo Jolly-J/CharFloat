@@ -12,13 +12,118 @@ import type { Handler } from "./types.js";
 
 // 仅类型引用（纯类型，无运行时依赖）。
 
-import { WorkspaceSummary, SheetOutline, RangeData, SearchResult, PatchResult } from "../types.js";
+import { WorkspaceSummary, SheetOutline, RangeData, SearchResult, PatchResult, AuditRecord } from "../types.js";
+import type { GatewayContext } from "./types.js";
+
+/**
+ * 登记一次"只留痕、不可回滚"的写操作（ISS-48）。
+ *
+ * 背景：格式、条件格式、冻结窗格、行列结构、图表、数据校验等写操作原来完全不进审计，
+ * 调用方既拿不到 auditId、也无法回答"谁在什么时候改了什么"。
+ * 这里为它们补上操作事实记录：`rollbackable: false`、没有值快照，
+ * `wps_rollback` 对这类记录会明确拒绝（没有可恢复的快照），不会假装能回滚。
+ */
+function recordWrite(
+  ctx: GatewayContext,
+  input: {
+    actionType: AuditRecord["actionType"];
+    description: string;
+    sheetName?: string;
+    address?: string;
+    modifiedCount?: number;
+    workbookName?: string;
+  }
+): AuditRecord {
+  const { auditStore, clientName, currentHost, currentSession, args, bridgeServer } = ctx;
+  return auditStore.addRecord({
+    clientName,
+    sessionId: currentSession(),
+    host: currentHost(),
+    actionType: input.actionType,
+    description: input.description,
+    workbookName: input.workbookName || args?.workbookName || bridgeServer.getState().activeWorkbook || "未知工作簿",
+    sheetName: input.sheetName || args?.sheetName || "当前工作表",
+    address: input.address || args?.address || args?.range || "",
+    rollbackable: false,
+    modifiedCount: input.modifiedCount ?? 0
+  });
+}
+
+/** 把一次"不可回滚"写操作的结果补上审计标识与范围说明，避免调用方以为能回滚。 */
+function withAuditScope(record: AuditRecord, result: unknown, note: string) {
+  const base = result && typeof result === "object" && !Array.isArray(result) ? (result as Record<string, unknown>) : {};
+  return {
+    ...base,
+    auditId: record.id,
+    rollbackable: false,
+    rollbackScope: { values: false, formulas: false, styles: false, charts: false, structure: false },
+    auditNote: note
+  };
+}
 
 export const getWorkspaceSummary: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice<WorkspaceSummary>("get_workspace_summary", {
-      workbookName: args?.workbookName
-    });
+    // ISS-02 / ISS-77：`hasOpenWorkbook` 原来反映的是"目标锁指向的文稿是否存在"，不是"当前打开了什么"。
+    // 锁是加载项进程级全局、且可能来自更早的会话；不传目标时会回落到陈旧锁目标并报"未找到[另一个文件]"，
+    // 而唯一能列出已打开文稿的工具恰好就是失败的那个（自举死锁）。
+    //
+    // 处理方式：
+    //   1. 先按原语义解析目标（显式 workbookName > 本会话锁）；
+    //   2. 目标不可用时**再查一次不带目标**的摘要，拿到真实的 openWorkbooks 列表；
+    //   3. 返回体把"已打开列表"与"锁目标是否存在"拆成两个字段，并给出回退顺序说明。
+    const requested = args?.workbookName;
+    const lockTarget = locks?.excel;
+    const targetSource: "request" | "session-lock" | "none" = ctx.targetSource
+      || (lockTarget ? "session-lock" : "none");
+
+    let primary: any = null;
+    let primaryError: string | null = null;
+    try {
+      primary = await callOffice<WorkspaceSummary>("get_workspace_summary", { workbookName: requested });
+    } catch (error: any) {
+      primaryError = error?.message || String(error);
+    }
+
+    const targetResolved = Boolean(primary && primary.hasOpenWorkbook !== false);
+    let fallback: any = null;
+    if (!targetResolved) {
+      // 不带目标再查一次：这是唯一能列出真实已打开文稿的路径（不传目标时宿主用活动文稿/唯一文稿）。
+      try {
+        fallback = await callOffice<WorkspaceSummary>("get_workspace_summary", {});
+      } catch { /* 宿主确实没有可用文稿时保持原样 */ }
+    }
+
+    const openWorkbooks = ((fallback?.openWorkbooks || primary?.openWorkbooks || []) as any[]);
+    const openCount = Array.isArray(openWorkbooks) ? openWorkbooks.length : 0;
+    const anyOpen = Boolean(fallback?.hasOpenWorkbook || primary?.hasOpenWorkbook);
+    const resolved = targetResolved ? primary : (fallback && fallback.hasOpenWorkbook ? fallback : null);
+    const lockMissing = Boolean(lockTarget) && !targetResolved;
+
+    const resolutionOrder = [
+      "1) 本次请求的 workbookName",
+      "2) 本会话的目标锁 wps_lock_target_document（可能来自更早的会话，不代表文稿还开着）",
+      "3) 不传目标：宿主使用活动文稿；只打开了一个文稿时使用该文稿"
+    ];
+    const message = targetResolved
+      ? "获取工作区摘要成功"
+      : anyOpen
+        ? `已打开 ${openCount || "若干"} 个工作簿，但未命中目标${lockTarget ? ` [${lockTarget}]` : ""}${primaryError ? `（宿主返回：${primaryError}）` : ""}。` +
+          (lockTarget ? "目标可能来自陈旧的目标锁：请显式传 workbookName，或用 wps_unlock_target_document 清除锁后重试。" : "")
+        : primaryError || "当前没有打开的工作簿";
+
+    return {
+      ...(resolved || {}),
+      hasOpenWorkbook: anyOpen,
+      openWorkbooks,
+      openWorkbookCount: openCount || undefined,
+      lockTarget: lockTarget
+        ? { name: lockTarget, source: targetSource, exists: targetResolved, missing: lockMissing }
+        : { name: null, source: "none", exists: false, missing: false },
+      targetSource,
+      targetResolution: resolutionOrder,
+      ...(primaryError ? { targetError: primaryError } : {}),
+      message
+    };
 };
 
 export const getSheetOutline: Handler = async (ctx) => {

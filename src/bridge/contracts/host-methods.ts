@@ -39,6 +39,22 @@ export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
 };
 
 /**
+ * Windows 原生 COM 通道（`resources/office/excel.ps1`）**实际实现**的方法缺口。
+ *
+ * ISS-97：`office/adapter.ts` 曾把整张 `EXCEL_METHODS`(30) 当作 COM 回退白名单，
+ * 而 COM 只覆盖 28/30 —— `update_chart` 与 `save_workbook` 在 `excel.ps1` 的
+ * `switch($method)` 里没有分支（`save_workbook` 连 case 都不存在），
+ * 于是这两个方法会被判为"可回退"，回退后却抛 `Unsupported Excel method`，
+ * 白名单成了过度声明。这里按实际覆盖生成，回退判定只认这张表。
+ */
+export const COM_IMPLEMENTATION_GAPS: readonly string[] = ['update_chart', 'save_workbook'];
+
+/** COM 通道真实可执行的方法集（按实际实现生成，不是整张路由表）。 */
+export const COM_EXCEL_METHODS: readonly string[] = EXCEL_METHODS.filter(
+  method => !COM_IMPLEMENTATION_GAPS.includes(method)
+);
+
+/**
  * 不修改宿主文档内容的宿主方法。
  *
  * 只有这些方法允许在前一通道结果不可判定时改走另一通道重放；未列出的方法一律按"可能修改文档"处理。

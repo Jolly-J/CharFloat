@@ -432,39 +432,165 @@
     };
   }
 
+  // 幻灯片页码校验：宿主对越界页码会抛内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），
+  // 调用方看不出是哪一页越界（问题台账 ISS-79）。这里统一前置校验并给中文上下文。
+  function pptRequireSlideIndex(pres, slideIndex, actionLabel) {
+    const total = pres.Slides.Count;
+    const idx = Number(slideIndex);
+    if (!slideIndex || !Number.isFinite(idx) || Math.floor(idx) !== idx) {
+      throw new Error(`${actionLabel} 需要提供整数 slideIndex（1-based）；当前文稿共 ${total} 页`);
+    }
+    if (total === 0) {
+      throw new Error(`${actionLabel} 失败：当前文稿一页都没有，请先用 action='add' 新增幻灯片`);
+    }
+    if (idx < 1 || idx > total) {
+      throw new Error(`${actionLabel} 的 slideIndex=${idx} 越界：当前文稿 [${pres.Name}] 共 ${total} 页，有效范围 1~${total}`);
+    }
+    return idx;
+  }
+
+  function pptSavePresentation(app, params) {
+    const { presentationName, filePath, format } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+    const fmt = String(format || "").toLowerCase();
+    const target = filePath ? String(filePath) : null;
+
+    if (target && (fmt === "pdf" || target.toLowerCase().endsWith(".pdf"))) {
+      // ppSaveAsPDF = 32；ExportAsFixedFormat(Path, FixedFormatType=2 表示 PDF)
+      try {
+        pres.ExportAsFixedFormat(target, 2);
+      } catch (e) {
+        pres.SaveAs(target, 32);
+      }
+      return {
+        success: true,
+        presentationName: pres.Name,
+        savedPath: target,
+        format: "pdf",
+        message: `演示文稿 [${pres.Name}] 已导出为 PDF: ${target}`
+      };
+    }
+
+    if (target) {
+      try {
+        pres.SaveAs(target);
+      } catch (e) {
+        pres.SaveAs(target, 24);
+      }
+      return {
+        success: true,
+        presentationName: pres.Name,
+        savedPath: target,
+        format: "pptx",
+        message: `演示文稿 [${pres.Name}] 已另存为: ${target}`
+      };
+    }
+
+    if (pres.Path && pres.Name) {
+      pres.Save();
+      return {
+        success: true,
+        presentationName: pres.Name,
+        savedPath: String(pres.Path).replace(/[\\/]+$/, "") + "/" + pres.Name,
+        format: "pptx",
+        message: `演示文稿 [${pres.Name}] 已原地保存`
+      };
+    }
+    // 未命名的演示文稿：Save 在宿主上可能弹"另存为"对话框。这里不静默成功，直接要求 filePath。
+    throw new Error(
+      `演示文稿 [${pres.Name}] 尚未保存到磁盘（没有文件路径），无法原地保存；` +
+      `请提供 filePath 走另存为，或先在 WPS 里保存一次。`
+    );
+  }
+
   function pptManageSlides(app, params) {
-    const { presentationName, action, slideIndex, targetIndex, layoutIndex, backgroundColor } = params || {};
+    const { presentationName, action, slideIndex, targetIndex, layoutIndex, backgroundColor, filePath, format, isVisible } = params || {};
+
+    // 新建演示文稿：不需要预先存在的目标文稿，先处理
+    if (action === "new_presentation") {
+      const pptApp = getPptApp() || app;
+      if (!pptApp) throw new Error("WPS 演示 (PowerPoint) 未就绪");
+      const created = pptApp.Presentations.Add();
+      try { if (isVisible !== false && created.Application) created.Application.Visible = true; } catch (e) {}
+      let savedPath = null;
+      if (filePath) {
+        try { created.SaveAs(String(filePath)); savedPath = String(filePath); } catch (e) { savedPath = null; }
+      }
+      return {
+        success: true,
+        presentationName: created.Name,
+        slideCount: created.Slides ? created.Slides.Count : 0,
+        savedPath: savedPath,
+        appended: false,
+        message: savedPath
+          ? `已新建演示文稿 [${created.Name}] 并另存为 ${savedPath}`
+          : `已新建演示文稿 [${created.Name}]（尚未保存到磁盘；后续写入请显式传 presentationName）`
+      };
+    }
+
     const pres = getPptPresentation(app, presentationName);
 
     switch (action) {
+      case "save":
+      case "save_as":
+        return pptSavePresentation(app, { presentationName: presentationName, filePath: filePath, format: format });
       case "add": {
         const idx = slideIndex ? Number(slideIndex) : (pres.Slides.Count + 1);
+        if (slideIndex && (idx < 1 || idx > pres.Slides.Count + 1)) {
+          throw new Error(`add 的 slideIndex=${idx} 越界：当前共 ${pres.Slides.Count} 页，可在 1~${pres.Slides.Count + 1} 之间插入`);
+        }
         const lIndex = Number(layoutIndex) || 12;
         const newSlide = pres.Slides.Add(idx, lIndex);
-        return { success: true, presentationName: pres.Name, slideIndex: newSlide.SlideIndex, message: `已在位置 ${newSlide.SlideIndex} 新增幻灯片` };
+        return {
+          success: true,
+          presentationName: pres.Name,
+          slideIndex: newSlide.SlideIndex,
+          slideCount: pres.Slides.Count,
+          appended: true,
+          idempotent: false,
+          message: `已在位置 ${newSlide.SlideIndex} 新增幻灯片（追加型操作，重复调用会继续新增）`
+        };
       }
       case "delete": {
-        if (!slideIndex) throw new Error("delete 操作必须提供 slideIndex");
-        const idx = Number(slideIndex);
+        const idx = pptRequireSlideIndex(pres, slideIndex, "delete");
         const slide = pres.Slides.Item(idx);
         slide.Delete();
-        return { success: true, presentationName: pres.Name, deletedIndex: idx, message: `已成功删除第 ${idx} 页幻灯片` };
+        return {
+          success: true,
+          presentationName: pres.Name,
+          deletedIndex: idx,
+          slideCount: pres.Slides.Count,
+          message: `已成功删除第 ${idx} 页幻灯片（当前剩 ${pres.Slides.Count} 页）`
+        };
       }
       case "move": {
-        if (!slideIndex || !targetIndex) throw new Error("move 操作必须提供 slideIndex 与 targetIndex");
-        const slide = pres.Slides.Item(Number(slideIndex));
-        slide.MoveTo(Number(targetIndex));
-        return { success: true, presentationName: pres.Name, from: slideIndex, to: targetIndex, message: `幻灯片已移动至第 ${targetIndex} 页` };
+        const idx = pptRequireSlideIndex(pres, slideIndex, "move");
+        const to = Number(targetIndex);
+        if (!targetIndex || !Number.isFinite(to) || to < 1 || to > pres.Slides.Count) {
+          throw new Error(`move 的 targetIndex=${targetIndex} 越界：有效范围 1~${pres.Slides.Count}`);
+        }
+        const slide = pres.Slides.Item(idx);
+        slide.MoveTo(to);
+        return { success: true, presentationName: pres.Name, from: idx, to: to, slideCount: pres.Slides.Count, message: `幻灯片已从第 ${idx} 页移动到第 ${to} 页` };
       }
       case "duplicate": {
-        if (!slideIndex) throw new Error("duplicate 操作必须提供 slideIndex");
-        const slide = pres.Slides.Item(Number(slideIndex));
+        const idx = pptRequireSlideIndex(pres, slideIndex, "duplicate");
+        const slide = pres.Slides.Item(idx);
         slide.Duplicate();
-        return { success: true, presentationName: pres.Name, originalIndex: slideIndex, message: `已成功克隆第 ${slideIndex} 页幻灯片` };
+        return {
+          success: true,
+          presentationName: pres.Name,
+          originalIndex: idx,
+          slideCount: pres.Slides.Count,
+          appended: true,
+          idempotent: false,
+          message: `已克隆第 ${idx} 页幻灯片（追加型操作，重复调用会继续克隆）`
+        };
       }
       case "set_background": {
-        if (!slideIndex || !backgroundColor) throw new Error("set_background 操作必须提供 slideIndex 与 backgroundColor");
-        const slide = pres.Slides.Item(Number(slideIndex));
+        const idx = pptRequireSlideIndex(pres, slideIndex, "set_background");
+        if (!backgroundColor) throw new Error("set_background 操作必须提供 backgroundColor");
+        const slide = pres.Slides.Item(idx);
         const total = pres.Slides.Count;
 
         // 读回背景色的辅助：不同宿主返回的 RGB 可能是 number 也可能是其它形态，统一成 "R,G,B"
@@ -476,8 +602,8 @@
             return r + "," + g + "," + b;
           } catch (e) { return null; }
         };
-        const neighbourIndex = Number(slideIndex) === 1 ? Math.min(2, total) : Number(slideIndex) - 1;
-        const neighbourBefore = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+        const neighbourIndex = idx === 1 ? Math.min(2, total) : idx - 1;
+        const neighbourBefore = neighbourIndex !== idx ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
 
         // 关键：该页若仍"跟随母版背景"，`slide.Background` 可能指向母版对象，写入会**串改全部页**
         // （问题台账 ISS-87，受控复现：设第 1 页后第 2 页也变红）。先显式断开与母版的关联再写。
@@ -487,7 +613,7 @@
 
         // 写后校验：目标页确实变了，且相邻页**没有被串改**
         const applied = readRgb(slide);
-        const neighbourAfter = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+        const neighbourAfter = neighbourIndex !== idx ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
         if (neighbourBefore !== null && neighbourAfter !== null && neighbourBefore !== neighbourAfter) {
           throw new Error(
             `设置背景时串改了相邻页：第 ${neighbourIndex} 页背景由 ${neighbourBefore} 变成了 ${neighbourAfter}。` +
@@ -497,10 +623,10 @@
         return {
           success: true,
           presentationName: pres.Name,
-          slideIndex,
+          slideIndex: idx,
           backgroundColor,
           appliedRgb: applied,
-          neighbourChecked: neighbourIndex !== Number(slideIndex) ? { slideIndex: neighbourIndex, before: neighbourBefore, after: neighbourAfter } : null,
+          neighbourChecked: neighbourIndex !== idx ? { slideIndex: neighbourIndex, before: neighbourBefore, after: neighbourAfter } : null,
           message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}`
         };
       }
@@ -642,6 +768,36 @@
       ...pptPageSize(pres),
       shapeCount: count,
       shapes,
+      // 版式与占位符读回（ISS-44）：宿主目前无法区分矩形/圆角/椭圆（typeCode 都是 1），
+      // 但占位符（typeCode 14）与所在版式名可读，用于核对"是否套用了正确版式"。
+      layout: (() => {
+        try {
+          return {
+            name: slide.CustomLayout ? slide.CustomLayout.Name : undefined,
+            layoutIndex: Number(slide.Layout),
+            placeholderCount: slide.Shapes.Placeholders ? slide.Shapes.Placeholders.Count : shapes.filter(s => s.typeCode === 14).length,
+            placeholders: (() => {
+              try {
+                const list = [];
+                const phCount = slide.Shapes.Placeholders.Count;
+                for (let p = 1; p <= phCount; p++) {
+                  const ph = slide.Shapes.Placeholders.Item(p);
+                  list.push({
+                    shapeId: ph.Id,
+                    name: ph.Name,
+                    placeholderType: (() => { try { return Number(ph.PlaceholderFormat.Type); } catch (e) { return undefined; } })(),
+                    hasText: Boolean(ph.HasTextFrame && ph.TextFrame.HasText),
+                    text: (() => { try { return ph.TextFrame.HasText ? String(ph.TextFrame.TextRange.Text).slice(0, 200) : ""; } catch (e) { return undefined; } })()
+                  });
+                }
+                return list;
+              } catch (e) { return []; }
+            })()
+          };
+        } catch (e) {
+          return { error: e.message };
+        }
+      })(),
       message: `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
     };
   }
@@ -1268,6 +1424,7 @@
     const { presentationName, slideIndex } = params || {};
     const pres = getPptPresentation(app, presentationName);
     const pptApp = getPptApp() || app;
+    const total = pres.Slides.Count;
     let idx = Number(slideIndex);
     if (!idx || isNaN(idx)) {
       try {
@@ -1277,28 +1434,57 @@
       } catch (e) {}
       if (!idx) idx = 1;
     }
+    if (total === 0) {
+      throw new Error(`capture_slide_preview 失败：演示文稿 [${pres.Name}] 一页都没有，没有可导出的幻灯片`);
+    }
+    if (Math.floor(idx) !== idx || idx < 1 || idx > total) {
+      throw new Error(`capture_slide_preview 的 slideIndex=${slideIndex} 越界：当前文稿 [${pres.Name}] 共 ${total} 页，有效范围 1~${total}`);
+    }
     const slide = pres.Slides.Item(idx);
 
-    const tempPngPath = params.outputPath;
-    if (!tempPngPath) throw new Error("缺少 Bridge 指定的预览输出路径");
-    try {
-      slide.Export(tempPngPath, "PNG", 1280, 720);
-      return {
-        success: true,
-        presentationName: pres.Name,
-        slideIndex: idx,
-        imagePath: tempPngPath,
-        hasImage: true,
-        message: `已成功导出第 ${idx} 页幻灯片高保真预览图至: ${tempPngPath}`
-      };
-    } catch (e) {
-      log(`幻灯片导出异常: ${e.message}`);
-      return {
-        success: false,
-        presentationName: pres.Name,
-        slideIndex: idx,
-        hasImage: false,
-        error: e.message
-      };
+    const primaryPath = params.outputPath ? String(params.outputPath) : null;
+    if (!primaryPath) throw new Error("缺少 Bridge 指定的预览输出路径（outputPath）");
+
+    // 同一 API 用脚本 `slide.Export(path,"PNG",1280,720)` 实测可用，但工具路径历史上 100% 报
+    // "PPT 未生成预览"（问题台账 ISS-76/ISS-86）：桥接侧把"文件没落盘"折成了兜底文案，
+    // 宿主原始错误被丢掉。这里改为**两条导出路径依次尝试**，并把每次尝试的宿主原始报错全部回传。
+    const attempts = [];
+    const tryExport = (path, withSize) => {
+      try {
+        if (withSize) slide.Export(path, "PNG", 1280, 720);
+        else slide.Export(path, "PNG");
+        attempts.push({ path: path, scale: withSize ? "1280x720" : "default", ok: true });
+        return true;
+      } catch (e) {
+        attempts.push({ path: path, scale: withSize ? "1280x720" : "default", ok: false, hostError: String(e && e.message ? e.message : e) });
+        return false;
+      }
+    };
+
+    const exportedPrimary = tryExport(primaryPath, true) || tryExport(primaryPath, false);
+    const exported = [primaryPath];
+
+    // 可选第二落点：调用方显式指定的 outputPath（与桥接给的临时路径不同时一并写出）
+    const altPath = params.userOutputPath ? String(params.userOutputPath) : null;
+    if (altPath && altPath !== primaryPath) {
+      tryExport(altPath, true) || tryExport(altPath, false);
+      exported.push(altPath);
     }
+
+    const hostErrors = attempts.filter(a => !a.ok).map(a => `${a.path}（${a.scale}）: ${a.hostError}`);
+    // 加载项无文件系统访问，无法确认落盘；把原始返回完整回传，由桥接侧判定文件是否存在（ISS-86）
+    return {
+      success: exportedPrimary,
+      presentationName: pres.Name,
+      slideIndex: idx,
+      slideCount: total,
+      imagePath: primaryPath,
+      exportedPaths: exported,
+      hasImage: exportedPrimary,
+      hostError: hostErrors.length ? hostErrors.join(" | ") : undefined,
+      attempts: attempts,
+      message: exportedPrimary
+        ? `已导出第 ${idx} 页幻灯片预览图至: ${primaryPath}`
+        : `第 ${idx} 页幻灯片导出未成功；宿主对 ${attempts.length} 次导出尝试的原始报错见 hostError 与 attempts`
+    };
   }

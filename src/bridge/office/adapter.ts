@@ -1,7 +1,7 @@
 import { bridgeServer } from '../ws-server.js';
 import { currentHost } from '../context.js';
 import { MsOfficeDriver } from './ms-office-driver.js';
-import { EXCEL_METHODS } from '../contracts/host-methods.js';
+import { COM_EXCEL_METHODS } from '../contracts/host-methods.js';
 import { previewPath } from '../runtime.js';
 import { normalizeOfficeRequest, normalizeOfficeResponse } from './normalizer.js';
 import { BridgeError, routeOfficeFailure, toBridgeError } from '../errors.js';
@@ -14,9 +14,13 @@ const queues = new Map<string, Promise<unknown>>();
  *
  * 判定集中在 errors.routeOfficeFailure：只有确认前一通道未执行，或该方法不修改文档时才回退；
  * 写入类方法在超时、断连、宿主报错时一律拒绝回退并要求先读回，避免跨通道重复写入。
+ *
+ * 白名单用 `COM_EXCEL_METHODS`（按 COM 真实覆盖生成，28/30），不再用整张路由表：
+ * 整张 `EXCEL_METHODS` 会把 `update_chart` / `save_workbook` 也说成"可回退"，
+ * 回退后却抛 `Unsupported Excel method`（ISS-97）。
  */
 function fallbackToNative<T>(method: string, params: ChannelParams, failure: BridgeError): Promise<T> | never {
-  const route = routeOfficeFailure(method, failure, { platform: process.platform, supportedMethods: EXCEL_METHODS });
+  const route = routeOfficeFailure(method, failure, { platform: process.platform, supportedMethods: COM_EXCEL_METHODS });
   if (route.action === 'reject') throw route.error;
   return MsOfficeDriver.windows({
     action: 'excel',

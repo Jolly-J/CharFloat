@@ -26,9 +26,25 @@ export function createMcpServer(
   service: ToolService,
   options: { prompt?: () => string | Promise<string>; clientName?: string } = {}
 ) {
-  const { prompt, clientName = 'MCP Agent' } = options;
+  const { prompt } = options;
   const sessionId = crypto.randomUUID();
   const server = new Server({ name: 'wps-bridge-mcp', version: VERSION }, { capabilities: { tools: {}, prompts: {}, resources: {} }, instructions: INSTRUCTIONS });
+  /**
+   * 审计归属用的客户端名（ISS-49）。
+   *
+   * 两个不同的 MCP 客户端原来都记成写死的 "MCP Agent"，审计里无法区分"这条是谁改的"。
+   * 这里改为：调用方显式指定优先（stdio 通道固定为 "stdio MCP"，保持既有契约不变），
+   * 否则从 MCP `initialize` 的 `clientInfo` 取名（HTTP /mcp 通道每个会话一个 server 实例，
+   * 因此客户端名 + sessionId 足以区分不同客户端）。
+   */
+  const resolveClientName = (): string => {
+    if (options.clientName) return options.clientName;
+    try {
+      const info = server.getClientVersion() as { name?: string; version?: string } | undefined;
+      if (info?.name) return info.version ? `${info.name} ${info.version}` : info.name;
+    } catch { /* 未握手或 SDK 不支持时退回默认名 */ }
+    return 'MCP Agent';
+  };
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: await service.list() }));
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [{ uri: 'bridge://capabilities', name: '能力与运行状态', mimeType: 'application/json' }] }));
   server.setRequestHandler(ReadResourceRequestSchema, async request => {
@@ -43,7 +59,7 @@ export function createMcpServer(
   server.setRequestHandler(CallToolRequestSchema, async request => {
     const name = request.params.name, args = request.params.arguments || {};
     try {
-      const result: any = await service.execute(name, args, { sessionId, clientName });
+      const result: any = await service.execute(name, args, { sessionId, clientName: resolveClientName() });
       if (result?.success === false) throw new Error(result.error || result.message || '操作失败');
       if (result?.imageBase64) {
         const { imageBase64, ...metadata } = result;
