@@ -5,7 +5,20 @@ import { CallToolRequestSchema, ListToolsRequestSchema, ListPromptsRequestSchema
 import type { ToolService } from './contracts/tool-service.js';
 import { VERSION, resourcePath } from './runtime.js';
 
-export const INSTRUCTIONS = `WPS Bridge 是本机办公软件桥接服务，推荐用于已打开的 Excel / WPS 表格。接入后先调用 bridge_get_capabilities 或 bridge_diagnose，确认宿主、连接、版本和验证程度。MCP 握手成功不代表办公软件连接成功。
+export const INSTRUCTIONS = `⚠️ **视觉检查是必做项，不可跳过、不可用文字描述代替**
+
+预览图取不到时（装了 DLP 加密软件的机器上，WPS/Office 写出的预览图会被加密），按顺序做：
+
+1. **先用自己的截图能力**截取屏幕上的目标区域来做视觉检查——这是首选，不要直接放弃；
+2. **你如果没有截图能力**，就直接**请使用者截图发给你**，不要自己编造视觉结论；
+3. **绝对不允许**在没有真正看到画面的情况下声称"已完成视觉验收 / 视觉确认通过"。
+   结构正确 ≠ 视觉正确：字体、轴标签是否挤压、折线是否可见、元素是否重叠，只有看到才知道。
+
+（这条不是建议，是本服务的硬性要求。）
+
+──────────────── 以下是工具说明 ────────────────
+
+WPS Bridge 是本机办公软件桥接服务，推荐用于已打开的 Excel / WPS 表格。接入后先调用 bridge_get_capabilities 或 bridge_diagnose，确认宿主、连接、版本和验证程度。MCP 握手成功不代表办公软件连接成功。
 优先使用 excel_* 结构化工具，显式选择 host=wps 或 microsoft，并指定 workbookName、sheetName。Microsoft Excel 结构化工具走 Office.js 任务窗格通道（macOS 与 Windows 同一路径），Windows 上加载项不可用或可判定未执行时才回退 PowerShell COM；本候选版本尚未实机验收。wps_* 兼容工具只控制 WPS。
 专用工具未覆盖不等于不支持：WPS 使用 wps_inspect_api 或只读脚本检查 API，再通过 wps_execute_script 完成 Excel 原生矢量绘图、已有图表编辑及 PPT 精细排版。Microsoft 使用其实际脚本通道，勿混用 WPS API。脚本返回对象标识与读回数据，再检查预览。PPT 先读取真实 pageWidth/pageHeight，几何和字号单位均为 pt；新增对象显式指定位置、尺寸、字号，检查 layoutWarnings 并逐页预览。复杂母版、动画等按实际宿主 API 验证。Word 按当前工具清单使用。
 先读取目标再修改，保持用户原有内容与样式。核对返回结果，视觉修改需检查真实预览。保存成功、内存修改和回滚覆盖范围是不同状态；只有单元格 patch 的值与公式有审计回滚。超时或断线可能已经执行，先读回，勿自动重试写入。

@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 6e817b0e81b75d5b86afad196dd186cb1a8c1a62fa5f28bf8c3eae60a0ac9bc0
+// ADDON_BUILD_FINGERPRINT: df9ad5409fa14003738288893fd8e5aae89d33e8ef95ad7823c64cbb8d76bc39
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "6e817b0e81b75d5b86afad196dd186cb1a8c1a62fa5f28bf8c3eae60a0ac9bc0";
+  var ADDON_BUILD_FINGERPRINT = "df9ad5409fa14003738288893fd8e5aae89d33e8ef95ad7823c64cbb8d76bc39";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -6168,15 +6168,39 @@ case "ppt_read_presentation":
               valAxis.MajorUnit = Number(yAxis.step);
             }
             if (yAxis.numberFormat) {
-              try {
-                valAxis.TickLabels.NumberFormat = yAxis.numberFormat;
-              } catch (e) {}
+              // ⚠️ 真机实测（真实使用者反馈）：`TickLabels.NumberFormat` **写入即静默吞掉** ——
+              // 赋值不抛错、读回仍是 `General`，且不给任何提示。改走 `NumberFormatLocal`
+              // （本地化格式串，宿主上才真正生效），并且**无论走哪条路都必须读回核对**。
+              const wantFmt = String(yAxis.numberFormat);
+              try { valAxis.TickLabels.NumberFormat = wantFmt; } catch (e) {}
+              const readFmt = () => {
+                try {
+                  const a = String(valAxis.TickLabels.NumberFormat);
+                  if (a && a !== "General") return a;
+                  const b = String(valAxis.TickLabels.NumberFormatLocal);
+                  return b || a;
+                } catch (e) { return null; }
+              };
+              if (String(readFmt()) !== wantFmt) {
+                try { valAxis.TickLabels.NumberFormatLocal = wantFmt; } catch (e) {}
+              }
+              const gotFmt = readFmt();
+              if (gotFmt === null || String(gotFmt) === "General") {
+                warnings.push(`数值轴刻度格式未生效：请求 ${JSON.stringify(wantFmt)}，宿主读回 ${JSON.stringify(gotFmt)}` +
+                  `（该属性在本机表现为"写入即静默吞掉"，已同时尝试 NumberFormat 与 NumberFormatLocal）`);
+              }
             }
             if (yAxis.title) {
-              try {
-                valAxis.HasTitle = true;
-                valAxis.AxisTitle.Text = yAxis.title;
-              } catch (e) {}
+              // 写入后**读回核对**：真机实测 `AxisTitle` 不一定生效，且不生效时毫无提示。
+              // `HasTitle` 在不同宿主上取 `true` 或 `-1`（xlChartTitleOn），两个都试。
+              const wantTitle = String(yAxis.title);
+              try { valAxis.HasTitle = -1; } catch (e) { try { valAxis.HasTitle = true; } catch (e2) {} }
+              try { valAxis.AxisTitle.Text = wantTitle; } catch (e) {}
+              const gotTitle = (() => { try { return String(valAxis.AxisTitle.Text); } catch (e) { return null; } })();
+              if (gotTitle !== wantTitle) {
+                warnings.push(`数值轴标题未生效：请求 ${JSON.stringify(wantTitle)}，宿主读回 ${JSON.stringify(gotTitle)}。` +
+                  `可改用 wps_execute_script 直接设置 ax.HasTitle 与 ax.AxisTitle.Text 后读回核对。`);
+              }
             }
           }
         } catch (e) {

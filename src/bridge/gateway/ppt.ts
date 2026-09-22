@@ -4,10 +4,13 @@
  * 共享依赖（callOffice / auditStore / bridgeServer / TargetLockStore / requestContext /
  * previewPath / MsOfficeDriver / currentHost 等）一律经 GatewayContext 传入；
  * 本模块不 import 这些执行器，避免与门面产生新的隐式耦合或回环。
+ * 取图统一走 preview-image.ts 的 resolvePreviewImage（纯工具，带 DLP 感知）。
+import { resolvePreviewImage } from './script.js';
  *
  * 每个处理器的前三行固定为：导出签名、ctx 依赖解构、以及原分支正文的第一行；
  * 正文承接原 switch 分支的内容，仅做逐行等量左移 4 个空格的纯缩进变换。
  */
+import { resolvePreviewImage } from './preview-image.js';
 import type { Handler } from "./types.js";
 
 import fs from "fs";
@@ -177,7 +180,20 @@ export const captureSlidePreview: Handler = async (ctx) => {
         `${attempts}${exported}。桥接期望的路径：${outputPath}（${fs.existsSync(outputPath) ? "已存在" : "不存在"}）。`
       );
     }
-    return { ...res, imageBase64: fs.readFileSync(outputPath).toString('base64'), imageMimeType: 'image/png' };
+      // ⚠️ **不能直接读宿主写的文件当图片**：装了 DLP（如赛通等加密软件）的机器上，
+      // WPS/Office 写出的文件会被包成加密容器——读出来非空但**不是图片**。
+      // 统一走 resolvePreviewImage：先验 magic 字节，不是图片就**继续试剪贴板**
+      // （内存通道，不经 DLP 文件加密），两条都不通时如实说明并指引几何回读。
+      const resolved = await resolvePreviewImage(
+        ctx, outputPath,
+        (f: string) => fs.readFileSync(f).toString('base64'),
+        (f: string) => fs.existsSync(f)
+      );
+      if (!resolved.imageBase64) {
+        return { ...res, imageUnavailable: true, warnings: [resolved.notice] };
+      }
+      return { ...res, imageBase64: resolved.imageBase64, imageMimeType: 'image/png',
+        ...(resolved.encryptedByDlp ? { warnings: ['宿主导出的 PNG 被 DLP 加密，已改用剪贴板取图'] } : {}) };
 };
 
 /** CAP-09 页面尺寸与母版版式。宿主 `PageSetup.SlideWidth/Height` 可读写；
