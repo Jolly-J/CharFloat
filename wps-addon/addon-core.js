@@ -2471,7 +2471,14 @@
       seriesColors,
       yAxis,
       seriesSettings,
-      replaceExisting = true
+      replaceExisting = true,
+      left: explicitLeft,
+      top: explicitTop,
+      width: explicitWidth,
+      height: explicitHeight,
+      startCell,
+      endCell,
+      cellRange
     } = params || {};
 
     // 1. 强制公式全局重算（彻底根治跨表引用公式未计算导致分类轴塌陷的严重时钟竞争 Bug！）
@@ -2513,6 +2520,40 @@
       }
       if (position.width) width = Number(position.width);
       if (position.height) height = Number(position.height);
+    }
+
+    // 原实现只认 `position.leftCell/width/height`，而 startCell / cellRange / endCell 与
+    // 顶层 left/top/width/height **全被静默忽略**，多图会叠在默认的 360/40（问题台账 ISS-18）。
+    // 这里把它们真正接上，并让"锚点"统一走一套解析顺序：position.leftCell > startCell/cellRange > 顶层像素。
+    const anchorRef = (position && position.leftCell)
+      ? String(position.leftCell)
+      : (startCell ? String(startCell) : (cellRange ? String(cellRange).split(":")[0] : null));
+    if (anchorRef && !(position && position.leftCell)) {
+      try {
+        const anchorRange = sheet.Range(anchorRef.includes(":") ? anchorRef.split(":")[0] : anchorRef);
+        left = anchorRange.Left;
+        top = anchorRange.Top;
+      } catch (e) {
+        log("图表定位锚点警告: " + e.message);
+      }
+    }
+    // 顶层像素参数直接生效（显式传入优先于上面的锚点推算）
+    if (Number.isFinite(Number(explicitLeft))) left = Number(explicitLeft);
+    if (Number.isFinite(Number(explicitTop))) top = Number(explicitTop);
+    if (Number.isFinite(Number(explicitWidth))) width = Number(explicitWidth);
+    if (Number.isFinite(Number(explicitHeight))) height = Number(explicitHeight);
+    // endCell：用"锚点单元格 → endCell"的矩形尺寸作为图表宽高
+    if (endCell) {
+      try {
+        const from = sheet.Range(anchorRef ? anchorRef.split(":")[0] : "A1");
+        const to = sheet.Range(String(endCell));
+        const w = to.Left + to.Width - from.Left;
+        const h = to.Top + to.Height - from.Top;
+        if (w > 0) width = w;
+        if (h > 0) height = h;
+      } catch (e) {
+        log("图表 endCell 尺寸推算警告: " + e.message);
+      }
     }
 
     // 3. 覆盖模式（如果开启 replaceExisting，先清理该锚点处的重叠旧图，杜绝废图堆叠）
@@ -4389,14 +4430,29 @@
     else if (typeof chartType === "number") typeCode = chartType;
 
     let chartShape = null;
+    let addError = null;
     try {
       chartShape = slide.Shapes.AddChart(typeCode, left, top, width, height);
     } catch (e) {
+      addError = e.message;
+    }
+    if (!chartShape) {
       try {
         chartShape = slide.Shapes.AddChart2(-1, typeCode, left, top, width, height);
-      } catch (err) {
-        throw new Error("当前宿主无法创建原生图表：" + err.message);
+      } catch (e) {
+        addError = (addError ? addError + "；" : "") + e.message;
       }
+    }
+    // 本机 WPS 实测：`AddChart` / `AddChart2` 都是 function，但**返回 null 且不创建任何形状**（问题台账 ISS-80）。
+    // 原代码不检查返回值，随后 `chartShape.Chart` 抛错并被包装成"图表已创建，但数据配置未完成"——
+    // 让调用方以为图已经建出来了，实际什么都没建。
+    if (!chartShape) {
+      throw new Error(
+        "本宿主未能创建 PPT 原生图表：AddChart/AddChart2 未返回图表对象" +
+        "（已实测本机 WPS 上二者返回 null 且不创建形状）" +
+        (addError ? `；宿主返回：${addError}` : "") +
+        "。替代方案：用矢量形状自行绘制，或改用 WPS 表格的原生图表。"
+      );
     }
 
     try {
@@ -4434,6 +4490,27 @@
           }
           if (Array.isArray(sData.values)) {
             try { sObj.Values = sData.values; } catch (e) { throw e; }
+            // 写后读回：本机 WPS 上 `Values = [...]` **不抛错也不生效**（问题台账 ISS-75），
+            // 图表会显示宿主默认数据而调用方毫无察觉。这里核对是否真的落上。
+            let readBackRaw = null;
+            try { readBackRaw = sObj.Values; } catch (e) { readBackRaw = null; }
+            if (readBackRaw !== null && readBackRaw !== undefined) {
+              let readBack = [];
+              try {
+                const n = typeof readBackRaw.Count === "number" ? readBackRaw.Count : readBackRaw.length;
+                for (let k = 0; k < n; k++) readBack.push(readBackRaw[k]);
+              } catch (e) { readBack = []; }
+              const want = sData.values.map(Number);
+              const got = readBack.map(Number);
+              const same = got.length === want.length &&
+                want.every((value, index) => !Number.isFinite(value) || !Number.isFinite(got[index]) || value === got[index]);
+              if (!same) {
+                throw new Error(
+                  `第 ${i + 1} 个数据系列的 Values 未生效：写入 ${JSON.stringify(want).slice(0, 70)}，读回 ${JSON.stringify(got).slice(0, 70)}。` +
+                  `宿主忽略了数组赋值（实测本机 WPS 的 ChartData.Workbook 为 null）；请改用矢量形状绘制图表。`
+                );
+              }
+            }
           }
           if (sData.chartType) {
             const sType = sData.chartType;
@@ -4465,7 +4542,15 @@
         } catch (e) { throw e; }
       }
     } catch (e) {
-      throw new Error("图表已创建，但数据配置未完成：" + e.message);
+      // 配置失败时把**半成品形状**删掉再抛错：否则会留下一张数据空白/错乱的图表（问题台账 ISS-81）。
+      let cleaned = false;
+      try {
+        chartShape.Delete();
+        cleaned = true;
+      } catch (delErr) {}
+      throw new Error(
+        `PPT 原生图表已创建但配置失败${cleaned ? "（已删除半成品形状）" : "（半成品形状删除失败，请手动清理）"}：${e.message}`
+      );
     }
 
     return chartShape;

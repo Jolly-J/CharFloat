@@ -351,7 +351,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_add_chart",
-        description: "创建绑定数据源的原生矢量图表。dataRange（别名 sourceAddress）与 dataRanges 必传其一，都不传宿主直接报错。WPS 宿主只认 position.leftCell 与 position.width/height：顶层 left/top/width/height 与 cellRange/startCell/endCell 被忽略，不传 position 时图表落在默认 360/40、多图会重叠。seriesColors 对单系列是逐点染色（会得到彩虹柱），单系列请只传一个颜色。chartType 枚举外的值直接报错；建图后用 wps_get_charts(detail=true) 读回 ChartType 与位置核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "创建绑定数据源的原生矢量图表。dataRange（别名 sourceAddress）与 dataRanges 必传其一，都不传宿主直接报错。定位优先级：顶层 left/top/width/height（像素）> position.leftCell / startCell / cellRange（单元格锚点）> endCell（用锚点到 endCell 的矩形作尺寸）；都不传则落在默认 360/40，多图会重叠。seriesColors 对单系列是逐点染色（会得到彩虹柱），单系列请只传一个颜色。chartType 枚举外的值直接报错；建图后读回真实 ChartType，与请求不一致会返回 warnings，可用 wps_get_charts(detail=true) 复核。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {

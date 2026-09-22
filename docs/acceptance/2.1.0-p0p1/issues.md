@@ -45,7 +45,7 @@
 | ISS-15 | `native-scripting.md` 缺多元素构图范例与画布换算 | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 待修 | 并发语义 + 说明 |
 | ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | **已修待验** | 宿主实现 + 说明 |
-| ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | 待修 | 宿主实现 + 说明 |
+| ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | **已修待验** | 宿主实现 + 说明 |
 | ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修已验证** | 宿主实现 + 说明 |
 | ISS-20 | `update_chart` 在 WPS 不可用，但工具说明未标注 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-21 | `patch_cells` 静默把字符串日期（`"2026-01"`）转成序列号 | 中 | 待修 | 宿主实现 + 说明 |
@@ -102,13 +102,13 @@
 | ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-73 | Word 侧无样式/书签/内容控件/交叉引用/分节/行列尺寸/文档属性工具，全需脚本 | 中 | 待修 | 工具能力缺口 |
 | ISS-74 | `native-scripting.md` 只有 Excel/PPT 示例，Word 表格/分节/样式零示例 | 中 | **已修已验证**（文档类） | skill 说明 |
-| ISS-75 | `generate_deck` **原生图表数据写不进去**：`ser.Values=` 不生效也不抛错，图表显示宿主默认值，却返回 success | **高** | 待修 | 宿主实现 |
+| ISS-75 | `generate_deck` **原生图表数据写不进去**：`ser.Values=` 不生效也不抛错，图表显示宿主默认值，却返回 success | **高** | **已修待验** | 宿主实现 |
 | ISS-76 | `wps_ppt_capture_slide_preview` 恒 422"PPT 未生成预览"，但同一 API 用脚本可成功 → **真实错误被兜底文案替换** | 中高 | 待修 | 宿主实现 |
 | ISS-77 | **目标锁语义不一致**：宿主 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测 | **高** | 待修 | 架构不一致（解释 ISS-02） |
 | ISS-78 | PPT 无「新建/保存」工具；追加型工具**不幂等**且说明未写 | 中 | 待修 | 工具能力缺口 + 说明 |
 | ISS-79 | 越界页码报宿主内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），缺中文上下文 | 低 | 待修 | 错误文案 |
-| ISS-80 | `insert_native_chart` **100% 失败**且文案误导：`AddChart/AddChart2/AddOLEObject` 都是 function 但返回 `null`、不建形状，报的却是"数据配置未完成" | **高** | 待修 | 宿主实现 |
-| ISS-81 | `generate_deck` 的 chart 布局同样失败，且**已插入的页不回滚**，留半成品 | 中高 | 待修 | 宿主实现 |
+| ISS-80 | `insert_native_chart` **100% 失败**且文案误导：`AddChart/AddChart2/AddOLEObject` 都是 function 但返回 `null`、不建形状，报的却是"数据配置未完成" | **高** | **已修待验** | 宿主实现 |
+| ISS-81 | `generate_deck` 的 chart 布局同样失败，且**已插入的页不回滚**，留半成品 | 中高 | **已修待验** | 宿主实现 |
 | ISS-82 | `layoutIndex` 实为 **ppLayout 枚举**而非版式序号，越界（12）不报错 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-83 | `manage_table` 的 enum 里有 `set_table_data`，**宿主没有该操作** → 报"未知的表格操作" | 中 | **已修已验证**（契约快照已复核） | 契约漂移 |
 | ISS-84 | `set_table_data` 的 `data` 含数字就报 `arguments.data[1][2]: 类型不正确` | 中 | **已修已验证**（契约快照已复核） | 工具契约 |
