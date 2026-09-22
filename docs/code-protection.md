@@ -79,3 +79,32 @@ node scripts/probe-release-mcp.mjs '<目标 Electron 可执行文件>' '<发布 
 - Electron 升级 → 旧字节码与 V8 不兼容 → 用目标 Electron 重编译，目标系统实跑发布 CLI。
 
 本轮范围、基线和验证结果见 [构建保护验收](acceptance/2.1.0-protection/README.md)。
+
+---
+
+## 已决策：Windows 侧不做字节码（2026-09-23，使用者拍板）
+
+**结论：Windows 包的保护就是 minify 混淆，没有字节码。这是有意接受的现状，不是待办。**
+
+**为什么**：macOS 上**无法**生成 Windows 的字节码 —— 字节码与 V8 的**平台/编译配置**绑定，
+必须在目标平台上用目标 Electron 编译，而 PE 可执行文件在 macOS 上跑不起来。
+为此专门配一台 Windows 构建机或 CI，**成本与收益不成比例**（使用者判断）。
+
+**因此这条链路要一直保留，别当成临时措施删掉**：
+
+```
+before-pack.cjs（win32）  →  往发布副本里放 dist/bridge/cli-full.cjs（明文兜底，minify 过）
+加载器 cli.cjs            →  try 加载 cli.jsc；被拒则 require cli-full.cjs
+校验 side                 →  allowPlainCli 放行「这一个文件」，其余 *-full.cjs 仍禁止发布
+asarUnpack                →  兜底文件必须解包（加载器在 __dirname 找它）
+```
+
+**Windows 与 macOS 的差异（同一份发布副本，靠打包阶段分流）**：
+
+| | 桥接实现 | 保护等级 |
+|---|---|---|
+| macOS | `cli.jsc`（字节码） | 字节码 + minify |
+| Windows | `cli-full.cjs`（minify 明文） | **仅 minify** |
+
+**若将来要拿回 Windows 的字节码**：在 Windows 上跑 `npm run build:bytecode` 后再打包，
+并在 `before-pack.cjs` 里去掉附带兜底的分支（同时收紧校验）。
