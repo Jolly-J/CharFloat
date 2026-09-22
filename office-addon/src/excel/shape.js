@@ -378,12 +378,25 @@
 
       const groupJson = shapeToJson(group);
       let members = [];
+      let memberReadError = null;
       try {
-        const memberShapes = group.group.shapes.load("items/name,items/type");
+        // ⚠️ `group.group.shapes.load(...)` **不带上下文**，返回值不是可读的集合
+        // （真机表现：分组成功、解组也确实释放了 m1/m2，但 memberCount 恒为 0 ——
+        // 即"成功但数据不对"，本仓库的重点整治对象）。
+        // 正确做法：先取到集合代理，再 load，再 sync。
+        const memberShapes = group.group.shapes;
+        memberShapes.load("items/name,items/type");
         await context.sync();
         members = memberShapes.items.map(s => ({ name: s.name, type: String(s.type) }));
       } catch (e) {
-        groupJson.memberReadError = String(e.message || e);
+        memberReadError = String(e.message || e);
+        groupJson.memberReadError = memberReadError;
+      }
+      // 读不到成员时**如实告警**，不要静默给个 0 让人以为组是空的
+      if (memberReadError || members.length === 0) {
+        groupJson.memberReadWarning = memberReadError
+          ? `分组成功但读成员失败：${memberReadError}`
+          : "分组成功但读回成员数为 0（宿主未返回成员）——组对象已创建，请用 list_shapes 或解组核对";
       }
       return {
         success: true,
