@@ -320,29 +320,46 @@
             throw new Error(`原生脚本执行异常: ${execErr.message}\n堆栈: ${execErr.stack || "无"}\n控制台输出: ${logs.join("\n")}`);
           }
 
-          // 安全序列化返回值（防止 Office 原生对象循环引用）
-          function safeSerialize(val, depth = 0) {
+          // 安全序列化返回值（防止 Office 原生对象循环引用）。
+          // 原实现 `depth > 2` 时直接 `String(val)` —— 三层以上的对象**属性被静默丢弃**，
+          // 调用方拿到 undefined 或 "[object Object]" 却没有任何提示（问题台账 ISS-56）。
+          // 现在：放宽到 6 层，超限节点写成**显式占位**并记录路径，随结果返回 truncatedPaths。
+          const MAX_SERIALIZE_DEPTH = 6;
+          const truncatedPaths = [];
+          function safeSerialize(val, depth = 0, path = "$") {
             if (val === null || val === undefined) return val;
             if (typeof val !== "object") return val;
-            if (depth > 2) return String(val);
-            if (Array.isArray(val)) return val.map(item => safeSerialize(item, depth + 1));
+            if (depth > MAX_SERIALIZE_DEPTH) {
+              truncatedPaths.push(path);
+              return `[第 ${depth} 层超出上限 ${MAX_SERIALIZE_DEPTH}，属性已省略；需要完整数据请自行 JSON.stringify 后返回字符串]`;
+            }
+            if (Array.isArray(val)) {
+              return val.map((item, i) => safeSerialize(item, depth + 1, `${path}[${i}]`));
+            }
             const out = {};
             for (const k in val) {
               try {
                 const v = val[k];
                 if (typeof v === "function") continue;
-                out[k] = safeSerialize(v, depth + 1);
-              } catch (e) {}
+                out[k] = safeSerialize(v, depth + 1, `${path}.${k}`);
+              } catch (e) {
+                out[k] = `<读取属性失败: ${e.message}>`;
+              }
             }
             return Object.keys(out).length > 0 ? out : String(val);
           }
 
+          const serialized = safeSerialize(evalResult);
           result = {
             success: true,
             executionTimeMs: Date.now() - startTime,
-            returnValue: safeSerialize(evalResult),
+            returnValue: serialized,
+            // 被截断就明确说出来，不再静默丢数据
+            truncated: truncatedPaths.length > 0,
+            truncatedPaths: truncatedPaths.length ? truncatedPaths.slice(0, 10) : undefined,
             logs,
-            message: `WPS 原生图灵脚本执行完毕（耗时 ${Date.now() - startTime}ms）`
+            message: `WPS 原生图灵脚本执行完毕（耗时 ${Date.now() - startTime}ms）` +
+              (truncatedPaths.length ? `；返回值有 ${truncatedPaths.length} 处超出深度上限被省略，见 truncatedPaths` : "")
           };
           break;
         }

@@ -1719,7 +1719,17 @@
     const srcSheet = getWorksheet(app, sourceSheetName, workbookName);
     const srcRange = srcSheet.Range(sourceRange);
 
-    const destSheet = getWorksheet(app, destSheetName, workbookName);
+    // 目标表不存在时自动新建（原来必须由调用方先建好，问题台账 ISS-63 的第二个坑）
+    let destSheet = null;
+    try {
+      destSheet = getWorksheet(app, destSheetName, workbookName);
+    } catch (e) {
+      if (!destSheetName) throw e;
+      destSheet = wb.Worksheets.Add();
+      try { destSheet.Name = String(destSheetName); } catch (nameErr) {
+        throw new Error(`目标工作表 "${destSheetName}" 不存在，自动新建后重命名失败（可能重名或含非法字符）：${nameErr.message}`);
+      }
+    }
     try { destSheet.Activate(); } catch (e) {}
     const destRange = destSheet.Range(destCell);
 
@@ -1774,6 +1784,30 @@
       });
     }
 
+    // 新建后是"空骨架"，字段配好也必须显式刷新才会真正取数（问题台账 ISS-63：
+    // 调用方拿到 success 却看到一张空表，得自己去手动 Refresh）。
+    let refreshedBy = null;
+    try {
+      pivotTable.RefreshTable();
+      refreshedBy = "pivotTable.RefreshTable";
+    } catch (e) {
+      try {
+        pivotCache.Refresh();
+        refreshedBy = "pivotCache.Refresh";
+      } catch (e2) {
+        log("透视表刷新失败: " + e.message + " / " + e2.message);
+      }
+    }
+
+    // 读回实际结果：记录数与表区域是"真的取到数"的唯一证据
+    let recordCount = null;
+    let tableRange = null;
+    try { recordCount = Number(pivotTable.RecordCount); } catch (e) {}
+    try { tableRange = pivotTable.TableRange1 ? pivotTable.TableRange1.Address() : null; } catch (e) {}
+    const warnings = [];
+    if (!refreshedBy) warnings.push("透视表刷新调用失败，可能是空骨架，请在 WPS 里右键手动刷新后再读回确认。");
+    if (recordCount === 0) warnings.push("刷新后 RecordCount 仍为 0：源区域可能没有可用数据，或字段未正确落位。");
+
     return {
       success: true,
       workbookName: wb.Name,
@@ -1783,7 +1817,11 @@
       rowCount: rowFields.length,
       colCount: columnFields.length,
       dataCount: dataFields.length,
-      message: `已成功在 [${destSheet.Name}] ${destCell} 生成数据透视表`
+      refreshedBy,
+      recordCount,
+      tableRange,
+      warnings,
+      message: `已成功在 [${destSheet.Name}] ${destCell} 生成数据透视表${refreshedBy ? "并完成刷新" : "（刷新未成功，见 warnings）"}`
     };
   }
 

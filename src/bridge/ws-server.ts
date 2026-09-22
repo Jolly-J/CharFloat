@@ -11,7 +11,7 @@ import { createMcpServer } from './mcp-server.js';
 import { requestContext } from './context.js';
 import { VERSION, PROTOCOL, runtimePort, runtimeHttpsPort, getOrGenerateCerts, getToken, validToken, resourcePath, appendServiceLog } from './runtime.js';
 import { BridgeError } from './errors.js';
-import { collectBuildFingerprints, reportedVersionStatus } from './build-fingerprint.js';
+import { collectBuildFingerprints, reportedVersionStatus, reportedAddonBuildStatus } from './build-fingerprint.js';
 import type { ToolService } from './contracts/tool-service.js';
 import type { ChannelParams, ToolResult } from './contracts/boundary.js';
 import type { SelectionInfo } from './types.js';
@@ -473,9 +473,12 @@ export class WpsBridgeServer {
             connected: true, version: clientVersion, lastHeartbeat: Date.now(), connectedAt: Date.now(),
             activeDocument: summary.fullName || summary.workbookName || summary.documentName || summary.presentationName,
             activeSheet: summary.activeSheetName, summary,
+            // ISS-59：加载项**运行时的**构建指纹（由构建脚本注入、注册报文上报），
+            // 桥接据此判断"WPS 进程里跑的是哪一版"，而不是只能看磁盘。
+            buildFingerprint: typeof p.buildFingerprint === 'string' ? p.buildFingerprint : null,
             // 保留上一次掉线记录：重连后仍可回答"刚才是崩溃还是正常关闭"（ISS-90）。
             ...(previousStatus?.lastDisconnect ? { lastDisconnect: previousStatus.lastDisconnect } : {})
-          };
+          } as any;
           if (key === 'excel') Object.assign(this.state, { activeWorkbook: summary.workbookName, activeSheet: summary.activeSheetName, currentSelection: summary.selection, wpsClientVersion: clientVersion });
           if (key === 'word') this.state.activeDocument = summary.documentName;
           if (key === 'ppt') this.state.activePresentation = summary.presentationName;
@@ -597,6 +600,12 @@ export class WpsBridgeServer {
     for (const status of Object.values(copy.components) as ComponentStatus[]) {
       if (!status?.connected) continue;
       (status as any).versionStatus = reportedVersionStatus(status.version);
+      // ISS-59 收口：有运行时指纹就给出"进程内构建 vs 磁盘构建"的判定，
+      // 这样"部署了但没重载"不再是只能靠人猜的状态。
+      const reportedBuild = (status as any).buildFingerprint;
+      if (typeof reportedBuild === 'string' && reportedBuild) {
+        (status as any).buildStatus = reportedAddonBuildStatus(reportedBuild);
+      }
     }
     copy.build = collectBuildFingerprints();
     copy.mcpSessions = this.mcpSessionStats();
