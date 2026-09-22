@@ -1,5 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
+// ADDON_BUILD_FINGERPRINT: f9cce6c2bb96848eacd20d1ec01ca7be45cf67d5daed8e1ab2e03d48e32bd4f1
 (function () {
+  var ADDON_BUILD_FINGERPRINT = "f9cce6c2bb96848eacd20d1ec01ca7be45cf67d5daed8e1ab2e03d48e32bd4f1";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -481,9 +483,13 @@
             type: "register",
             client: clientType,
             version: currentVersion,
+            // 构建指纹由 scripts/build-wps-addon.mjs 注入到产物里。桥接拿它判断
+            // "WPS 进程里加载的字节"是否等于磁盘/已部署的最新构建（ISS-59：部署后没重载时，
+            // 磁盘是新的、进程里跑的是旧的，此前没有任何指纹能识别）。
+            buildFingerprint: typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT : null,
             summary: initialSummary
           });
-          log(`已成功发送注册报文 [${clientType}] (版本: ${currentVersion})`);
+          log(`已成功发送注册报文 [${clientType}] (版本: ${currentVersion}, 构建: ${typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT.slice(0, 12) : "未知"})`);
         } catch (regErr) {
           log("发送注册报文失败: " + regErr.message);
         }
@@ -1162,29 +1168,46 @@
             throw new Error(`原生脚本执行异常: ${execErr.message}\n堆栈: ${execErr.stack || "无"}\n控制台输出: ${logs.join("\n")}`);
           }
 
-          // 安全序列化返回值（防止 Office 原生对象循环引用）
-          function safeSerialize(val, depth = 0) {
+          // 安全序列化返回值（防止 Office 原生对象循环引用）。
+          // 原实现 `depth > 2` 时直接 `String(val)` —— 三层以上的对象**属性被静默丢弃**，
+          // 调用方拿到 undefined 或 "[object Object]" 却没有任何提示（问题台账 ISS-56）。
+          // 现在：放宽到 6 层，超限节点写成**显式占位**并记录路径，随结果返回 truncatedPaths。
+          const MAX_SERIALIZE_DEPTH = 6;
+          const truncatedPaths = [];
+          function safeSerialize(val, depth = 0, path = "$") {
             if (val === null || val === undefined) return val;
             if (typeof val !== "object") return val;
-            if (depth > 2) return String(val);
-            if (Array.isArray(val)) return val.map(item => safeSerialize(item, depth + 1));
+            if (depth > MAX_SERIALIZE_DEPTH) {
+              truncatedPaths.push(path);
+              return `[第 ${depth} 层超出上限 ${MAX_SERIALIZE_DEPTH}，属性已省略；需要完整数据请自行 JSON.stringify 后返回字符串]`;
+            }
+            if (Array.isArray(val)) {
+              return val.map((item, i) => safeSerialize(item, depth + 1, `${path}[${i}]`));
+            }
             const out = {};
             for (const k in val) {
               try {
                 const v = val[k];
                 if (typeof v === "function") continue;
-                out[k] = safeSerialize(v, depth + 1);
-              } catch (e) {}
+                out[k] = safeSerialize(v, depth + 1, `${path}.${k}`);
+              } catch (e) {
+                out[k] = `<读取属性失败: ${e.message}>`;
+              }
             }
             return Object.keys(out).length > 0 ? out : String(val);
           }
 
+          const serialized = safeSerialize(evalResult);
           result = {
             success: true,
             executionTimeMs: Date.now() - startTime,
-            returnValue: safeSerialize(evalResult),
+            returnValue: serialized,
+            // 被截断就明确说出来，不再静默丢数据
+            truncated: truncatedPaths.length > 0,
+            truncatedPaths: truncatedPaths.length ? truncatedPaths.slice(0, 10) : undefined,
             logs,
-            message: `WPS 原生图灵脚本执行完毕（耗时 ${Date.now() - startTime}ms）`
+            message: `WPS 原生图灵脚本执行完毕（耗时 ${Date.now() - startTime}ms）` +
+              (truncatedPaths.length ? `；返回值有 ${truncatedPaths.length} 处超出深度上限被省略，见 truncatedPaths` : "")
           };
           break;
         }
@@ -3050,7 +3073,17 @@
     const srcSheet = getWorksheet(app, sourceSheetName, workbookName);
     const srcRange = srcSheet.Range(sourceRange);
 
-    const destSheet = getWorksheet(app, destSheetName, workbookName);
+    // 目标表不存在时自动新建（原来必须由调用方先建好，问题台账 ISS-63 的第二个坑）
+    let destSheet = null;
+    try {
+      destSheet = getWorksheet(app, destSheetName, workbookName);
+    } catch (e) {
+      if (!destSheetName) throw e;
+      destSheet = wb.Worksheets.Add();
+      try { destSheet.Name = String(destSheetName); } catch (nameErr) {
+        throw new Error(`目标工作表 "${destSheetName}" 不存在，自动新建后重命名失败（可能重名或含非法字符）：${nameErr.message}`);
+      }
+    }
     try { destSheet.Activate(); } catch (e) {}
     const destRange = destSheet.Range(destCell);
 
@@ -3105,6 +3138,30 @@
       });
     }
 
+    // 新建后是"空骨架"，字段配好也必须显式刷新才会真正取数（问题台账 ISS-63：
+    // 调用方拿到 success 却看到一张空表，得自己去手动 Refresh）。
+    let refreshedBy = null;
+    try {
+      pivotTable.RefreshTable();
+      refreshedBy = "pivotTable.RefreshTable";
+    } catch (e) {
+      try {
+        pivotCache.Refresh();
+        refreshedBy = "pivotCache.Refresh";
+      } catch (e2) {
+        log("透视表刷新失败: " + e.message + " / " + e2.message);
+      }
+    }
+
+    // 读回实际结果：记录数与表区域是"真的取到数"的唯一证据
+    let recordCount = null;
+    let tableRange = null;
+    try { recordCount = Number(pivotTable.RecordCount); } catch (e) {}
+    try { tableRange = pivotTable.TableRange1 ? pivotTable.TableRange1.Address() : null; } catch (e) {}
+    const warnings = [];
+    if (!refreshedBy) warnings.push("透视表刷新调用失败，可能是空骨架，请在 WPS 里右键手动刷新后再读回确认。");
+    if (recordCount === 0) warnings.push("刷新后 RecordCount 仍为 0：源区域可能没有可用数据，或字段未正确落位。");
+
     return {
       success: true,
       workbookName: wb.Name,
@@ -3114,7 +3171,11 @@
       rowCount: rowFields.length,
       colCount: columnFields.length,
       dataCount: dataFields.length,
-      message: `已成功在 [${destSheet.Name}] ${destCell} 生成数据透视表`
+      refreshedBy,
+      recordCount,
+      tableRange,
+      warnings,
+      message: `已成功在 [${destSheet.Name}] ${destCell} 生成数据透视表${refreshedBy ? "并完成刷新" : "（刷新未成功，见 warnings）"}`
     };
   }
 

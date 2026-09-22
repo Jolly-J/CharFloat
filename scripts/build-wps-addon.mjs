@@ -21,6 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const CHECK_ONLY = process.argv.includes("--check");
@@ -31,6 +32,13 @@ const OUT_FILE = path.join(ROOT, "wps-addon", "addon-core.js");
 
 /** 生成文件顶部注释（要求逐字固定） */
 const HEADER = "// 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**";
+
+/**
+ * 构建指纹变量名。加载项在注册报文里上报它的值，桥接再与磁盘/部署副本比对，
+ * 从而回答"WPS 进程里加载的到底是哪一版"（ISS-59：部署了新构建但没重载时，
+ * 磁盘是新的、进程里跑的是旧的，此前没有任何指纹能识别出来）。
+ */
+const FINGERPRINT_VAR = "ADDON_BUILD_FINGERPRINT";
 
 /**
  * 固定拼接顺序 = IIFE 内的语句顺序。
@@ -147,11 +155,27 @@ for (const name of MODULES) {
   report.push({ name, lines: body.split("\n").length, strippedLines: stripped });
 }
 
-const output = `${HEADER}\n(function () {\n${bodies.join("\n\n")}\n})();\n`;
+// 构建指纹：对"源码拼接体"取 sha256。它**只依赖源码**、不依赖注入结果，
+// 因此可以安全地写进产物再让加载项上报；桥接拿它与磁盘构建比对，
+// 就能回答"WPS 进程里加载的是哪一版"（ISS-59）。
+//
+// 指纹同时以两种形式落到产物里，缺一不可：
+//   1. 头部注释 `// ADDON_BUILD_FINGERPRINT: <sha>` —— 桥接读**磁盘/已部署副本**时解析它；
+//   2. IIFE 内 `var ADDON_BUILD_FINGERPRINT = "<sha>"` —— 加载项**运行时报**的上报值，
+//      代表"WPS 进程里真正加载的字节"。
+// 两者不一致即说明部署了新构建但进程里还是旧代码。
+const sourceFingerprint = createHash("sha256").update(bodies.join("\n\n"), "utf8").digest("hex");
+const fingerprintComment = `// ADDON_BUILD_FINGERPRINT: ${sourceFingerprint}`;
+const output = `${HEADER}\n${fingerprintComment}\n(function () {\n  var ${FINGERPRINT_VAR} = "${sourceFingerprint}";\n${bodies.join("\n\n")}\n})();\n`;
 
-// 产物自检：必须保持外层 IIFE 结构（WPS 通过 <script> 直接加载该文件）。
-if (!output.startsWith(`${HEADER}\n(function () {\n`) || !output.endsWith("\n})();\n")) {
-  fail("产物未形成合法的外层 IIFE，已中止写出");
+// 产物自检：必须保持外层 IIFE 结构（WPS 通过 <script> 直接加载该文件），
+// 且构建指纹注释与变量都要存在——桥接靠它们判断"进程里跑的是哪一版"。
+if (
+  !output.startsWith(`${HEADER}\n${fingerprintComment}\n(function () {\n`) ||
+  !output.endsWith("\n})();\n") ||
+  !output.includes(`var ${FINGERPRINT_VAR} = "${sourceFingerprint}";`)
+) {
+  fail("产物未形成合法的外层 IIFE 或缺少构建指纹，已中止写出");
 }
 
 // 产物自检：语法必须可编译。拆分/搬迁最容易出的错就是边界少一个大括号，

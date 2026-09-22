@@ -37,9 +37,13 @@
             type: "register",
             client: clientType,
             version: currentVersion,
+            // 构建指纹由 scripts/build-wps-addon.mjs 注入到产物里。桥接拿它判断
+            // "WPS 进程里加载的字节"是否等于磁盘/已部署的最新构建（ISS-59：部署后没重载时，
+            // 磁盘是新的、进程里跑的是旧的，此前没有任何指纹能识别）。
+            buildFingerprint: typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT : null,
             summary: initialSummary
           });
-          log(`已成功发送注册报文 [${clientType}] (版本: ${currentVersion})`);
+          log(`已成功发送注册报文 [${clientType}] (版本: ${currentVersion}, 构建: ${typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT.slice(0, 12) : "未知"})`);
         } catch (regErr) {
           log("发送注册报文失败: " + regErr.message);
         }

@@ -125,3 +125,65 @@ export function reportedVersionStatus(reported?: string) {
   const matches = reported === VERSION || reported.startsWith(`${VERSION}.`);
   return { reportedVersion: reported, matchesBridgeVersion: matches, staleSuspect: !matches };
 }
+
+/** 从加载项产物头部注释解析构建指纹（由 scripts/build-wps-addon.mjs 注入）。 */
+export function readAddonFingerprint(filePath: string | null): string | null {
+  if (!filePath) return null;
+  try {
+    // 只读头部若干字节即可，避免每次比对都读整个产物
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(4096);
+      const read = fs.readSync(fd, buf, 0, buf.length, 0);
+      const m = buf.toString('utf8', 0, read).match(/ADDON_BUILD_FINGERPRINT:\s*([0-9a-f]{16,64})/);
+      return m ? m[1] : null;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ISS-59：判定**WPS 进程里正在运行的加载项**是不是最新的那一份构建。
+ *
+ * 加载项在注册报文里上报运行时构建指纹，这里与磁盘/已部署副本比对：
+ *   - `reported` 来自**进程内**（真正在跑的字节）；
+ *   - `resource` 是仓库里的构建产物；
+ *   - `deployed` 是安装到 WPS 加载项目录的副本。
+ * 典型故障：部署了新构建但没重载 WPS → `reported` 是旧的、`resource`/`deployed` 是新的。
+ * 这正是此前"部署了但没生效"无法被识别的状态。
+ */
+export function reportedAddonBuildStatus(reported?: string | null) {
+  const fingerprints = collectBuildFingerprints();
+  const resource = readAddonFingerprint(fingerprints.wpsAddon.resource.exists ? fingerprints.wpsAddon.resource.path : null);
+  const deployed = fingerprints.wpsAddon.deployed
+    .map(d => readAddonFingerprint(d.exists ? d.path : null))
+    .filter((f): f is string => Boolean(f));
+
+  if (!reported) {
+    return {
+      reportedBuild: null,
+      resourceBuild: resource,
+      deployedBuilds: deployed,
+      runningMatchesResource: null,
+      runningMatchesDeployed: null,
+      staleSuspect: null,
+      note: '加载项未上报构建指纹（多半是旧构建；重载加载项后即可上报）'
+    };
+  }
+
+  const stale = resource ? reported !== resource : null;
+  return {
+    reportedBuild: reported,
+    resourceBuild: resource,
+    deployedBuilds: deployed,
+    runningMatchesResource: resource ? reported === resource : null,
+    runningMatchesDeployed: deployed.length ? deployed.includes(reported) : null,
+    staleSuspect: stale,
+    note: stale
+      ? 'WPS 进程里运行的加载项与磁盘构建**不是同一份**：新构建已生成（或已部署）但未重载，请重新加载加载项后再验证。'
+      : '进程内构建与磁盘构建一致。'
+  };
+}
