@@ -522,7 +522,7 @@ export const deleteChart: Handler = async (ctx) => {
 export const createPivotTable: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (args?.action !== "read" && !args?.sourceRange) throw new Error("缺少必要参数: sourceRange (例如 '明细!A1:K5422')");
-    if (!args?.destCell) throw new Error("缺少必要参数: destCell (例如 'B4')");
+    if (args?.action !== "read" && !args?.destCell) throw new Error("缺少必要参数: destCell (例如 'B4')");
     const result = await callOffice("create_pivot_table", {
       action: args?.action,
       workbookName: args?.workbookName,
