@@ -2480,6 +2480,29 @@
         message: `工作簿 [${wb.Name}] 属性：标题「${cur.builtin.Title || "（空）"}」作者「${cur.builtin.Author || "（空）"}」，自定义 ${Object.keys(cur.custom).length} 项` };
     }
 
+    // action = delete：按名字删除**自定义**属性（内置属性不能删，只能清空值）
+    if (action === "delete") {
+      const names = Array.isArray(params?.propertyNames) ? params.propertyNames.filter(Boolean).map(String) : [];
+      if (!names.length) throw new Error("delete 需要 propertyNames（要删除的自定义属性名数组）");
+      const removed = [], notFound = [];
+      for (const want of names) {
+        let hit = false;
+        for (let i = g(() => Number(wb.CustomDocumentProperties.Count), 0); i >= 1; i--) {
+          const pr = (() => { try { return wb.CustomDocumentProperties.Item(i); } catch (e) { return null; } })();
+          if (pr && g(() => String(pr.Name), "") === want) { pr.Delete(); removed.push(want); hit = true; break; }
+        }
+        if (!hit) notFound.push(want);
+      }
+      const left = readAll();
+      return {
+        success: true, workbookName: wb.Name, action: "delete",
+        removed, notFound,
+        remainingCustom: Object.keys(left.custom).length,
+        warnings: [],
+        message: `已删除自定义属性 ${removed.length} 项${notFound.length ? `，${notFound.length} 项不存在` : ""}；剩余自定义属性 ${Object.keys(left.custom).length} 项`
+      };
+    }
+
     // action = apply
     const warnings = [];
     const applied = {};

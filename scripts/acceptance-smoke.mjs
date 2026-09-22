@@ -164,17 +164,45 @@ ck('CAP-40', 'clear_range 清空并返回地址', r.success, `clearedAddress=${r
 const afterClear = await call('excel_read_range', { ...WPS, address: 'E1:F2' });
 ck('CAP-40', '清空后读回确认为空', afterClear.success && !String(JSON.stringify(afterClear.data?.values)).match(/[甲乙丙丁产品]/), String(JSON.stringify(afterClear.data?.values)).slice(0, 80));
 
-// ════════ 五、清理 ════════
-section('清理');
-await call('excel_manage_named_range', { host: 'wps', workbookName: WB, action: 'delete', name: 'finProbeName' });
-await call('excel_manage_document_properties', { host: 'wps', workbookName: WB, action: 'apply', properties: { Title: '', Author: '', finProbeProp: '' } });
+// ════════ 五、清理 + 零残留自检 ════════
+// 脚本必须**自己收拾干净**：否则跑几次就污染用户工作簿，不能算"跑通"。
+section('清理与零残留自检');
+
+// 1) 还原被改动的文档属性，并**删除**本次新增的自定义属性
+await call('excel_manage_document_properties', { host: 'wps', workbookName: WB, action: 'apply', properties: { Title: '', Author: '' } });
+const delProp = await call('excel_manage_document_properties', {
+  host: 'wps', workbookName: WB, action: 'delete',
+  propertyNames: ['finProbeProp', 'probeProp', 'probe自定义']   // 后两个是历史遗留，顺手一并清掉
+});
+ck('清理', '删除本次写入的自定义文档属性', delProp.success, `removed=${JSON.stringify(delProp.data?.removed)} 剩余=${delProp.data?.remainingCustom}`);
+
+// 2) 删除命名区域
+const delName = await call('excel_manage_named_range', { host: 'wps', workbookName: WB, action: 'delete', name: 'finProbeName' });
+ck('清理', '删除测试命名区域', delName.success, `stillExists=${delName.data?.stillExists}`);
+
+// 3) 删除隔离工作表
 await call('excel_delete_sheet', { host: 'wps', workbookName: WB, sheetName: SH });
-try { fs.unlinkSync(picPath); } catch (e) {}
-try { fs.unlinkSync(chartOut); } catch (e) {}
-try { fs.unlinkSync('/tmp/fin-should-not-exist.png'); } catch (e) {}
-const left = await call('excel_read_sheets', { host: 'wps', workbookName: WB });
-const hasProbe = JSON.stringify(left.data)?.includes(SH);
-console.log(`  隔离表已删除: ${hasProbe ? '✖ 仍存在' : '✔'}`);
+
+// 4) 删除临时文件
+for (const f of [picPath, chartOut, '/tmp/fin-should-not-exist.png']) { try { fs.unlinkSync(f); } catch (e) {} }
+
+// 5) **零残留自检**：逐项确认现场干净
+const sheetsNow = await call('excel_read_sheets', { host: 'wps', workbookName: WB });
+const sheetNames = (sheetsNow.data?.sheets ?? []).map(x => (typeof x === 'string' ? x : x?.name ?? ''));
+const stuck = sheetNames.filter(n => n === SH);
+ck('自检', '隔离工作表已删除', !stuck.length, `残留: ${stuck.join(',')}`);
+
+const namesNow = await call('excel_manage_named_range', { host: 'wps', workbookName: WB, action: 'list' });
+const stuckNames = (namesNow.data?.names ?? []).filter(x => /finProbe|probe/i.test(String(x.name)));
+ck('自检', '无测试命名区域残留', !stuckNames.length, `残留: ${stuckNames.map(x => x.name).join(',')}`);
+
+const propNow = await call('excel_manage_document_properties', { host: 'wps', workbookName: WB, action: 'read' });
+const stuckProps = Object.keys(propNow.data?.custom ?? {}).filter(k => /probe|finProbe/i.test(k));
+ck('自检', '无测试自定义属性残留', !stuckProps.length, `残留: ${stuckProps.join(',')}`);
+ck('自检', '文档 Title/Author 已还原', !propNow.data?.builtin?.Title && !propNow.data?.builtin?.Author,
+  `Title=${JSON.stringify(propNow.data?.builtin?.Title)} Author=${JSON.stringify(propNow.data?.builtin?.Author)}`);
+ck('自检', '临时图片/导出文件已删除',
+  !fs.existsSync(picPath) && !fs.existsSync(chartOut), `pic=${fs.existsSync(picPath)} chart=${fs.existsSync(chartOut)}`);
 
 // ════════ 汇总 ════════
 const pass = results.filter(x => x.ok).length;

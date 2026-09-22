@@ -1252,7 +1252,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
-            action: { type: "string", enum: ["read", "apply"], description: "read（默认）只读回 / apply 写入并核对" },
+            action: { type: "string", enum: ["read", "apply", "delete"], description: "read（默认）只读回 / apply 写入并核对 / delete 删除自定义属性（内置属性只能清空值，不能删）" },
+            propertyNames: { type: "array", description: "delete 时要删除的自定义属性名数组" },
             properties: { type: "object", description: "要写入的键值对，如 {Title: 2026年报, Author: 财务部}；非内置键写入自定义属性" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
