@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
+const artifactPath = process.env.OAB_TEST_WPS_ARTIFACT || 'wps-addon/addon-core.js';
 function load() {
   let socket:any;const sent:any[]=[];
   class Socket {
@@ -16,7 +17,7 @@ function load() {
   const book:any={Name:'Exact.xlsx',FullName:'/tmp/Exact.xlsx',ActiveSheet:sheet,Worksheets:{Count:1,Item:()=>sheet}};sheet.Parent=book;
   const app:any={ActiveWorkbook:book,Workbooks:{Count:1,Item:(id:any)=>{if(id===1||id==='Exact.xlsx')return book;throw new Error('not found')}}};
   const context=vm.createContext({window:{WPS_BRIDGE_CONFIG:{port:12345,token:'test-token'},addEventListener:()=>{}},document:{getElementById:()=>null,readyState:'complete'},wps:{EtApplication:()=>app},WebSocket:Socket,console:{log:()=>{}},setTimeout:()=>0,clearTimeout:()=>{},setInterval:()=>0,alert:()=>{},confirm:()=>false});
-  vm.runInContext(fs.readFileSync('wps-addon/addon-core.js','utf8'),context);socket.onopen();
+  vm.runInContext(fs.readFileSync(artifactPath,'utf8'),context);socket.onopen();
   return {socket,sent,read:()=>value,call:async(method:string,params:any)=>{socket.onmessage({data:JSON.stringify({id:'test',method,params})});await new Promise(r=>setImmediate(r));return sent.findLast(x=>x.type==='rpc_response')}};
 }
 test('addon uses installed credentials and zero-valued formulas survive reads',async()=>{
@@ -48,7 +49,7 @@ function loadGrid(){
   const book:any={Name:'Exact.xlsx',FullName:'/tmp/Exact.xlsx',ActiveSheet:sheet,Worksheets:{Count:1,Item:()=>sheet}};sheet.Parent=book;
   const app:any={ActiveWorkbook:book,Workbooks:{Count:1,Item:(id:any)=>{if(id===1||id==='Exact.xlsx')return book;throw new Error('not found')}}};
   const context=vm.createContext({window:{WPS_BRIDGE_CONFIG:{port:12345,token:'test-token'},addEventListener:()=>{}},document:{getElementById:()=>null,readyState:'complete'},wps:{EtApplication:()=>app},WebSocket:Socket,console:{log:()=>{}},setTimeout:()=>0,clearTimeout:()=>{},setInterval:()=>0,alert:()=>{},confirm:()=>false});
-  vm.runInContext(fs.readFileSync('wps-addon/addon-core.js','utf8'),context);socket.onopen();
+  vm.runInContext(fs.readFileSync(artifactPath,'utf8'),context);socket.onopen();
   return {socket,cells:()=>cells.map(cell=>({...cell})),call:async(method:string,params:any)=>{socket.onmessage({data:JSON.stringify({id:'test',method,params})});await new Promise(r=>setImmediate(r));return sent.findLast(x=>x.type==='rpc_response')}};
 }
 test('patch_cells 的 formulas 空项表示"不改公式"，不得清空同批写入的值（ISS-01 / DP7）',async()=>{

@@ -18,7 +18,7 @@
     "setup": "tsx src/bridge/setup.ts",
     "inspect": "tsx scripts/inspect.ts",
     "start": "electron .",
-    "dist": "npm run build && npm run build:win-icon && electron-builder",
+    "dist": "npm run build:release && npm run build:win-icon && electron-builder",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
     "dev:desktop": "npm run build && electron .",
@@ -33,7 +33,14 @@
     "build:win-icon": "node scripts/build-win-icon.mjs",
     "check:params": "tsx scripts/check-param-forwarding.ts",
     "build:bytecode": "node scripts/build-cli-bytecode.mjs",
-    "check:protection": "node scripts/check-cli-protection.mjs"
+    "check:protection": "node scripts/check-cli-protection.mjs",
+    "dist:all": "npm run build:release && npm run build:win-icon && node scripts/dist-parallel.mjs",
+    "dist:mac": "npm run build:release && npm run build:win-icon && electron-builder --mac",
+    "dist:win": "npm run build:release && npm run build:win-icon && electron-builder --win",
+    "dist:fast": "npm run build:release && npm run build:win-icon && node scripts/dist-parallel.mjs --no-sign",
+    "build:release-assets": "node scripts/build-release-assets.mjs",
+    "check:release": "node scripts/check-release-protection.mjs",
+    "build:release": "npm run build && npm run build:release-assets"
   },
   "build": {
     "appId": "com.antigravity.officeagentbridge",
@@ -42,23 +49,18 @@
       "output": "release/${version}/${os}"
     },
     "files": [
-      "dist/main/**/*",
-      "dist/preload/**/*",
-      "dist/renderer/**/*",
-      "dist/bridge/cli.cjs",
-      "wps-addon/**/*",
-      "office-addon/**/*",
-      "resources/**/*",
-      "skills/**/*",
-      "prompts/**/*",
+      {
+        "from": "dist/release-app",
+        "to": ".",
+        "filter": [
+          "**/*",
+          "!package.json"
+        ]
+      },
       "package.json",
-      "!dist/bridge/cli-full.cjs",
+      "!**/*-full.cjs",
       "!**/*.map",
-      "!**/AGENTS.md",
-      "!wps-addon/src/**",
-      "!office-addon/src/**",
-      "dist/bridge/cli.jsc",
-      "node_modules/bytenode/**/*"
+      "!**/AGENTS.md"
     ],
     "mac": {
       "target": [
@@ -87,15 +89,20 @@
       "icon": "build/icon.ico"
     },
     "asarUnpack": [
-      "dist/bridge/cli.cjs",
-      "resources/**/*",
-      "office-addon/**/*",
-      "wps-addon/**/*",
-      "skills/**/*",
-      "dist/bridge/cli.jsc",
-      "node_modules/bytenode/**/*"
+      "**/dist/bridge/cli.cjs",
+      "**/resources/**/*",
+      "**/office-addon/**/*",
+      "**/wps-addon/**/*",
+      "**/skills/**/*",
+      "**/dist/bridge/cli.jsc",
+      "**/node_modules/bytenode/**/*",
+      "**/dist/bridge/cli-full.cjs"
     ],
-    "artifactName": "Office-Agent-Bridge-${version}-${os}-${arch}.${ext}"
+    "artifactName": "Office-Agent-Bridge-${version}-${os}-${arch}.${ext}",
+    "npmRebuild": false,
+    "beforePack": "scripts/before-pack.cjs",
+    "afterPack": "scripts/after-pack.cjs",
+    "artifactBuildCompleted": "scripts/after-artifact.cjs"
   },
   "keywords": [
     "wps",
@@ -110,16 +117,17 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",
     "@xmldom/xmldom": "0.9.12",
+    "bytenode": "^1.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "motion": "^13.4.0",
     "tailwind-merge": "^3.0.2",
     "uuid": "^11.1.0",
     "ws": "^8.18.1",
-    "zod": "^3.24.2",
-    "bytenode": "^1.7.0"
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@types/node": "^22.13.10",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -129,6 +137,7 @@
     "autoprefixer": "^10.4.21",
     "electron": "^35.1.2",
     "electron-builder": "^25.1.8",
+    "javascript-obfuscator": "4.1.1",
     "postcss": "^8.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -136,6 +145,7 @@
     "tsup": "^8.5.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vite": "^6.2.1"
+    "vite": "^6.2.1",
+    "yauzl": "2.10.0"
   }
 }
