@@ -25,7 +25,8 @@
 - [office/ms-office-driver.ts](office/ms-office-driver.ts)：Windows 原生驱动及 macOS JXA。
 - [service-client.ts](service-client.ts)：发现或启动独立后台。
 - [cli.ts](cli.ts)：CLI 和 stdio 入口。
-- [audit-store.ts](audit-store.ts)：审计持久化。
+- [audit-store.ts](audit-store.ts)：审计持久化；含"未审计的身份类操作"台账（回滚身份判据用）。
+- [build-fingerprint.ts](build-fingerprint.ts)：磁盘/部署产物的构建指纹（桥接入口、WPS 加载项随包与已部署副本、Office.js 任务窗格），供判断"运行中的是哪一版"。
 - [process-runner.ts](process-runner.ts)：原生进程输入输出。
 - [runtime.ts](runtime.ts)：路径与运行配置。
 
@@ -66,6 +67,12 @@ Office.js 写入在“宿主已执行之后”才失败（超时、断连、宿�
 按类拆分工具定义时凭印象重排顺序 → `tools/list` 与契约快照变化，客户端看到的工具顺序被打乱（诊断工具曾是 `bridge_get_capabilities` 在前，重排后变成 `bridge_diagnose` 在前） → 装配顺序是有契约意义的，必须与迁移前逐项一致 → `npm run snapshot:tools` 比对必须逐字节不变。
 
 测试从源码里正则抓 `case "..."` 统计分支 → 分支改成注册表后，测试实际只在**校验注释文本**，注释与真实执行映射脱节也不会失败（被削弱的检查） → 分支清单曾以注释保留在门面里，抓文本就会退化成"看注释通过" → 测试改读真实注册表（`registeredGatewayBranches()` 导出 `HANDLERS` 键），并在 `executeTool` 未知工具时抛错 → [契约一致性测试](../../tests/contract-consistency.test.ts) 的「注册工具缺少网关分支」与「实现了但未注册」两项；注册表 68 条。**不要为迁就测试而在源码里保留伪 `case` 注释清单**——那会让测试退化成校验注释，该清单已移除。
+
+回滚的“是否有后续修改”只比区域内容 → 别人删表重建并写回**完全相同**的内容时，旧 `auditId` 被放行、把这批新数据清空（真实数据破坏） → 内容相等不等于同一次修改 → 回滚前先判**身份**（同区域是否有更晚的未回滚记录、记录之后是否发生过未经快照记录的身份类操作、目标工作表是否仍存在），最后才比内容；任一不满足即拒绝并给出“读 `wps_get_audit_record` 的旧快照 + `patch_cells` 显式写回”的替代路径 → [修复记录](../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/12-bridge-fixes.md)；判据来源与残余缺口（绕过桥接的手工删表重建无信号）同页说明。
+
+跨宿主参数映射在桥接侧与宿主侧**各写一份** → 宿主侧补齐后桥接侧仍在抛错，把宿主已经能做的能力挡掉（本任务实测：`manage_sheet` move、行列 hide/set_size、`add_chart` 的 dataRanges/yAxis 都曾被桥接侧误拒） → 两层各自演进必然漂移 → 宿主已按 schema 字段名实现并读回校验的，桥接侧只做字段归一/别名，**不重复实现、不重复阻断**；真正映射不了的才显式报错或记入响应 `unsupportedFields` → [修复记录](../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/12-bridge-fixes.md) 的 ISS-93/ISS-99 两行。
+
+响应转换用白名单重建对象 → 宿主新增的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied` / `kind` / `renderedBy` 等“如实提示”被静默丢掉，调用方以为参数都生效了 → 白名单只对新实现友好，宿主演进即失效 → 响应分支先铺开宿主原始响应再覆盖统一字段（`{...raw, ...}`），并在宿主已自行过滤/截断时不要重复处理 → 同上 ISS-99。
 
 ## 同步维护
 

@@ -27,7 +27,30 @@ async function main() {
     if (!result.success) process.exitCode = 1;
     return;
   }
-  if (mode === '--status' || mode === '--doctor') { process.stdout.write(JSON.stringify(await probeService()) + '\n'); return; }
+  if (mode === '--status') { process.stdout.write(JSON.stringify(await probeService()) + '\n'); return; }
+  if (mode === '--doctor') {
+    // ISS-50：原来 --doctor 与 --status 输出同一个对象，正常字段（凭据/安装记录）
+    // 和原始网络错误混在一起，调用方无法判断"到底哪一步坏了"。这里分开：
+    // ready/occupied 是结论，problem/recovery 是可执行动作，rawError 只作原始证据。
+    const probe: any = await probeService();
+    const home = runtimeHome();
+    const report = {
+      service: 'wps-bridge',
+      version: VERSION,
+      address: `http://127.0.0.1:${runtimePort()}`,
+      home,
+      ready: probe.ready === true,
+      occupied: probe.occupied === true,
+      credentialsPresent: fs.existsSync(path.join(home, 'token')),
+      installationRecord: fs.existsSync(path.join(home, 'installation.json')),
+      ...(probe.ready
+        ? { connected: true, info: probe.info }
+        : { connected: false, problem: probe.message, recovery: probe.recovery, rawError: probe.error })
+    };
+    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    if (!report.ready) process.exitCode = 1;
+    return;
+  }
   if (mode === '--stop') { await serviceRequest('/api/v1/service/stop', {}); return; }
   if (mode === '--help') { process.stdout.write('wps-bridge-mcp [--start | --status | --doctor | --stop]\n无参数：stdio MCP，按需启动独立后台。\n'); return; }
   const entry = path.resolve(process.argv[1]);

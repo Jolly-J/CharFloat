@@ -33,6 +33,25 @@ export interface GatewayContext {
   /** 已 `await` 的锁定注入结果，仅供需要回读目录名称的处理器使用。 */
   locks: { word?: string; excel?: string; ppt?: string };
 
+  /**
+   * 本次调用的表格目标来自哪里（ISS-02 / ISS-77）。
+   *
+   * `request` = 调用方显式传了 workbookName；`session-lock` = 回落到本会话的目标锁
+   * （可能是更早会话留下的陈旧目标）；`none` = 两者都没有，宿主会用活动文稿。
+   * 只影响返回体里的如实说明，不改变目标解析结果。
+   */
+  targetSource?: 'request' | 'session-lock' | 'none';
+
+  /**
+   * 校验层为"统一参数约定"容忍并忽略的参数名（ISS-03）。
+   *
+   * `wps_rollback` 只认 auditId、`excel_save_workbook` 不认 sheetName，调用方按同一套约定
+   * 批量调用会踩坑。装配层现在容忍 `host`/`workbookName`/`sheetName` 这类目标参数：
+   * 该工具不适用时忽略，并把被忽略的参数名放进这里，由处理器在返回体里如实回报，
+   * 不做"静默吞掉"。
+   */
+  ignoredParams?: string[];
+
   callOffice: CallOffice;
   auditStore: AuditStore;
   MsOfficeDriver: typeof MsOfficeDriver;

@@ -137,19 +137,31 @@ export const getSheetOutline: Handler = async (ctx) => {
 export const createSheet: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.sheetName) throw new Error("缺少必要参数: sheetName");
-    return await callOffice("create_sheet", {
+    const result = await callOffice("create_sheet", {
       sheetName: args.sheetName,
       workbookName: args?.workbookName
     });
+    const record = recordWrite(ctx, {
+      actionType: "sheet_structure",
+      description: `新建工作表 ${args.sheetName}`,
+      sheetName: args.sheetName
+    });
+    return withAuditScope(record, result, "工作表结构操作只留痕、不可回滚（回滚不会删除已创建的工作表）。");
 };
 
 export const deleteSheet: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.sheetName) throw new Error("缺少必要参数: sheetName");
-    return await callOffice("delete_sheet", {
+    const result = await callOffice("delete_sheet", {
       sheetName: args.sheetName,
       workbookName: args?.workbookName
     });
+    const record = recordWrite(ctx, {
+      actionType: "sheet_structure",
+      description: `删除工作表 ${args.sheetName}（不可回滚）`,
+      sheetName: args.sheetName
+    });
+    return withAuditScope(record, result, "删除工作表只留痕、不可回滚（内容不在快照范围内）。");
 };
 
 export const getStyleToken: Handler = async (ctx) => {
@@ -173,12 +185,18 @@ export const clearRange: Handler = async (ctx) => {
 
 export const autoFitColumns: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("auto_fit_columns", {
+    const result = await callOffice("auto_fit_columns", {
       sheetName: args?.sheetName,
       address: args?.address,
       columnRules: args?.columnRules,
       workbookName: args?.workbookName
     });
+    const record = recordWrite(ctx, {
+      actionType: "format",
+      description: `自适应列宽${args?.address ? `（${args.address}）` : ""}`,
+      address: args?.address
+    });
+    return withAuditScope(record, result, "列宽调整只留痕、不可回滚。");
 };
 
 export const readRange: Handler = async (ctx) => {
@@ -235,19 +253,22 @@ export const patchCells: Handler = async (ctx) => {
     // 统一留痕入库
     const record = auditStore.addRecord({
       clientName: clientName,
+      sessionId: currentSession(),
       host: currentHost(),
       actionType: args?.formulas ? "update_formulas" : "update_values",
       description: args?.reason || `更新区域 ${args?.address}`,
       workbookName: (patchRes as any).workbookName || args?.workbookName || bridgeServer.getState().activeWorkbook || "未知工作簿",
       sheetName: patchRes.sheetName,
       address: patchRes.address,
-      patchResult: patchRes
+      patchResult: patchRes,
+      rollbackable: true
     });
 
     return {
       success: true,
       message: `已成功修改 ${patchRes.modifiedCount} 个单元格，已记录留痕`,
       auditId: record.id,
+      rollbackable: true,
       workbookName: (patchRes as any).workbookName || args?.workbookName,
       modifiedCount: patchRes.modifiedCount,
       diff: patchRes.diff
@@ -258,7 +279,7 @@ export const formatCells: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     const addr = args?.address || args?.range || args?.cellRange;
     if (!addr) throw new Error("缺少必要参数: address");
-    return await callOffice("format_cells", {
+    const result = await callOffice("format_cells", {
       sheetName: args?.sheetName,
       address: addr,
       workbookName: args?.workbookName,
@@ -279,6 +300,13 @@ export const formatCells: Handler = async (ctx) => {
       merge: args?.merge,
       unmerge: args?.unmerge
     });
+    // ISS-48：格式类操作没有值快照，不回滚但必须留痕，否则"谁改的样式"无从回答。
+    const record = recordWrite(ctx, {
+      actionType: "format",
+      description: args?.reason || `设置区域 ${addr} 格式`,
+      address: addr
+    });
+    return withAuditScope(record, result, "格式修改只留痕、不可回滚（本记录没有值/样式快照）。");
 };
 
 export const addConditionalFormatting: Handler = async (ctx) => {
@@ -286,7 +314,7 @@ export const addConditionalFormatting: Handler = async (ctx) => {
     const addr = args?.address || args?.range || args?.cellRange;
     if (!addr) throw new Error("缺少必要参数: address (例如 'E5:E20')");
     const bColor = args?.barColor || args?.color || args?.fillColor;
-    return await callOffice("add_conditional_formatting", {
+    const result = await callOffice("add_conditional_formatting", {
       sheetName: args?.sheetName,
       address: addr,
       workbookName: args?.workbookName,
@@ -302,17 +330,31 @@ export const addConditionalFormatting: Handler = async (ctx) => {
       colorScaleMax: args?.colorScaleMax,
       clearExisting: args?.clearExisting
     });
+    const record = recordWrite(ctx, {
+      actionType: "conditional_format",
+      description: args?.reason || `为 ${addr} 添加条件格式（规则 ${args?.ruleType || "cell_value"}）`,
+      address: addr
+    });
+    return withAuditScope(record, result, "条件格式只留痕、不可回滚；清除需用宿主脚本或后续工具。");
 };
 
 export const freezePanes: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("freeze_panes", {
+    const result = await callOffice("freeze_panes", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       freezeRowIndex: args?.freezeRowIndex ?? args?.row ?? args?.rows,
       freezeColumnIndex: args?.freezeColumnIndex ?? args?.column ?? args?.cols,
       unfreeze: args?.unfreeze
     });
+    const record = recordWrite(ctx, {
+      actionType: "freeze_panes",
+      description: args?.unfreeze
+        ? "取消冻结窗格"
+        : `冻结窗格（行 ${args?.freezeRowIndex ?? args?.row ?? args?.rows ?? 0} / 列 ${args?.freezeColumnIndex ?? args?.column ?? args?.cols ?? 0}）`,
+      address: args?.address || ""
+    });
+    return withAuditScope(record, result, "冻结窗格只留痕、不可回滚。");
 };
 
 export const modifyRowsColumns: Handler = async (ctx) => {
@@ -320,7 +362,7 @@ export const modifyRowsColumns: Handler = async (ctx) => {
     if (!args?.targetType || !args?.action || !args?.index) {
       throw new Error("缺少必要参数: targetType ('row'|'column'), action ('insert'|'delete'|'hide'|'unhide'), index (起始行号或列号)");
     }
-    return await callOffice("modify_rows_columns", {
+    const result = await callOffice("modify_rows_columns", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       targetType: args?.targetType,
@@ -328,6 +370,16 @@ export const modifyRowsColumns: Handler = async (ctx) => {
       index: args?.index,
       count: args?.count || 1
     });
+    const dim = args?.targetType === "column" ? "列" : "行";
+    const actionType = args?.action === "delete" ? "delete_dimension"
+      : args?.action === "insert" ? (args?.targetType === "column" ? "insert_col" : "insert_row")
+      : "hide_dimension";
+    const record = recordWrite(ctx, {
+      actionType,
+      description: `${args?.action} ${dim}（起始 ${args?.index}，共 ${args?.count || 1}）`,
+      address: String(args?.index ?? "")
+    });
+    return withAuditScope(record, result, "行列结构修改只留痕、不可回滚：值快照无法表达行列位移带来的整体变化。");
 };
 
 export const addChart: Handler = async (ctx) => {
@@ -336,7 +388,7 @@ export const addChart: Handler = async (ctx) => {
     if (!dRange && (!Array.isArray(args?.dataRanges) || args.dataRanges.length === 0)) {
       throw new Error("缺少必要参数: dataRange (例如 'A4:E19') 或 dataRanges (例如 ['A4:A19', 'E4:E19'])");
     }
-    return await callOffice("add_chart", {
+    const result = await callOffice("add_chart", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       chartType: args?.chartType || "column_clustered",
@@ -360,6 +412,12 @@ export const addChart: Handler = async (ctx) => {
       seriesSettings: args?.seriesSettings,
       replaceExisting: args?.replaceExisting ?? true
     });
+    const record = recordWrite(ctx, {
+      actionType: "chart",
+      description: args?.reason || `创建图表（类型 ${args?.chartType || "column_clustered"}，数据源 ${dRange || (args?.dataRanges || []).join("+")}）`,
+      address: dRange || ""
+    });
+    return withAuditScope(record, result, "新增图表只留痕、不可回滚：回滚不会删除已创建的图表。");
 };
 
 export const getCharts: Handler = async (ctx) => {
@@ -377,7 +435,7 @@ export const getCharts: Handler = async (ctx) => {
 export const updateChart: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     const cName = args?.shapeName || args?.chartName || args?.name || args?.id;
-    return await callOffice("update_chart", {
+    const result = await callOffice("update_chart", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       name: cName,
@@ -392,12 +450,18 @@ export const updateChart: Handler = async (ctx) => {
       width: args?.width ?? args?.position?.width,
       height: args?.height ?? args?.position?.height
     });
+    const record = recordWrite(ctx, {
+      actionType: "chart",
+      description: `更新图表 ${cName || "(未指定)"}`,
+      address: args?.cellRange || args?.startCell || ""
+    });
+    return withAuditScope(record, result, "图表更新只留痕、不可回滚。");
 };
 
 export const deleteChart: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     const cName = args?.shapeName || args?.chartName || args?.name || args?.id;
-    return await callOffice("delete_chart", {
+    const result = await callOffice("delete_chart", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       shapeName: cName,
@@ -407,13 +471,19 @@ export const deleteChart: Handler = async (ctx) => {
       chartIndex: args?.chartIndex,
       clearAll: args?.clearAll ?? false
     });
+    const record = recordWrite(ctx, {
+      actionType: "chart",
+      description: args?.clearAll ? "删除工作表中的全部图表" : `删除图表 ${cName || args?.chartTitle || args?.chartIndex || "(未指定)"}`,
+      address: args?.leftCell || ""
+    });
+    return withAuditScope(record, result, "删除图表只留痕、不可回滚（回滚不会重建图表）。");
 };
 
 export const createPivotTable: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.sourceRange) throw new Error("缺少必要参数: sourceRange (例如 '明细!A1:K5422')");
     if (!args?.destCell) throw new Error("缺少必要参数: destCell (例如 'B4')");
-    return await callOffice("create_pivot_table", {
+    const result = await callOffice("create_pivot_table", {
       workbookName: args?.workbookName,
       sourceSheetName: args?.sourceSheetName,
       sourceRange: args?.sourceRange,
@@ -423,24 +493,37 @@ export const createPivotTable: Handler = async (ctx) => {
       columnFields: args?.columnFields || [],
       dataFields: args?.dataFields || []
     });
+    const record = recordWrite(ctx, {
+      actionType: "pivot_table",
+      description: `创建数据透视表（源 ${args?.sourceRange} → ${args?.destSheetName || args?.sourceSheetName || "当前表"}!${args?.destCell}）`,
+      sheetName: args?.destSheetName || args?.sourceSheetName,
+      address: args?.destCell
+    });
+    return withAuditScope(record, result, "创建透视表只留痕、不可回滚。");
 };
 
 export const setFilterAndSort: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
-    return await callOffice("set_filter_and_sort", {
+    const result = await callOffice("set_filter_and_sort", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       range: args?.range,
       enableAutoFilter: args?.enableAutoFilter,
       sortRules: args?.sortRules
     });
+    const record = recordWrite(ctx, {
+      actionType: "filter_sort",
+      description: `筛选/排序 ${args?.range}（筛选 ${args?.enableAutoFilter === undefined ? "不变" : args?.enableAutoFilter ? "开启" : "关闭"}，排序规则 ${(args?.sortRules || []).length} 条）`,
+      address: args?.range
+    });
+    return withAuditScope(record, result, "筛选与排序只留痕、不可回滚（排序不可逆地改变了行顺序，值快照无法安全恢复）。");
 };
 
 export const setDataValidation: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.address) throw new Error("缺少必要参数: address (例如 'E5:E20')");
-    return await callOffice("set_data_validation", {
+    const result = await callOffice("set_data_validation", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       address: args?.address,
@@ -454,13 +537,19 @@ export const setDataValidation: Handler = async (ctx) => {
       errorTitle: args?.errorTitle,
       errorMessage: args?.errorMessage
     });
+    const record = recordWrite(ctx, {
+      actionType: "data_validation",
+      description: `设置数据有效性 ${args?.address}（类型 ${args?.validationType || "list"}）`,
+      address: args?.address
+    });
+    return withAuditScope(record, result, "数据有效性只留痕、不可回滚；如需清除请用宿主脚本或覆盖设置。");
 };
 
 export const manageSheet: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.sheetName) throw new Error("缺少必要参数: sheetName");
     if (!args?.action) throw new Error("缺少必要参数: action ('rename'|'move'|'tab_color'|'protect'|'unprotect')");
-    return await callOffice("manage_sheet", {
+    const result = await callOffice("manage_sheet", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       action: args?.action,
@@ -469,6 +558,12 @@ export const manageSheet: Handler = async (ctx) => {
       color: args?.color,
       password: args?.password
     });
+    const record = recordWrite(ctx, {
+      actionType: "sheet_structure",
+      description: `工作表管理 ${args?.action}（${args?.sheetName}${args?.newName ? ` → ${args.newName}` : ""}）`,
+      sheetName: args?.sheetName
+    });
+    return withAuditScope(record, result, "工作表管理只留痕、不可回滚（含密码保护，回滚不会还原保护状态）。");
 };
 
 export const manageRowsAndColumns: Handler = async (ctx) => {
@@ -476,7 +571,7 @@ export const manageRowsAndColumns: Handler = async (ctx) => {
     if (!args?.targetType) throw new Error("缺少必要参数: targetType ('row' | 'column')");
     if (!args?.action) throw new Error("缺少必要参数: action ('insert'|'delete'|'hide'|'unhide'|'set_size')");
     if (args?.index === undefined) throw new Error("缺少必要参数: index (起始行号或列标识)");
-    return await callOffice("manage_rows_and_columns", {
+    const result = await callOffice("manage_rows_and_columns", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       targetType: args?.targetType,
@@ -485,12 +580,22 @@ export const manageRowsAndColumns: Handler = async (ctx) => {
       count: args?.count ?? 1,
       size: args?.size
     });
+    const dim = args?.targetType === "column" ? "列" : "行";
+    const actionType = args?.action === "delete" ? "delete_dimension"
+      : args?.action === "insert" ? (args?.targetType === "column" ? "insert_col" : "insert_row")
+      : "hide_dimension";
+    const record = recordWrite(ctx, {
+      actionType,
+      description: `manage_rows_and_columns ${args?.action} ${dim}（起始 ${args?.index}，共 ${args?.count ?? 1}）`,
+      address: String(args?.index ?? "")
+    });
+    return withAuditScope(record, result, "行列结构修改只留痕、不可回滚（行列位移无法用值快照表达）。");
 };
 
 export const manageCellComments: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.action) throw new Error("缺少必要参数: action ('add'|'read'|'delete'|'clear_all')");
-    return await callOffice("manage_cell_comments", {
+    const result = await callOffice("manage_cell_comments", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       address: args?.address,
@@ -498,12 +603,20 @@ export const manageCellComments: Handler = async (ctx) => {
       text: args?.text,
       author: args?.author
     });
+    // 读批注不是写操作，不登记留痕。
+    if (args.action === "read") return result;
+    const record = recordWrite(ctx, {
+      actionType: "comment",
+      description: `批注操作 ${args.action}${args?.address ? `（${args.address}）` : ""}`,
+      address: args?.address
+    });
+    return withAuditScope(record, result, "批注操作只留痕、不可回滚（回滚不会还原或删除批注）。");
 };
 
 export const findAndReplace: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (args?.searchQuery === undefined || args?.searchQuery === null) throw new Error("缺少必要参数: searchQuery");
-    return await callOffice("find_and_replace", {
+    const result = await callOffice("find_and_replace", {
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       searchQuery: args?.searchQuery,
@@ -513,26 +626,62 @@ export const findAndReplace: Handler = async (ctx) => {
       searchRange: args?.searchRange,
       maxResults: args?.maxResults ?? 50
     });
+    // 只查找不替换时没有改动文档，不登记留痕。
+    if (args?.replaceText === undefined) return result;
+    const record = recordWrite(ctx, {
+      actionType: "find_replace",
+      description: `查找替换「${args.searchQuery}」→「${args.replaceText}」`,
+      address: args?.searchRange || ""
+    });
+    return withAuditScope(record, result, "批量替换只留痕、不可回滚（整片区域被改写，值快照不适用）。");
 };
 
 export const duplicateSheet: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.sourceSheetName) throw new Error("缺少必要参数: sourceSheetName (要克隆的源工作表)");
     if (!args?.newSheetName) throw new Error("缺少必要参数: newSheetName (新工作表名称)");
-    return await callOffice("duplicate_sheet", {
+    const result = await callOffice("duplicate_sheet", {
       sheetName: args?.sourceSheetName,
       workbookName: args?.workbookName,
       sourceSheetName: args?.sourceSheetName,
       newSheetName: args?.newSheetName,
       position: args?.position || "after"
     });
+    const record = recordWrite(ctx, {
+      actionType: "sheet_structure",
+      description: `克隆工作表 ${args.sourceSheetName} → ${args.newSheetName}`,
+      sheetName: args?.newSheetName
+    });
+    return withAuditScope(record, result, "克隆工作表只留痕、不可回滚（回滚不会删除新表）。");
 };
 
 export const saveWorkbook: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("save_workbook", {
+    const result = await callOffice("save_workbook", {
       workbookName: args?.workbookName
     });
+    // ISS-16：保存是**工作簿级**的，会把整个工作簿的内存状态写盘，包含其他会话/任务尚未完成、
+    // 也不打算保留的中间结果（4 路并行子代理场景已实际发生）。这里在返回体里给出针对性警告，
+    // 而不是让调用方以为"只保存了我的那部分"。
+    const warning =
+      "保存是工作簿级操作：会把该工作簿内存中**所有**未保存改动一并落盘，" +
+      "包括其他会话/任务正在进行、尚未完成的中间结果。并发编辑同一工作簿时，" +
+      "请先确认他人已保存或已完成，或让每个任务使用独立副本。";
+    const record = recordWrite(ctx, {
+      actionType: "save",
+      description: `保存工作簿${args?.workbookName ? ` ${args.workbookName}` : ""}（工作簿级，含他人在途改动）`
+    });
+    const base = result && typeof result === "object" && !Array.isArray(result) ? (result as Record<string, unknown>) : {};
+    return {
+      ...base,
+      auditId: record.id,
+      rollbackable: false,
+      scope: "workbook",
+      warning,
+      ...(Array.isArray(ctx.ignoredParams) && ctx.ignoredParams.length
+        ? { ignoredParams: ctx.ignoredParams, ignoredParamsNote: `以下参数对保存操作无意义，已忽略：${ctx.ignoredParams.join(", ")}` }
+        : {})
+    };
 };
 
 export const captureSheetPreview: Handler = async (ctx) => {

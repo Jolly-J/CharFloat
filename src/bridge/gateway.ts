@@ -137,6 +137,43 @@ export function registeredGatewayBranches(): string[] {
   return Object.keys(HANDLERS);
 }
 
+/**
+ * "未经值快照记录的、可能改变目标身份"的操作（ISS-46）。
+ *
+ * 回滚的"是否有后续修改"判定原来只比内容：删表重建后写回**完全相同**的内容时，
+ * 旧 auditId 会被放行并把别人的数据清空。这里登记这类操作的发生时间，
+ * `wps_rollback` 会拒绝"记录时间之后发生过这类操作"的回滚。
+ *
+ * 范围刻意收窄：只登记会改变**工作表身份或数据位置**的操作
+ * （脚本、清空、工作表增删改、行列插入删除、批量替换）。
+ * 纯样式/图表/冻结/校验/批注类操作不改数据位置，不能因此封掉正常的
+ * "先 patch、再排版、最后回滚值"流程。
+ */
+const IDENTITY_CHANGING_TOOLS: Record<string, string> = {
+  "wps_execute_script": "任意原生脚本执行（可能重建或删除工作表、整体改写内容）",
+  "wps_eval_code": "任意代码执行",
+  "wps_inspect_api": "任意表达式探测（表达式可以带副作用）",
+  "wps_clear_range": "清空区域",
+  "wps_create_sheet": "新建工作表",
+  "wps_delete_sheet": "删除工作表",
+  "wps_duplicate_sheet": "克隆工作表",
+  "wps_manage_sheet": "工作表改名/移动/保护等结构操作",
+  "wps_modify_rows_columns": "插入/删除行列（既有数据位置会移动）",
+  "wps_manage_rows_and_columns": "插入/删除行列（既有数据位置会移动）",
+  "wps_find_and_replace": "批量查找替换（整体改写内容）",
+  "office_execute_script": "原生脚本执行（可能改动文档结构或内容）"
+};
+
+/** 脚本/无目标类操作无法归属到具体工作簿时，登记为对所有工作簿生效（保守）。 */
+const GLOBAL_SCOPE_TOOLS = new Set(["wps_execute_script", "wps_eval_code", "wps_inspect_api", "office_execute_script"]);
+
+function recordIdentityChangingOperation(name: string, args: any) {
+  const reason = IDENTITY_CHANGING_TOOLS[name];
+  if (!reason) return;
+  const workbookName = GLOBAL_SCOPE_TOOLS.has(name) ? undefined : args?.workbookName;
+  auditStore.markUntrackedMutation(workbookName, `${name}：${reason}`);
+}
+
 export class UniversalGateway {
   /**
    * 统一执行工具调用
@@ -144,10 +181,12 @@ export class UniversalGateway {
   public static async executeTool(
     name: string,
     args: any = {},
-    clientName: string = "AI Agent"
+    clientName: string = "AI Agent",
+    meta: { ignoredParams?: string[] } = {}
   ): Promise<any> {
     // 强隔离目标文档锁定注入：若已锁定文档且未显式指定（或指定为空），自动强制绑定锁定的文档
     let locks: { word?: string; excel?: string; ppt?: string };
+    let targetSource: 'request' | 'session-lock' | 'none' | undefined;
     if (name.startsWith("wps_ppt_") || name.startsWith("ppt_")) {
       locks = { ppt: TargetLockStore.resolve("ppt", args?.presentationName) };
       args.presentationName = locks.ppt;
@@ -155,8 +194,11 @@ export class UniversalGateway {
       locks = { word: TargetLockStore.resolve("word", args?.documentName) };
       args.documentName = locks.word;
     } else if (name.startsWith("wps_") && !name.includes("ppt") && !name.includes("word") && !name.includes("lock") && !name.includes("rollback")) {
+      // 记录目标来源：调用方显式传的 workbookName 优先，否则回落到本会话锁（ISS-02 / ISS-77）。
+      const explicit = typeof args?.workbookName === 'string' && args.workbookName.trim() !== '';
       locks = { excel: TargetLockStore.resolve("excel", args?.workbookName) };
       args.workbookName = locks.excel;
+      targetSource = explicit ? 'request' : locks.excel ? 'session-lock' : 'none';
     } else {
       locks = TargetLockStore.getLocks();
     }
@@ -164,12 +206,16 @@ export class UniversalGateway {
     const handler = HANDLERS[name];
     if (!handler) throw new Error(`未知的 WPS 工具名称: ${name}`);
 
-    return handler({
-      name, args, clientName, locks,
+    const result = await handler({
+      name, args, clientName, locks, targetSource, ignoredParams: meta.ignoredParams,
       callOffice, auditStore, MsOfficeDriver, TargetLockStore,
       bridgeServer, requestContext, currentHost, currentSession, previewPath,
       extractClipboardImageBase64: UniversalGateway.extractClipboardImageBase64,
     } satisfies GatewayContext);
+
+    // 只在成功之后登记：失败的操作没有改变文档，不应影响后续回滚判定。
+    recordIdentityChangingOperation(name, args);
+    return result;
   }
 
   /**
