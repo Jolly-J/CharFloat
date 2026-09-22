@@ -37,7 +37,7 @@ const SH = '__终验__';
 const WPS = { host: 'wps', workbookName: WB, sheetName: SH };
 const results = [];
 function ck(group, name, ok, detail) {
-  results.push({ group, name, ok: !!ok });
+  results.push({ group, name, ok: !!ok, detail: detail === undefined ? '' : String(detail) });
   console.log(`${ok ? '  ✔' : '  ✖'} ${name}${ok ? '' : '   → ' + String(detail).slice(0, 160)}`);
   if (ok && detail) console.log(`      ${String(detail).slice(0, 150)}`);
 }
@@ -59,11 +59,11 @@ section('CAP-07 WPS 表格矢量绘图');
 let r = await call('excel_add_shape', { ...WPS, kind: 'geometric', shapeType: 'rounded_rectangle', left: 400, top: 20, width: 160, height: 70, fillColor: '#1F3864', text: '矢量标题', fontSize: 14, name: 'v_title' });
 ck('CAP-07', 'add_shape 几何形状 + 读回填充/文字', r.success && r.data?.shape?.fillColor === '#1F3864', JSON.stringify(r.data?.shape)?.slice(0, 130));
 r = await call('excel_add_shape', { ...WPS, kind: 'textBox', left: 400, top: 100, width: 160, height: 30, text: '文本框', fontSize: 11, name: 'v_text' });
-ck('CAP-07', 'add_shape 文本框', r.success, String(r.error).slice(0, 100));
+ck('CAP-07', 'add_shape 文本框', r.success, r.success ? `name=${r.data?.shape?.name} 文字=${JSON.stringify(r.data?.shape?.text)}` : String(r.error).slice(0, 100));
 r = await call('excel_add_shape', { ...WPS, kind: 'line', x1: 400, y1: 140, x2: 560, y2: 140, lineColor: '#E4572E', name: 'v_line' });
-ck('CAP-07', 'add_shape 直线（MS 侧不支持，WPS 支持）', r.success, String(r.error).slice(0, 100));
+ck('CAP-07', 'add_shape 直线（MS 侧不支持，WPS 支持）', r.success, r.success ? `name=${r.data?.shape?.name} 类型=${r.data?.shape?.autoShapeType}` : String(r.error).slice(0, 100));
 r = await call('excel_add_shape', { ...WPS, kind: 'wordart', left: 400, top: 150, width: 200, height: 60, text: '艺术字', fontName: '宋体', fontSize: 28, name: 'v_art' });
-ck('CAP-07', 'add_shape 艺术字（WPS 独有）', r.success, String(r.error).slice(0, 100));
+ck('CAP-07', 'add_shape 艺术字（WPS 独有）', r.success, r.success ? `name=${r.data?.shape?.name} 宽=${r.data?.shape?.width} 高=${r.data?.shape?.height}` : String(r.error).slice(0, 100));
 r = await call('excel_list_shapes', { ...WPS });
 ck('CAP-07', 'list_shapes 读回全部形状', r.success && r.data?.count >= 4, `形状数=${r.data?.count}`);
 r = await call('excel_update_shape', { ...WPS, name: 'v_title', left: 420, fillColor: '#0F9D58' });
@@ -73,7 +73,7 @@ ck('CAP-07', 'group_shapes 分组 + 读回成员', r.success && r.data?.memberCo
 r = await call('excel_ungroup_shapes', { ...WPS, shapeName: 'v_group' });
 ck('CAP-07', 'ungroup_shapes 解组', r.success && (r.data?.released?.length === 2), JSON.stringify(r.data)?.slice(0, 120));
 r = await call('excel_set_shape_zorder', { ...WPS, shapeName: 'v_title', zOrder: 'bringToFront' });
-ck('CAP-07', 'set_shape_zorder 层级', r.success, String(r.error).slice(0, 100));
+ck('CAP-07', 'set_shape_zorder 层级', r.success, r.success ? `applied=${r.data?.applied} 形状序列=${JSON.stringify(r.data?.shapeNames)?.slice(0, 80)}` : String(r.error).slice(0, 100));
 r = await call('excel_add_shape', { ...WPS, kind: 'geometric', shapeType: '不存在的形状' });
 ck('CAP-07', '错误处理：未知形状类型列出可用值', !r.success && /不认识的形状类型/.test(String(r.error)), String(r.error).slice(0, 110));
 
@@ -160,7 +160,7 @@ r = await call('wps_manage_sheet', { workbookName: WB, sheetName: SH, action: 't
 const t2 = await call('excel_manage_sheet', { ...WPS, action: 'read' });
 ck('CAP-23', '标签色 写入后读回新值', r.success && t2.data?.tabColor === '#E4572E', `标签色=${t2.data?.tabColor}`);
 r = await call('excel_clear_range', { ...WPS, address: 'E1:F2' });
-ck('CAP-40', 'clear_range 清空并返回地址', r.success, `clearedAddress=${r.data?.clearedAddress}`);
+ck('CAP-40', 'clear_range 清空并返回地址', r.success, `clearedAddress=${r.data?.clearedAddress} 模式=${r.data?.mode ?? 'all'}`);
 const afterClear = await call('excel_read_range', { ...WPS, address: 'E1:F2' });
 ck('CAP-40', '清空后读回确认为空', afterClear.success && !String(JSON.stringify(afterClear.data?.values)).match(/[甲乙丙丁产品]/), String(JSON.stringify(afterClear.data?.values)).slice(0, 80));
 
@@ -178,7 +178,7 @@ ck('清理', '删除本次写入的自定义文档属性', delProp.success, `rem
 
 // 2) 删除命名区域
 const delName = await call('excel_manage_named_range', { host: 'wps', workbookName: WB, action: 'delete', name: 'finProbeName' });
-ck('清理', '删除测试命名区域', delName.success, `stillExists=${delName.data?.stillExists}`);
+ck('清理', '删除测试命名区域', delName.success && delName.data?.stillExists === false, `stillExists=${delName.data?.stillExists} 剩余=${delName.data?.remainingNames}`);
 
 // 3) 删除隔离工作表
 await call('excel_delete_sheet', { host: 'wps', workbookName: WB, sheetName: SH });
@@ -206,6 +206,53 @@ ck('自检', '临时图片/导出文件已删除',
 
 // ════════ 汇总 ════════
 const pass = results.filter(x => x.ok).length;
+
+// ── 写出可慢慢看的报告文件（终端输出滚得快，报告是留痕）
+const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+const reportPath = process.env.ACCEPTANCE_REPORT || `docs/acceptance/2.1.0-p0p1/acceptance-smoke-${stamp}.md`;
+try {
+  const byG = {};
+  for (const x of results) (byG[x.group] ||= []).push(x);
+  const lines = [];
+  lines.push(`# 验收冒烟测试报告`);
+  lines.push(``);
+  lines.push(`- 运行时间：${new Date().toLocaleString('zh-CN')}`);
+  lines.push(`- 目标工作簿：${WB}（临时表 ${SH}，结束时删除）`);
+  lines.push(`- 结果：**${pass}/${results.length} 通过**`);
+  lines.push(``);
+  lines.push(`## 分组结果`);
+  lines.push(``);
+  lines.push(`| 组 | 通过 | 状态 |`);
+  lines.push(`|---|---|---|`);
+  for (const [g, arr] of Object.entries(byG)) {
+    const p2 = arr.filter(x => x.ok).length;
+    lines.push(`| ${g} | ${p2}/${arr.length} | ${p2 === arr.length ? '✔' : '✖ ' + arr.filter(x => !x.ok).map(x => x.name).join('；')} |`);
+  }
+  lines.push(``);
+  lines.push(`## 逐项明细（含真机读数）`);
+  lines.push(``);
+  for (const [g, arr] of Object.entries(byG)) {
+    lines.push(`### ${g}`);
+    lines.push(``);
+    for (const x of arr) {
+      lines.push(`- ${x.ok ? '✔' : '✖'} **${x.name}**`);
+      if (x.detail) lines.push(`  - 读数：\`${x.detail.replace(/\n/g, ' ').slice(0, 300)}\``);
+    }
+    lines.push(``);
+  }
+  if (pass !== results.length) {
+    lines.push(`## 未通过项`);
+    lines.push(``);
+    for (const x of results.filter(y => !y.ok)) lines.push(`- [${x.group}] ${x.name} → ${x.detail.slice(0, 200)}`);
+    lines.push(``);
+  }
+  fs.mkdirSync('docs/acceptance/2.1.0-p0p1', { recursive: true });
+  fs.writeFileSync(reportPath, lines.join('\n'), 'utf8');
+  console.log(`\n  报告已写入：${reportPath}`);
+} catch (e) {
+  console.log(`\n  （报告写入失败：${e.message}）`);
+}
+
 console.log(`\n════════════════════════════`);
 console.log(`  验收测试：${pass}/${results.length} 通过`);
 const byGroup = {};

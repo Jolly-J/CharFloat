@@ -2435,9 +2435,19 @@
     if (action === "delete") {
       if (!name) throw new Error("delete 需要 name");
       wb.Names.Item(String(name)).Delete();
-      const still = g(() => { wb.Names.Item(String(name)); return true; }, false);
-      return { success: true, workbookName: wb.Name, deleted: name, stillExists: still, warnings: [],
-        message: `已删除命名区域 ${name}` };
+      // ⚠️ 不能用 `Names.Item(name)` 探测是否还存在：删除后它返回 **null 而不抛错**，
+      // 于是"没抛错＝还在"的判断**恒为 true**（真机踩到：删除明明成功，stillExists 却报 true，
+      // 与实际自检结果矛盾）。改为**枚举全部名称**再比对，这是可靠的。
+      const still = (() => {
+        try {
+          const n = Number(wb.Names.Count);
+          for (let i = 1; i <= n; i++) { if (String(wb.Names.Item(i).Name) === String(name)) return true; }
+        } catch (e) {}
+        return false;
+      })();
+      const remaining = (() => { try { const out = []; const n = Number(wb.Names.Count); for (let i = 1; i <= n; i++) out.push(String(wb.Names.Item(i).Name)); return out; } catch (e) { return []; } })();
+      return { success: !still, workbookName: wb.Name, deleted: name, stillExists: still, remainingNames: remaining.length, warnings: still ? [`删除后仍能枚举到 ${name}，删除未生效`] : [],
+        message: still ? `命名区域 ${name} 删除失败（仍存在）` : `已删除命名区域 ${name}，剩余 ${remaining.length} 个` };
     }
 
     if (!name || !refersTo) throw new Error("add 需要 name 和 refersTo（如 'Sheet1!$A$1:$B$10'）");
