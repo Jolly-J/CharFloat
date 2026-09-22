@@ -44,7 +44,7 @@
 | ISS-14 | `Shapes.Range([...]).Group()` 不报错但产出损坏的分组对象 | 中 | 待修 | 宿主 API 语义 |
 | ISS-15 | `native-scripting.md` 缺多元素构图范例与画布换算 | 中 | 待修 | skill 说明 |
 | ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 待修 | 并发语义 + 说明 |
-| ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | 待修 | 宿主实现 + 说明 |
+| ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | **已修待验** | 宿主实现 + 说明 |
 | ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | 待修 | 宿主实现 + 说明 |
 | ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修已验证** | 宿主实现 + 说明 |
 | ISS-20 | `update_chart` 在 WPS 不可用，但工具说明未标注 | 中 | 待修 | 工具说明 |
@@ -56,7 +56,7 @@
 | ISS-26 | 脚本 API 差异：`ws.Cells(r,c)` 不存在；`AddChart2` 默认按行取系列须 `PlotBy=2` | 中 | 待修 | skill 说明 |
 | ISS-27 | 缺少**选型指引**：27 对 `excel_*`/`wps_*` 完全同构，`tools/list` 里无法区分 | **高** | 待修 | 工具说明 + skill |
 | ISS-28 | `wps_rollback` 说"原地恢复表格"，实际只覆盖 `patch_cells` 的值/公式 | **高** | 待修 | 工具说明 |
-| ISS-29 | `search_cells` 声称能搜公式，实测 0 命中**却返回 `success:true`** | **高** | 待修 | 宿主实现 + 说明 |
+| ISS-29 | `search_cells` 声称能搜公式，实测 0 命中**却返回 `success:true`** | **高** | **已修待验** | 宿主实现 + 说明 |
 | ISS-30 | 审计族说明近乎空白（15–17 字 + 9 个参数全无说明） | **高** | 待修 | 工具说明 |
 | ISS-31 | 11 个参数缺 JSON Schema `type`，1 个用非标准类型 | 中 | 待修 | 工具契约 |
 | ISS-32 | 装配层正则误伤说明文本，出现**残句**（`office_execute_script`） | 中 | 待修 | 工具说明 |
@@ -89,7 +89,7 @@
 | ISS-59 | **磁盘上是新构建、WPS 进程里跑的是旧构建**：部署后不重载，且没有任何指纹能判断"运行中的是哪一版" | **高（方法学）** | 待修 | 部署流程 + 版本可观测性 |
 | ISS-60 | 行隐藏 `hide` 返回 success 但没生效（`Range("5:6").Hidden=true` 静默 no-op） | **高** | **已修已验证** | 宿主实现 |
 | ISS-61 | 批注 `author` 无效：宿主 `Comment.Author` 恒为 jolin，返回体里的 author 是**入参回显冒充读回** | 中 | 待修 | 宿主实现 |
-| ISS-62 | 公式查找替换静默不支持（`totalFound:0` + `success`） | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-62 | 公式查找替换静默不支持（`totalFound:0` + `success`） | 中 | **已修待验** | 宿主实现 + 说明 |
 | ISS-63 | 透视表：建表瞬间是空骨架须手动 `Refresh`；`destSheetName` 必须已存在；`RecordCount` 恒为 1 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-64 | 条件格式无图标集/公式规则参数入口，也无读取/清除工具 | 中 | 待修 | 工具能力缺口 |
 | ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 待修 | 工具说明 |
@@ -114,11 +114,11 @@
 | ISS-84 | `set_table_data` 的 `data` 含数字就报 `arguments.data[1][2]: 类型不正确` | 中 | 待修 | 工具契约 |
 | ISS-85 | **PPT 无保存工具**（`wps_ppt_save_presentation` → 未知工具） | 中高 | 待修 | 工具能力缺口 |
 | ISS-86 | `capture_slide_preview` 吞掉 addon 原始返回、且不允许传 `outputPath` | 中 | 待修 | 宿主实现 |
-| ISS-87 | **`set_background` 会串改全部页**（受控复现：设第 1 页后第 2 页也变红） | **高** | 待修 | 宿主实现 |
+| ISS-87 | **`set_background` 会串改全部页**（受控复现：设第 1 页后第 2 页也变红） | **高** | **已修待验** | 宿主实现 |
 | ISS-89 | 深度属性反射会让 **WPS 进程崩溃**（3 次崩溃报告，2 次栈指向 jsetapi→etcore） | **高** | 待修 | 宿主 API 安全性 + 工具护栏 |
 | ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | 待修 | 可观测性 |
-| ISS-91 | **读操作被别名到写函数**：`list_conditional_formats` → 新增条件格式；调"读"会**写** | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | Office.js 路由 |
-| ISS-92 | `list_comments` → 默认 action `add`（会在 **A1 插空批注**）；`update_comment` 静默 success | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | Office.js 路由 + 处理函数 |
+| ISS-91 | 读操作被别名到写函数（`list_conditional_formats` → 新增条件格式）；**但该 RPC 无工具暴露，不可达，属潜在风险** | **中（潜在）** | **已修·静态验证** | Office.js 路由 |
+| ISS-92 | 批注 `action: "clear_all"` 静默成功（宿主不支持该 action）；`list_comments` 别名到默认 add | **高** | **已修已验证**（MS 实机） | Office.js 路由 + 处理函数 |
 | ISS-93 | `normalizer.ts` 只适配 14 个方法，**12 个 `excel_*` 在 host=microsoft 参数错位**；21 个 Word/PPT 工具在该宿主是死路 | **高** | 待修 | 跨宿主适配 |
 | ISS-94 | **C 类·只写不读共 7 项**：条件格式、冻结窗格、数据有效性、筛选状态、工作表保护/标签色、Word 页眉页脚/水印、透视表 | 中高 | 待修 | 工具能力缺口 |
 | ISS-95 | **B 类·宿主能做但没暴露**：清空区域 / 读原表设计语言 / Word 页面预览（**3 条零成本死分支**）＋超链接、命名区域、文档属性、区域复制、图片形状、结构化表格 | 中高 | 待修 | 工具能力缺口 |

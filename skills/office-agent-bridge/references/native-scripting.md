@@ -6,7 +6,65 @@ WPS 使用 `wps_execute_script`，明确传 component 和精确 workbookName/doc
 
 可用 `wps_inspect_api` 检查 `wb.Worksheets.Item(1).Shapes` 或 `pres.PageSetup`。部分宿主对象无法完整枚举成员，空列表不是 API 不支持的证据，可针对具体属性进行只读访问。捕获具体异常，区分 API 缺失、目标错误、参数错误和连接问题。
 
-## Excel 原生矢量绘图
+## 先确认变量绑定：按组件只有一个变量有值
+
+脚本形参固定是 `app, doc, wb, pres, wps, params, console`（`wps-addon/src/dispatch.js:297-318`）。**宿主按名字逐个解析，找不到就是 `null`，不会报错**：
+
+| 组件 | 有值的变量 | 其余变量的实测状态 |
+|---|---|---|
+| WPS 表格 / Excel | **`wb`** | `doc` 为 `null`，`pres` 为 `null` |
+| WPS 文字 / Word | **`doc`** | `wb`、`pres` 为 `null` |
+| WPS 演示 / PPT | **`pres`** | `wb`、`doc` 为 `null` |
+
+`wps` 是宿主注入的宿主全局（本机实测为 `undefined`），**不要依赖它**。
+
+> **已证实（[ISS-52](../../../docs/acceptance/2.1.0-p0p1/issues.md)）**：本文档旧版称 `doc`"已自动绑定"。真实宿主下 Excel 场景 `doc` 是 `null`，`doc.Worksheets` 直接抛 `原生脚本执行异常: Cannot read properties of null (reading 'Worksheets')`。**Excel 一律用 `wb`**。
+
+每个批次开头加一句自检，缺变量时立刻报错，比在几十行之后抛空指针好定位：
+
+```js
+if (!wb) throw new Error('本批次需要 WPS 表格上下文：wb 为空，请确认 component 与 workbookName');
+params = params || {};
+```
+
+## 枚举必须传整数
+
+字符串枚举**不报错也不生效**：`range.HorizontalAlignment = 'center'` 被静默吞成左对齐（读回 `-4131`），居中必须传 `-4108`（[ISS-11](../../../docs/acceptance/2.1.0-p0p1/issues.md)：子代理首版所有居中文字跑到左上角，全量重绘一次才修好）。
+
+取值表（对齐、边框、颜色、条件格式、形状类型、箭头线型、PPT 图表与版式、Word 域与版式）见 **[枚举速查表](enumeration.md)**，每条都标了证据等级；取不到的标"未实测"，别猜。
+
+写法上坚持"**写一个，读回一个，断言一个**"：
+
+```js
+const want = -4108;                       // xlCenter
+shape.TextFrame2.TextRange.ParagraphFormat.Alignment = want;
+const got = Number(shape.TextFrame2.TextRange.ParagraphFormat.Alignment);
+if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${got}`);
+```
+
+## WPS JS API ≠ VBA 差异清单
+
+AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针或静默失真**。下面是已证实的差异（来源：[ISS-12/26](../../../docs/acceptance/2.1.0-p0p1/issues.md)、`p5/mcp-sweep/03-word.md`、本仓库实现）：
+
+| VBA / 常见写法 | WPS JS API 实际 | 正确做法 |
+|---|---|---|
+| `TextFrame.TextRange`（形状/文本框取文本） | **`undefined`**；继续 `.Font` 会抛 `Cannot read properties of undefined (reading 'Font')`，整个脚本中断 | Excel Shapes 用 `TextFrame.Characters()`；PPT 用 `TextFrame.TextRange`（PPT 侧实测可用） |
+| `ParagraphFormat`（形状文本框段落格式） | **不存在**（反射为空成员表） | 用存在的那条路径并先只读探测；不要照抄 VBA |
+| `ws.Cells(r, c)` | **不是函数**：`ws.Cells is not a function` | 用字符串地址 `ws.Range("A1")`，或 `ws.Range("A1").Offset(r, c)` |
+| `AddChart2` + `SetSourceData` | **默认按行取系列**（一行一个系列），图表与预期不符 | 显式传 `PlotBy = 2`（按列），或逐个赋 `Series.Values` / `Series.XValues` |
+| `Shapes.Range([...]).Group()` | **不报错但产出损坏的分组对象**：名称错乱、`GroupItems` 不可枚举（[ISS-14](../../../docs/acceptance/2.1.0-p0p1/issues.md)） | 不要用分组做构图；用命名前缀 + 坐标对齐替代，或先探测确认可用性 |
+| `Range("5:6").Hidden = true` | 整行隐藏**静默 no-op**（列路径正常，行为不一致，[ISS-60](../../../docs/acceptance/2.1.0-p0p1/issues.md)） | 逐行 `sheet.Rows.Item(r).Hidden = want` 并逐行读回 |
+| `range.Sort(...)` 旧式排序 | 本机 WPS **静默 no-op** | 用 `sheet.Sort.SortFields.Clear()/Add()/SetRange()/Header/Apply()`，并读回校验（[ISS-38](../../../docs/acceptance/2.1.0-p0p1/issues.md)） |
+| `Cell.Formula("=SUM(ABOVE)")` / `AutoSum()` | **不生效**，返回 `null`、单元格文本不变（[03-word.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md) §3.1） | 脚本里算出结果写静态文本；不要因为"没抛异常"就判定成功 |
+| `ExportAsFixedFormat(path, 17)` | 不抛异常也**不落盘**（Word 侧实测） | 交付/预览不要依赖它；用带落盘校验的保存工具 |
+| `for (const k in v) v[k]` 全量反射 | **会让 WPS 进程崩溃**（[ISS-89](../../../docs/acceptance/2.1.0-p0p1/issues.md)：3 份崩溃报告、2 份栈逐帧一致） | 一次只探一个真正要用的属性；具体危险成员清单尚未产出 |
+
+另有两条与 API 无关、但同样会静默失真的行为：
+
+- **返回值嵌套超过两层就丢属性**（[ISS-56](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：`[{a:{b:{c:1}}}]` 这类三层结构里内层属性全变 `undefined` 且不报错。**返回扁平的字符串/数字数组**，或自己把深层结构 `JSON.stringify` 成字符串再返回。
+- **脚本成功 ≠ 写入生效**：Bridge 的包装层可能返回 `success`。调用方必须同时检查 `returnValue` 里的读回值和 `failed`/`pendingCount`，本文档末尾给了约定结构。
+
+## Excel：可编辑矢量绘图
 
 Shapes 是独立于单元格和统计图表的绘图层，可用于流程图、标注、信息卡片。下例是 WPS 对象模型示例，使用前检查当前宿主的 Shapes API。坐标为 pt，依据目标单元格 Left/Top/Width/Height 定位，不是行列号或屏幕像素。
 
@@ -32,13 +90,186 @@ return { name: shape.Name, left: shape.Left, top: shape.Top,
   width: shape.Width, height: shape.Height, shapeCount: sheet.Shapes.Count };
 ```
 
-连接线、自由曲线、组合可继续探测 AddConnector、BuildFreeform、Range(...).Group 等宿主 API。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
+`AddShape` 首参是形状类型枚举（矩形 `= 1`），见 [枚举速查表](enumeration.md)。`TextFrame.Characters()` 是 Excel 侧已验证的取文本路径，**没有 `TextFrame.TextRange`**。
 
-## 编辑已有对象
+连接线、自由曲线可继续探测 `AddConnector`、`BuildFreeform` 等宿主 API（**未实测**）。**分组（`Range(...).Group`）不要用于构图**（见上表 ISS-14）。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
 
-没有 update_chart 工具时，先读出现有对象名称和属性，再用脚本修改该对象。不能据此直接判定必须删除重建。返回普通 JSON：文档名、对象名称/ID、实际位置、字号、修改后的属性；不要返回整个宿主对象。
+## Excel：画布换算与多元素构图范例
 
-PPT 使用 pres.PageSetup.SlideWidth/SlideHeight 获取尺寸。按页面比例计算几何，所有结果转为 pt 后写入；字体与版面一起考虑。先读现有形状，设置文本框内边距、换行和字号，读回后检查真实预览。需要拆页或改动内容时结合用户目标判断，不用无限缩小字体掩盖溢出。
+### 画布换算
+
+**已证实**（[ISS-15](../../../docs/acceptance/2.1.0-p0p1/issues.md)，WPS 默认列宽/行高实测）：默认列宽 **48pt**、行高 **16pt**；`A1:U42`（21 列 × 42 行）= **1008 × 672pt**。行列号与 pt 的换算是线性的：
+
+```
+x(col)  = anchor.Left + (col   - 1) * 48        // col 从 1 起
+y(row)  = anchor.Top  + (row   - 1) * 16
+w(cols) = cols * 48        h(rows) = rows * 16
+```
+
+例如 1008×672 画布上，`A` 列左边缘 = `0`，`U` 列左边缘 = `20 * 48 = 960`；第 42 行下边缘 = `41 * 16 + 16 = 672`。
+
+**不要只靠 48/16 硬算**（列宽被改过、缩放或自定义行高都会偏）。每个批次开头读一次真实几何，把换算建立在读回值上：
+
+```js
+const sheet = wb.Worksheets.Item(params.sheetName);
+const area = sheet.Range(params.canvas);            // 例："A1:U42"
+const first = sheet.Range(params.canvas.split(':')[0]);
+const colW = Number(sheet.Columns.Item(1).Width);   // 默认 48pt
+const rowH = Number(sheet.Rows.Item(1).Height);     // 默认 16pt
+return { left: area.Left, top: area.Top, width: area.Width, height: area.Height, colW, rowH };
+```
+
+坐标系原点在画布左上角：元素用 `canvasLeft + 偏移` 定位，完成后再核对整体包围盒不超过 `canvasLeft + canvasWidth` / `canvasTop + canvasHeight`。
+
+### 信息图 / 流程图范例（标题条 + 分组框 + 流程带 + 应用卡 + KPI 条）
+
+下面这套布局对应已交付成品 `sweep图形_钙钛矿产业信息图` 的元素构成——**134 个矢量元素**：标题条 + 三栏分组 + 5 段流程带箭头 + 4 应用卡 + 3 技术路线箭形块 + 4 格 KPI 条 + 页脚（见 [mcp-sweep/README.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/README.md)，渲染图 [shapes-infographic-final.png](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/shapes-infographic-final.png)）。
+
+> **口径**：结构与元素数量来自已交付成品；下面给出的坐标是"按 1008×672 推算的起始值"，**本轮未在真实宿主复跑**。实测读数只有卡片的 `190.67 × 346.67`（`.scratch/ppt3/03-existing-deck-scan.json`，PPT 卡片）与画布的 48/16。请按内容体量微调，不要当成硬约束。
+
+以 `A1:U42`（1008×672pt）为画布，用 `params.blocks` 传元素清单，**一次批次画完全部元素**：
+
+```js
+if (!wb) throw new Error('需要 WPS 表格上下文');
+const sheet = wb.Worksheets.Item(params.sheetName);
+const canvas = sheet.Range(params.canvas || 'A1:U42');
+const L = Number(canvas.Left), T = Number(canvas.Top), W = Number(canvas.Width);
+const M = 16;                                   // 统一留白
+const done = [], failed = [];
+
+function box(cfg) {                             // 统一创建 + 命名 + 读回
+  try {
+    const s = sheet.Shapes.AddShape(cfg.type || 1, cfg.l, cfg.t, cfg.w, cfg.h);
+    s.Name = cfg.name;
+    s.TextFrame.Characters().Text = cfg.text || '';
+    done.push({ name: s.Name, l: Number(s.Left), t: Number(s.Top), w: Number(s.Width), h: Number(s.Height) });
+    return s;
+  } catch (e) { failed.push({ name: cfg.name, error: e.message }); return null; }
+}
+
+// 1) 标题条：整幅宽度
+box({ name: 'IG_TITLE', l: L, t: T, w: W, h: 44, text: params.title });
+// 2) 三栏分组框：等宽三栏，两栏之间留 16pt
+const gap = 16, colW = (W - gap * 2) / 3, groupTop = T + 60, groupH = 220;
+params.groups.forEach((g, i) => {
+  const l = L + i * (colW + gap);
+  box({ name: `IG_GROUP_${i + 1}`, l, t: groupTop, w: colW, h: groupH, text: g.title });
+});
+// 3) 流程带：5 段水平排布，段间留 8pt，箭头落在间隙内
+const flowTop = groupTop + groupH + 24, flowH = 56, segs = params.flow.length;
+const segW = (W - 8 * (segs - 1)) / segs;
+params.flow.forEach((txt, i) => {
+  const l = L + i * (segW + 8);
+  box({ name: `IG_FLOW_${i + 1}`, l, t: flowTop, w: segW, h: flowH, text: txt });
+  if (i < segs - 1) box({ name: `IG_ARROW_${i + 1}`, type: params.arrowType, l: l + segW, t: flowTop + flowH / 2 - 6, w: 8, h: 12, text: '' });
+});
+// 4) 应用卡：四卡等宽
+const cardTop = flowTop + flowH + 24, cardGap = 16, cardW = (W - cardGap * 3) / 4, cardH = 96;
+params.cards.forEach((c, i) => box({ name: `IG_CARD_${i + 1}`, l: L + i * (cardW + cardGap), t: cardTop, w: cardW, h: cardH, text: c }));
+// 5) KPI 条：四格，红/黄/绿阈值由数据决定
+const kpiTop = cardTop + cardH + 24, kpiW = W / 4;
+params.kpis.forEach((k, i) => box({ name: `IG_KPI_${i + 1}`, l: L + i * kpiW, t: kpiTop, w: kpiW, h: 48, text: `${k.label} ${k.value}` }));
+// 6) 页脚
+box({ name: 'IG_FOOTER', l: L, t: kpiTop + 64, w: W, h: 20, text: params.footer });
+
+return { canvas: { l: L, t: T, w: W, h: Number(canvas.Height) }, completed: done, failed: failed.length ? failed : null };
+```
+
+要点：
+
+- **命名即索引**：`IG_GROUP_1` / `IG_FLOW_3` / `IG_KPI_2` 这种前缀+序号命名，既是重绘时的定位依据，也是失败后续做的锚点。不要依赖 `Shapes.Item(i)` 的序号（新增/删除会串位）。
+- **一次批次画完一组**，不要每个形状一次 MCP 调用；批次返回每个元素的**实际** `left/top/width/height`，而不是回显输入。
+- **字号与容量**：文本框高度固定时先估行数（`估算行数 * 字号 * 1.25 <= 内高`），溢出就缩短文案或加高，不要无限缩小字号。
+- **失败不重绘整套**：`failed` 非空时只补建失败的元素（按名字判断是否已存在），已成功的元素不要再动。
+- **箭形块**：`AddShape` 的箭头类型枚举**未实测**（见枚举表 §1.5）。在确认取值前，用矩形 + 短窄矩形拼近似箭头，或先做一次只读探测。
+- **分组**：不要用 `Range(...).Group()`（ISS-14 会产出损坏对象）；需要"看起来是一组"时靠坐标对齐、统一配色和命名前缀。
+
+## PPT：页面与坐标基准
+
+PPT 使用 `pres.PageSetup.SlideWidth/SlideHeight` 获取真实尺寸（本机实测 **960×540**）。按页面比例计算几何，所有结果转为 pt 后写入；字体与版面一起考虑。先读现有形状，设置文本框内边距、换行和字号，读回后检查真实预览。需要拆页或改动内容时结合用户目标判断，不用无限缩小字体掩盖溢出。
+
+要点（来自 `p5/mcp-sweep/02-ppt.md` 与 [ISS-53/55/82](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：
+
+- `wps_ppt_generate_deck` 的内部坐标基准是 **720×405 设计基准**，宿主再按页面尺寸换算；返回体里的 `pageWidth`/`layoutWarnings` 是判断"是否真的换算过"的指纹。自己用脚本排版时，**要么全用设计基准交给缩放，要么全用真实尺寸自己算，不要混用**。
+- `layoutIndex` 是 **`ppLayout` 枚举**（`1` 标题幻灯片 / `2` 标题和文本 / `7` 标题和图示），不是"第几个版式"；越界（如 `12`）不报错。见枚举表 §2.3。
+- **原生图表**：`wps_ppt_insert_native_chart` 在本机 100% 失败（ISS-80），`generate_deck` 的 chart 布局又有数值写不进去的问题（ISS-75）；图表仍要先读回类型与系列数据再判定成功。
+
+## Word：分节、横向页、书签、域、样式
+
+Word 侧的样式、书签、内容控件、交叉引用、分节、表格行列尺寸、文档属性**都没有专用工具**，只能走脚本（[03-word.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md) §11）。下面每个片段都在真实宿主验证过，写到"读回断言"为止才停。
+
+### 样式：新建、应用、判定口径
+
+```js
+if (!doc) throw new Error('需要 WPS 文字上下文：doc 为空');
+const st = doc.Styles.Add(params.styleName, 1);          // 1 = 段落样式，2 = 字符样式
+st.Font.Name = '微软雅黑'; st.Font.Size = 12;
+st.Font.Color = 0x404040;                                // RGB
+st.ParagraphFormat.LineSpacingRule = 4;                  // 固定行距
+st.ParagraphFormat.LineSpacing = 20;
+st.ParagraphFormat.SpaceAfter = 6;
+st.ParagraphFormat.FirstLineIndent = 21;
+
+const p = doc.Paragraphs.Item(params.paragraphIndex);
+p.Style = doc.Styles.Item(params.styleName);
+// 判定必须读样式名：读 Range.Font 会拿到继承自基样式的值，会误判“没生效”
+return { styleName: p.Style.NameLocal, outlineLevel: Number(p.OutlineLevel) };
+```
+
+**已证实**：套上自定义样式后 `p.Range.Font.Name` 可能读回基样式（如 `宋体`）的字体，而 `p.Style.NameLocal` 已是自定义样式名——**"样式名生效"和"直接格式读回"是两套口径**，判生效要读 `Style.NameLocal`；套「标题 3」时 `OutlineLevel` 会同步，可用它确认真的进了大纲。
+
+### 分节 + 横向页 + 独立的页眉页脚
+
+```js
+const D = doc;
+D.Sections.Add(D.Content.End - 1);                       // 新增 1 节
+const s2 = D.Sections.Item(2);
+s2.PageSetup.Orientation = 1;                            // 1 = 横向（0 = 纵向）
+s2.Headers.Item(1).LinkToPrevious = false;               // 必须先断开，否则会连带改第 1 节
+s2.Headers.Item(1).Range.Text = '第四部分 · 附录（横向页）';
+s2.Footers.Item(1).Range.Text = '附录 A';
+
+const s1 = D.Sections.Item(1);
+return { count: D.Sections.Count,
+  s1: { o: Number(s1.PageSetup.Orientation), w: Number(s1.PageSetup.PageWidth), h: Number(s1.PageSetup.PageHeight) },
+  s2: { o: Number(s2.PageSetup.Orientation), w: Number(s2.PageSetup.PageWidth), h: Number(s2.PageSetup.PageHeight) },
+  s1Header: s1.Headers.Item(1).Range.Text, s2Header: s2.Headers.Item(1).Range.Text };
+```
+
+**已证实**：横向节读回 `orientation=1, pageWidth=841.9, pageHeight=595.3`，纵向节仍是 `0` / `595.3×841.9`；**没断开链接时节 1 会被连带改**，所以要同时读回两节的页眉来断言隔离成立。
+**另注**：`wps_word_page_layout_and_watermark` 的页眉/页脚/水印**只作用于第 1 节**且不提示（[ISS-72](../../../docs/acceptance/2.1.0-p0p1/issues.md)），多节文档的其余节必须自己用上面的脚本处理。
+
+### 书签与交叉引用域
+
+```js
+const D = doc;
+const target = D.Paragraphs.Item(params.paragraphIndex).Range;
+D.Bookmarks.Add('OAB_交付状态', target);
+
+// 域：Type 已决定域名，Code 里不能再写域名
+const fRef  = D.Fields.Add(target, 33, 'OAB_交付状态 \\h ');    // REF：交叉引用
+const fPage = D.Fields.Add(target, 37, 'OAB_交付状态 \\h ');    // PAGEREF：页码引用
+fRef.Update(); fPage.Update();
+return { bookmarks: D.Bookmarks.Count, refCode: fRef.Code.Text, refResult: fRef.Result.Text };
+```
+
+**已证实**：`Bookmarks.Add(name, 段Range)` 生效，读回范围是**整段**（标题里的制表位与页码也一起进去）；`Fields.Add` 返回 `result="三、验收测试结果\t4"`（REF）与 `"2"`（PAGEREF）。
+**两条避坑**：① `Code` 里写成 `' REF OAB_交付状态 \h '` 会得到重复域名 ` REF  REF …`，`result="错误！未定义书签。"` 且**不抛异常**；② 删除被书签覆盖的段落会让书签消失（子代理怀疑是 Range 重叠，**属猜测、未隔离验证**），所以书签要在结构改动完成后再建。
+
+### 表格：行高、底纹、边框
+
+```js
+const T = doc.Tables.Item(params.tableIndex);
+T.Rows.Item(2).HeightRule = 2;              // 2 = Exactly，1 = AtLeast，0 = Auto
+T.Rows.Item(2).Height = 28;                 // 默认 HeightRule=0 时 Height 设多少都读回 0
+T.Cell(1, 1).Shading.BackgroundPatternColor = 0xE8EEF7;   // RGB，不是 BGR
+T.Rows.Item(1).HeadingFormat = true;        // 跨页重复表头（读回 -1）
+return { rowCount: T.Rows.Count, cellCount: T.Rows.Item(1).Cells.Count, uniform: T.Uniform,
+  row2Height: Number(T.Rows.Item(2).Height), shade: T.Cell(1, 1).Shading.BackgroundPatternColor,
+  header: T.Rows.Item(1).HeadingFormat };
+```
+
+**已证实**：列宽/行高单位是 **pt**；`HeadingFormat` 读回 `-1`；`Shading.BackgroundPatternColor` 是 **RGB**（与 Excel 的 BGR 相反）。**表内公式不支持**：`Cell.Formula("=SUM(ABOVE)")` 与 `AutoSum()` 都返回 `null` 且文本不变——脚本里算出结果写静态文本，并读回断言。
 
 ## 批量执行与返回
 
@@ -50,6 +281,6 @@ PPT 使用 pres.PageSetup.SlideWidth/SlideHeight 获取尺寸。按页面比例�
 {"completed":[{"id":"实际对象标识","left":50,"top":30}],"failed":null,"pendingCount":0}
 ```
 
-失败时记录当前对象、步骤和异常文本，并停止依赖该步骤的修改。completed 中使用宿主读回值；不返回完整宿主对象、全文或无关数据。Bridge 的脚本包装层可能仍返回 success，调用方必须同时检查 returnValue 中的 failed/pendingCount。响应超时导致整个结果丢失时，按目标标识重新读取，不依靠内存完成列表猜测。
+**返回结构要扁平**：嵌套超过两层会丢属性（ISS-56），深层结构请自己 `JSON.stringify` 成字符串再返回。失败时记录当前对象、步骤和异常文本，并停止依赖该步骤的修改。completed 中使用宿主读回值；不返回完整宿主对象、全文或无关数据。Bridge 的脚本包装层可能仍返回 success，调用方必须同时检查 returnValue 中的 failed/pendingCount。响应超时导致整个结果丢失时，按目标标识重新读取，不依靠内存完成列表猜测。
 
 不要为省调用合并本来需要人工决策的内容，也不要将需要审计回滚的单元格写入移到脚本。

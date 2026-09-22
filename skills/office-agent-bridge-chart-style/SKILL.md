@@ -24,6 +24,6 @@ description: 通过 Office Agent Bridge 批量读写实时 Excel/WPS 表格，�
 
 没有专用更新工具时，用 [原生脚本](../office-agent-bridge/references/native-scripting.md) 修改已有图表，不能直接推断必须删除重建。仅在无法原位完成且用户允许替换时重建，并保留源数据、位置尺寸、系列、图例和轴设置。
 
-矢量绘图操作 Shapes 层，与单元格和统计图表不同。以目标单元格 Left/Top/Width/Height 为锚点，以 pt 计算布局。同组矩形、文字、连接线在一个批次内处理；返回稳定名称或 ID、实际几何和完成数量。既有对象按精确名称定位，新建对象记录名称，便于失败后继续。
+矢量绘图操作 Shapes 层，与单元格和统计图表不同。以目标单元格 Left/Top/Width/Height 为锚点，以 pt 计算布局；默认列宽 48pt、行高 16pt（如 `A1:U42` = 1008×672pt），但每批应先读回真实几何再换算，参见 [多元素构图范例](../office-agent-bridge/references/native-scripting.md)。格式与形状的枚举一律传整数，字符串枚举不报错但静默失效，取值见 [枚举速查表](../office-agent-bridge/references/enumeration.md)。同组矩形、文字、连接线在一个批次内处理；返回稳定名称或 ID、实际几何和完成数量。既有对象按精确名称定位，新建对象记录名称，便于失败后继续。不要用 `Range(...).Group()` 分组（实测产出损坏的分组对象）。
 
 修改后只补读工具结果缺失的关键字段；一组对象完成后再截取整体区域。接口执行、视觉验证和保存是不同状态。审计回滚范围遵循共享流程。

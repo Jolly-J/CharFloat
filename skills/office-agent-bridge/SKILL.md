@@ -11,6 +11,8 @@ description: 通过本机 Office Agent Bridge 的 MCP 操作已打开的 WPS 或
 
 读取工作区定位精确 workbookName/documentName/presentationName，以及 sheetName 或目标页。在后续调用显式携带目标，不依赖活动窗口焦点。保留本任务已取得的宿主、目标名称、页面尺寸和对象标识，不在每个子步骤或切换子 skill 时重复初始化。
 
+脚本里按组件只有一个变量有值：表格用 `wb`、文字用 `doc`、演示用 `pres`，另外两个是 `null`（**Excel 场景没有 `doc`**，详见 [原生脚本](references/native-scripting.md)）。脚本改写形状或单元格格式时，枚举一律传整数，字符串枚举会静默失效，取值见 [枚举速查表](references/enumeration.md)。
+
 断线、宿主重启、目标切换或对象不存在时重新确认相关上下文。插入/删除段落、页面、行列后刷新受影响的索引；用户同时编辑时重新读取即将覆盖的内容。缓存用于减少探测，不是跳过修改前的必要核对。
 
 ## 按任务组织调用
@@ -30,6 +32,7 @@ description: 通过本机 Office Agent Bridge 的 MCP 操作已打开的 WPS 或
 - 表格、图表、矢量绘图：[Excel 工作流](../office-agent-bridge-chart-style/SKILL.md)。
 - 演示文稿排版：[PPT 工作流](../office-agent-bridge-ppt-design/SKILL.md)。
 - 文字与表格改稿：[Word 工作流](../office-agent-bridge-word-batch-edit/SKILL.md)。
+- 脚本要用枚举取值：[枚举速查表](references/enumeration.md)；脚本变量绑定与宿主 API 差异：[原生脚本](references/native-scripting.md)。
 - 连接或启动失败才读 [启动与排障](references/operations.md)；讨论宿主支持范围时读 [能力边界](references/capabilities.md)。不要预先加载所有引用。
 
 ## 批次与恢复
@@ -39,3 +42,7 @@ description: 通过本机 Office Agent Bridge 的 MCP 操作已打开的 WPS 或
 超时、断线或审计失败可能已经修改文件，先读回目标，不盲目重放整批。仅 `patch_cells` 的值与公式有审计回滚；不要为减少调用把要求审计的单元格写入改成任意脚本。格式、图表、Word/PPT 和脚本没有统一回滚。
 
 没有连接时修复连接，不以离线修改另一份文件替代实时任务。用户明确选择离线时遵循其选择。
+
+## 能力缺口：Word 没有视觉预览通路
+
+`wps_word_capture_preview` 的处理器已实现但**没有注册成对外工具**，调用返回"未知工具 `wps_word_capture_preview`"；`ExportAsFixedFormat` 在宿主上也不落盘。因此**文字文稿当前无法取得真实截图或 PDF 预览**，不要反复尝试预览类调用。替代做法：用脚本读回段落/表格/节的真实属性（字体、字号、行距、缩进、`PageSetup.Orientation`、页眉页脚文本、`ComputeStatistics(2)` 的页数），并在交付时说明"已做结构化读回、未做视觉验证"。表格与演示文稿不受影响，仍按各自工作流做区域预览。

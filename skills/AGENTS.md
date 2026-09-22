@@ -6,7 +6,8 @@
 - [office-agent-bridge-chart-style/SKILL.md](office-agent-bridge-chart-style/SKILL.md)：表格、图表与矢量。
 - [office-agent-bridge-ppt-design/SKILL.md](office-agent-bridge-ppt-design/SKILL.md)：页面批次与视觉验收。
 - [office-agent-bridge-word-batch-edit/SKILL.md](office-agent-bridge-word-batch-edit/SKILL.md)：结构定位与改稿。
-- [office-agent-bridge/references/native-scripting.md](office-agent-bridge/references/native-scripting.md)：脚本对象模型与示例。
+- [office-agent-bridge/references/native-scripting.md](office-agent-bridge/references/native-scripting.md)：脚本变量绑定、WPS JS API 与 VBA 差异、Excel 构图与 Word 示例。
+- [office-agent-bridge/references/enumeration.md](office-agent-bridge/references/enumeration.md)：枚举常量速查（对齐、形状、图表、线型、颜色、域类型），逐项标注证据等级。
 - [office-agent-bridge/scripts/bridge_client.py](office-agent-bridge/scripts/bridge_client.py)：本地 HTTP 辅助客户端。
 
 ## 定位与联动
@@ -26,6 +27,12 @@ AGENTS.md 管开发，SKILL.md 管用户任务，不能混入发布技能。共�
 ## 避坑
 
 没有专用工具就拒绝绘图 → 工具清单不是原生 API 能力上限 → 只读探测后使用脚本 → 核验实际对象与预览。重复连接检查拖慢任务 → 每个子 skill 重复初始化 → 共享上下文，仅异常时刷新。
+
+脚本里按组件只有一个变量有值 → 文档写"`doc` 已自动绑定"，Excel 场景 `doc` 实为 `null` → 宿主按形参名逐个解析，找不到即 `null` 且不报错 → 表格用 `wb`、文字用 `doc`、演示用 `pres`，批次开头自检 → 实测 `doc.Worksheets` 抛 `Cannot read properties of null`（ISS-52）。
+
+格式化枚举传字符串 → 不报错但被静默吞成默认值（`'center'` 落成左对齐 `-4131`）→ 宿主对枚举型属性不做类型校验 → 一律传整数并写完读回断言 → 取值见 [references/enumeration.md](office-agent-bridge/references/enumeration.md)（ISS-11）。
+
+Word 排版后想截图自查 → 反复调 `wps_word_capture_preview`、`ExportAsFixedFormat` → 前者**未注册**（报"未知工具"），后者不落盘 → 改用脚本读回真实属性并如实报告视觉验证缺口 → [native-scripting.md](office-agent-bridge/references/native-scripting.md)（ISS-71）。
 
 ## 同步维护
 
