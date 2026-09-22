@@ -3501,11 +3501,227 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Word 只读读回（ISS-44 / ISS-73）：节与页面版式、水印形状、页码域、书签、内容控件、
+  // 文档属性、样式清单。全部按"逐项 try/catch + 结果里带 error 字段"实现：
+  // 单项读不到不影响整次读回，也不会抛宿主内部错误给调用方。
+  // ---------------------------------------------------------------------------
+  function wordReadPageSetup(doc) {
+    const readSetup = (ps) => ({
+      pageWidth: Number(ps.PageWidth),
+      pageHeight: Number(ps.PageHeight),
+      orientation: Number(ps.Orientation),
+      topMargin: Number(ps.TopMargin),
+      bottomMargin: Number(ps.BottomMargin),
+      leftMargin: Number(ps.LeftMargin),
+      rightMargin: Number(ps.RightMargin),
+      headerDistance: Number(ps.HeaderDistance),
+      footerDistance: Number(ps.FooterDistance),
+      differentFirstPage: Number(ps.DifferentFirstPageHeaderFooter) !== 0,
+      differentOddEvenPages: Number(ps.OddAndEvenPagesHeaderFooter) !== 0
+    });
+    const sections = [];
+    const count = doc.Sections.Count;
+    for (let i = 1; i <= count; i++) {
+      const entry = { index: i };
+      try {
+        const s = doc.Sections.Item(i);
+        entry.pageSetup = readSetup(s.PageSetup);
+        entry.range = { start: s.Range.Start, end: s.Range.End };
+        entry.header = (() => {
+          try {
+            const h = s.Headers.Item(1);
+            return {
+              text: (h.Range.Text || "").replace(/[\r\n\x07]/g, ""),
+              fieldCount: (() => { try { return h.Range.Fields.Count; } catch (e) { return null; } })(),
+              shapeCount: (() => { try { return h.Shapes.Count; } catch (e) { return null; } })(),
+              linkToPrevious: (() => { try { return h.LinkToPrevious; } catch (e) { return null; } })()
+            };
+          } catch (e) { return { error: e.message }; }
+        })();
+        entry.footer = (() => {
+          try {
+            const f = s.Footers.Item(1);
+            const fields = [];
+            try {
+              for (let k = 1; k <= f.Range.Fields.Count; k++) {
+                const fld = f.Range.Fields.Item(k);
+                fields.push({ type: Number(fld.Type), code: (fld.Code ? fld.Code.Text : "").trim() });
+              }
+            } catch (e) {}
+            return {
+              text: (f.Range.Text || "").replace(/[\r\n\x07]/g, ""),
+              fieldCount: (() => { try { return f.Range.Fields.Count; } catch (e) { return null; } })(),
+              fields: fields,
+              pageNumberCount: (() => { try { return f.PageNumbers.Count; } catch (e) { return null; } })(),
+              linkToPrevious: (() => { try { return f.LinkToPrevious; } catch (e) { return null; } })()
+            };
+          } catch (e) { return { error: e.message }; }
+        })();
+        // 该节内（或未报到节归属）的水印形状（正文层 WordArt）；按 Name 以 WordArt 前缀识别。
+        // 逐个读 Anchor.Start 在超多形状文档上开销不小，限定最多扫 80 个并如实标注是否截断。
+        entry.watermarkShapes = (() => {
+          try {
+            const list = [];
+            const s0 = s.Range.Start, e0 = s.Range.End;
+            const totalShapes = doc.Shapes.Count;
+            const limit = Math.min(totalShapes, 80);
+            for (let k = 1; k <= limit; k++) {
+              const shp = doc.Shapes.Item(k);
+              let anchorStart = null;
+              try { anchorStart = shp.Anchor.Start; } catch (e) { anchorStart = null; }
+              if (anchorStart === null || (anchorStart >= s0 && anchorStart <= e0)) {
+                list.push({
+                  name: shp.Name,
+                  type: Number(shp.Type),
+                  text: (() => { try { return shp.TextEffect ? shp.TextEffect.Text : undefined; } catch (e) { return undefined; } })(),
+                  left: Number(shp.Left),
+                  top: Number(shp.Top),
+                  anchoredInSection: anchorStart !== null && anchorStart >= s0 && anchorStart <= e0
+                });
+              }
+            }
+            return { totalShapes: totalShapes, scannedShapes: limit, truncated: totalShapes > limit, shapes: list };
+          } catch (e) { return { error: e.message }; }
+        })();
+      } catch (e) {
+        entry.error = e.message;
+      }
+      sections.push(entry);
+    }
+    // 页脚页码格式：从域码推断（PAGE / NUMPAGES 组合）
+    for (const entry of sections) {
+      if (!entry.footer || entry.footer.error) continue;
+      const codes = (entry.footer.fields || []).map(f => f.code);
+      const hasPage = codes.some(c => /^PAGE\b/.test(c));
+      const hasNumPages = codes.some(c => /^NUMPAGES\b/.test(c));
+      entry.pageNumberFormat = hasPage && hasNumPages ? "page_of_pages" : (hasPage ? (codes.some(c => /PAGE/.test(c)) && /-\s*$|^-\s/.test(entry.footer.text) ? "dash" : "simple") : null);
+    }
+    return { document: readSetup(doc.PageSetup), sections: sections };
+  }
+
+  function wordReadBookmarks(doc) {
+    const list = [];
+    try {
+      for (let i = 1; i <= doc.Bookmarks.Count; i++) {
+        const b = doc.Bookmarks.Item(i);
+        list.push({
+          name: b.Name,
+          start: b.Range.Start,
+          end: b.Range.End,
+          empty: (() => { try { return Boolean(b.Empty); } catch (e) { return undefined; } })(),
+          text: (b.Range.Text || "").replace(/[\r\n\x07]/g, "")
+        });
+      }
+    } catch (e) {
+      return { count: 0, list: list, error: e.message };
+    }
+    return { count: list.length, list: list };
+  }
+
+  function wordReadFields(doc) {
+    const list = [];
+    try {
+      const limit = Math.min(doc.Fields.Count, 100);
+      for (let i = 1; i <= limit; i++) {
+        const f = doc.Fields.Item(i);
+        list.push({
+          index: i,
+          type: Number(f.Type),
+          code: (f.Code ? f.Code.Text : "").trim(),
+          result: (f.Result ? f.Result.Text : "").replace(/[\r\n\x07]/g, "")
+        });
+      }
+    } catch (e) {
+      return { count: 0, list: list, error: e.message };
+    }
+    return { count: doc.Fields.Count, list: list };
+  }
+
+  function wordReadContentControls(doc) {
+    const list = [];
+    try {
+      const count = doc.ContentControls.Count;
+      for (let i = 1; i <= count; i++) {
+        const c = doc.ContentControls.Item(i);
+        list.push({
+          index: i,
+          title: (() => { try { return c.Title; } catch (e) { return undefined; } })(),
+          tag: (() => { try { return c.Tag; } catch (e) { return undefined; } })(),
+          type: (() => { try { return Number(c.Type); } catch (e) { return undefined; } })(),
+          text: (() => { try { return (c.Range.Text || "").replace(/[\r\n\x07]/g, ""); } catch (e) { return undefined; } })()
+        });
+      }
+      return { count: count, list: list };
+    } catch (e) {
+      return { count: 0, list: list, error: e.message };
+    }
+  }
+
+  function wordReadStyles(doc, nameFilter) {
+    try {
+      const total = doc.Styles.Count;
+      const kw = nameFilter ? String(nameFilter).toLowerCase() : null;
+      const inUse = [];
+      const matched = [];
+      for (let i = 1; i <= total; i++) {
+        const st = doc.Styles.Item(i);
+        let name = "";
+        let iu = false;
+        try { name = st.NameLocal || st.Name || ""; } catch (e) {}
+        try { iu = Boolean(st.InUse); } catch (e) {}
+        if (iu) inUse.push({ name: name, type: (() => { try { return Number(st.Type); } catch (e) { return undefined; } })(), builtIn: (() => { try { return Boolean(st.BuiltIn); } catch (e) { return undefined; } })() });
+        if (kw && name.toLowerCase().indexOf(kw) >= 0 && matched.length < 100) {
+          matched.push({ name: name, inUse: iu });
+        }
+      }
+      return { count: total, inUseCount: inUse.length, inUse: inUse.slice(0, 100), matched: kw ? matched : undefined };
+    } catch (e) {
+      return { count: 0, error: e.message };
+    }
+  }
+
+  function wordReadDocumentProperties(doc) {
+    const readBuiltIn = (name) => {
+      try {
+        return doc.BuiltInDocumentProperties.Item(name).Value;
+      } catch (e) {
+        return undefined;
+      }
+    };
+    const custom = [];
+    try {
+      for (let i = 1; i <= doc.CustomDocumentProperties.Count; i++) {
+        const p = doc.CustomDocumentProperties.Item(i);
+        custom.push({
+          name: (() => { try { return p.Name; } catch (e) { return undefined; } })(),
+          value: (() => { try { return p.Value; } catch (e) { return undefined; } })()
+        });
+      }
+    } catch (e) {}
+    return {
+      title: readBuiltIn("Title"),
+      subject: readBuiltIn("Subject"),
+      author: readBuiltIn("Author"),
+      keywords: readBuiltIn("Keywords"),
+      category: readBuiltIn("Category"),
+      comments: readBuiltIn("Comments"),
+      lastAuthor: readBuiltIn("Last Author"),
+      revision: readBuiltIn("Revision Number"),
+      custom: custom
+    };
+  }
+
   function wordReadDocument(app, params) {
     const { documentName, scope, maxParagraphs, includeFormatting, includeTables } = params || {};
     const doc = getWordDocument(app, documentName);
     const outline = [];
     const maxP = Number(maxParagraphs) || 200;
+
+    // 新增的读回 scope（ISS-44 / ISS-73）：与旧 scope 并存，均为**增量**返回，
+    // 不改变 full / outline / paragraphs / tables / selection 的既有语义。
+    const EXTRA_SCOPES = { layout: 1, styles: 1, properties: 1, bookmarks: 1, content_controls: 1, fields: 1 };
+    const extra = Object.prototype.hasOwnProperty.call(EXTRA_SCOPES, scope);
 
     try {
       const paraCount = doc.Paragraphs.Count;
@@ -3600,6 +3816,24 @@
       }
     } catch (e) {}
 
+    // 读回域（ISS-44 / ISS-73）：只在显式请求时读，避免每次读文档都枚举几百个样式
+    const readBack = {};
+    if (extra) {
+      if (scope === "layout") {
+        readBack.layout = wordReadPageSetup(doc);
+      } else if (scope === "styles") {
+        readBack.styles = wordReadStyles(doc, params.styleNameFilter);
+      } else if (scope === "properties") {
+        readBack.properties = wordReadDocumentProperties(doc);
+      } else if (scope === "bookmarks") {
+        readBack.bookmarks = wordReadBookmarks(doc);
+      } else if (scope === "content_controls") {
+        readBack.contentControls = wordReadContentControls(doc);
+      } else if (scope === "fields") {
+        readBack.fields = wordReadFields(doc);
+      }
+    }
+
     return {
       documentName: doc.Name,
       fullName: doc.FullName || doc.Name,
@@ -3609,90 +3843,210 @@
       outline,
       tables: tablesSummary,
       paragraphDetails: includeFormatting ? paragraphDetails : undefined,
-      previewText: scope === "outline" ? undefined : previewText,
-      selectionText: selectionText || undefined
+      previewText: scope === "outline" || extra ? undefined : previewText,
+      selectionText: selectionText || undefined,
+      ...readBack
     };
+  }
+
+  // 找到包含指定字符位置的段落 Range（用于 bookmark / after_paragraph 的精确定位）。
+  // 说明：宿主 `Paragraphs.Add(targetRange)` 在 WPS for Mac 上**不可靠**——实测传书签范围时
+  // 会把内容写到文首、替换掉书签所在文字并销毁该书签（问题台账 ISS-70）。因此这里改成
+  // "定位段落 → InsertParagraphAfter 建段 → InsertAfter 写文本"，全部经真实宿主探针验证。
+  function wordFindParagraphRangeAt(doc, pos) {
+    const count = doc.Paragraphs.Count;
+    for (let i = 1; i <= count; i++) {
+      const r = doc.Paragraphs.Item(i).Range;
+      if (pos >= r.Start && pos <= r.End) return r;
+    }
+    return null;
+  }
+
+  // 在 anchorRange 所指段落之后写入一个新段落，返回新段落 Range 与命中的定位信息。
+  function wordInsertParagraphAfterRange(doc, anchorRange, text) {
+    const endPos = anchorRange.End - 1;
+    const anchor = doc.Range(endPos, endPos);
+    anchor.InsertParagraphAfter();
+    anchor.InsertAfter(text);
+    return { range: anchor, anchorEnd: endPos };
+  }
+
+  // 写入单行文本；位置由 location 决定。返回写入后的 Range 供排版与读回使用。
+  function wordWriteOneLine(doc, wordApp, location, targetBookmark, paragraphIndex, text, meta) {
+    if (location === "bookmark") {
+      const bm = doc.Bookmarks.Item(targetBookmark);
+      const bmRange = bm.Range;
+      meta.bookmarkRange = { start: bmRange.Start, end: bmRange.End };
+      const para = wordFindParagraphRangeAt(doc, bmRange.Start);
+      if (!para) throw new Error(`书签 [${targetBookmark}] 所在段落无法定位，未写入；请检查文档结构`);
+      // 记录书签锚点所属段落，写完后核对书签仍在（宿主可能在插入过程中丢弃书签）
+      const anchorParagraphStart = para.Start;
+      const res = wordInsertParagraphAfterRange(doc, para, text);
+      meta.bookmarkPreserved = doc.Bookmarks.Exists(targetBookmark);
+      meta.insertedAtParagraph = (() => {
+        try {
+          const after = wordFindParagraphRangeAt(doc, res.anchorEnd);
+          return after ? { start: after.Start, end: after.End } : null;
+        } catch (e) { return null; }
+      })();
+      meta.anchorParagraphStartBefore = anchorParagraphStart;
+      return res.range;
+    }
+    if (location === "after_paragraph") {
+      const idx = Number(paragraphIndex);
+      if (!idx || idx < 1 || idx > doc.Paragraphs.Count) {
+        throw new Error(`段落索引越界：第 ${paragraphIndex} 段不存在（当前共 ${doc.Paragraphs.Count} 段）`);
+      }
+      const para = doc.Paragraphs.Item(idx).Range;
+      return wordInsertParagraphAfterRange(doc, para, text).range;
+    }
+    if (location === "selection" && wordApp && wordApp.Selection && wordApp.Selection.Range) {
+      const sel = wordApp.Selection.Range;
+      const collapsed = sel.Start === sel.End;
+      if (collapsed) {
+        const r = doc.Range(sel.Start, sel.Start);
+        r.InsertAfter(text);
+        return r;
+      }
+      // 非折叠选区：原位替换所选内容（宿主 Range.Text 赋值不可靠，用 InsertAfter 把新文本插到选区之后，
+      // 再删掉被推到后面的原选区文本；宿主探针实测：选区 "乙 " → "乙 替换后 abc"）
+      const start = sel.Start;
+      sel.InsertAfter(text);
+      try { doc.Range(start + text.length, sel.End + text.length).Delete(); } catch (e) {}
+      return doc.Range(start, start + text.length);
+    }
+    if (location === "start") {
+      const r = doc.Range(0, 0);
+      r.InsertAfter(text);
+      return doc.Range(0, Math.min(text.length, Math.max(0, doc.Content.End - 1)));
+    }
+    if (location === "selection") {
+      // 宿主无选区时退回文档开头，与旧实现一致
+      const r = doc.Range(0, 0);
+      r.InsertAfter(text);
+      return doc.Range(0, Math.min(text.length, Math.max(0, doc.Content.End - 1)));
+    }
+    const endPos = doc.Content.End > 1 ? doc.Content.End - 1 : 0;
+    const newPara = doc.Paragraphs.Add(doc.Range(endPos, endPos));
+    newPara.Range.Text = text;
+    return newPara.Range;
+  }
+
+  function wordApplyLineFormat(doc, range, type, formatting) {
+    if (type === "heading1") {
+      try { range.Style = doc.Styles.Item(-2); } catch (e) { range.Font.Bold = true; range.Font.Size = 22; }
+    } else if (type === "heading2") {
+      try { range.Style = doc.Styles.Item(-3); } catch (e) { range.Font.Bold = true; range.Font.Size = 16; }
+    } else if (type === "heading3") {
+      try { range.Style = doc.Styles.Item(-4); } catch (e) { range.Font.Bold = true; range.Font.Size = 14; }
+    } else if (type === "bullet_list") {
+      try { range.ListFormat.ApplyBulletDefault(); } catch (e) {}
+    } else if (type === "quote") {
+      try {
+        range.Font.Italic = true;
+        range.ParagraphFormat.LeftIndent = 28;
+      } catch (e) {}
+    } else if (type === "code_block") {
+      try {
+        range.Font.NameFarEast = "Consolas";
+        range.Font.NameAscii = "Consolas";
+        range.Font.Size = 10.5;
+      } catch (e) {}
+    }
+
+    if (formatting && typeof formatting === "object") {
+      if (formatting.bold !== undefined) range.Font.Bold = Boolean(formatting.bold);
+      if (formatting.italic !== undefined) range.Font.Italic = Boolean(formatting.italic);
+      if (formatting.fontSizePt !== undefined) range.Font.Size = Number(formatting.fontSizePt);
+      if (formatting.fontName) {
+        range.Font.NameFarEast = formatting.fontName;
+        range.Font.NameAscii = formatting.fontName;
+      }
+      if (formatting.alignment !== undefined) range.ParagraphFormat.Alignment = Number(formatting.alignment);
+      if (formatting.firstLineIndentChars !== undefined) range.ParagraphFormat.CharacterUnitFirstLineIndent = Number(formatting.firstLineIndentChars);
+      if (formatting.lineSpacingPt !== undefined) {
+        range.ParagraphFormat.LineSpacingRule = 4;
+        range.ParagraphFormat.LineSpacing = Number(formatting.lineSpacingPt);
+      }
+      if (formatting.spaceBeforePt !== undefined) range.ParagraphFormat.SpaceBefore = Number(formatting.spaceBeforePt);
+      if (formatting.spaceAfterPt !== undefined) range.ParagraphFormat.SpaceAfter = Number(formatting.spaceAfterPt);
+    } else if (!type || type === "paragraph") {
+      // 普通正文默认强制消除前文加粗继承
+      try { range.Font.Bold = false; } catch (e) {}
+    }
   }
 
   function wordWriteContent(app, params) {
     const { documentName, location, targetBookmark, paragraphIndex, type, content, formatting } = params || {};
     const doc = getWordDocument(app, documentName);
     const wordApp = getWordApp() || app;
-    let targetRange = null;
+    const loc = location || "end";
 
-    if (location === "start") {
-      targetRange = doc.Range(0, 0);
-    } else if (location === "selection" && wordApp.Selection) {
-      targetRange = wordApp.Selection.Range;
-    } else if (location === "bookmark" && targetBookmark) {
-      if (doc.Bookmarks.Exists(targetBookmark)) {
-        targetRange = doc.Bookmarks.Item(targetBookmark).Range;
-      } else {
-        targetRange = doc.Range(doc.Content.End - 1, doc.Content.End - 1);
+    // 书签不存在时**显式拒绝**，不再静默落到文末（旧实现会给出 success，调用方无从发现）
+    if (loc === "bookmark") {
+      if (!targetBookmark) throw new Error("location=bookmark 必须提供 targetBookmark（书签名称）");
+      if (!doc.Bookmarks.Exists(targetBookmark)) {
+        const names = [];
+        try {
+          for (let i = 1; i <= doc.Bookmarks.Count; i++) names.push(doc.Bookmarks.Item(i).Name);
+        } catch (e) {}
+        throw new Error(
+          `书签 [${targetBookmark}] 在此文档中不存在，未写入任何内容（拒绝静默落到文末）。` +
+          (names.length ? `现有书签：${names.join("、")}` : "当前文档没有任何书签，请先用 wps_execute_script 的 doc.Bookmarks.Add 创建。")
+        );
       }
-    } else if (location === "after_paragraph" && paragraphIndex) {
-      const p = doc.Paragraphs.Item(Number(paragraphIndex));
-      targetRange = doc.Range(p.Range.End, p.Range.End);
-    } else {
-      const endPos = doc.Content.End > 1 ? doc.Content.End - 1 : 0;
-      targetRange = doc.Range(endPos, endPos);
+    }
+    if (loc === "after_paragraph" && !paragraphIndex) {
+      throw new Error("location=after_paragraph 必须提供 paragraphIndex（1-based 段落序号）");
     }
 
     const lines = Array.isArray(content) ? content : [String(content || "")];
-    for (const text of lines) {
-      if (!text) continue;
-      const newPara = doc.Paragraphs.Add(targetRange);
-      newPara.Range.Text = text + "\n";
+    const nonEmpty = lines.filter(t => t !== undefined && t !== null && String(t) !== "");
+    if (nonEmpty.length === 0) {
+      throw new Error("content 为空，未写入任何内容");
+    }
 
-      if (type === "heading1") {
-        try { newPara.Range.Style = doc.Styles.Item(-2); } catch (e) { newPara.Range.Font.Bold = true; newPara.Range.Font.Size = 22; }
-      } else if (type === "heading2") {
-        try { newPara.Range.Style = doc.Styles.Item(-3); } catch (e) { newPara.Range.Font.Bold = true; newPara.Range.Font.Size = 16; }
-      } else if (type === "heading3") {
-        try { newPara.Range.Style = doc.Styles.Item(-4); } catch (e) { newPara.Range.Font.Bold = true; newPara.Range.Font.Size = 14; }
-      } else if (type === "bullet_list") {
-        try { newPara.Range.ListFormat.ApplyBulletDefault(); } catch (e) {}
-      } else if (type === "quote") {
-        try {
-          newPara.Range.Font.Italic = true;
-          newPara.Format.LeftIndent = 28;
-        } catch (e) {}
-      }
-
-      // 精确控制排版并主动断开加粗继承污染
-      if (formatting && typeof formatting === "object") {
-        if (formatting.bold !== undefined) newPara.Range.Font.Bold = Boolean(formatting.bold);
-        if (formatting.italic !== undefined) newPara.Range.Font.Italic = Boolean(formatting.italic);
-        if (formatting.fontSizePt !== undefined) newPara.Range.Font.Size = Number(formatting.fontSizePt);
-        if (formatting.fontName) {
-          newPara.Range.Font.NameFarEast = formatting.fontName;
-          newPara.Range.Font.NameAscii = formatting.fontName;
+    const meta = { insertedParagraphs: [], bookmarkPreserved: undefined };
+    const writtenRanges = [];
+    for (const raw of nonEmpty) {
+      const text = String(raw);
+      // 先查宿主是否吞字符：旧构建曾在 Paragraphs.Add(targetRange) + Range.Text 路径上吞掉小写字母，
+      // 所以写入后按长度读回一次，长度不符就明确报错，而不是返回 success 让调用方踩坑（ISS-67）。
+      const range = wordWriteOneLine(doc, wordApp, loc, targetBookmark, paragraphIndex, text, meta);
+      wordApplyLineFormat(doc, range, type, formatting);
+      writtenRanges.push(range);
+      try {
+        const readBack = (range.Text || "").replace(/[\r\n\x07]/g, "");
+        if (readBack.length !== text.length) {
+          throw new Error(
+            `写入后读回长度不一致：写入 ${text.length} 个字符，读回 ${readBack.length} 个。` +
+            `疑似宿主在 Range 文本赋值时吞字符；请勿重试覆盖，先读回核对，或改用 wps_execute_script 的 Range.InsertAfter。`
+          );
         }
-        if (formatting.alignment !== undefined) newPara.Format.Alignment = Number(formatting.alignment);
-        if (formatting.firstLineIndentChars !== undefined) newPara.Format.CharacterUnitFirstLineIndent = Number(formatting.firstLineIndentChars);
-        if (formatting.lineSpacingPt !== undefined) {
-          newPara.Format.LineSpacingRule = 4;
-          newPara.Format.LineSpacing = Number(formatting.lineSpacingPt);
-        }
-        if (formatting.spaceBeforePt !== undefined) newPara.Format.SpaceBefore = Number(formatting.spaceBeforePt);
-        if (formatting.spaceAfterPt !== undefined) newPara.Format.SpaceAfter = Number(formatting.spaceAfterPt);
-      } else if (!type || type === "paragraph") {
-        // 普通正文默认强制消除前文加粗继承
-        try {
-          newPara.Range.Font.Bold = false;
-        } catch (e) {}
+      } catch (e) {
+        if (/疑似宿主在 Range 文本赋值时吞字符/.test(e.message)) throw e;
       }
-
-      targetRange = doc.Range(doc.Content.End - 1, doc.Content.End - 1);
+      meta.insertedParagraphs.push({
+        textLength: text.length,
+        start: range.Start,
+        end: range.End,
+        style: (() => { try { return range.Style ? range.Style.NameLocal : undefined; } catch (e) { return undefined; } })()
+      });
     }
 
     return {
       success: true,
       documentName: doc.Name,
-      insertedLines: lines.length,
-      location: location || "end",
+      insertedLines: nonEmpty.length,
+      location: loc,
       type: type || "paragraph",
-      message: `已成功向 [${doc.Name}] 写入 ${lines.length} 行内容`
+      insertedParagraphs: meta.insertedParagraphs,
+      bookmarkRange: loc === "bookmark" ? meta.bookmarkRange : undefined,
+      bookmarkPreserved: loc === "bookmark" ? meta.bookmarkPreserved : undefined,
+      message: loc === "bookmark"
+        ? `已在书签 [${targetBookmark}] 所在段落之后写入 ${nonEmpty.length} 行内容` +
+          (meta.bookmarkPreserved === false ? `；注意：宿主在插入过程中丢弃了该书签，需重建` : "")
+        : `已成功向 [${doc.Name}] 写入 ${nonEmpty.length} 行内容`
     };
   }
 
@@ -4136,39 +4490,223 @@
     }
   }
 
-  function wordPageLayoutAndWatermark(app, params) {
-    const { documentName, headerText, footerText, differentFirstPage, differentOddEvenPages, watermarkText } = params || {};
-    const doc = getWordDocument(app, documentName);
-    const section = doc.Sections.Item(1);
+  // 页码格式 → 页脚页码域。
+  //
+  // 真实宿主实测（WPS for Mac 12.0 / 12.1.28496）：
+  //   - ✅ 唯一可用入口是 `Footers.Item(1).PageNumbers.Add(Alignment, FirstPage)`：
+  //     调用后页脚出现真 PAGE 域，可读回 `footer.Range.Fields.Item(1).Code.Text === " PAGE "`；
+  //   - ❌ `doc.Fields.Add(range, 33)` 传页脚范围时**静默返回 null、页脚一个域都不加**；
+  //   - ❌ `footer.Range.InsertAfter("文字")` 在页脚 story 上被宿主静默丢弃（页脚文本仍为空）；
+  //   - ❌ `footer.Range.InsertXML(<w:p>…fldChar/PAGE…)` 同样无效。
+  // 因此只有 'simple'（纯页码）能可靠实现；'dash' / 'page_of_pages' 需要额外文字或 NUMPAGES 域，
+  // 本机做不到，**显式拒绝**并给出可用替代写法，而不是静默降级成纯页码。
+  function wordSetPageNumberFormat(doc, section, format, label) {
+    const fmt = String(format || "").toLowerCase();
+    if (fmt !== "simple") {
+      return {
+        ok: false,
+        unsupported: true,
+        error:
+          `pageNumberFormat='${fmt}' 在当前宿主（WPS for Mac）上无法实现。` +
+          `宿主只在页脚支持“纯页码”一种写法（可通过 Footers.Item(1).PageNumbers.Add 建真 PAGE 域）；` +
+          `页脚的文字拼接与 NUMPAGES 域均被宿主静默丢弃（footer.Range.InsertAfter 与 InsertXML 实测无效）。` +
+          `请改用 pageNumberFormat='simple'；需要 "- 1 -" 或 "1 / 5" 这类格式请在 Word 内手动插入页码后自行编辑，` +
+          `或由调用方在 Windows/COM 通道处理。`
+      };
+    }
+    let footer;
+    try {
+      footer = section.Footers.Item(1);
+      if (footer.LinkToPrevious) footer.LinkToPrevious = false;
+    } catch (e) {
+      return { ok: false, error: `无法访问页脚: ${e.message}` };
+    }
+    try {
+      footer.Range.Text = "";
+      // wdAlignPageNumberCenter = 1；FirstPage = true
+      footer.PageNumbers.Add(1, true);
+      const fieldCount = (() => { try { return footer.Range.Fields.Count; } catch (e) { return 0; } })();
+      const codes = [];
+      try {
+        for (let k = 1; k <= fieldCount; k++) codes.push((footer.Range.Fields.Item(k).Code.Text || "").trim());
+      } catch (e) {}
+      const readText = (footer.Range.Text || "").replace(/[\r\n\x07]/g, "");
+      if (!fieldCount || !codes.some(c => /^PAGE\b/.test(c))) {
+        return { ok: false, error: `页脚页码域写入后读回为 ${fieldCount} 个域（section ${label}），页码未生效`, footerText: readText };
+      }
+      return {
+        ok: true,
+        format: "simple",
+        footerText: readText,
+        fieldCount: fieldCount,
+        fieldCodes: codes,
+        pageNumberCount: (() => { try { return footer.PageNumbers.Count; } catch (e) { return null; } })()
+      };
+    } catch (e) {
+      return { ok: false, error: `写入页码域失败: ${e.message}` };
+    }
+  }
 
+  // 水印：优先尝试"页眉层"（跨页可见），失败则回退正文层并给出告警。
+  //
+  // 已实测的宿主事实（WPS for Mac 12.0 / 12.1.28496）：
+  //   - `section.Headers.Item(1).Shapes.AddTextEffect(...)` **会静默把形状加到正文层**：
+  //     调用后 `header.Shapes.Count` 恒为 0、`doc.Shapes.Count` +1（同一形状对象）；
+  //   - `header.Range.ShapeRange.AddTextEffect` 是 undefined（"is not a function"）；
+  //   - `Range.InsertXML`（VML `<w:pict>`）对页眉 story 无效，页眉 XML 长度不变；
+  //   - `doc.Shapes.AddTextEffect` 落正文层：正文层浮动图形**只在第 1 页渲染**，不是"每页可见"。
+  // 因此这里如实返回 placement，并把"跨页水印需另想办法"写进 warnings。
+  function wordAddWatermarkToSection(doc, section, text, colorHex, pageSetup, warnings, sectionIndex) {
+    const fontSize = 54;
+    const shapeColor = hexToExcelColor(colorHex || "#C0C0C0") || 0xc0c0c0;
+    let shape = null;
+    let placement = "body";
+
+    // 路径 1：页眉层
+    try {
+      const header = section.Headers.Item(1);
+      header.Shapes.AddTextEffect(0, text, "Microsoft YaHei", fontSize, false, false, 0, 0);
+      let headerCount = 0;
+      try { headerCount = header.Shapes.Count; } catch (e) {}
+      if (headerCount > 0) {
+        placement = "header";
+        try { shape = header.Shapes.Item(headerCount); } catch (e) {}
+      }
+    } catch (e) {
+      warnings.push(`第 ${sectionIndex} 节页眉层水印写入失败：${e.message}`);
+    }
+
+    // 路径 2：正文层（页眉层不可用时的回退；宿主会把页眉 Shapes 的写入落到这里）
+    if (!shape) {
+      try {
+        shape = doc.Shapes.AddTextEffect(0, text, "Microsoft YaHei", fontSize, false, false, 0, 0);
+        placement = "body";
+      } catch (e) {
+        warnings.push(`第 ${sectionIndex} 节水印创建失败：${e.message}`);
+        return { ok: false, error: e.message };
+      }
+    }
+
+    let geometry = null;
+    try {
+      shape.Rotation = -315;
+      try { shape.Fill.Transparency = 0.85; } catch (e) {}
+      try { shape.Fill.ForeColor.RGB = shapeColor; } catch (e) {}
+      try { shape.Line.Visible = false; } catch (e) {}
+      try { shape.WrapFormat.Type = 3; } catch (e) {}
+      // 居中：先把版式设为"相对页面"，再按页面尺寸居中（属性名在 WPS 上为 Range.ParagraphFormat 同族对象）
+      const pw = pageSetup.pageWidth, ph = pageSetup.pageHeight;
+      const w = Number(shape.Width) || 0, h = Number(shape.Height) || 0;
+      shape.Left = Math.round(((pw - w) / 2) * 100) / 100;
+      shape.Top = Math.round(((ph - h) / 2) * 100) / 100;
+      geometry = { left: shape.Left, top: shape.Top, width: shape.Width, height: shape.Height, rotation: shape.Rotation };
+    } catch (e) {
+      warnings.push(`第 ${sectionIndex} 节水印属性设置部分失败：${e.message}`);
+    }
+
+    return {
+      ok: true,
+      sectionIndex: sectionIndex,
+      placement: placement,
+      shapeName: (() => { try { return shape.Name; } catch (e) { return undefined; } })(),
+      geometry: geometry
+    };
+  }
+
+  function wordPageLayoutAndWatermark(app, params) {
+    const { documentName, headerText, footerText, pageNumberFormat, differentFirstPage, differentOddEvenPages, watermarkText, watermarkColor } = params || {};
+    const doc = getWordDocument(app, documentName);
+    const warnings = [];
+    const sectionCount = doc.Sections.Count;
+
+    if (headerText === undefined && footerText === undefined && pageNumberFormat === undefined && watermarkText === undefined &&
+        differentFirstPage === undefined && differentOddEvenPages === undefined) {
+      throw new Error("headerText / footerText / pageNumberFormat / watermarkText / differentFirstPage / differentOddEvenPages 至少传一项，否则本调用不产生任何变化");
+    }
+
+    // 文档级选项
     if (differentFirstPage !== undefined) doc.PageSetup.DifferentFirstPageHeaderFooter = differentFirstPage;
     if (differentOddEvenPages !== undefined) doc.PageSetup.OddAndEvenPagesHeaderFooter = differentOddEvenPages;
 
-    if (headerText !== undefined) {
-      try { section.Headers.Item(1).Range.Text = headerText; } catch (e) {}
+    const appliedSections = [];
+    for (let i = 1; i <= sectionCount; i++) {
+      const section = doc.Sections.Item(i);
+      const entry = { sectionIndex: i, header: false, footer: false, pageNumberFormat: null, watermark: null };
+
+      if (headerText !== undefined) {
+        try {
+          const header = section.Headers.Item(1);
+          header.Range.Text = String(headerText);
+          entry.header = true;
+          entry.headerText = (header.Range.Text || "").replace(/[\r\n\x07]/g, "");
+        } catch (e) {
+          warnings.push(`第 ${i} 节页眉写入失败：${e.message}`);
+        }
+      }
+      if (footerText !== undefined) {
+        try {
+          const footer = section.Footers.Item(1);
+          footer.Range.Text = String(footerText);
+          entry.footer = true;
+          entry.footerText = (footer.Range.Text || "").replace(/[\r\n\x07]/g, "");
+        } catch (e) {
+          warnings.push(`第 ${i} 节页脚写入失败：${e.message}`);
+        }
+      }
+      if (pageNumberFormat !== undefined) {
+        const pn = wordSetPageNumberFormat(doc, section, pageNumberFormat, i);
+        if (pn.ok) {
+          entry.pageNumberFormat = { format: pn.format, footerText: pn.footerText, fieldCount: pn.fieldCount, fieldCodes: pn.fieldCodes, pageNumberCount: pn.pageNumberCount };
+        } else {
+          entry.pageNumberFormat = { format: String(pageNumberFormat).toLowerCase(), applied: false, error: pn.error };
+          warnings.push(`第 ${i} 节页码未写入：${pn.error}`);
+        }
+      }
+      if (watermarkText) {
+        const ps = (() => {
+          try {
+            return { pageWidth: Number(doc.PageSetup.PageWidth) || 0, pageHeight: Number(doc.PageSetup.PageHeight) || 0 };
+          } catch (e) { return { pageWidth: 0, pageHeight: 0 }; }
+        })();
+        const wm = wordAddWatermarkToSection(doc, section, String(watermarkText), watermarkColor, ps, warnings, i);
+        if (wm.ok) entry.watermark = wm;
+      }
+
+      appliedSections.push(entry);
     }
 
-    if (footerText !== undefined) {
-      try { section.Footers.Item(1).Range.Text = footerText; } catch (e) {}
-    }
-
-    if (watermarkText) {
-      try {
-        const newShape = doc.Shapes.AddTextEffect(0, watermarkText, "Microsoft YaHei", 54, false, false, 100, 200);
-        newShape.Rotation = -315;
-        newShape.Fill.Transparency = 0.85;
-        newShape.Line.Visible = false;
-        newShape.WrapFormat.Type = 3;
-      } catch (e) {}
+    if (watermarkText && sectionCount > 1) {
+      warnings.push(
+        `水印已按 ${sectionCount} 个节分别写入，但宿主 WPS for Mac 无法把形状放进页眉层` +
+        `（Headers.Shapes 的写入会静默落到正文层），因此水印仍是**正文层浮动图形**：` +
+        `实测只在第 1 页渲染，不是"每页可见"。跨页水印需在 Word 内手动插入（插入 → 水印），` +
+        `或由调用方在 Windows/COM 通道用 Section.Headers.Shapes 处理。`
+      );
+    } else if (watermarkText) {
+      warnings.push(
+        `水印落在正文层（宿主 WPS for Mac 的 Headers.Shapes 写入会静默落到正文层）：` +
+        `正文层浮动图形只在第 1 页渲染，不是"每页可见"。跨页水印需在 Word 内手动插入（插入 → 水印），` +
+        `或改用 Windows/COM 通道。`
+      );
     }
 
     return {
       success: true,
       documentName: doc.Name,
+      sectionCount: sectionCount,
+      appliedSections: appliedSections,
       header: headerText,
       footer: footerText,
+      pageNumberFormat: pageNumberFormat || undefined,
       watermark: watermarkText || undefined,
-      message: `已成功更新 [${doc.Name}] 页面版式与水印`
+      warnings: warnings,
+      message:
+        `已更新 [${doc.Name}] 页面版式：${sectionCount} 个节` +
+        (headerText !== undefined ? "，页眉" : "") +
+        (footerText !== undefined ? "，页脚" : "") +
+        (pageNumberFormat !== undefined ? `，页码(${pageNumberFormat})` : "") +
+        (watermarkText ? "，水印" : "") +
+        (warnings.length ? `；有 ${warnings.length} 条告警，请逐条查看 warnings` : "")
     };
   }
 
@@ -4796,39 +5334,178 @@
     };
   }
 
+  // 幻灯片页码校验：宿主对越界页码会抛内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），
+  // 调用方看不出是哪一页越界（问题台账 ISS-79）。这里统一前置校验并给中文上下文。
+  function pptRequireSlideIndex(pres, slideIndex, actionLabel) {
+    const total = pres.Slides.Count;
+    const idx = Number(slideIndex);
+    if (!slideIndex || !Number.isFinite(idx) || Math.floor(idx) !== idx) {
+      throw new Error(`${actionLabel} 需要提供整数 slideIndex（1-based）；当前文稿共 ${total} 页`);
+    }
+    if (total === 0) {
+      throw new Error(`${actionLabel} 失败：当前文稿一页都没有，请先用 action='add' 新增幻灯片`);
+    }
+    if (idx < 1 || idx > total) {
+      throw new Error(`${actionLabel} 的 slideIndex=${idx} 越界：当前文稿 [${pres.Name}] 共 ${total} 页，有效范围 1~${total}`);
+    }
+    return idx;
+  }
+
+  function pptSavePresentation(app, params) {
+    const { presentationName, filePath, format } = params || {};
+    const pres = getPptPresentation(app, presentationName);
+    const fmt = String(format || "").toLowerCase();
+    const target = filePath ? String(filePath) : null;
+
+    if (target && (fmt === "pdf" || target.toLowerCase().endsWith(".pdf"))) {
+      // ppSaveAsPDF = 32；ExportAsFixedFormat(Path, FixedFormatType=2 表示 PDF)
+      try {
+        pres.ExportAsFixedFormat(target, 2);
+      } catch (e) {
+        pres.SaveAs(target, 32);
+      }
+      return {
+        success: true,
+        presentationName: pres.Name,
+        savedPath: target,
+        format: "pdf",
+        message: `演示文稿 [${pres.Name}] 已导出为 PDF: ${target}`
+      };
+    }
+
+    if (target) {
+      try {
+        pres.SaveAs(target);
+      } catch (e) {
+        pres.SaveAs(target, 24);
+      }
+      return {
+        success: true,
+        presentationName: pres.Name,
+        savedPath: target,
+        format: "pptx",
+        message: `演示文稿 [${pres.Name}] 已另存为: ${target}`
+      };
+    }
+
+    // 未命名的演示文稿：先判 Path 再决定要不要调 Save。
+    // 实测（WPS for Mac 12.0）：对未命名文稿调用 `pres.Save()` **不抛错**，可能弹出"另存为"对话框；
+    // 在宿主里弹模态框会卡住后续 RPC，因此这里不盲目调用，直接要求 filePath。
+    let savePath = null;
+    try { savePath = pres.Path ? String(pres.Path) : null; } catch (e) { savePath = null; }
+    if (!savePath) {
+      return {
+        success: false,
+        presentationName: pres.Name,
+        savedPath: null,
+        hostError: "Presentation.Path 为空：该文稿尚未保存到磁盘",
+        attempts: [{ action: "save", ok: false, hostError: "文稿没有文件路径，未调用 Presentation.Save（未命名文稿的 Save 可能弹另存为对话框并阻塞自动化）" }],
+        message: `演示文稿 [${pres.Name}] 尚未保存到磁盘，无法原地保存；请提供 filePath 走另存为（例如 /Users/.../方案.pptx）`
+      };
+    }
+
+    pres.Save();
+    const verified = (() => { try { return Number(pres.Saved) !== 0; } catch (e) { return null; } })();
+    const fullName = (() => { try { return pres.FullName || null; } catch (e) { return null; } })();
+    return {
+      success: true,
+      presentationName: pres.Name,
+      savedPath: fullName || (savePath.replace(/[\\/]+$/, "") + "/" + pres.Name),
+      format: "pptx",
+      hostError: verified === false ? "保存后 Presentation.Saved 读回 false，落盘结果未确认" : undefined,
+      verifiedSavedFlag: verified,
+      message: `演示文稿 [${pres.Name}] 已原地保存（保存标记 Saved=${verified}）`
+    };
+  }
+
   function pptManageSlides(app, params) {
-    const { presentationName, action, slideIndex, targetIndex, layoutIndex, backgroundColor } = params || {};
+    const { presentationName, action, slideIndex, targetIndex, layoutIndex, backgroundColor, filePath, format, isVisible } = params || {};
+
+    // 新建演示文稿：不需要预先存在的目标文稿，先处理
+    if (action === "new_presentation") {
+      const pptApp = getPptApp() || app;
+      if (!pptApp) throw new Error("WPS 演示 (PowerPoint) 未就绪");
+      const created = pptApp.Presentations.Add();
+      try { if (isVisible !== false && created.Application) created.Application.Visible = true; } catch (e) {}
+      let savedPath = null;
+      if (filePath) {
+        try { created.SaveAs(String(filePath)); savedPath = String(filePath); } catch (e) { savedPath = null; }
+      }
+      return {
+        success: true,
+        presentationName: created.Name,
+        slideCount: created.Slides ? created.Slides.Count : 0,
+        savedPath: savedPath,
+        appended: false,
+        message: savedPath
+          ? `已新建演示文稿 [${created.Name}] 并另存为 ${savedPath}`
+          : `已新建演示文稿 [${created.Name}]（尚未保存到磁盘；后续写入请显式传 presentationName）`
+      };
+    }
+
     const pres = getPptPresentation(app, presentationName);
 
     switch (action) {
+      case "save":
+      case "save_as":
+        return pptSavePresentation(app, { presentationName: presentationName, filePath: filePath, format: format });
       case "add": {
         const idx = slideIndex ? Number(slideIndex) : (pres.Slides.Count + 1);
+        if (slideIndex && (idx < 1 || idx > pres.Slides.Count + 1)) {
+          throw new Error(`add 的 slideIndex=${idx} 越界：当前共 ${pres.Slides.Count} 页，可在 1~${pres.Slides.Count + 1} 之间插入`);
+        }
         const lIndex = Number(layoutIndex) || 12;
         const newSlide = pres.Slides.Add(idx, lIndex);
-        return { success: true, presentationName: pres.Name, slideIndex: newSlide.SlideIndex, message: `已在位置 ${newSlide.SlideIndex} 新增幻灯片` };
+        return {
+          success: true,
+          presentationName: pres.Name,
+          slideIndex: newSlide.SlideIndex,
+          slideCount: pres.Slides.Count,
+          appended: true,
+          idempotent: false,
+          message: `已在位置 ${newSlide.SlideIndex} 新增幻灯片（追加型操作，重复调用会继续新增）`
+        };
       }
       case "delete": {
-        if (!slideIndex) throw new Error("delete 操作必须提供 slideIndex");
-        const idx = Number(slideIndex);
+        const idx = pptRequireSlideIndex(pres, slideIndex, "delete");
         const slide = pres.Slides.Item(idx);
         slide.Delete();
-        return { success: true, presentationName: pres.Name, deletedIndex: idx, message: `已成功删除第 ${idx} 页幻灯片` };
+        return {
+          success: true,
+          presentationName: pres.Name,
+          deletedIndex: idx,
+          slideCount: pres.Slides.Count,
+          message: `已成功删除第 ${idx} 页幻灯片（当前剩 ${pres.Slides.Count} 页）`
+        };
       }
       case "move": {
-        if (!slideIndex || !targetIndex) throw new Error("move 操作必须提供 slideIndex 与 targetIndex");
-        const slide = pres.Slides.Item(Number(slideIndex));
-        slide.MoveTo(Number(targetIndex));
-        return { success: true, presentationName: pres.Name, from: slideIndex, to: targetIndex, message: `幻灯片已移动至第 ${targetIndex} 页` };
+        const idx = pptRequireSlideIndex(pres, slideIndex, "move");
+        const to = Number(targetIndex);
+        if (!targetIndex || !Number.isFinite(to) || to < 1 || to > pres.Slides.Count) {
+          throw new Error(`move 的 targetIndex=${targetIndex} 越界：有效范围 1~${pres.Slides.Count}`);
+        }
+        const slide = pres.Slides.Item(idx);
+        slide.MoveTo(to);
+        return { success: true, presentationName: pres.Name, from: idx, to: to, slideCount: pres.Slides.Count, message: `幻灯片已从第 ${idx} 页移动到第 ${to} 页` };
       }
       case "duplicate": {
-        if (!slideIndex) throw new Error("duplicate 操作必须提供 slideIndex");
-        const slide = pres.Slides.Item(Number(slideIndex));
+        const idx = pptRequireSlideIndex(pres, slideIndex, "duplicate");
+        const slide = pres.Slides.Item(idx);
         slide.Duplicate();
-        return { success: true, presentationName: pres.Name, originalIndex: slideIndex, message: `已成功克隆第 ${slideIndex} 页幻灯片` };
+        return {
+          success: true,
+          presentationName: pres.Name,
+          originalIndex: idx,
+          slideCount: pres.Slides.Count,
+          appended: true,
+          idempotent: false,
+          message: `已克隆第 ${idx} 页幻灯片（追加型操作，重复调用会继续克隆）`
+        };
       }
       case "set_background": {
-        if (!slideIndex || !backgroundColor) throw new Error("set_background 操作必须提供 slideIndex 与 backgroundColor");
-        const slide = pres.Slides.Item(Number(slideIndex));
+        const idx = pptRequireSlideIndex(pres, slideIndex, "set_background");
+        if (!backgroundColor) throw new Error("set_background 操作必须提供 backgroundColor");
+        const slide = pres.Slides.Item(idx);
         const total = pres.Slides.Count;
 
         // 读回背景色的辅助：不同宿主返回的 RGB 可能是 number 也可能是其它形态，统一成 "R,G,B"
@@ -4840,8 +5517,8 @@
             return r + "," + g + "," + b;
           } catch (e) { return null; }
         };
-        const neighbourIndex = Number(slideIndex) === 1 ? Math.min(2, total) : Number(slideIndex) - 1;
-        const neighbourBefore = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+        const neighbourIndex = idx === 1 ? Math.min(2, total) : idx - 1;
+        const neighbourBefore = neighbourIndex !== idx ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
 
         // 关键：该页若仍"跟随母版背景"，`slide.Background` 可能指向母版对象，写入会**串改全部页**
         // （问题台账 ISS-87，受控复现：设第 1 页后第 2 页也变红）。先显式断开与母版的关联再写。
@@ -4851,7 +5528,7 @@
 
         // 写后校验：目标页确实变了，且相邻页**没有被串改**
         const applied = readRgb(slide);
-        const neighbourAfter = neighbourIndex !== Number(slideIndex) ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
+        const neighbourAfter = neighbourIndex !== idx ? readRgb(pres.Slides.Item(neighbourIndex)) : null;
         if (neighbourBefore !== null && neighbourAfter !== null && neighbourBefore !== neighbourAfter) {
           throw new Error(
             `设置背景时串改了相邻页：第 ${neighbourIndex} 页背景由 ${neighbourBefore} 变成了 ${neighbourAfter}。` +
@@ -4861,10 +5538,10 @@
         return {
           success: true,
           presentationName: pres.Name,
-          slideIndex,
+          slideIndex: idx,
           backgroundColor,
           appliedRgb: applied,
-          neighbourChecked: neighbourIndex !== Number(slideIndex) ? { slideIndex: neighbourIndex, before: neighbourBefore, after: neighbourAfter } : null,
+          neighbourChecked: neighbourIndex !== idx ? { slideIndex: neighbourIndex, before: neighbourBefore, after: neighbourAfter } : null,
           message: `已将第 ${slideIndex} 页背景设为 ${backgroundColor}`
         };
       }
@@ -5006,6 +5683,36 @@
       ...pptPageSize(pres),
       shapeCount: count,
       shapes,
+      // 版式与占位符读回（ISS-44）：宿主目前无法区分矩形/圆角/椭圆（typeCode 都是 1），
+      // 但占位符（typeCode 14）与所在版式名可读，用于核对"是否套用了正确版式"。
+      layout: (() => {
+        try {
+          return {
+            name: slide.CustomLayout ? slide.CustomLayout.Name : undefined,
+            layoutIndex: Number(slide.Layout),
+            placeholderCount: slide.Shapes.Placeholders ? slide.Shapes.Placeholders.Count : shapes.filter(s => s.typeCode === 14).length,
+            placeholders: (() => {
+              try {
+                const list = [];
+                const phCount = slide.Shapes.Placeholders.Count;
+                for (let p = 1; p <= phCount; p++) {
+                  const ph = slide.Shapes.Placeholders.Item(p);
+                  list.push({
+                    shapeId: ph.Id,
+                    name: ph.Name,
+                    placeholderType: (() => { try { return Number(ph.PlaceholderFormat.Type); } catch (e) { return undefined; } })(),
+                    hasText: Boolean(ph.HasTextFrame && ph.TextFrame.HasText),
+                    text: (() => { try { return ph.TextFrame.HasText ? String(ph.TextFrame.TextRange.Text).slice(0, 200) : ""; } catch (e) { return undefined; } })()
+                  });
+                }
+                return list;
+              } catch (e) { return []; }
+            })()
+          };
+        } catch (e) {
+          return { error: e.message };
+        }
+      })(),
       message: `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
     };
   }
@@ -5632,6 +6339,7 @@
     const { presentationName, slideIndex } = params || {};
     const pres = getPptPresentation(app, presentationName);
     const pptApp = getPptApp() || app;
+    const total = pres.Slides.Count;
     let idx = Number(slideIndex);
     if (!idx || isNaN(idx)) {
       try {
@@ -5641,30 +6349,59 @@
       } catch (e) {}
       if (!idx) idx = 1;
     }
+    if (total === 0) {
+      throw new Error(`capture_slide_preview 失败：演示文稿 [${pres.Name}] 一页都没有，没有可导出的幻灯片`);
+    }
+    if (Math.floor(idx) !== idx || idx < 1 || idx > total) {
+      throw new Error(`capture_slide_preview 的 slideIndex=${slideIndex} 越界：当前文稿 [${pres.Name}] 共 ${total} 页，有效范围 1~${total}`);
+    }
     const slide = pres.Slides.Item(idx);
 
-    const tempPngPath = params.outputPath;
-    if (!tempPngPath) throw new Error("缺少 Bridge 指定的预览输出路径");
-    try {
-      slide.Export(tempPngPath, "PNG", 1280, 720);
-      return {
-        success: true,
-        presentationName: pres.Name,
-        slideIndex: idx,
-        imagePath: tempPngPath,
-        hasImage: true,
-        message: `已成功导出第 ${idx} 页幻灯片高保真预览图至: ${tempPngPath}`
-      };
-    } catch (e) {
-      log(`幻灯片导出异常: ${e.message}`);
-      return {
-        success: false,
-        presentationName: pres.Name,
-        slideIndex: idx,
-        hasImage: false,
-        error: e.message
-      };
+    const primaryPath = params.outputPath ? String(params.outputPath) : null;
+    if (!primaryPath) throw new Error("缺少 Bridge 指定的预览输出路径（outputPath）");
+    // 同一 API 用脚本 `slide.Export(path,"PNG",1280,720)` 实测可用，但工具路径历史上 100% 报
+    // "PPT 未生成预览"（问题台账 ISS-76/ISS-86）：桥接侧把"文件没落盘"折成了兜底文案，
+    // 宿主原始错误被丢掉。这里改为**两条导出路径依次尝试**，并把每次尝试的宿主原始报错全部回传。
+    const attempts = [];
+    const tryExport = (path, withSize) => {
+      try {
+        if (withSize) slide.Export(path, "PNG", 1280, 720);
+        else slide.Export(path, "PNG");
+        attempts.push({ path: path, scale: withSize ? "1280x720" : "default", ok: true });
+        return true;
+      } catch (e) {
+        attempts.push({ path: path, scale: withSize ? "1280x720" : "default", ok: false, hostError: String(e && e.message ? e.message : e) });
+        return false;
+      }
+    };
+
+    const exportedPrimary = tryExport(primaryPath, true) || tryExport(primaryPath, false);
+    const exported = [primaryPath];
+
+    // 可选第二落点：调用方显式指定的 outputPath（网关转发的临时路径为 userOutputPath，
+    // 两者不同时一并写出，便于调用方自行取图）
+    const altPath = params.userOutputPath ? String(params.userOutputPath) : null;
+    if (altPath && altPath !== primaryPath) {
+      tryExport(altPath, true) || tryExport(altPath, false);
+      exported.push(altPath);
     }
+
+    const hostErrors = attempts.filter(a => !a.ok).map(a => `${a.path}（${a.scale}）: ${a.hostError}`);
+    // 加载项无文件系统访问，无法确认落盘；把原始返回完整回传，由桥接侧判定文件是否存在（ISS-86）
+    return {
+      success: exportedPrimary,
+      presentationName: pres.Name,
+      slideIndex: idx,
+      slideCount: total,
+      imagePath: primaryPath,
+      exportedPaths: exported,
+      hasImage: exportedPrimary,
+      hostError: hostErrors.length ? hostErrors.join(" | ") : undefined,
+      attempts: attempts,
+      message: exportedPrimary
+        ? `已导出第 ${idx} 页幻灯片预览图至: ${primaryPath}`
+        : `第 ${idx} 页幻灯片导出未成功；宿主对 ${attempts.length} 次导出尝试的原始报错见 hostError 与 attempts`
+    };
   }
 
   // ---------------------------------------------------------------------------

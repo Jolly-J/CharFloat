@@ -129,3 +129,18 @@ PPT（同一宿主）：
    要么在 Windows/COM 通道实现，要么在文档里写清替代流程。
 5. **`pageNumberFormat` 的 `dash` / `page_of_pages`**：`src/bridge/types.ts` 仍声明这两个取值，
    宿主实现不了。可选：网关层直接拒绝，或保持"接受但逐节返回 applied:false"。
+
+---
+
+## 6. 遗留清理（受沙箱限制，需使用者处理）
+
+本轮探针在 `~/Downloads/` 留下临时文件（**沙箱禁止写工作区外的路径，我删不掉**）：
+
+```
+probe-iss67-70.docx / probe-wm.docx / probe-wm.pdf / probe-wm-page1.{docx,pdf}
+probe-wm-anchorFirst_mark.{docx,pdf} / probe-wm-anchorLast_mark.{docx,pdf}
+probe-ppt-save.pptx / probe-ppt-slide.png / probe-ppt-slide2.png
+```
+
+用户文档 `测试文字文稿.docx` 全程只读（仅 `word_read_document`），未做任何写入。
+探针文稿已在 WPS 里全部关闭（未保存关闭）；`文字文稿7` 是其他任务的文稿，未动。

@@ -486,21 +486,34 @@
       };
     }
 
-    if (pres.Path && pres.Name) {
-      pres.Save();
+    // 未命名的演示文稿：先判 Path 再决定要不要调 Save。
+    // 实测（WPS for Mac 12.0）：对未命名文稿调用 `pres.Save()` **不抛错**，可能弹出"另存为"对话框；
+    // 在宿主里弹模态框会卡住后续 RPC，因此这里不盲目调用，直接要求 filePath。
+    let savePath = null;
+    try { savePath = pres.Path ? String(pres.Path) : null; } catch (e) { savePath = null; }
+    if (!savePath) {
       return {
-        success: true,
+        success: false,
         presentationName: pres.Name,
-        savedPath: String(pres.Path).replace(/[\\/]+$/, "") + "/" + pres.Name,
-        format: "pptx",
-        message: `演示文稿 [${pres.Name}] 已原地保存`
+        savedPath: null,
+        hostError: "Presentation.Path 为空：该文稿尚未保存到磁盘",
+        attempts: [{ action: "save", ok: false, hostError: "文稿没有文件路径，未调用 Presentation.Save（未命名文稿的 Save 可能弹另存为对话框并阻塞自动化）" }],
+        message: `演示文稿 [${pres.Name}] 尚未保存到磁盘，无法原地保存；请提供 filePath 走另存为（例如 /Users/.../方案.pptx）`
       };
     }
-    // 未命名的演示文稿：Save 在宿主上可能弹"另存为"对话框。这里不静默成功，直接要求 filePath。
-    throw new Error(
-      `演示文稿 [${pres.Name}] 尚未保存到磁盘（没有文件路径），无法原地保存；` +
-      `请提供 filePath 走另存为，或先在 WPS 里保存一次。`
-    );
+
+    pres.Save();
+    const verified = (() => { try { return Number(pres.Saved) !== 0; } catch (e) { return null; } })();
+    const fullName = (() => { try { return pres.FullName || null; } catch (e) { return null; } })();
+    return {
+      success: true,
+      presentationName: pres.Name,
+      savedPath: fullName || (savePath.replace(/[\\/]+$/, "") + "/" + pres.Name),
+      format: "pptx",
+      hostError: verified === false ? "保存后 Presentation.Saved 读回 false，落盘结果未确认" : undefined,
+      verifiedSavedFlag: verified,
+      message: `演示文稿 [${pres.Name}] 已原地保存（保存标记 Saved=${verified}）`
+    };
   }
 
   function pptManageSlides(app, params) {
@@ -1444,7 +1457,6 @@
 
     const primaryPath = params.outputPath ? String(params.outputPath) : null;
     if (!primaryPath) throw new Error("缺少 Bridge 指定的预览输出路径（outputPath）");
-
     // 同一 API 用脚本 `slide.Export(path,"PNG",1280,720)` 实测可用，但工具路径历史上 100% 报
     // "PPT 未生成预览"（问题台账 ISS-76/ISS-86）：桥接侧把"文件没落盘"折成了兜底文案，
     // 宿主原始错误被丢掉。这里改为**两条导出路径依次尝试**，并把每次尝试的宿主原始报错全部回传。
@@ -1464,7 +1476,8 @@
     const exportedPrimary = tryExport(primaryPath, true) || tryExport(primaryPath, false);
     const exported = [primaryPath];
 
-    // 可选第二落点：调用方显式指定的 outputPath（与桥接给的临时路径不同时一并写出）
+    // 可选第二落点：调用方显式指定的 outputPath（网关转发的临时路径为 userOutputPath，
+    // 两者不同时一并写出，便于调用方自行取图）
     const altPath = params.userOutputPath ? String(params.userOutputPath) : null;
     if (altPath && altPath !== primaryPath) {
       tryExport(altPath, true) || tryExport(altPath, false);

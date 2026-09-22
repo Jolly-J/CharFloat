@@ -100,16 +100,16 @@
 | ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | 待修（根因待隔离） | 宿主实现 |
 | ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修已验证** | 宿主实现 |
 | ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修已验证** | 宿主实现 |
-| ISS-70 | `write_content` 的 `location:"bookmark"` 没插到书签处，还污染了另一个书签范围 | 中 | 待修 | 宿主实现 |
+| ISS-70 | `write_content` 的 `location:"bookmark"` 没插到书签处，还污染了另一个书签范围 | 中 | **已修待验** | 宿主实现 |
 | ISS-71 | `wps_word_capture_preview` **已实现但未注册**（调用报"未知工具"），Word 视觉验收有缺口 | 中 | **部分完成**（skill 文档已如实说明不可用；工具注册待做） | 死分支（DP3 实例） |
-| ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | **已修待验** | 宿主实现 + 说明 |
 | ISS-73 | Word 侧无样式/书签/内容控件/交叉引用/分节/行列尺寸/文档属性工具，全需脚本 | 中 | 待修 | 工具能力缺口 |
 | ISS-74 | `native-scripting.md` 只有 Excel/PPT 示例，Word 表格/分节/样式零示例 | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-75 | `generate_deck` **原生图表数据写不进去**：`ser.Values=` 不生效也不抛错，图表显示宿主默认值，却返回 success | **高** | **已修待验** | 宿主实现 |
 | ISS-76 | `wps_ppt_capture_slide_preview` 恒 422"PPT 未生成预览"，但同一 API 用脚本可成功 → **真实错误被兜底文案替换** | 中高 | 待修 | 宿主实现 |
 | ISS-77 | **目标锁语义不一致**：宿主 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测 | **高** | 待修 | 架构不一致（解释 ISS-02） |
 | ISS-78 | PPT 无「新建/保存」工具；追加型工具**不幂等**且说明未写 | 中 | 待修 | 工具能力缺口 + 说明 |
-| ISS-79 | 越界页码报宿主内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），缺中文上下文 | 低 | 待修 | 错误文案 |
+| ISS-79 | 越界页码报宿主内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），缺中文上下文 | 低 | **已修待验** | 错误文案 |
 | ISS-80 | `insert_native_chart` **100% 失败**且文案误导：`AddChart/AddChart2/AddOLEObject` 都是 function 但返回 `null`、不建形状，报的却是"数据配置未完成" | **高** | **已修待验** | 宿主实现 |
 | ISS-81 | `generate_deck` 的 chart 布局同样失败，且**已插入的页不回滚**，留半成品 | 中高 | **已修待验** | 宿主实现 |
 | ISS-82 | `layoutIndex` 实为 **ppLayout 枚举**而非版式序号，越界（12）不报错 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
@@ -132,6 +132,10 @@
 | ISS-100 | MS 侧行列插入"**执行成功却返回失败**"（裸读未 load 的 `sheet.name`） | 中 | 已修（MS 侧） | 宿主实现 |
 | ISS-101 | MS 侧 ISS-96 的报错被"属性 name 不可用"盖掉（`load` 排在 `sync` 之后） | 中 | 已修（MS 侧） | 宿主实现 |
 | ISS-102 | MS 侧 `dataRanges` **多段实际只生效 1 段**（`setData` 是替换不是追加） | 中 | 已修（改为只取首段 + 如实 warnings） | 宿主实现 |
+| ISS-103 | `Range.Format` 在本机 WPS **不存在**（undefined）→ `write_content` 的 alignment / 行距 / 缩进**一直在静默失败** | **高** | 已修（改用 `Range.ParagraphFormat`） | 宿主实现 |
+| ISS-104 | WPS 的 `Headers.Item(1).Shapes.AddTextEffect` **静默把形状加到正文层**（header.Shapes.Count 恒 0）→ 跨页页眉水印**在 WPS 上无法实现**（宿主限制，已如实告警） | 中 | 不修（宿主不支持，已记录） | 宿主限制 |
+| ISS-105 | 网关 `ppt.ts:154` 用 `res?.error \|\| "PPT 未生成预览"` **覆盖掉宿主真实错误** | 中高 | 待修 | 响应转换 |
+| ISS-106 | 网关 `ppt.ts` 的 manageSlides **未转发 `filePath`/`format`**，schema 里的字段到不了宿主 | 中 | 待修 | 参数转发 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。

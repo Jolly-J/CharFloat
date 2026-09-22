@@ -198,12 +198,15 @@
             };
           } catch (e) { return { error: e.message }; }
         })();
-        // 该节内的水印形状（正文层 WordArt）；按 Name 以 WordArt 前缀识别
+        // 该节内（或未报到节归属）的水印形状（正文层 WordArt）；按 Name 以 WordArt 前缀识别。
+        // 逐个读 Anchor.Start 在超多形状文档上开销不小，限定最多扫 80 个并如实标注是否截断。
         entry.watermarkShapes = (() => {
           try {
             const list = [];
             const s0 = s.Range.Start, e0 = s.Range.End;
-            for (let k = 1; k <= doc.Shapes.Count; k++) {
+            const totalShapes = doc.Shapes.Count;
+            const limit = Math.min(totalShapes, 80);
+            for (let k = 1; k <= limit; k++) {
               const shp = doc.Shapes.Item(k);
               let anchorStart = null;
               try { anchorStart = shp.Anchor.Start; } catch (e) { anchorStart = null; }
@@ -218,7 +221,7 @@
                 });
               }
             }
-            return list;
+            return { totalShapes: totalShapes, scannedShapes: limit, truncated: totalShapes > limit, shapes: list };
           } catch (e) { return { error: e.message }; }
         })();
       } catch (e) {
@@ -545,14 +548,12 @@
         r.InsertAfter(text);
         return r;
       }
-      // 非折叠选区：原位替换所选内容（宿主 Range.Text 赋值同样不可靠，用 InsertAfter + Delete 组合）
+      // 非折叠选区：原位替换所选内容（宿主 Range.Text 赋值不可靠，用 InsertAfter 把新文本插到选区之后，
+      // 再删掉被推到后面的原选区文本；宿主探针实测：选区 "乙 " → "乙 替换后 abc"）
       const start = sel.Start;
       sel.InsertAfter(text);
-      doc.Range(start, start + text.length).InsertAfter("");
-      const removed = doc.Range(start + text.length, sel.End + text.length);
-      try { removed.Delete(); } catch (e) {}
-      const r2 = doc.Range(start, start + text.length);
-      return r2;
+      try { doc.Range(start + text.length, sel.End + text.length).Delete(); } catch (e) {}
+      return doc.Range(start, start + text.length);
     }
     if (location === "start") {
       const r = doc.Range(0, 0);
@@ -1129,10 +1130,30 @@
     }
   }
 
-  // 页码格式 → 页脚域组合。页码用真正的 PAGE / NUMPAGES 域写入，不用纯文本（纯文本不会随页变化）。
-  // 实测（WPS for Mac 12.0）：`doc.Fields.Add(range, 33)` → code " PAGE "；`33`=wdFieldPage，`26`=wdFieldNumPages。
+  // 页码格式 → 页脚页码域。
+  //
+  // 真实宿主实测（WPS for Mac 12.0 / 12.1.28496）：
+  //   - ✅ 唯一可用入口是 `Footers.Item(1).PageNumbers.Add(Alignment, FirstPage)`：
+  //     调用后页脚出现真 PAGE 域，可读回 `footer.Range.Fields.Item(1).Code.Text === " PAGE "`；
+  //   - ❌ `doc.Fields.Add(range, 33)` 传页脚范围时**静默返回 null、页脚一个域都不加**；
+  //   - ❌ `footer.Range.InsertAfter("文字")` 在页脚 story 上被宿主静默丢弃（页脚文本仍为空）；
+  //   - ❌ `footer.Range.InsertXML(<w:p>…fldChar/PAGE…)` 同样无效。
+  // 因此只有 'simple'（纯页码）能可靠实现；'dash' / 'page_of_pages' 需要额外文字或 NUMPAGES 域，
+  // 本机做不到，**显式拒绝**并给出可用替代写法，而不是静默降级成纯页码。
   function wordSetPageNumberFormat(doc, section, format, label) {
     const fmt = String(format || "").toLowerCase();
+    if (fmt !== "simple") {
+      return {
+        ok: false,
+        unsupported: true,
+        error:
+          `pageNumberFormat='${fmt}' 在当前宿主（WPS for Mac）上无法实现。` +
+          `宿主只在页脚支持“纯页码”一种写法（可通过 Footers.Item(1).PageNumbers.Add 建真 PAGE 域）；` +
+          `页脚的文字拼接与 NUMPAGES 域均被宿主静默丢弃（footer.Range.InsertAfter 与 InsertXML 实测无效）。` +
+          `请改用 pageNumberFormat='simple'；需要 "- 1 -" 或 "1 / 5" 这类格式请在 Word 内手动插入页码后自行编辑，` +
+          `或由调用方在 Windows/COM 通道处理。`
+      };
+    }
     let footer;
     try {
       footer = section.Footers.Item(1);
@@ -1142,32 +1163,25 @@
     }
     try {
       footer.Range.Text = "";
-      const anchor = footer.Range;
-      if (fmt === "dash") {
-        anchor.InsertAfter("- ");
-        const r = doc.Range(anchor.End - 1, anchor.End - 1);
-        doc.Fields.Add(r, 33, "", false);
-        const tail = doc.Range(r.End, r.End);
-        tail.InsertAfter(" -");
-      } else if (fmt === "page_of_pages") {
-        const r = doc.Range(anchor.End - 1, anchor.End - 1);
-        doc.Fields.Add(r, 33, "", false);
-        const mid = doc.Range(r.End, r.End);
-        mid.InsertAfter(" / ");
-        const r2 = doc.Range(mid.End, mid.End);
-        doc.Fields.Add(r2, 26, "", false);
-      } else if (fmt === "simple") {
-        const r = doc.Range(anchor.End - 1, anchor.End - 1);
-        doc.Fields.Add(r, 33, "", false);
-      } else {
-        return { ok: false, error: `未知的 pageNumberFormat: ${format}（支持 dash | simple | page_of_pages）` };
-      }
+      // wdAlignPageNumberCenter = 1；FirstPage = true
+      footer.PageNumbers.Add(1, true);
+      const fieldCount = (() => { try { return footer.Range.Fields.Count; } catch (e) { return 0; } })();
+      const codes = [];
+      try {
+        for (let k = 1; k <= fieldCount; k++) codes.push((footer.Range.Fields.Item(k).Code.Text || "").trim());
+      } catch (e) {}
       const readText = (footer.Range.Text || "").replace(/[\r\n\x07]/g, "");
-      const fieldCount = (() => { try { return footer.Range.Fields.Count; } catch (e) { return null; } })();
-      if (!fieldCount) {
-        return { ok: false, error: `页脚域写入后读回为 0 个域（section ${label}），页码可能未生效`, footerText: readText };
+      if (!fieldCount || !codes.some(c => /^PAGE\b/.test(c))) {
+        return { ok: false, error: `页脚页码域写入后读回为 ${fieldCount} 个域（section ${label}），页码未生效`, footerText: readText };
       }
-      return { ok: true, format: fmt, footerText: readText, fieldCount: fieldCount };
+      return {
+        ok: true,
+        format: "simple",
+        footerText: readText,
+        fieldCount: fieldCount,
+        fieldCodes: codes,
+        pageNumberCount: (() => { try { return footer.PageNumbers.Count; } catch (e) { return null; } })()
+      };
     } catch (e) {
       return { ok: false, error: `写入页码域失败: ${e.message}` };
     }
@@ -1282,9 +1296,10 @@
       if (pageNumberFormat !== undefined) {
         const pn = wordSetPageNumberFormat(doc, section, pageNumberFormat, i);
         if (pn.ok) {
-          entry.pageNumberFormat = { format: pn.format, footerText: pn.footerText, fieldCount: pn.fieldCount };
+          entry.pageNumberFormat = { format: pn.format, footerText: pn.footerText, fieldCount: pn.fieldCount, fieldCodes: pn.fieldCodes, pageNumberCount: pn.pageNumberCount };
         } else {
-          warnings.push(`第 ${i} 节页码写入失败：${pn.error}`);
+          entry.pageNumberFormat = { format: String(pageNumberFormat).toLowerCase(), applied: false, error: pn.error };
+          warnings.push(`第 ${i} 节页码未写入：${pn.error}`);
         }
       }
       if (watermarkText) {
