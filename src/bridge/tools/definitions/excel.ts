@@ -506,6 +506,9 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
+            fontName: { type: "string", description: "图表字体（标题/图例/坐标轴/数据标签统一设置），如「微软雅黑」" },
+            legendPosition: { type: "string", enum: ["right", "left", "top", "bottom"], description: "图例位置" },
+            dataLabelColorMatchesSeries: { type: "boolean", description: "数据标签文字颜色自动匹配所属柱/点的颜色" },
             chartIndex: { type: "number", description: "或用图表序号定位（从 1 开始）；多个图表时与 chartName 二选一" },
             chartType: { type: "string", description: "改图表类型：column / bar / line / pie / scatter / area，或直接传 xlChartType 整数" },
             hasLegend: { type: "boolean", description: "是否显示图例" },

@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 4f7b62fc97da92ff72b884f220c97beed6e8165ff6036b6d6032174720e466c5
+// ADDON_BUILD_FINGERPRINT: d2bd8f15cc2174d935ac106f6814f4495d1e7290b992e161911318e986aaf5f2
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "4f7b62fc97da92ff72b884f220c97beed6e8165ff6036b6d6032174720e466c5";
+  var ADDON_BUILD_FINGERPRINT = "d2bd8f15cc2174d935ac106f6814f4495d1e7290b992e161911318e986aaf5f2";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -3756,7 +3756,8 @@
   // `shape.Chart.ChartTitle.Text` 可读可写、`ChartType` 可改、系列可读。
   /** 就地更新已有图表：标题、图表类型、图例、数据标签。写后逐项读回核对。 */
   function updateChart(app, params) {
-    const { sheetName, workbookName, chartName, chartIndex, title, chartType, hasLegend, showDataLabels } = params || {};
+    const { sheetName, workbookName, chartName, chartIndex, title, chartType, hasLegend, showDataLabels,
+            fontName, legendPosition, dataLabelColorMatchesSeries } = params || {};
     const sheet = getWorksheet(app, sheetName, workbookName);
     try { sheet.Activate(); } catch (e) {}
 
@@ -3805,6 +3806,62 @@
     if (hasLegend !== undefined) {
       try { ch.HasLegend = Boolean(hasLegend); applied.hasLegend = Boolean(hasLegend); } catch (e) { warnings.push(`设置图例失败: ${e.message}`); }
     }
+    // 图表字体：标题/图例/坐标轴/数据标签统一换成指定字体
+    // （宿主默认走宋体，中英文混排观感差）
+    if (fontName) {
+      const f = String(fontName);
+      const setFont = (obj, label) => { try { obj.Font.Name = f; } catch (e) { warnings.push(`设置${label}字体失败: ${e.message}`); } };
+      try { setFont(ch.ChartArea, "图表区"); } catch (e) {}
+      try { if (ch.HasTitle) setFont(ch.ChartTitle, "标题"); } catch (e) {}
+      try { if (ch.HasLegend) setFont(ch.Legend, "图例"); } catch (e) {}
+      // 坐标轴字体要走 **TickLabels**：WPS 里  是 undefined（设不上），
+      // 刻度标签才挂得住 Font。真机探明：Axes().Item(n).TickLabels.Font 可读可写。
+      const setTickFont = (idx) => {
+        try {
+          const ax = ch.Axes().Item(idx);
+          ax.TickLabels.Font.Name = f;
+          return ax.TickLabels.Font.Name === f;
+        } catch (e) { return false; }
+      };
+      if (!setTickFont(1)) warnings.push("设置分类轴刻度字体失败");
+      if (!setTickFont(2)) warnings.push("设置数值轴刻度字体失败");
+      applied.fontName = f;
+    }
+
+    // 图例位置：xlLegendPositionRight=-4152 / Left=-4131 / Top=-4160 / Bottom=-4107
+    if (legendPosition !== undefined && legendPosition !== null && legendPosition !== "") {
+      const LP = { right: -4152, left: -4131, top: -4160, bottom: -4107 };
+      const key = String(legendPosition).toLowerCase();
+      const code = LP[key] !== undefined ? LP[key] : (Number.isFinite(Number(legendPosition)) ? Number(legendPosition) : undefined);
+      if (code === undefined) warnings.push(`不认识的 legendPosition: ${legendPosition}（可用 right/left/top/bottom）`);
+      else {
+        try { ch.HasLegend = true; ch.Legend.Position = code; applied.legendPosition = key; }
+        catch (e) { warnings.push(`设置图例位置失败: ${e.message}`); }
+      }
+    }
+
+    // 数据标签文字颜色与所属柱/点颜色一致
+    if (dataLabelColorMatchesSeries) {
+      let matched = 0;
+      try {
+        const sc = ch.SeriesCollection();
+        for (let i = 1; i <= Number(sc.Count); i++) {
+          const s = sc.Item(i);
+          let rgb = null;
+          try { rgb = Number(s.Format.Fill.ForeColor.RGB); } catch (e) {}
+          if (!Number.isFinite(rgb) || rgb < 0) { try { rgb = Number(s.Border.Color); } catch (e) {} }
+          if (!Number.isFinite(rgb) || rgb < 0) continue;
+          try {
+            s.HasDataLabels = true;
+            s.DataLabels().Font.Color = rgb;
+            matched++;
+          } catch (e) { warnings.push(`设置系列 ${i} 数据标签颜色失败: ${e.message}`); }
+        }
+      } catch (e) { warnings.push(`设置数据标签颜色失败: ${e.message}`); }
+      applied.dataLabelColorMatchesSeries = matched;
+      if (!matched) warnings.push("没有系列成功匹配到颜色，数据标签颜色未改");
+    }
+
     if (showDataLabels !== undefined) {
       // ⚠️ 不能用 `chart.ApplyDataLabels(0)` 关标签：真机实测它**关不掉**，
       // 但调用不报错——于是工具返回 success 而图表上标签仍在，属"假成功"。
