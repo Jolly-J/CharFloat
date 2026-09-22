@@ -53,6 +53,24 @@
         case "export_sheet_pdf":
           result = exportSheetPdf(app, params);
           break;
+        case "copy_range":
+          result = copyRange(app, params);
+          break;
+        case "manage_hyperlink":
+          result = manageHyperlink(app, params);
+          break;
+        case "manage_named_range":
+          result = manageNamedRange(app, params);
+          break;
+        case "manage_document_properties":
+          result = manageDocumentProperties(app, params);
+          break;
+        case "manage_table":
+          result = manageTable(app, params);
+          break;
+        case "manage_pictures":
+          result = managePictures(app, params);
+          break;
         case "set_sheet_view":
           result = setSheetView(app, params);
           break;

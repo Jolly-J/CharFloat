@@ -23,7 +23,9 @@ export const EXCEL_METHODS = [
   'update_chart', 'delete_chart', 'create_pivot_table', 'set_filter_and_sort', 'set_data_validation', 'manage_sheet',
   'manage_rows_and_columns', 'manage_cell_comments', 'find_and_replace', 'duplicate_sheet', 'capture_sheet_preview',
   'rollback_cells', 'save_workbook', 'get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf',
-  'set_sheet_view', 'add_shape', 'list_shapes', 'update_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image'
+  'set_sheet_view', 'copy_range', 'manage_hyperlink', 'manage_named_range',
+  'manage_document_properties', 'manage_table', 'manage_pictures',
+  'add_shape', 'list_shapes', 'update_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image'
 ] as const;
 
 /**
@@ -44,7 +46,10 @@ export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
   // format_text_segment 同为 WPS 独有（Office.js 无字符级富文本入口）
   // set_sheet_view（网格线/行列标题/缩放）是 WPS 表格专有的视图能力，
   // Office.js 没有等价的视图 API，因此对 Microsoft 声明为未实现。
-  microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view']
+  // CAP-15~20 第二类能力（区域复制/超链接/命名区域/文档属性/结构化表格/图片）目前只实现了 WPS 侧，
+  // Office.js 侧尚未实现，故对 Microsoft 声明为未实现。
+  microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view',
+    'copy_range', 'manage_hyperlink', 'manage_named_range', 'manage_document_properties', 'manage_table', 'manage_pictures']
 };
 
 /**

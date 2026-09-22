@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 503976199c3e9e818e7ce17f070c96011eee6deb18de78f83a501419f32c668b
+// ADDON_BUILD_FINGERPRINT: 5a5bc0fa5247b2ba6ab9b37df72419fa860edb7be8388fe169478a4e38615ebc
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "503976199c3e9e818e7ce17f070c96011eee6deb18de78f83a501419f32c668b";
+  var ADDON_BUILD_FINGERPRINT = "5a5bc0fa5247b2ba6ab9b37df72419fa860edb7be8388fe169478a4e38615ebc";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -900,6 +900,24 @@
           break;
         case "export_sheet_pdf":
           result = exportSheetPdf(app, params);
+          break;
+        case "copy_range":
+          result = copyRange(app, params);
+          break;
+        case "manage_hyperlink":
+          result = manageHyperlink(app, params);
+          break;
+        case "manage_named_range":
+          result = manageNamedRange(app, params);
+          break;
+        case "manage_document_properties":
+          result = manageDocumentProperties(app, params);
+          break;
+        case "manage_table":
+          result = manageTable(app, params);
+          break;
+        case "manage_pictures":
+          result = managePictures(app, params);
           break;
         case "set_sheet_view":
           result = setSheetView(app, params);
@@ -3605,6 +3623,313 @@
         });
       }
     } catch (e) {}
+  }
+
+  // ── CAP-15~20 第二类：表格常用能力（区域复制 / 超链接 / 命名区域 / 文档属性 / 结构化表格 / 图片）
+  //
+  // 依据真机探测（WPS 12.1.28496）确认可用：
+  //   Range.Copy(dest) ✔ · Hyperlinks.Add/Count ✔ · wb.Names.Add ✔ ·
+  //   wb.BuiltinDocumentProperties.Item(name).Value ✔ · CustomDocumentProperties.Add ✔ ·
+  //   ws.ListObjects.Add(1, range, null, 1) ✔ · ws.Shapes.AddPicture ✔
+
+  /** 把一处区域的值/公式/格式复制到另一处。 */
+  function copyRange(app, params) {
+    const { sheetName, workbookName, sourceRange, destRange, destSheetName,
+            copyType = "all", skipBlanks = false, transpose = false } = params || {};
+    if (!sourceRange) throw new Error("缺少必要参数: sourceRange");
+    if (!destRange) throw new Error("缺少必要参数: destRange");
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const src = sheet.Range(sourceRange);
+
+    // 目标在不同表时先取目标表，并用全限定地址，避免依赖"活动表"状态
+    const destSheet = destSheetName ? getWorksheet(app, destSheetName, workbookName) : sheet;
+    const dest = destSheet.Range(destRange);
+
+    // xlPasteAll=-4104 / xlPasteValues=-4163 / xlPasteFormats=-4122 / xlPasteFormulas=-4123
+    const PASTE = { all: -4104, values: -4163, formats: -4122, formulas: -4123 };
+    const code = PASTE[String(copyType).toLowerCase()];
+    if (code === undefined) throw new Error(`不支持的 copyType: ${copyType}（可用 all / values / formats / formulas）`);
+
+    if (transpose) src.Copy();
+    if (transpose) { dest.PasteSpecial(-4122, -4142, false, true); }   // xlPasteAll, xlPasteSpecialOperationNone, SkipBlanks=false, Transpose=true
+    else src.Copy(dest);
+
+    // 读回核对：目标区域左上角必须拿到源的值（空源不算失败）
+    let readBack = null;
+    try { readBack = destSheet.Range(destRange.split(":")[0]).Value2; } catch (e) {}
+    let srcValue = null;
+    try { srcValue = src.Value2; } catch (e) {}
+    const srcFirst = Array.isArray(srcValue) ? (Array.isArray(srcValue[0]) ? srcValue[0][0] : srcValue[0]) : srcValue;
+
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      source: `${sheet.Name}!${sourceRange}`,
+      dest: `${destSheet.Name}!${destRange}`,
+      copyType,
+      readBackFirstCell: readBack === undefined ? null : readBack,
+      sourceFirstCell: srcFirst === undefined ? null : srcFirst,
+      warnings: [],
+      message: `已把 [${sheet.Name}] ${sourceRange} 复制到 [${destSheet.Name}] ${destRange}（${copyType}）`
+    };
+  }
+
+  /** 超链接增删查。 */
+  function manageHyperlink(app, params) {
+    const { sheetName, workbookName, action = "list", address, url, displayText, tooltip, emailSubject, targetAddress } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+
+    if (action === "list") {
+      const items = [];
+      const n = g(() => Number(sheet.Hyperlinks.Count), 0);
+      for (let i = 1; i <= n; i++) {
+        const h = (() => { try { return sheet.Hyperlinks.Item(i); } catch (e) { return null; } })();
+        if (!h) continue;
+        items.push({
+          index: i,
+          address: g(() => String(h.Address), null),
+          subAddress: g(() => String(h.SubAddress), null),
+          text: g(() => String(h.TextToDisplay), null),
+          tooltip: g(() => String(h.ScreenTip), null),
+          anchor: g(() => String(h.Range.Address()), null),
+          type: g(() => Number(h.Type), null)
+        });
+      }
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, count: items.length, hyperlinks: items, warnings: [],
+        message: `工作表 [${sheet.Name}] 共 ${items.length} 个超链接` };
+    }
+
+    if (action === "delete") {
+      if (!address) throw new Error("delete 需要 address（锚点单元格）或省略 address 清空全部");
+      let removed = 0;
+      for (let i = g(() => Number(sheet.Hyperlinks.Count), 0); i >= 1; i--) {
+        const h = (() => { try { return sheet.Hyperlinks.Item(i); } catch (e) { return null; } })();
+        if (!h) continue;
+        const a = g(() => String(h.Range.Address()), "");
+        if (a === sheet.Range(address).Address() || !address) { h.Delete(); removed++; }
+      }
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, removed,
+        remaining: g(() => Number(sheet.Hyperlinks.Count), null), warnings: [], message: `已删除 ${removed} 个超链接` };
+    }
+
+    // action = add
+    if (!address) throw new Error("add 需要 address（锚点单元格）");
+    if (!url) throw new Error("add 需要 url");
+    const anchor = sheet.Range(address);
+    // Hyperlinks.Add(Anchor, Address, SubAddress, ScreenTip, TextToDisplay)
+    sheet.Hyperlinks.Add(anchor, String(url), String(targetAddress || ""), String(tooltip || ""), String(displayText || url));
+    // 读回核对
+    let ok = false, readText = null;
+    try { const h = anchor.Hyperlinks.Item(1); ok = true; readText = String(h.TextToDisplay); } catch (e) {}
+    return {
+      success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, address, url,
+      verified: ok, readBackText: readText,
+      warnings: ok ? [] : ["写入后未能从锚点读到超链接，请人工确认"],
+      message: `已在 [${sheet.Name}] ${address} 添加超链接 → ${url}`
+    };
+  }
+
+  /** 命名区域增删查。 */
+  function manageNamedRange(app, params) {
+    const { workbookName, action = "list", name, refersTo, comment } = params || {};
+    const wb = getWorkbook(app, workbookName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+
+    if (action === "list") {
+      const items = [];
+      const n = g(() => Number(wb.Names.Count), 0);
+      for (let i = 1; i <= n; i++) {
+        const nm = (() => { try { return wb.Names.Item(i); } catch (e) { return null; } })();
+        if (!nm) continue;
+        items.push({ index: i, name: g(() => String(nm.Name), null), refersTo: g(() => String(nm.RefersTo), null),
+                     visible: g(() => Boolean(nm.Visible), null), comment: g(() => String(nm.Comment), null) });
+      }
+      return { success: true, workbookName: wb.Name, count: items.length, names: items, warnings: [],
+        message: `工作簿 [${wb.Name}] 共 ${items.length} 个命名区域` };
+    }
+
+    if (action === "delete") {
+      if (!name) throw new Error("delete 需要 name");
+      wb.Names.Item(String(name)).Delete();
+      const still = g(() => { wb.Names.Item(String(name)); return true; }, false);
+      return { success: true, workbookName: wb.Name, deleted: name, stillExists: still, warnings: [],
+        message: `已删除命名区域 ${name}` };
+    }
+
+    if (!name || !refersTo) throw new Error("add 需要 name 和 refersTo（如 'Sheet1!$A$1:$B$10'）");
+    wb.Names.Add(String(name), String(refersTo), false, String(comment || ""));
+    const back = g(() => String(wb.Names.Item(String(name)).RefersTo), null);
+    return { success: true, workbookName: wb.Name, name, requested: refersTo, readBack: back,
+      verified: !!back, warnings: back ? [] : ["写入后读不回该名称"],
+      message: `已添加命名区域 ${name} → ${back || refersTo}` };
+  }
+
+  /** 文档属性（内置 + 自定义）。 */
+  function manageDocumentProperties(app, params) {
+    const { workbookName, action = "read", properties } = params || {};
+    const wb = getWorkbook(app, workbookName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+    const BUILTIN = ["Title", "Subject", "Author", "Keywords", "Comments", "Category", "Company", "Manager"];
+
+    const readAll = () => {
+      const builtin = {};
+      for (const k of BUILTIN) {
+        builtin[k] = g(() => {
+          const p = wb.BuiltinDocumentProperties.Item(k);
+          const v = p && p.Value !== undefined ? p.Value : p;
+          return v === undefined || v === null ? "" : String(v);
+        }, "");
+      }
+      const custom = {};
+      const n = g(() => Number(wb.CustomDocumentProperties.Count), 0);
+      for (let i = 1; i <= n; i++) {
+        const p = (() => { try { return wb.CustomDocumentProperties.Item(i); } catch (e) { return null; } })();
+        if (!p) continue;
+        custom[g(() => String(p.Name), "prop" + i)] = g(() => String(p.Value), "");
+      }
+      return { builtin, custom };
+    };
+
+    if (action === "read") {
+      const cur = readAll();
+      return { success: true, workbookName: wb.Name, builtin: cur.builtin, custom: cur.custom, warnings: [],
+        message: `工作簿 [${wb.Name}] 属性：标题「${cur.builtin.Title || "（空）"}」作者「${cur.builtin.Author || "（空）"}」，自定义 ${Object.keys(cur.custom).length} 项` };
+    }
+
+    // action = apply
+    const warnings = [];
+    const applied = {};
+    if (properties && typeof properties === "object") {
+      for (const [k, v] of Object.entries(properties)) {
+        if (BUILTIN.indexOf(k) >= 0) {
+          try { wb.BuiltinDocumentProperties.Item(k).Value = String(v); applied[k] = String(v); }
+          catch (e) { warnings.push(`设置内置属性 ${k} 失败: ${e.message}`); }
+        } else {
+          // 自定义属性：存在则改，不存在则加（type 4 = msoPropertyTypeString）
+          let done = false;
+          for (let i = 1; i <= g(() => Number(wb.CustomDocumentProperties.Count), 0); i++) {
+            const p = (() => { try { return wb.CustomDocumentProperties.Item(i); } catch (e) { return null; } })();
+            if (p && g(() => String(p.Name), "") === k) { try { p.Value = String(v); done = true; applied[k] = String(v); } catch (e) { warnings.push(`改自定义属性 ${k} 失败: ${e.message}`); } break; }
+          }
+          if (!done) {
+            try { wb.CustomDocumentProperties.Add(k, false, 4, String(v)); applied[k] = String(v); }
+            catch (e) { warnings.push(`新增自定义属性 ${k} 失败: ${e.message}`); }
+          }
+        }
+      }
+    }
+    const after = readAll();
+    const mismatched = Object.keys(applied).filter(k => {
+      const got = BUILTIN.indexOf(k) >= 0 ? after.builtin[k] : after.custom[k];
+      return String(got) !== String(applied[k]);
+    });
+    for (const k of mismatched) warnings.push(`读回与写入不一致: ${k}`);
+    return { success: true, workbookName: wb.Name, action: "apply", applied, after, warnings,
+      message: `已更新 ${Object.keys(applied).length} 项文档属性${mismatched.length ? `（${mismatched.length} 项读回不一致）` : ""}` };
+  }
+
+  /** 结构化表格（ListObject）增删查。 */
+  function manageTable(app, params) {
+    const { sheetName, workbookName, action = "list", tableName, address, styleName, newName, hasHeaders = true, totalsRow = false } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+    const readOne = (lo) => ({
+      name: g(() => String(lo.Name), null),
+      range: g(() => String(lo.Range.Address()), null),
+      rowCount: g(() => Number(lo.ListRows.Count), null),
+      colCount: g(() => Number(lo.ListColumns.Count), null),
+      hasHeaders: g(() => Boolean(lo.ShowHeaders), null),
+      totalsRow: g(() => Boolean(lo.ShowTotals), null),
+      style: g(() => String(lo.TableStyle.Name), null),
+      columns: g(() => { const out = []; const n = Number(lo.ListColumns.Count); for (let i = 1; i <= n; i++) out.push(String(lo.ListColumns.Item(i).Name)); return out; }, [])
+    });
+
+    if (action === "list") {
+      const items = [];
+      const n = g(() => Number(sheet.ListObjects.Count), 0);
+      for (let i = 1; i <= n; i++) { const lo = (() => { try { return sheet.ListObjects.Item(i); } catch (e) { return null; } })(); if (lo) items.push(readOne(lo)); }
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, count: items.length, tables: items, warnings: [],
+        message: `工作表 [${sheet.Name}] 共 ${items.length} 个结构化表格` };
+    }
+
+    if (action === "delete") {
+      if (!tableName) throw new Error("delete 需要 tableName");
+      const lo = sheet.ListObjects.Item(String(tableName));
+      const rng = g(() => String(lo.Range.Address()), null);
+      lo.Delete();
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, deleted: tableName, releasedRange: rng,
+        remaining: g(() => Number(sheet.ListObjects.Count), null), warnings: [], message: `已删除结构化表格 ${tableName}（数据保留在 ${rng}）` };
+    }
+
+    if (action === "apply") {
+      if (!address) throw new Error("apply 需要 address");
+      const rng = sheet.Range(address);
+      // xlSrcRange = 1；Add(SourceType, Source, LinkSource, XlListObjectHasHeaders)
+      const lo = sheet.ListObjects.Add(1, rng, null, hasHeaders ? 1 : 2);
+      if (tableName) { try { lo.Name = String(tableName); } catch (e) {} }
+      if (newName) { try { lo.Name = String(newName); } catch (e) {} }
+      if (styleName) { try { lo.TableStyle = String(styleName); } catch (e) {} }
+      try { lo.ShowTotals = Boolean(totalsRow); } catch (e) {}
+      const back = readOne(lo);
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, action: "apply", table: back, warnings: [],
+        message: `已在 [${sheet.Name}] ${back.range} 创建结构化表格「${back.name}」（${back.rowCount} 行 × ${back.colCount} 列）` };
+    }
+
+    throw new Error(`不支持的 action: ${action}（可用 list / apply / delete）`);
+  }
+
+  /** 图片：插入 / 列出 / 删除。 */
+  function managePictures(app, params) {
+    const { sheetName, workbookName, action = "list", filePath, left, top, width, height, pictureName, pictureIndex } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+    const readOne = (sh, kind) => ({
+      name: g(() => String(sh.Name), null), kind,
+      left: g(() => Math.round(Number(sh.Left) * 100) / 100, null),
+      top: g(() => Math.round(Number(sh.Top) * 100) / 100, null),
+      width: g(() => Math.round(Number(sh.Width) * 100) / 100, null),
+      height: g(() => Math.round(Number(sh.Height) * 100) / 100, null),
+      topLeftCell: g(() => shapeAddressOf(sh.TopLeftCell), null)
+    });
+
+    if (action === "list") {
+      const items = [];
+      const n = g(() => Number(sheet.Shapes.Count), 0);
+      for (let i = 1; i <= n; i++) {
+        const sh = sheet.Shapes.Item(i);
+        const isPic = g(() => Number(sh.Type) === 13, false);   // msoPicture = 13
+        if (!isPic) continue;
+        items.push(readOne(sh, "picture"));
+      }
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, count: items.length, pictures: items, warnings: [],
+        message: `工作表 [${sheet.Name}] 共 ${items.length} 张图片（形状总数 ${g(() => Number(sheet.Shapes.Count), 0)}）` };
+    }
+
+    if (action === "delete") {
+      const shapes = sheet.Shapes;
+      let removed = 0;
+      for (let i = shapes.Count; i >= 1; i--) {
+        const sh = shapes.Item(i);
+        if (g(() => Number(sh.Type) !== 13, true)) continue;
+        const nm = g(() => String(sh.Name), "");
+        if (pictureName && nm !== String(pictureName)) continue;
+        if (Number.isFinite(Number(pictureIndex)) && i !== Number(pictureIndex)) continue;
+        sh.Delete(); removed++;
+      }
+      return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, removed, warnings: [], message: `已删除 ${removed} 张图片` };
+    }
+
+    if (!filePath) throw new Error("insert 需要 filePath（本机图片绝对路径）");
+    const args = [String(filePath), false, true];
+    if (Number.isFinite(Number(left))) args.push(Number(left));
+    if (Number.isFinite(Number(top))) args.push(Number(top));
+    if (Number.isFinite(Number(width))) args.push(Number(width));
+    if (Number.isFinite(Number(height))) args.push(Number(height));
+    const sh = sheet.Shapes.AddPicture.apply(sheet.Shapes, args);
+    if (pictureName) { try { sh.Name = String(pictureName); } catch (e) {} }
+    return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, action: "insert",
+      picture: readOne(sh, "picture"), warnings: [], message: `已插入图片 ${filePath}` };
   }
 
   // 13.9 工作表视图：网格线 / 行列标题 / 缩放

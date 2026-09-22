@@ -1181,6 +1181,132 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_copy_range",
+        description: "把一处区域的**值/公式/格式**复制到另一处（可跨工作表）。支持 all / values / formats / formulas 四种模式，写后读回目标左上角核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            copyType: { type: "string", enum: ["all", "values", "formats", "formulas"], description: "复制内容，默认 all" },
+            sourceRange: { type: "string", description: "源区域，如 'A1:D10'" },
+            destRange: { type: "string", description: "目标区域左上角或同尺寸区域，如 'F1'" },
+            destSheetName: { type: "string", description: "目标工作表；省略则同表" },
+            transpose: { type: "boolean", description: "是否转置粘贴" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: ["sourceRange", "destRange"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_manage_hyperlink",
+        description: "单元格**超链接**增删查：加链接、列出全表链接（地址/显示文字/提示/锚点）、删除。写后从锚点读回核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["list", "add", "delete"], description: "list（默认）列出 / add 添加 / delete 删除（省略 address 则清空全表）" },
+            address: { type: "string", description: "锚点单元格，如 'B2'" },
+            url: { type: "string", description: "链接地址（add 必填）" },
+            displayText: { type: "string", description: "显示文字" },
+            tooltip: { type: "string", description: "悬停提示" },
+            targetAddress: { type: "string", description: "同文档内的子地址（如某工作表/命名区域）" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_manage_named_range",
+        description: "**命名区域**增删查：列出全部名称与引用位置、新增（如 图表源=Sheet1!$A$1:$B$10）、删除。写后读回引用位置核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["list", "add", "delete"], description: "list（默认）/ add / delete" },
+            name: { type: "string", description: "名称（add/delete 必填）" },
+            refersTo: { type: "string", description: "引用位置，如 'Sheet1!$A$1:$B$10'（add 必填）" },
+            comment: { type: "string", description: "备注" },
+                        workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_manage_document_properties",
+        description: "读写工作簿**文档属性**：Title/Subject/Author/Keywords/Comments/Category/Company/Manager 八个内置字段 + 任意自定义属性。apply 后自动读回核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["read", "apply"], description: "read（默认）只读回 / apply 写入并核对" },
+            properties: { type: "object", description: "要写入的键值对，如 {Title: 2026年报, Author: 财务部}；非内置键写入自定义属性" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_manage_table",
+        description: "**结构化表格**（Excel Table / ListObject）增删查：创建（带表头/汇总行/样式）、列出（名称/范围/行列数/列名）、删除（数据保留）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["list", "apply", "delete"], description: "list（默认）/ apply 创建或更新 / delete 删除（仅删表格对象，数据保留）" },
+            tableName: { type: "string", description: "表格名（create 时可指定，delete 必填）" },
+            address: { type: "string", description: "创建时源区域，如 'A1:D20'" },
+            styleName: { type: "string", description: "表格样式名" },
+            newName: { type: "string", description: "改名" },
+            hasHeaders: { type: "boolean", description: "是否含表头，默认 true" },
+            totalsRow: { type: "boolean", description: "是否加汇总行，默认 false" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_manage_pictures",
+        description: "工作表**图片**增删查：从本机路径插入图片（可指定位置尺寸）、列出全部图片（名称/位置/尺寸/所在单元格）、按名称或序号删除。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["list", "insert", "delete"], description: "list（默认）/ insert / delete" },
+            filePath: { type: "string", description: "本机图片绝对路径（insert 必填）" },
+            pictureName: { type: "string", description: "图片名（插入时命名 / 删除时筛选）" },
+            pictureIndex: { type: "number", description: "按形状序号删除" },
+            left: { type: "number", description: "左边缘（磅）" },
+            top: { type: "number", description: "上边缘（磅）" },
+            width: { type: "number", description: "宽度（磅）" },
+            height: { type: "number", description: "高度（磅）" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
     }
   ];
 }
