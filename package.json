@@ -91,7 +91,9 @@
       "resources/**/*",
       "office-addon/**/*",
       "wps-addon/**/*",
-      "skills/**/*"
+      "skills/**/*",
+      "dist/bridge/cli.jsc",
+      "node_modules/bytenode/**/*"
     ],
     "artifactName": "Office-Agent-Bridge-${version}-${os}-${arch}.${ext}"
   },
