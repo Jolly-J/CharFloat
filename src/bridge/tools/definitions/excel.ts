@@ -38,7 +38,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_sheet_outline",
-        description: "按需获取指定工作表的数据边界(UsedRange)与前 3 行表头样本，用于在读取整表前判断结构与数据量。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "按需获取指定工作表的数据边界(UsedRange)与前 3 行表头样本，用于在读取整表前判断结构与数据量。返回体还含 **sheetState**（工作表级读回，用于写完自检）：protection(保护状态)、tabColor(标签色)、autoFilter(筛选模式与实际范围)、freezePanes(冻结行列，**仅目标表处于活动状态时可读**，否则 available:false 并说明)、conditionalFormats(已用区域上的条件格式规则摘要，最多 50 条)。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -105,7 +105,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_range_styles",
-        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。可通过 include 追加 **validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
