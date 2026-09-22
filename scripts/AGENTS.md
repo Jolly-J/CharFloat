@@ -13,6 +13,9 @@
 - [check-capability-claims.ts](check-capability-claims.ts)：只读核对 skill、官网与**加载项页面**中的能力数量表述与元数据源（`npm run check:claims`）。
 - [check-param-forwarding.ts](check-param-forwarding.ts)：只读核对"**schema 声明了参数、网关处理器却没读取**"的静默丢参（`npm run check:params`）；带自检，证明能抓到未转发参数且读过的不误报。
 - [build-win-icon.mjs](build-win-icon.mjs)：由 `build/icon.png` 生成 Windows 用的**多尺寸** `build/icon.ico`（`npm run build:win-icon`）；纯 Node 实现（自带 PNG 解码/缩放/编码与 DIB 封装），写完自检格式，不通过不落盘。
+- [build-cli-bytecode.mjs](build-cli-bytecode.mjs)：把 `dist/bridge/cli.cjs` 编译成 **V8 字节码** `cli.jsc`，并把 `cli.cjs` 就地替换为加载器（`npm run build:bytecode`，已串进 `npm run build`）。**必须用 Electron 的 Node 编译**（V8 版本与运行时锁死）。详见 [code-protection.md](../docs/code-protection.md)。
+- [check-cli-protection.mjs](check-cli-protection.mjs)：**只读**校验代码保护是否真的生效（包内无 map/无源码、明文包未进包、移走明文包后仍能跑）。打包后跑一遍（`npm run check:protection`）。
+- [probe-mcp-tools.mjs](probe-mcp-tools.mjs)：以 stdio 启动 `cli.cjs` 做一次 MCP 握手、**只输出工具数量**；供上面的校验脚本复用。
 - [build-wps-addon.mjs](build-wps-addon.mjs)：由 `wps-addon/src/**` 生成部署入口 `wps-addon/addon-core.js`（`npm run build:wps-addon`，`--check` 只校验）。
 - [build-office-addon.mjs](build-office-addon.mjs)：由 `office-addon/src/**` 生成部署入口 `office-addon/public/taskpane.js`（`npm run build:office-addon`，`--check` 只校验）。
 
@@ -37,6 +40,16 @@ Windows 包 exe 图标显示空白 → 只看"`RT_GROUP_ICON` 条目数够不够
 能力文案检查只看 `skills/` 与官网 → **加载项页面这类手写文件里的数量文案会漏网** → 已证实：`office-addon/public/taskpane.html` 长期显示"42 项能力已就绪"，与四个口径（路由 30 / 对外工具 91 / WPS 26 / Microsoft 27）都对不上，并随发布包出厂；生成器只产 `taskpane.js`，检查器既不扫该目录、模式也不含"`N 项…能力`" → 扫描范围加入 `office-addon/public` 与 `wps-addon`，模式加入 `(\d+)\s*项[^，。；、\n]{0,16}?能力`；文案里的宿主必须写明（写 `Microsoft Excel`，不能只写"Excel"），否则按"未指明宿主"报错 → 反向验证：把 27 改回 42 即 `exit 1`。
 
 直接执行 verify 脚本 → 可能修改真实文件 → 先检查请求列表和目标 → 使用明确测试文档并读回，不能靠脚本名称判断安全性。
+
+用本机 node 编译 V8 字节码 → 在 Electron 里**加载即失败** → 字节码与 V8 版本锁死（实测本机 V8 14.1 / Electron V8 13.4）→ 必须用**目标运行时的二进制**编译（`ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/...`），并把编译时版本写进加载器；版本不符时报可操作错误而不是 undefined → [build-cli-bytecode.mjs](build-cli-bytecode.mjs)。
+
+编译字节码前不删旧文件 → bytenode 按**输入文件名**产出（`cli-full.cjs` → `cli-full.jsc`），产物缺失时会被上一轮的陈旧文件蒙混过关，**打出来的包跑的是旧代码** → 编译前先 unlink 目标，编译后校验再改名。
+
+以为"加了 minify 就没有源码了" → 注释和函数名没了，但**逻辑仍可读**；而且明文产物（`cli-full.cjs`）若没进 `build.files` 的排除清单，等于白做 → 排除清单与保护手段必须同时到位 → [check-cli-protection.mjs](check-cli-protection.mjs) 的包内检查。
+
+给 esbuild 的 minify 加 `mangleProps` → 连 `args?.workbookName` 这类**属性名**一起改名，双宿主靠属性名对接，**功能全废** → esbuild 默认不重命名属性名，**不要开这个开关**。
+
+只验证"构建成功"就发布代码保护改动 → 字节码不会因构建失败而失败：**它只会在运行时加载不了** → 必须验证「把明文包临时移走仍能跑」，才证明真的走字节码而非悄悄回退 → [check-cli-protection.mjs](check-cli-protection.mjs) 的最后一条。
 
 ## 同步维护
 
