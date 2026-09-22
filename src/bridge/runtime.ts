@@ -48,8 +48,35 @@ export function validToken(candidate?: string) {
   const actual = Buffer.from(candidate);
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
+/**
+ * 预览输出目录。
+ *
+ * **必须是宿主进程（WPS / Office）能写入的位置**，否则导出会"返回成功但没有文件"。
+ * 真机实测（macOS，WPS 为沙箱应用）：
+ *   - `~/.wps-bridge/previews/`       ❌ 写不进去（静默失败，页面预览曾因此恒不落盘）
+ *   - `os.tmpdir()`（/var/folders/…） ❌ 写不进去
+ *   - `~/Downloads/.子目录/`          ❌ 写不进去（Downloads 根目录可以，子目录不行）
+ *   - **WPS 自己的容器 tmp**           ✅ 可写
+ * 桥接进程自身不受沙箱限制，能读回该目录做落盘校验与 base64 编码。
+ */
+function previewDir(): string {
+  if (process.env.WPS_BRIDGE_PREVIEW_DIR) return process.env.WPS_BRIDGE_PREVIEW_DIR;
+  if (process.platform === 'darwin') {
+    const candidates = [
+      'Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp',
+      'Library/Containers/cn.wps.moffice_mac/Data/tmp'
+    ].map(p => path.join(os.homedir(), p));
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) return path.join(c, 'office-agent-bridge-previews');
+      } catch { /* 尝试下一个候选 */ }
+    }
+  }
+  return path.join(runtimeHome(), 'previews');
+}
+
 export function previewPath(extension: string) {
-  const dir = path.join(runtimeHome(), 'previews');
+  const dir = previewDir();
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return path.join(dir, `${crypto.randomUUID()}.${extension}`);
 }

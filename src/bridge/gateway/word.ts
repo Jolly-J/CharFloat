@@ -191,5 +191,18 @@ export const capturePreview: Handler = async (ctx) => {
     const outputPath = previewPath('pdf');
     const res: any = await callOffice("word_capture_preview", { documentName: args?.documentName, outputPath });
     if (!res?.success) throw new Error(res?.error || 'Word 预览导出失败');
-    return { ...res, message: '已导出 PDF；此结果为文件路径，请用 PDF 查看器检查。' };
+    // ISS-111：宿主回 `hasPdf: true` 但**磁盘上并没有文件**（真机实测：~/.wps-bridge/previews 下
+    // 一个 pdf 都没有）。加载项没有文件系统访问，所以落盘校验只能在桥接侧做——
+    // 与 ISS-69（word_save_document）同一类问题，当时漏了这条预览路径。
+    const produced = typeof res.pdfPath === 'string' && res.pdfPath ? res.pdfPath : outputPath;
+    const { existsSync, statSync } = await import("node:fs");
+    if (!existsSync(produced)) {
+      throw new Error(
+        `Word 预览未落盘：宿主返回成功并声称已导出，但 ${produced} 不存在。` +
+        `宿主返回：${JSON.stringify({ pdfPath: res.pdfPath, hasPdf: res.hasPdf, hostError: res.hostError }).slice(0, 220)}`
+      );
+    }
+    const size = statSync(produced).size;
+    if (size === 0) throw new Error(`Word 预览落盘但为空文件：${produced}`);
+    return { ...res, pdfPath: produced, verifiedOnDisk: true, fileSizeBytes: size, message: '已导出 PDF 并确认落盘；此结果为文件路径，请用 PDF 查看器检查。' };
 };
