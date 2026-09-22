@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 1b8c0ee4ecef489d0a46c6be44e051a8570a81f9167ed8f05cbe5ec60ea0500c
+// ADDON_BUILD_FINGERPRINT: 4433f8a5d576ab9f6e412f059fcadfe482c05ac4f6f9e3bbbff56dd92e54f98c
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "1b8c0ee4ecef489d0a46c6be44e051a8570a81f9167ed8f05cbe5ec60ea0500c";
+  var ADDON_BUILD_FINGERPRINT = "4433f8a5d576ab9f6e412f059fcadfe482c05ac4f6f9e3bbbff56dd92e54f98c";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -5649,8 +5649,13 @@ case "ppt_read_presentation":
       if (m) {
         const otherName = (m[1] || m[2] || "").trim();
         if (otherName) {
-          try { srcSheet = wb.Worksheets.Item(otherName); srcAddr = String(m[3]).trim(); }
-          catch (e) { warnings.push(`数据源表 "${otherName}" 不存在，已按当前表解析：${e.message}`); }
+          // ⚠️ 本函数里**没有 `wb` 变量**（只有 `sheet`）——先前误用 `wb.Worksheets`
+          // 会抛 ReferenceError，被 catch 吞掉后**静默回退到当前表**，
+          // 于是拿一张空表的区域去 SetSourceData，报成 "Parameter type error source"，
+          // 看起来像"宿主不支持跨表"，其实是变量名写错了。
+          // 表名找不到时**必须报错**，不能回退到别的表——那会把数据源悄悄换掉。
+          srcSheet = sheet.Parent.Worksheets.Item(otherName); // 找不到会抛，交给外层如实报错
+          srcAddr = String(m[3]).trim();
         }
       }
       const srcRange = srcSheet.Range(srcAddr);
