@@ -212,7 +212,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_add_conditional_formatting",
-        description: "为指定区域添加条件格式：阈值高亮(cell_value)、单元格内数据条(data_bar)、双色热力色阶(color_scale)。写入后需用 wps_execute_script 探测 FormatConditions 读回（本工具族暂无条件格式读回工具）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "为指定区域添加条件格式。可用 ruleType：cell_value（阈值高亮）、data_bar（数据条）、color_scale（双色色阶）、**icon_set（图标集，如红黄绿灯）**、**top10（前/后 N 名或百分比）**、**duplicate_values / unique_values（重复值/唯一值）**、**formula（公式规则）**、**text_contains（文字包含，内部用 SEARCH 公式实现）**、clear（清除该区域全部规则）。返回体带 appliedConditionCount 与 conditions（逐条规则的类型/启用/优先级/公式），**写完即可读回核对**，不需要另用脚本探测。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -221,9 +221,21 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             workbookName: { type: "string", description: ctx.wbDesc },
             ruleType: {
               type: "string",
-              enum: ["cell_value", "data_bar", "color_scale"],
-              description: "条件格式类型: 'cell_value'(基于单元格数值的阈值比较高亮), 'data_bar'(在单元格内绘制横向条形微型数据条), 'color_scale'(渐变热力图色阶)"
+              enum: ["cell_value", "data_bar", "color_scale", "icon_set", "top10", "duplicate_values", "unique_values", "formula", "text_contains", "clear"],
+              description: "条件格式类型: 'cell_value' 阈值高亮 / 'data_bar' 数据条 / 'color_scale' 色阶 / 'icon_set' 图标集（红黄绿灯等）/ 'top10' 前N名 / 'duplicate_values' 重复值 / 'unique_values' 唯一值 / 'formula' 公式规则 / 'text_contains' 文字包含 / 'clear' 清除全部规则"
             },
+            iconSet: {
+              type: "string",
+              description: "ruleType=icon_set 时用。常用：'3_traffic_lights'(红黄绿灯，默认)、'3_arrows'、'3_flags'、'3_symbols'、'4_arrows'、'5_arrows'、'5_quarters'、'5_ratings' 等 18 种"
+            },
+            iconThresholds: {
+              type: "array",
+              description: "图标集的阈值（可选），从第 2 档起逐档给；元素可为数字（只设值）或对象 {type,operator,value}"
+            },
+            topBottom: { type: "number", description: "ruleType=top10 时用：1=前 N，2=后 N" },
+            topRank: { type: "number", description: "ruleType=top10 时用：N 的取值" },
+            topPercent: { type: "boolean", description: "ruleType=top10 时用：true 表示按百分比而不是名次" },
+            containsText: { type: "string", description: "ruleType=text_contains 时用：要高亮的文字" },
             operator: {
               type: "string",
               enum: ["less_than", "greater_than", "equal", "between"],
@@ -894,6 +906,33 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             sheetName: { type: "string", description: "工作表名称" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_format_text_segment",
+        description: "**单元格内局部格式（富文本）**：只给一个单元格里的一段文字加格式（如「整句里只把结论加粗变红」），不影响该格其余文字。定位方式二选一：① find 按文本找（可配 occurrence 指定第几处）② start（1 基起点）+ length。格式项至少要给一项：bold / italic / underline / fontColor / fontSize / fontName。**写完逐项读回核对**，任一项没落上直接报错，不做静默降级。若只想整格统一格式，用 format_cells 更省事。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            address: { type: "string", description: "目标单元格，如 'A1'（单格；多格请逐个调用）" },
+            find: { type: "string", description: "要格式化的文本片段，按内容定位（优先于 start）" },
+            occurrence: { type: "number", description: "find 命中第几处，默认 1（从 1 开始）" },
+            start: { type: "number", description: "1 基起始字符位置（不传 find 时使用）" },
+            length: { type: "number", description: "字符个数；不传则从 start 到单元格末尾" },
+            bold: { type: "boolean", description: "该片段是否加粗" },
+            italic: { type: "boolean", description: "该片段是否斜体" },
+            underline: { type: "boolean", description: "该片段是否加下划线" },
+            fontColor: { type: "string", description: "该片段字色，如 '#C00000'" },
+            fontSize: { type: "number", description: "该片段字号（磅值）" },
+            fontName: { type: "string", description: "该片段字体名" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: ["address"],
           additionalProperties: false
         }
       }

@@ -22,7 +22,7 @@ export const EXCEL_METHODS = [
   'freeze_panes', 'modify_rows_columns', 'auto_fit_columns', 'insert_dimension', 'get_charts', 'add_chart',
   'update_chart', 'delete_chart', 'create_pivot_table', 'set_filter_and_sort', 'set_data_validation', 'manage_sheet',
   'manage_rows_and_columns', 'manage_cell_comments', 'find_and_replace', 'duplicate_sheet', 'capture_sheet_preview',
-  'rollback_cells', 'save_workbook', 'get_style_token'
+  'rollback_cells', 'save_workbook', 'get_style_token', 'format_text_segment'
 ] as const;
 
 /**
@@ -37,7 +37,8 @@ export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
   wps: ['update_chart'],
   // get_style_token 是 WPS 宿主独有的"读原表设计语言"能力，Office.js 的 dispatchExcelTool 无此分支；
   // 声明在此，使 excel_get_style_token(host=microsoft) 的失败被正确归类为"宿主未实现"而非未知工具。
-  microsoft: ['get_style_token']
+  // format_text_segment 同为 WPS 独有（Office.js 无字符级富文本入口）
+  microsoft: ['get_style_token', 'format_text_segment']
 };
 
 /**

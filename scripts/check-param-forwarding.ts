@@ -39,34 +39,99 @@ const KNOWN_EXCEPTIONS: Record<string, string> = {};
 
 interface ToolDef { tool: string; params: string[] }
 
-function collectToolDefs(): ToolDef[] {
+/**
+ * 按大括号配平取出从 `from` 处 `{` 开始的对象字面量文本（含两端大括号）。
+ * 用配平而不是正则，是因为参数 schema 里会有嵌套对象（如 `iconThresholds` 的元素结构），
+ * 惰性正则会在内层 `}` 处提前收尾——**这曾让本检查漏报过真实丢参**，所以改成配平。
+ */
+function sliceBalanced(text: string, openIndex: number): string | null {
+  if (text[openIndex] !== '{') return null;
+  let depth = 0;
+  for (let i = openIndex; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(openIndex, i + 1);
+    }
+  }
+  return null;
+}
+
+export function collectToolDefs(): ToolDef[] {
   const out: ToolDef[] = [];
   for (const file of fs.readdirSync(DEFINITIONS_DIR).filter(f => f.endsWith('.ts'))) {
     const text = fs.readFileSync(path.join(DEFINITIONS_DIR, file), 'utf8');
-    // 每个定义形如 { type: "function", function: { name: "...", parameters: { properties: { ... } } } }
-    const re = /name:\s*"([a-z0-9_]+)"[\s\S]{0,4000}?properties:\s*\{([\s\S]*?)\n\s*\},?\n\s*(?:required|additionalProperties)/g;
-    for (const m of text.matchAll(re)) {
-      const params = [...m[2].matchAll(/^\s{8,}([A-Za-z_][A-Za-z0-9_]*)\s*:/gm)].map(x => x[1]);
-      if (params.length) out.push({ tool: m[1], params: [...new Set(params)] });
+    for (const m of text.matchAll(/name:\s*"([a-z0-9_]+)"/g)) {
+      const tool = m[1];
+      const after = text.indexOf('parameters:', m.index);
+      if (after < 0) continue;
+      const paramsOpen = text.indexOf('{', after);
+      if (paramsOpen < 0) continue;
+      const paramsBlock = sliceBalanced(text, paramsOpen);
+      if (!paramsBlock) continue;
+      const propsOpen = paramsBlock.indexOf('properties:');
+      if (propsOpen < 0) continue;
+      const propsBrace = paramsBlock.indexOf('{', propsOpen);
+      const propsBlock = sliceBalanced(paramsBlock, propsBrace);
+      if (!propsBlock) continue;
+      // 只取 properties 的**第一层**键
+      const names: string[] = [];
+      let depth = 0;
+      for (let i = 1; i < propsBlock.length - 1; i++) {
+        const ch = propsBlock[i];
+        if (ch === '{' || ch === '[') depth++;
+        else if (ch === '}' || ch === ']') depth--;
+        else if (depth === 0) {
+          const rest = propsBlock.slice(i);
+          const km = rest.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+          if (km && (i === 1 || /[\s,{]/.test(propsBlock[i - 1]))) {
+            names.push(km[1]);
+            i += km[1].length;
+          }
+        }
+      }
+      const params = [...new Set(names)];
+      if (params.length) out.push({ tool, params });
     }
   }
   return out;
 }
 
-function collectHandlers(): Map<string, string> {
-  const handlers = new Map<string, string>();
+function collectHandlers(): { byModule: Map<string, string>; registry: Map<string, string> } {
+  const byModule = new Map<string, string>();
+  const registry = new Map<string, string>();
   const files = [GATEWAY_FACADE, ...fs.readdirSync(GATEWAY_DIR).filter(f => f.endsWith('.ts')).map(f => path.join(GATEWAY_DIR, f))];
   for (const file of files) {
     if (!fs.existsSync(file)) continue;
     const text = fs.readFileSync(file, 'utf8');
-    // 处理器形如 export const xxx: Handler = async (ctx) => { ... }; 取到下一个 export const 为止
+    const moduleName = path.basename(file).replace(/\.ts$/, '');
+    // 处理器形如 export const xxx: Handler = async (ctx) => { ... }; 取到下一个 export const 为止。
+    // **按 模块:函数名 建键**：拆分后不同类文件会重用同名处理器（如 ppt.ts 与 word.ts 都有
+    // manageTable），只按函数名建键会被后读的文件覆盖、拿错处理器造成误报——这是第三个盲点。
     const re = /export const\s+(\w+)\s*:\s*Handler\s*=\s*async[\s\S]*?(?=\nexport const |\n\/\*\*|\Z)/g;
-    for (const m of text.matchAll(re)) handlers.set(m[1], m[0]);
-    // 门面里的注册表： "wps_xxx": <handler>
-    const regRe = /"([a-z0-9_]+)"\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*,/g;
-    for (const m of text.matchAll(regRe)) handlers.set(m[1], `@${m[2]}`);
+    for (const m of text.matchAll(re)) byModule.set(`${moduleName}:${m[1]}`, m[0]);
+    // 门面里的注册表： "wps_xxx": <handler> 或 "wps_xxx": excel.<handler>
+    // **必须允许点号**：按类拆分后注册值带模块前缀（如 `excel.addConditionalFormatting`），
+    // 只认裸标识符会让这批工具整体漏检——这是第二个盲点。
+    const regRe = /"([a-z0-9_]+)"\s*:\s*([A-Za-z_][A-Za-z0-9_.]*)\s*,/g;
+    for (const m of text.matchAll(regRe)) registry.set(m[1], m[2]);
   }
-  return handlers;
+  return { byModule, registry };
+}
+
+/** 解析注册值为处理器正文：`excel.foo` → gateway/excel.ts 的 foo；裸名则全局唯一查找。 */
+function resolveHandler(ref: string, collected: { byModule: Map<string, string>; registry: Map<string, string> }): { body: string; label: string } | null {
+  const bare = ref.includes('.') ? ref.split('.').pop()! : ref;
+  const moduleName = ref.includes('.') ? ref.split('.')[0] : (ref === 'script' || ref === 'audit' ? ref : '');
+  if (moduleName) {
+    const hit = collected.byModule.get(`${moduleName}:${bare}`);
+    if (hit) return { body: hit, label: `${moduleName}.${bare}` };
+  }
+  const matches = [...collected.byModule.entries()].filter(([k]) => k.endsWith(`:${bare}`));
+  if (matches.length === 1) return { body: matches[0][1], label: matches[0][0] };
+  if (matches.length > 1) return { body: matches.map(m => m[1]).join('\n'), label: `${bare}(合并${matches.length}处)` };
+  return null;
 }
 
 /** 处理器正文里被读取的参数名。 */
@@ -115,19 +180,23 @@ function selfTest(): boolean {
 function main() {
   if (!selfTest()) return 1;
   const defs = collectToolDefs();
-  const handlers = collectHandlers();
+  const collected = collectHandlers();
   const problems: { tool: string; param: string; handler: string }[] = [];
+  let checked = 0;
+  let unresolved = 0;
 
   for (const def of defs) {
-    const handlerRef = handlers.get(def.tool);
-    if (!handlerRef) continue; // 由统一入口派生（excel_*）或未注册，交给别的检查
-    const body = handlerRef.startsWith('@') ? handlers.get(handlerRef.slice(1)) ?? '' : handlerRef;
-    for (const param of findUnreadParams(def.params, body)) {
-      problems.push({ tool: def.tool, param, handler: handlerRef.startsWith('@') ? handlerRef.slice(1) : 'inline' });
+    const ref = collected.registry.get(def.tool);
+    if (!ref) { unresolved++; continue; } // 由统一入口派生（excel_*）或未注册，交给别的检查
+    const resolved = resolveHandler(ref, collected);
+    if (!resolved) { unresolved++; continue; }
+    checked++;
+    for (const param of findUnreadParams(def.params, resolved.body)) {
+      problems.push({ tool: def.tool, param, handler: resolved.label });
     }
   }
 
-  console.log(`[check:params] 扫描 ${defs.length} 个工具定义、${handlers.size} 个处理器引用`);
+  console.log(`[check:params] 扫描 ${defs.length} 个工具定义；已解析到处理器的 ${checked} 个，未解析 ${unresolved} 个（多为派生入口）`);
   if (problems.length === 0) {
     console.log('[check:params] 未发现"schema 有、处理器不读"的参数');
     return 0;
@@ -140,4 +209,6 @@ function main() {
   return 1;
 }
 
-process.exit(main());
+// 仅在直接执行时运行（被 import 做调试/单测时不自动跑）
+const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) process.exit(main());
