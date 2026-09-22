@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: f9a0171ef64218a665a91bc44753a6ca335550574dc00ebf0b76d595a4d79dc3
+// ADDON_BUILD_FINGERPRINT: 858198c2110fdd53363856063038a11dfd642724c3def73d34032b5b84671126
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "f9a0171ef64218a665a91bc44753a6ca335550574dc00ebf0b76d595a4d79dc3";
+  var ADDON_BUILD_FINGERPRINT = "858198c2110fdd53363856063038a11dfd642724c3def73d34032b5b84671126";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -3945,6 +3945,29 @@
       const cur = readAll();
       return { success: true, workbookName: wb.Name, builtin: cur.builtin, custom: cur.custom, warnings: [],
         message: `工作簿 [${wb.Name}] 属性：标题「${cur.builtin.Title || "（空）"}」作者「${cur.builtin.Author || "（空）"}」，自定义 ${Object.keys(cur.custom).length} 项` };
+    }
+
+    // action = delete：按名字删除**自定义**属性（内置属性不能删，只能清空值）
+    if (action === "delete") {
+      const names = Array.isArray(params?.propertyNames) ? params.propertyNames.filter(Boolean).map(String) : [];
+      if (!names.length) throw new Error("delete 需要 propertyNames（要删除的自定义属性名数组）");
+      const removed = [], notFound = [];
+      for (const want of names) {
+        let hit = false;
+        for (let i = g(() => Number(wb.CustomDocumentProperties.Count), 0); i >= 1; i--) {
+          const pr = (() => { try { return wb.CustomDocumentProperties.Item(i); } catch (e) { return null; } })();
+          if (pr && g(() => String(pr.Name), "") === want) { pr.Delete(); removed.push(want); hit = true; break; }
+        }
+        if (!hit) notFound.push(want);
+      }
+      const left = readAll();
+      return {
+        success: true, workbookName: wb.Name, action: "delete",
+        removed, notFound,
+        remainingCustom: Object.keys(left.custom).length,
+        warnings: [],
+        message: `已删除自定义属性 ${removed.length} 项${notFound.length ? `，${notFound.length} 项不存在` : ""}；剩余自定义属性 ${Object.keys(left.custom).length} 项`
+      };
     }
 
     // action = apply

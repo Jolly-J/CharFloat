@@ -932,7 +932,7 @@ export const manageNamedRange: Handler = async (ctx) => {
 export const manageDocumentProperties: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
   return await callOffice("manage_document_properties", { workbookName: args?.workbookName, action: args?.action,
-    properties: args?.properties });
+    properties: args?.properties, propertyNames: args?.propertyNames });
 };
 
 export const manageTable: Handler = async (ctx) => {
