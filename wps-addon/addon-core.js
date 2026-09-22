@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: f9cce6c2bb96848eacd20d1ec01ca7be45cf67d5daed8e1ab2e03d48e32bd4f1
+// ADDON_BUILD_FINGERPRINT: 6f0b5c7ce628365b889ff4fd503b94f298fd214b189cea45b491b20dd08f7589
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "f9cce6c2bb96848eacd20d1ec01ca7be45cf67d5daed8e1ab2e03d48e32bd4f1";
+  var ADDON_BUILD_FINGERPRINT = "6f0b5c7ce628365b889ff4fd503b94f298fd214b189cea45b491b20dd08f7589";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -1504,8 +1504,84 @@
       startColumn: usedRange.Column,
       rowCount: rowCount,
       columnCount: colCount,
-      headerPreview: headerPreview
+      headerPreview: headerPreview,
+      // ISS-94 / ISS-64：把"能写但读不回来"的工作表级状态一并带回，
+      // 让 AI 写完保护/标签色/冻结/筛选/条件格式后能自检，而不是只能相信 success。
+      sheetState: readSheetState(app, sheet)
     };
+  }
+
+  /**
+   * 工作表级读回（只读，逐项 try/catch）。
+   *
+   * 这些状态原本都只有"写"没有"读"（问题台账 ISS-94）：调用方 set 完拿不到任何证据。
+   * 冻结窗格依赖 `app.ActiveWindow`，**只在目标表处于活动状态时才有意义**，
+   * 因此非活动表返回 null 并说明原因，避免拿别人的窗口状态冒充本表状态。
+   */
+  function readSheetState(app, sheet) {
+    const state = {};
+    const safe = (fn, fallback) => { try { const v = fn(); return v === undefined ? fallback : v; } catch (e) { return fallback; } };
+
+    state.protection = safe(() => ({
+      protectContents: Boolean(sheet.ProtectContents),
+      protectDrawingObjects: Boolean(sheet.ProtectDrawingObjects),
+      protectionMode: Boolean(sheet.ProtectionMode)
+    }), null);
+
+    state.tabColor = safe(() => {
+      const color = sheet.Tab && sheet.Tab.Color !== undefined ? Number(sheet.Tab.Color) : null;
+      if (color === null || !Number.isFinite(color)) return null;
+      return excelColorToHex(color);
+    }, null);
+
+    state.autoFilter = safe(() => ({
+      filterMode: Boolean(sheet.AutoFilterMode),
+      range: sheet.AutoFilter && sheet.AutoFilter.Range ? sheet.AutoFilter.Range.Address() : null
+    }), null);
+
+    state.freezePanes = safe(() => {
+      const active = app.ActiveWindow;
+      if (!active) return { available: false, reason: "宿主没有活动窗口" };
+      let isTarget = false;
+      try { isTarget = String(active.ActiveSheet && active.ActiveSheet.Name) === String(sheet.Name); } catch (e) { isTarget = false; }
+      if (!isTarget) {
+        return { available: false, reason: "冻结窗格属窗口状态，只有目标表处于活动状态时才能读；请先激活该表" };
+      }
+      return {
+        available: true,
+        freezePanes: Boolean(active.FreezePanes),
+        splitRow: safe(() => Number(active.SplitRow), null),
+        splitColumn: safe(() => Number(active.SplitColumn), null)
+      };
+    }, { available: false, reason: "读取活动窗口状态失败" });
+
+    // 条件格式：按已用区域扫描，返回每个区域的规则摘要（类型/优先级/是否启用）
+    state.conditionalFormats = safe(() => {
+      const rules = [];
+      const used = sheet.UsedRange;
+      if (!used) return rules;
+      const fc = used.FormatConditions;
+      const count = fc && typeof fc.Count === "number" ? fc.Count : 0;
+      for (let i = 1; i <= Math.min(count, 50); i++) {
+        try {
+          const rule = fc.Item(i);
+          rules.push({
+            index: i,
+            type: safe(() => Number(rule.Type), null),
+            enabled: safe(() => Boolean(rule.Enabled), null),
+            priority: safe(() => Number(rule.Priority), null),
+            formula1: safe(() => (rule.Formula1 === undefined ? null : String(rule.Formula1)), null),
+            interiorColor: safe(() => {
+              const c = rule.Interior && rule.Interior.Color !== undefined ? Number(rule.Interior.Color) : null;
+              return c === null || !Number.isFinite(c) ? null : excelColorToHex(c);
+            }, null)
+          });
+        } catch (e) { /* 单条规则读失败不影响整体 */ }
+      }
+      return { count, scanned: Math.min(count, 50), rules };
+    }, null);
+
+    return state;
   }
 
   // 7. 切片读取数据
@@ -1590,6 +1666,25 @@
     if (wants("wrapText")) result.wrapText = safeRead(() => range.WrapText, null);
     if (wants("rowHeight")) result.rowHeight = safeRead(() => range.RowHeight, null);
     if (wants("columnWidth")) result.columnWidth = safeRead(() => range.ColumnWidth, null);
+    if (wants("validation")) {
+      // ISS-94：数据有效性原来只写不读，AI 设完下拉/范围校验后无法自检。
+      result.validation = safeRead(() => {
+        const v = range.Validation;
+        const type = Number(v.Type);
+        return {
+          type,
+          typeName: ({ 1: "xlValidateWholeNumber", 2: "xlValidateDecimal", 3: "xlValidateList", 4: "xlValidateDate", 5: "xlValidateTime", 6: "xlValidateTextLength", 7: "xlValidateCustom" })[type] || null,
+          operator: Number(v.Operator),
+          formula1: v.Formula1 === undefined ? null : String(v.Formula1),
+          formula2: v.Formula2 === undefined ? null : String(v.Formula2),
+          ignoreBlank: Boolean(v.IgnoreBlank),
+          inCellDropdown: Boolean(v.InCellDropdown),
+          prompt: v.InputMessage === undefined ? null : String(v.InputMessage),
+          errorMessage: v.ErrorMessage === undefined ? null : String(v.ErrorMessage)
+        };
+      }, null);
+    }
+
     if (wants("merged")) result.merged = safeRead(() => range.MergeCells, null);
     if (wants("mergeArea")) {
       const firstCell = safeRead(() => range.Cells.Item(1, 1), null);
@@ -1604,7 +1699,7 @@
     const config = params || {};
     const { sheetName, workbookName, address, mode = "summary" } = config;
     if (!address) throw new Error("缺少必要参数: address (例如 'A1:C10')");
-    const allowed = ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders"];
+    const allowed = ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation"];
     const defaults = ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea"];
     const include = Array.isArray(config.include) ? config.include.filter((field) => allowed.indexOf(field) >= 0) : defaults;
     const sheet = getWorksheet(app, sheetName, workbookName);
