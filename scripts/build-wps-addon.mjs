@@ -51,6 +51,9 @@ const FINGERPRINT_VAR = "ADDON_BUILD_FINGERPRINT";
  *   - sheet-sort.js 必须紧跟 excel.js 之前：它是排序写完后"读回校验"用的纯函数，
  *     由 tests/sheet-sort.test.ts 直接 import 验证（尤其是不得漏比较最后一行）。
  */
+
+import * as esbuild from "esbuild";
+
 const MODULES = [
   "shared.js",
   "connection.js",
@@ -166,7 +169,7 @@ for (const name of MODULES) {
 // 两者不一致即说明部署了新构建但进程里还是旧代码。
 const sourceFingerprint = createHash("sha256").update(bodies.join("\n\n"), "utf8").digest("hex");
 const fingerprintComment = `// ADDON_BUILD_FINGERPRINT: ${sourceFingerprint}`;
-const output = `${HEADER}\n${fingerprintComment}\n(function () {\n  var ${FINGERPRINT_VAR} = "${sourceFingerprint}";\n${bodies.join("\n\n")}\n})();\n`;
+let output = `${HEADER}\n${fingerprintComment}\n(function () {\n  var ${FINGERPRINT_VAR} = "${sourceFingerprint}";\n${bodies.join("\n\n")}\n})();\n`;
 
 // 产物自检：必须保持外层 IIFE 结构（WPS 通过 <script> 直接加载该文件），
 // 且构建指纹注释与变量都要存在——桥接靠它们判断"进程里跑的是哪一版"。
@@ -185,6 +188,25 @@ try {
 } catch (err) {
   fail(`产物语法检查未通过：${err.message}`);
 }
+
+// ── 压缩：去注释与空白、缩短局部变量名。
+// **头部注释在压缩后重新注入**（必须留在文件最前面：桥接只读前 4096 字节匹配指纹）。
+// 注意：压缩会 mangle 变量名，所以下面的自检只校验**指纹串**而不是变量名。
+let minified = output;
+try {
+  const res = esbuild.transformSync(output, {
+    minify: true,
+    target: "es2018",          // 保守目标：WPS 的 JSA 与 Office 的 webview 都比现代浏览器保守
+    legalComments: "none",
+  });
+  if (res.code && res.code.trim().length > 0) minified = res.code;
+} catch (err) {
+  fail(`压缩失败，已中止写出：${err.message}`);
+}
+minified = `${HEADER}\n${fingerprintComment}\n` + minified;
+if (!minified.includes(sourceFingerprint)) fail("压缩后构建指纹丢失，已中止写出");
+if (!minified.trimStart().startsWith(HEADER)) fail("压缩后产物未以头部注释开头，桥接将读不到指纹，已中止写出");
+output = minified;
 
 const previous = fs.existsSync(OUT_FILE) ? fs.readFileSync(OUT_FILE, "utf8") : null;
 const changed = previous !== output;

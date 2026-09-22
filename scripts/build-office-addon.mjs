@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import * as esbuild from "esbuild";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(SCRIPT_PATH), '..');
@@ -119,7 +120,21 @@ function buildSource() {
   return output;
 }
 
-const output = buildSource();
+// ── 压缩：去注释与空白、缩短局部变量名，避免宿主适配实现随加载项明文外发。
+// 注意：产品名、能力数量等**运行时要显示的字符串**不会被压缩改变。
+let output = buildSource();
+const rawLength = Buffer.byteLength(output, 'utf8');
+try {
+  const res = esbuild.transformSync(output, {
+    minify: true,
+    target: 'es2018',
+    legalComments: 'none',
+  });
+  if (res.code && res.code.trim().length > 0) output = res.code;
+} catch (err) {
+  console.error(`压缩失败，已中止写出：${err.message}`);
+  process.exit(1);
+}
 const previous = fs.existsSync(OUT_FILE) ? fs.readFileSync(OUT_FILE, 'utf8') : null;
 const relOut = path.relative(REPO_ROOT, OUT_FILE);
 

@@ -17,7 +17,7 @@
 | 开发、检查、构建脚本 | [脚本](scripts/AGENTS.md) | 对应脚本和 package.json |
 | 官网内容和交互 | [官网](website/AGENTS.md) | website/src/App.tsx → components |
 
-其他目录：[docs](docs/) 放架构和验证说明；[prompts](prompts/) 放运行时提示词；[build](build/) 和 resources 的图片为打包素材。它们沿用根规范。发布包的代码保护（sourcemap 排除、V8 字节码、验证脚本）见 [code-protection.md](docs/code-protection.md)；当前架构参考 [architecture.md](docs/architecture.md)，主入口配置为 [package.json](package.json) 和 [tsup.config.ts](tsup.config.ts)。
+其他目录：[docs](docs/) 放架构和验证说明；[prompts](prompts/) 放运行时提示词；[build](build/) 和 resources 的图片为打包素材。它们沿用根规范。发布包的代码保护（sourcemap 排除、V8 字节码、验证脚本）见 [code-protection.md](docs/code-protection.md)；发布专用副本由 [build-release-assets.mjs](scripts/build-release-assets.mjs) 生成到 `dist/release-app/`，只在该副本做混淆，业务源码和技能原稿保留。当前架构参考 [architecture.md](docs/architecture.md)，主入口配置为 [package.json](package.json) 和 [tsup.config.ts](tsup.config.ts)。
 
 阶段验收证据按候选标识存放在 `docs/acceptance/<候选标识>/`，至少包含基线指纹、工具契约快照、环境清单与兼容性差异；只写"已完成"而没有对应证据的条目视为未完成。
 

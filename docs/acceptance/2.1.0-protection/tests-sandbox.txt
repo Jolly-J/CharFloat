@@ -1,0 +1,247 @@
+
+> office-agent-bridge@2.1.0 test
+> node --import tsx --test --test-concurrency=1 tests/*.test.ts
+
+✔ readAddonFingerprint 能从产物头部解析指纹，缺失时返回 null (2.277042ms)
+✔ 版本号相同但构建指纹不同 → 判定为需要升级 (0.915584ms)
+✔ 指纹一致时判定为最新 (1.025542ms)
+✔ 没有已部署副本 → 需要安装 (0.539125ms)
+✔ 读不到包内指纹时返回 null（判不了），不猜测 (0.64025ms)
+✔ 自动升级：过期时重新部署并触发重载 (4002.775ms)
+✔ 自动升级：已最新时不重复部署 (2.907334ms)
+✔ 自动升级：判不了（无包内指纹）时不动部署 (1.163625ms)
+✔ 自动升级：部署失败时不触发重载（避免制造已修复的假象） (1.230833ms)
+✔ addon uses installed credentials and zero-valued formulas survive reads (16.937625ms)
+✔ addon rejects wrong dimensions before writing and rejects partial document names (2.446542ms)
+✔ patch_cells 的 formulas 空项表示"不改公式"，不得清空同批写入的值（ISS-01 / DP7） (2.314166ms)
+✔ patch_cells 混合矩阵：空项保留同批写入的值，非空项正常落公式 (1.198541ms)
+✔ patch_cells 无空项时仍走整批赋值，值写入行为不变 (1.141875ms)
+✔ 注册工具缺少网关分支必须为空（不覆盖宿主实现与参数转换） (1.189208ms)
+✔ 「实现了但未注册」与台账一致，不得新增死分支 (0.094291ms)
+✔ 能力声明与宿主实现缺口同源且一致 (3.526ms)
+✔ P2.3 分类：每个工具都能落到唯一一类，且 Excel 类与宿主路由表一致 (0.217959ms)
+✔ P2.5 分类口径：统一入口与兼容名成对，Microsoft 类只含原生脚本/预览/状态 (0.154959ms)
+✔ P2.5 参数转换边界：Microsoft 支持的宿主方法都有可用的请求/响应转换 (1.630791ms)
+✔ P2.5 宿主实现独立校验：路由表的方法必须在加载项里真有 RPC 分支 (1.607125ms)
+✔ 只读标注与重放安全性与契约层同源 (0.986125ms)
+✔ CAP-51：COM 回退白名单与 excel.ps1 实际分支同源（不是整张路由表） (0.63725ms)
+✔ MCP tools/list 只发规范字段——内部字段不得随响应外发 (3.919375ms)
+✔ 审计归属：clientName 真正落到审计记录 (2.220958ms)
+✔ 审计归属：会话隔离，记录归属各自客户端 (3.779542ms)
+✔ CAP-50：破坏性前置条件在调用宿主前拦截（M1 数据有效性 / M2 空搜索串） (3.304708ms)
+✔ 强连通分量台账只减不增，且反映真实状态 (0.986541ms)
+✔ P2.1 验收：执行层 adapter 不再反向依赖注册入口 catalog (0.065041ms)
+✔ P2.2 验收：协议层通过注入的接口取工具，不静态反向引用 catalog (0.041541ms)
+✔ P2.3 验收：分类模块不反向依赖注册入口 catalog (0.07875ms)
+✔ 契约层不依赖执行层、协议层与服务实例 (0.065417ms)
+✔ 契约层标识与既有兼容导出同源 (120.008208ms)
+✔ 契约层判定在搬迁中保持不变（回归护栏） (0.261625ms)
+✔ 四种失败种类默认的"是否已执行"判定是保守的 (0.813708ms)
+✔ 只有确认未执行或不修改文档的方法才允许跨通道重放 (0.196709ms)
+✔ routeOfficeFailure 决策表：写操作在结果不可判定时拒绝回退 (0.573791ms)
+✔ 替代通道不支持该方法时，保留前一通道的原始错误与 executed 状态 (0.200875ms)
+✔ 故障注入：写入已发生但响应超时，不得在原生通道重复执行 (0.736959ms)
+✔ 故障注入：写入已完成但响应无法解析，同样不得回退重放 (0.367833ms)
+✔ 故障注入：加载项未连接属于执行前不可用，仍允许原生通道接管 (0.776458ms)
+✔ 通道边界在真实调用路径上抛出已分类错误 (0.161917ms)
+✔ MCP readOnlyHint 与重放安全性是两套命名清晰的判定 (0.071292ms)
+✔ 带副作用的表达式探测既不算只读，也不允许跨通道重放 (3.381709ms)
+✔ DP4：声明了但目标宿主未实现的操作，在调用宿主之前明确拒绝 (5.596083ms)
+✔ CAP-50：参数安全护栏（空搜索串）不得换通道重放，能力缺口仍可回退 (0.303666ms)
+✔ ISS-126：残留目标锁失效时自动清理并给出可操作的重新锁定提示 (3.515125ms)
+✖ cold stdio start launches a daemon; stdio exit leaves it running (6261.352ms)
+✔ normalizeOfficeRequest transforms flat styling parameters to Office.js structures (0.794792ms)
+✔ normalizeOfficeResponse normalizes patch_cells result to standard PatchResult (0.226875ms)
+✔ normalizeOfficeResponse normalizes get_workspace_summary (0.079459ms)
+✔ normalizeOfficeRequest routes save_workbook to save (0.044041ms)
+✔ CAP-50：Microsoft 通道的 set_data_validation(action="read") 判为不安全的参数组合 (0.230125ms)
+✔ 真实报错被识别为权限问题并提取出目标路径 (0.681833ms)
+✔ EACCES 与带 code 的错误同样识别 (0.106834ms)
+✔ 无关失败不得被误判为权限问题 (0.072ms)
+✔ 非 macOS 平台不产生引导（Windows 走各自路径） (0.039708ms)
+✔ 无路径的权限错误也能识别，路径字段留空而不是编造 (0.053125ms)
+✔ XML merge preserves unrelated plugins and rejects damaged input (4.571875ms)
+✔ MCP merge preserves other clients and corrupt files byte for byte (1.363833ms)
+✔ MCP 配置改名：只写新名字，并把我们自己的遗留 wps-bridge 条目迁走 (0.863917ms)
+✔ status checks do not create plugin directories; install validates before writes (2.254958ms)
+✔ tool names are unique and unified Excel host is mandatory (3.283875ms)
+✔ document locks are isolated between MCP sessions and hosts (0.144291ms)
+✔ native runner handles Unicode and shell metacharacters without interpolation (88.331167ms)
+✔ 布局纯函数可直接运行，无需宿主 (1.23975ms)
+✔ generated content follows actual 720 x 405 page (1.092583ms)
+✔ generated content follows actual 960 x 540 page (0.291167ms)
+✔ generated content follows actual 1440 x 810 page (0.26325ms)
+✔ generated content follows actual 720 x 540 page (0.258667ms)
+✔ invalid page size stops layout (0.152208ms)
+✔ long text warns and existing shapes remain unchanged (0.3885ms)
+✔ 生成物与源码一致，且不含 import/export (119.50825ms)
+✔ native script tools expose exact target names (2.004792ms)
+✔ 发布 WPS 副本通过相同的宿主 RPC 行为回归，开发文件不变 (1509.698542ms)
+✔ 发布 Office 副本保留注册、零值读取、写入与未知方法错误 (191.734042ms)
+✔ 发布门禁拒绝源码、备份、旧入口和缺失的 Agent 使用资源 (0.449833ms)
+✖ loopback health is public, documents require auth, foreign origins rejected (3.239875ms)
+✖ schemas reject malformed writes before reaching the host (0.032042ms)
+✖ rollback refuses later edits and restores only matching snapshot (0.022833ms)
+✖ HTTP MCP handshake, resources and real RPC routing (0.039166ms)
+✖ two stdio clients reuse service; exiting one preserves the other and daemon (0.029458ms)
+✖ 两个 stdio 客户端的 WPS 文档锁互不串扰 (6218.794584ms)
+✖ 两个 stdio 客户端的 Microsoft 目标锁互不串扰 (9.402375ms)
+✖ 真实 stdio 链路的审计归属：clientName 经 CLI 与 HTTP 转发后仍为 stdio MCP (0.127166ms)
+✔ compareCellValues：数字按数值比较，不走字典序 (0.622333ms)
+✔ compareCellValues：空值最小，文本按字典序 (0.045917ms)
+✔ isSortedByRules：已排序的升序/降序返回 true (0.072083ms)
+✔ isSortedByRules：中间相邻行逆序返回 false (0.043167ms)
+✔ isSortedByRules 必须比较**最后一对**相邻行（"漏最后一行"回归项） (0.051125ms)
+✔ isSortedByRules：首行按表头跳过，表头与首行数据"逆序"不得误判 (0.034208ms)
+✔ isSortedByRules：少于 3 行（表头 + 1 行数据）无需排序，返回 true (0.038ms)
+✔ isSortedByRules：多列规则，前一列相等时看后一列 (0.040375ms)
+✔ isSortedByRules：规则为空或非法列号时不误判为已排序 (0.0585ms)
+✔ isSortedByRules：二维数组缺失时不抛错 (0.0735ms)
+✔ decodePng 能还原 0–4 号行过滤器编码的 PNG (2.429958ms)
+✔ decodePng 能解码真实源图标 build/icon.png (28.613333ms)
+✔ encodePng 与 decodePng 往返逐字节一致 (0.355833ms)
+✔ resizeRgba 按面积平均缩放，全透明区域不产生暗色 (0.176625ms)
+✔ rgbaToDib 生成合法的 32bpp 自下而上 DIB 与 AND 掩码 (0.176958ms)
+✔ buildIco 目录项字段正确且偏移连续 (2.971417ms)
+✔ verifyIco 接受「<256 用 DIB、256 用 PNG」的产物 (54.603042ms)
+✔ buildIco 拒绝超过 64KB 的条目（PE 资源长度字段被截断的回归项） (0.3145ms)
+✔ verifyIco 拒绝小于 256px 的 PNG 条目（本轮空白图标的回归项） (0.22525ms)
+✔ verifyIco 拒绝条目数、尺寸与位深不符的产物 (0.11225ms)
+ℹ tests 105
+ℹ suites 0
+ℹ pass 96
+ℹ fail 9
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21366.93775
+
+✖ failing tests:
+
+test at tests/lifecycle.test.ts:1:509
+✖ cold stdio start launches a daemon; stdio exit leaves it running (6261.352ms)
+  Error [McpError]: MCP error -32000: Connection closed
+      at McpError.fromError (<repo>/node_modules/@modelcontextprotocol/sdk/src/types.ts:2330:16)
+      at Client._onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:662:32)
+      at StdioClientTransport._transport.onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:618:18)
+      at ChildProcess.<anonymous> (<repo>/node_modules/@modelcontextprotocol/sdk/src/client/stdio.ts:152:31)
+      at ChildProcess.emit (node:events:509:20)
+      at maybeClose (node:internal/child_process:1108:16)
+      at Socket.<anonymous> (node:internal/child_process:480:11)
+      at Socket.emit (node:events:509:20)
+      at Pipe.<anonymous> (node:net:350:12) {
+    code: -32000,
+    data: undefined
+  }
+
+test at tests/service.test.ts:1:2713
+✖ loopback health is public, documents require auth, foreign origins rejected (3.239875ms)
+  Error: listen EPERM: operation not permitted 127.0.0.1:30128
+      at Server.setupListenHandle [as _listen2] (node:net:1986:21)
+      at listenInCluster (node:net:2065:12)
+      at node:net:2274:7
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    code: 'EPERM',
+    errno: -1,
+    syscall: 'listen',
+    address: '127.0.0.1',
+    port: 30128
+  }
+
+test at tests/service.test.ts:1:3444
+✖ schemas reject malformed writes before reaching the host (0.032042ms)
+  Error: listen EPERM: operation not permitted 127.0.0.1:30128
+      at Server.setupListenHandle [as _listen2] (node:net:1986:21)
+      at listenInCluster (node:net:2065:12)
+      at node:net:2274:7
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    code: 'EPERM',
+    errno: -1,
+    syscall: 'listen',
+    address: '127.0.0.1',
+    port: 30128
+  }
+
+test at tests/service.test.ts:1:3665
+✖ rollback refuses later edits and restores only matching snapshot (0.022833ms)
+  Error: listen EPERM: operation not permitted 127.0.0.1:30128
+      at Server.setupListenHandle [as _listen2] (node:net:1986:21)
+      at listenInCluster (node:net:2065:12)
+      at node:net:2274:7
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    code: 'EPERM',
+    errno: -1,
+    syscall: 'listen',
+    address: '127.0.0.1',
+    port: 30128
+  }
+
+test at tests/service.test.ts:1:4399
+✖ HTTP MCP handshake, resources and real RPC routing (0.039166ms)
+  Error: listen EPERM: operation not permitted 127.0.0.1:30128
+      at Server.setupListenHandle [as _listen2] (node:net:1986:21)
+      at listenInCluster (node:net:2065:12)
+      at node:net:2274:7
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    code: 'EPERM',
+    errno: -1,
+    syscall: 'listen',
+    address: '127.0.0.1',
+    port: 30128
+  }
+
+test at tests/service.test.ts:1:5114
+✖ two stdio clients reuse service; exiting one preserves the other and daemon (0.029458ms)
+  Error: listen EPERM: operation not permitted 127.0.0.1:30128
+      at Server.setupListenHandle [as _listen2] (node:net:1986:21)
+      at listenInCluster (node:net:2065:12)
+      at node:net:2274:7
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    code: 'EPERM',
+    errno: -1,
+    syscall: 'listen',
+    address: '127.0.0.1',
+    port: 30128
+  }
+
+test at tests/session-isolation.test.ts:1:1564
+✖ 两个 stdio 客户端的 WPS 文档锁互不串扰 (6218.794584ms)
+  Error [McpError]: MCP error -32000: Connection closed
+      at McpError.fromError (<repo>/node_modules/@modelcontextprotocol/sdk/src/types.ts:2330:16)
+      at Client._onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:662:32)
+      at StdioClientTransport._transport.onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:618:18)
+      at ChildProcess.<anonymous> (<repo>/node_modules/@modelcontextprotocol/sdk/src/client/stdio.ts:152:31)
+      at ChildProcess.emit (node:events:509:20)
+      at maybeClose (node:internal/child_process:1108:16)
+      at ChildProcess._handle.onexit (node:internal/child_process:305:5) {
+    code: -32000,
+    data: undefined
+  }
+
+test at tests/session-isolation.test.ts:1:2614
+✖ 两个 stdio 客户端的 Microsoft 目标锁互不串扰 (9.402375ms)
+  Error [McpError]: MCP error -32000: Connection closed
+      at McpError.fromError (<repo>/node_modules/@modelcontextprotocol/sdk/src/types.ts:2330:16)
+      at Client._onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:662:32)
+      at StdioClientTransport._transport.onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:618:18)
+      at ChildProcess.<anonymous> (<repo>/node_modules/@modelcontextprotocol/sdk/src/client/stdio.ts:152:31)
+      at ChildProcess.emit (node:events:509:20)
+      at maybeClose (node:internal/child_process:1108:16)
+      at ChildProcess._handle.onexit (node:internal/child_process:305:5) {
+    code: -32000,
+    data: undefined
+  }
+
+test at tests/session-isolation.test.ts:1:3580
+✖ 真实 stdio 链路的审计归属：clientName 经 CLI 与 HTTP 转发后仍为 stdio MCP (0.127166ms)
+  Error [McpError]: MCP error -32000: Connection closed
+      at McpError.fromError (<repo>/node_modules/@modelcontextprotocol/sdk/src/types.ts:2330:16)
+      at Client._onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:662:32)
+      at StdioClientTransport._transport.onclose (<repo>/node_modules/@modelcontextprotocol/sdk/src/shared/protocol.ts:618:18)
+      at ChildProcess.<anonymous> (<repo>/node_modules/@modelcontextprotocol/sdk/src/client/stdio.ts:152:31)
+      at ChildProcess.emit (node:events:509:20)
+      at maybeClose (node:internal/child_process:1108:16)
+      at ChildProcess._handle.onexit (node:internal/child_process:305:5) {
+    code: -32000,
+    data: undefined
+  }

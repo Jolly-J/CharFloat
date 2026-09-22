@@ -1,0 +1,17 @@
+{
+  "commit": "04d8e069c0e0673e2f162f68c32386a6e57a5361",
+  "createdAt": "2026-09-22T17:01:57.644452+00:00",
+  "priorStatus": [
+    " M office-addon/public/taskpane.js",
+    " M package.json",
+    " M scripts/build-office-addon.mjs",
+    " M scripts/build-wps-addon.mjs",
+    " M wps-addon/addon-core.js",
+    "?? docs/acceptance/2.1.0-protection/",
+    "?? scripts/dist-parallel.mjs"
+  ],
+  "priorPatchSha256": "54b478a70c55fe5ee013f96daecd741bd9fc94a32b059cc4240ea682f3cb76ed",
+  "priorUntracked": {
+    "scripts/dist-parallel.mjs": "346cad909bb2f6dc80fc3b1164d16e3ea8e66de1473bf5ba943a5539187359e6"
+  }
+}

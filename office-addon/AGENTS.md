@@ -24,6 +24,9 @@ Office.js 与 WPS/COM 对象模型不同。读取先 load/sync，写入完成后
 
 照搬 WPS 脚本 → Office.js 使用 context/Excel 且需同步 → 使用当前执行器约定 → 核对 taskpane.js 的 execute_script 与 normalizer，并实机读回。
 
+构建产物**会做 esbuild 压缩**（`minify: true`，`target: es2018`）→ 去注释、缩短局部变量名，避免宿主适配实现随加载项明文外发；`taskpane.js` 从 152 KB 降到 82 KB。**字符串字面量不受影响**（产品名、能力数量等运行时文案照常）。
+⚠️ **压缩后必须真机验证**：任务窗格跑在 Office 的 webview 里，压缩改变了变量名与函数提升结构，**构建通过看不出问题**，要在真实 Office 里确认加载项能连上。
+
 ## 同步维护
 
 文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。

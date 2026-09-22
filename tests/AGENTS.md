@@ -2,6 +2,7 @@
 
 ## 文件地图
 
+- [release-protection.test.ts](release-protection.test.ts)：发布副本混淆后的 WPS/Office RPC 行为、构建指纹和泄露门禁；不修改开发加载项或真实文档。
 - [addon.test.ts](addon.test.ts)：WPS 模拟 RPC。
 - [failure-routing.test.ts](failure-routing.test.ts)：失败分类与跨通道回退故障注入。
 - [contracts-boundary.test.ts](contracts-boundary.test.ts)：契约层边界与依赖回环守卫。

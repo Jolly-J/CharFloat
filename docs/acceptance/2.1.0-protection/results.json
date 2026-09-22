@@ -1,0 +1,67 @@
+{
+  "baselineCommit": "04d8e069c0e0673e2f162f68c32386a6e57a5361",
+  "scope": "build-only; business sources and agent guides unchanged",
+  "mcp": {
+    "tools": 142,
+    "fullContractMatches": true,
+    "bytecodeRuntime": "macOS packaged executable and unpacked CLI; isolated temporary service",
+    "promptMatches": true,
+    "capabilityResource": true,
+    "toolCall": true,
+    "unknownToolError": true,
+    "hostVerified": false
+  },
+  "checks": {
+    "typecheck": "passed",
+    "nodeTests": {
+      "total": 105,
+      "sandboxPassed": 96,
+      "sandboxNetworkingBlocked": 9,
+      "networkingRetestPassed": 9
+    },
+    "navigation": "passed",
+    "capabilityClaims": "passed",
+    "originalPackageRejected": true,
+    "gitDiffCheck": "passed"
+  },
+  "unchangedAgentResources": {
+    "skills/office-agent-bridge/SKILL.md": "b5c1cbe1a1c806b84b5d9711b7fa22ad1eb2a2bbfd5be958f24bfa9c3e5d5e57",
+    "skills/office-agent-bridge/references/canvas-layout.md": "e283019e4b77270ce0631938ccb5fc757808a75636f816f4637bd8b0a519dda1",
+    "skills/office-agent-bridge/references/capabilities.md": "ff84b0339b07bf1983d200658b7dddceccdf08d85c452d5fd1425006460d496f",
+    "skills/office-agent-bridge/references/enumeration.md": "5c4a6e75c3722580493c6d8434cf773b27c327594bea22e7e6fc8e6291dbdc45",
+    "skills/office-agent-bridge/references/native-scripting.md": "9bb3eeb45f9ea7cdce7e0682b6a3f6a26704db35140fbcde5387789953920034",
+    "skills/office-agent-bridge/references/operations.md": "dcaa973d7ffcd19955fc8f12dad40f54116a04e913f8787066405358a8b8017b",
+    "skills/office-agent-bridge/scripts/bridge_client.py": "ba1741f2cc0b37b9f356a4e16679ecc8d9111ca128c9da8b995e3d8bb7692c98",
+    "skills/office-agent-bridge-chart-style/SKILL.md": "2864825b6380aad27ebeba50ef2591c376bcb8dba629dfa7ac075b8c01d44931",
+    "skills/office-agent-bridge-ppt-design/SKILL.md": "cb0f5c2b50aba69153b8389dfd661d19f66f77bf31af943b01a4c09a31da025c",
+    "skills/office-agent-bridge-word-batch-edit/SKILL.md": "7e9c8d03723dcdd761e6cf9d73f5c216ebc6b4b0e5f878ec1d0dbab40fde2342",
+    "prompts/excel_aesthetic_system.md": "375e86a82ced79d34db25610ae2c211b33c3c30983a3d9e657f06cc9267e0d4a"
+  },
+  "packages": [
+    {
+      "artifact": "Office-Agent-Bridge-2.1.0-mac-arm64.zip",
+      "sha256": "8d2457123ecc24c4658da06c21bd99d9e5ff629778e21544dc0ceb9e5c23e232",
+      "profile": "offline-addons-v1",
+      "files": 4849,
+      "protectedFiles": 52,
+      "runtimeVerified": false,
+      "hostVerified": false
+    },
+    {
+      "artifact": "Office-Agent-Bridge-2.1.0-win-x64.zip",
+      "sha256": "4c8ec9a38b0e0968ea653a178e2bce9d84e17027fb645c2da370b3d106010905",
+      "profile": "offline-addons-v1",
+      "files": 4849,
+      "protectedFiles": 52,
+      "runtimeVerified": false,
+      "hostVerified": false
+    }
+  ],
+  "limitations": [
+    "No real WPS/Excel validation of protected addons",
+    "No Windows runtime validation",
+    "Candidate packages unsigned",
+    "PowerShell and required agent guides remain readable",
+    "Obfuscation and bytecode do not prevent reuse or reverse engineering"
+  ]
+}

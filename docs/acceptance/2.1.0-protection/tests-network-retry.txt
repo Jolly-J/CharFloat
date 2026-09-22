@@ -1,0 +1,20 @@
+✔ cold stdio start launches a daemon; stdio exit leaves it running (330.497167ms)
+[Bridge] 本地 HTTPS 服务启动跳过: listen EADDRINUSE: address already in use 127.0.0.1:19891
+[Bridge] HTTPS 静态与 WSS 通道已就绪: https://localhost:19891
+[Bridge] 2.1.0 listening on 127.0.0.1:23457
+✔ loopback health is public, documents require auth, foreign origins rejected (71.628834ms)
+✔ schemas reject malformed writes before reaching the host (5.27575ms)
+✔ rollback refuses later edits and restores only matching snapshot (6.64125ms)
+✔ HTTP MCP handshake, resources and real RPC routing (25.502167ms)
+✔ two stdio clients reuse service; exiting one preserves the other and daemon (192.097208ms)
+✔ 两个 stdio 客户端的 WPS 文档锁互不串扰 (455.386167ms)
+✔ 两个 stdio 客户端的 Microsoft 目标锁互不串扰 (9.784709ms)
+✔ 真实 stdio 链路的审计归属：clientName 经 CLI 与 HTTP 转发后仍为 stdio MCP (72.799875ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1934.922375
