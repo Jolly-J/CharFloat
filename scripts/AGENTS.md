@@ -11,6 +11,7 @@
 - [check-agents.mjs](check-agents.mjs)：只读检查协作导航。
 - [snapshot-tools.ts](snapshot-tools.ts)：只读导出工具契约与能力快照（`npm run snapshot:tools`）。
 - [check-capability-claims.ts](check-capability-claims.ts)：只读核对 skill、官网与**加载项页面**中的能力数量表述与元数据源（`npm run check:claims`）。
+- [check-param-forwarding.ts](check-param-forwarding.ts)：只读核对"**schema 声明了参数、网关处理器却没读取**"的静默丢参（`npm run check:params`）；带自检，证明能抓到未转发参数且读过的不误报。
 - [build-win-icon.mjs](build-win-icon.mjs)：由 `build/icon.png` 生成 Windows 用的**多尺寸** `build/icon.ico`（`npm run build:win-icon`）；纯 Node 实现（自带 PNG 解码/缩放/编码与 DIB 封装），写完自检格式，不通过不落盘。
 - [build-wps-addon.mjs](build-wps-addon.mjs)：由 `wps-addon/src/**` 生成部署入口 `wps-addon/addon-core.js`（`npm run build:wps-addon`，`--check` 只校验）。
 - [build-office-addon.mjs](build-office-addon.mjs)：由 `office-addon/src/**` 生成部署入口 `office-addon/public/taskpane.js`（`npm run build:office-addon`，`--check` 只校验）。

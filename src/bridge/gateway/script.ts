@@ -29,13 +29,17 @@ export const executeScript: Handler = async (ctx) => {
 
 export const inspectApi: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    const { expression, path, component, documentName, workbookName, presentationName } = args || {};
+    const { expression, path, component, documentName, workbookName, presentationName, evaluate, maxMembers } = args || {};
+    // ISS-89 的护栏参数必须转发到宿主：漏传等于护栏永远按默认走（与 ISS-106 同一类问题——
+    // schema 声明了字段、网关却不转发，调用方以为生效了其实没到）。
     return await callOffice("inspect_api", {
       expression: expression || path || "app",
       component,
       documentName,
       workbookName,
-      presentationName
+      presentationName,
+      evaluate,
+      maxMembers
     });
 };
 
