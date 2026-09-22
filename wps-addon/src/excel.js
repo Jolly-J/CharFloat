@@ -862,14 +862,20 @@
     const sheet = getWorksheet(app, sheetName, workbookName);
     const targetRange = address ? sheet.Range(address) : sheet.UsedRange;
 
-    // 单元格地址取值：`Address` 在不同宿主上可能是属性也可能是方法，
-    // 原实现直接写进返回体/消息里，结果输出成 "function Address() { [native code] }"（问题台账 ISS-66）。
+    // 单元格地址取值。**必须保留接收者直接调用**：宿主方法是原生实现，
+    // 摘出来再调（`const f = cell.Address; f()`）会丢 this，抛
+    // "Address called on null or undefined"，被 catch 吞掉后表现为地址为空
+    // （真机实测：消息变成"已在单元格  添加批注"，ISS-66 的根因就在这里）。
     const addressOf = (cell) => {
       try {
-        const value = cell.Address;
-        return typeof value === "function" ? String(value()) : String(value);
+        return String(cell.Address());
       } catch (e) {
-        return "";
+        try {
+          // 少数宿主把 Address 暴露成属性而非方法
+          return String(cell.Address);
+        } catch (e2) {
+          return "";
+        }
       }
     };
 

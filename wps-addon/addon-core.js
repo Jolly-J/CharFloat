@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 6599aa06045a1dae602dcc20b49ce359757a8bb7399fb9b4afd6d0bcfb67d9f3
+// ADDON_BUILD_FINGERPRINT: 8f0410799ba089bec8ebacfa742439aece8acf27eb6e0d236a3cd962ed61c1d0
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "6599aa06045a1dae602dcc20b49ce359757a8bb7399fb9b4afd6d0bcfb67d9f3";
+  var ADDON_BUILD_FINGERPRINT = "8f0410799ba089bec8ebacfa742439aece8acf27eb6e0d236a3cd962ed61c1d0";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -2216,14 +2216,20 @@
     const sheet = getWorksheet(app, sheetName, workbookName);
     const targetRange = address ? sheet.Range(address) : sheet.UsedRange;
 
-    // 单元格地址取值：`Address` 在不同宿主上可能是属性也可能是方法，
-    // 原实现直接写进返回体/消息里，结果输出成 "function Address() { [native code] }"（问题台账 ISS-66）。
+    // 单元格地址取值。**必须保留接收者直接调用**：宿主方法是原生实现，
+    // 摘出来再调（`const f = cell.Address; f()`）会丢 this，抛
+    // "Address called on null or undefined"，被 catch 吞掉后表现为地址为空
+    // （真机实测：消息变成"已在单元格  添加批注"，ISS-66 的根因就在这里）。
     const addressOf = (cell) => {
       try {
-        const value = cell.Address;
-        return typeof value === "function" ? String(value()) : String(value);
+        return String(cell.Address());
       } catch (e) {
-        return "";
+        try {
+          // 少数宿主把 Address 暴露成属性而非方法
+          return String(cell.Address);
+        } catch (e2) {
+          return "";
+        }
       }
     };
 
