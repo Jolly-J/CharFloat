@@ -1024,3 +1024,14 @@ export const manageWorkbookViews: Handler = async (ctx) => {
     viewName: args?.viewName
   });
 };
+
+/** CAP-11 变更感知（基线比对版；本机事件 API 不可用）。 */
+export const detectSheetChanges: Handler = async (ctx) => {
+  const { args, callOffice, TargetLockStore } = ctx;
+  return await callOffice("manage_sheet_changes", {
+    workbookName: args?.workbookName,
+    sheetName: args?.sheetName || TargetLockStore.resolve("excel"),
+    action: args?.action,
+    maxCells: args?.maxCells
+  });
+};
