@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 861b02ecf2359a40131048b52051f7dc41e6b4b0e9b531842b91e14c82aaba9a
+// ADDON_BUILD_FINGERPRINT: cad153ae8d8a98075f7bc3d2793bc9540cbdb232d3231634313d7cdd08c5046d
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "861b02ecf2359a40131048b52051f7dc41e6b4b0e9b531842b91e14c82aaba9a";
+  var ADDON_BUILD_FINGERPRINT = "cad153ae8d8a98075f7bc3d2793bc9540cbdb232d3231634313d7cdd08c5046d";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -951,6 +951,9 @@
           break;
         case "delete_sheet":
           result = deleteWorksheet(app, params);
+          break;
+        case "export_chart_image":
+          result = exportChartImage(app, params);
           break;
         case "clear_range":
           result = clearRange(app, params);
@@ -3626,6 +3629,69 @@
         });
       }
     } catch (e) {}
+  }
+
+  // ── CAP-22 图表导图（clear_range 早已存在，此处不重复实现）
+  //
+  // 真机探测确认（WPS 12.1.28496）：
+  //   `Chart.Export(路径, "PNG")` 可用且**确实落盘**（实测导出 8040 字节 PNG）。
+  // 注意：outputPath 必须落在 **WPS 可写目录**内，写到 /tmp 之类读不到的位置
+  // 会"调用成功但不落盘"，所以桥接侧会再用 existsSync 核对一次。
+
+  /** 把图表导出为图片文件。 */
+  function exportChartImage(app, params) {
+    const { sheetName, workbookName, chartName, chartIndex, outputPath, format = "PNG" } = params || {};
+    if (!outputPath) throw new Error("缺少必要参数: outputPath（必须落在 WPS 可写目录内）");
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    try { sheet.Activate(); } catch (e) {}
+
+    const charts = [];
+    const shapes = sheet.Shapes;
+    for (let i = 1; i <= shapes.Count; i++) {
+      const sh = shapes.Item(i);
+      let isChart = false;
+      try { isChart = Boolean(sh.HasChart); } catch (e) {}
+      if (isChart) charts.push(sh);
+    }
+    if (!charts.length) throw new Error(`工作表 [${sheet.Name}] 上没有图表`);
+
+    let target = null;
+    if (chartIndex !== undefined && chartIndex !== null && chartIndex !== "") {
+      const idx = Number(chartIndex);
+      if (!(idx >= 1) || idx > charts.length) throw new Error(`图表序号 ${idx} 越界（共 ${charts.length} 个）`);
+      target = charts[idx - 1];
+    } else if (chartName) {
+      for (const sh of charts) { try { if (String(sh.Name) === String(chartName)) { target = sh; break; } } catch (e) {} }
+      if (!target) {
+        const names = charts.map(s => { try { return String(s.Name); } catch (e) { return "?"; } });
+        throw new Error(`找不到名为 "${chartName}" 的图表。现有图表：${names.join(" / ")}`);
+      }
+    } else if (charts.length === 1) {
+      target = charts[0];
+    } else {
+      const names = charts.map(s => { try { return String(s.Name); } catch (e) { return "?"; } });
+      throw new Error(`工作表上有 ${charts.length} 个图表，请用 chartName 或 chartIndex 指定。现有：${names.join(" / ")}`);
+    }
+
+    const fmt = String(format).toUpperCase();
+    const ALLOWED = ["PNG", "JPG", "JPEG", "GIF", "BMP"];
+    if (ALLOWED.indexOf(fmt) < 0) throw new Error(`不支持的格式: ${format}（可用 ${ALLOWED.join(" / ")}）`);
+    const exportFmt = fmt === "JPEG" ? "JPG" : fmt;
+
+    target.Chart.Export(String(outputPath), exportFmt);
+
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      chartName: (() => { try { return String(target.Name); } catch (e) { return null; } })(),
+      outputPath: String(outputPath),
+      format: exportFmt,
+      // 宿主侧无法探测文件系统，落盘由**桥接侧**用 existsSync 核对后回填 fileWritten/fileSizeBytes
+      fileWritten: null,
+      warnings: [],
+      message: `已调用图表导出 → ${outputPath}（${exportFmt}）`
+    };
   }
 
   // ── CAP-21 图表更新（wps_update_chart）

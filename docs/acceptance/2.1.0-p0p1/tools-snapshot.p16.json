@@ -1,8 +1,8 @@
 {
   "generator": "scripts/snapshot-tools.ts",
-  "toolCount": 133,
+  "toolCount": 135,
   "readOnlyCount": 23,
-  "writeCount": 110,
+  "writeCount": 112,
   "excelMethods": [
     "get_workspace_summary",
     "get_sheet_outline",
@@ -39,6 +39,7 @@
     "configure_print_layout",
     "export_sheet_pdf",
     "set_sheet_view",
+    "export_chart_image",
     "copy_range",
     "manage_hyperlink",
     "manage_named_range",
@@ -89,7 +90,7 @@
         "sizeBytes": 2670
       },
       "bridgeVersion": "2.1.0",
-      "capturedAt": 1790078832841,
+      "capturedAt": 1790079308453,
       "note": "指纹只证明**磁盘/部署副本**的构建身份；加载项目前不上报自身指纹，\"进程里加载的是哪一份字节\"无法由此证实（需宿主重载/重启后重新 register）。未实机验收。",
       "officeAddon": {
         "resource": {
@@ -105,29 +106,29 @@
         "deployed": [
           {
             "exists": true,
-            "mtime": "2026-09-22T12:06:38.120Z",
+            "mtime": "2026-09-22T12:14:31.862Z",
             "path": "/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
             "role": "WPS 加载项已部署副本",
-            "sha256": "4c529002cafd13f17e19d9e03cb88689e6c470be0bba17d46181446d67ea0a2b",
-            "sizeBytes": 420426
+            "sha256": "430aac5a03bce2b9313cf274ae8c394638f3ebaf10cd4539641a854bcc9212a8",
+            "sizeBytes": 423572
           },
           {
             "exists": true,
-            "mtime": "2026-09-22T12:06:38.142Z",
+            "mtime": "2026-09-22T12:14:31.881Z",
             "path": "/Users/jolin/Library/Containers/cn.wps.moffice_mac/Data/.local/share/Kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
             "role": "WPS 加载项已部署副本",
-            "sha256": "4c529002cafd13f17e19d9e03cb88689e6c470be0bba17d46181446d67ea0a2b",
-            "sizeBytes": 420426
+            "sha256": "430aac5a03bce2b9313cf274ae8c394638f3ebaf10cd4539641a854bcc9212a8",
+            "sizeBytes": 423572
           }
         ],
         "deployedMatchesResource": true,
         "resource": {
           "exists": true,
-          "mtime": "2026-09-22T12:04:58.478Z",
+          "mtime": "2026-09-22T12:11:58.731Z",
           "path": "/Users/Python/Office Agent Bridge/wps-addon/addon-core.js",
           "role": "WPS 加载项随包产物",
-          "sha256": "4c529002cafd13f17e19d9e03cb88689e6c470be0bba17d46181446d67ea0a2b",
-          "sizeBytes": 420426
+          "sha256": "430aac5a03bce2b9313cf274ae8c394638f3ebaf10cd4539641a854bcc9212a8",
+          "sizeBytes": 423572
         }
       }
     },
@@ -143,7 +144,7 @@
           "sizeBytes": 2670
         },
         "bridgeVersion": "2.1.0",
-        "capturedAt": 1790078832841,
+        "capturedAt": 1790079308453,
         "note": "指纹只证明**磁盘/部署副本**的构建身份；加载项目前不上报自身指纹，\"进程里加载的是哪一份字节\"无法由此证实（需宿主重载/重启后重新 register）。未实机验收。",
         "officeAddon": {
           "resource": {
@@ -159,29 +160,29 @@
           "deployed": [
             {
               "exists": true,
-              "mtime": "2026-09-22T12:06:38.120Z",
+              "mtime": "2026-09-22T12:14:31.862Z",
               "path": "/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
               "role": "WPS 加载项已部署副本",
-              "sha256": "4c529002cafd13f17e19d9e03cb88689e6c470be0bba17d46181446d67ea0a2b",
-              "sizeBytes": 420426
+              "sha256": "430aac5a03bce2b9313cf274ae8c394638f3ebaf10cd4539641a854bcc9212a8",
+              "sizeBytes": 423572
             },
             {
               "exists": true,
-              "mtime": "2026-09-22T12:06:38.142Z",
+              "mtime": "2026-09-22T12:14:31.881Z",
               "path": "/Users/jolin/Library/Containers/cn.wps.moffice_mac/Data/.local/share/Kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
               "role": "WPS 加载项已部署副本",
-              "sha256": "4c529002cafd13f17e19d9e03cb88689e6c470be0bba17d46181446d67ea0a2b",
-              "sizeBytes": 420426
+              "sha256": "430aac5a03bce2b9313cf274ae8c394638f3ebaf10cd4539641a854bcc9212a8",
+              "sizeBytes": 423572
             }
           ],
           "deployedMatchesResource": true,
           "resource": {
             "exists": true,
-            "mtime": "2026-09-22T12:04:58.478Z",
+            "mtime": "2026-09-22T12:11:58.731Z",
             "path": "/Users/Python/Office Agent Bridge/wps-addon/addon-core.js",
             "role": "WPS 加载项随包产物",
-            "sha256": "4c529002cafd13f17e19d9e03cb88689e6c470be0bba17d46181446d67ea0a2b",
-            "sizeBytes": 420426
+            "sha256": "430aac5a03bce2b9313cf274ae8c394638f3ebaf10cd4539641a854bcc9212a8",
+            "sizeBytes": 423572
           }
         }
       },
@@ -264,7 +265,8 @@
             "manage_named_range",
             "manage_document_properties",
             "manage_table",
-            "manage_pictures"
+            "manage_pictures",
+            "export_chart_image"
           ],
           "validation": "代码路径已实现，但本候选版本尚未在真实 Microsoft Excel 上做实机验收；静态与模拟通道不代表实机通过"
         },
@@ -312,6 +314,7 @@
             "configure_print_layout",
             "export_sheet_pdf",
             "set_sheet_view",
+            "export_chart_image",
             "copy_range",
             "manage_hyperlink",
             "manage_named_range",
@@ -3371,6 +3374,62 @@
       "descriptionHash": "c346aa1fd3f99722"
     },
     {
+      "name": "excel_export_chart_image",
+      "readOnlyHint": false,
+      "description": "把**图表导出为图片文件**（PNG/JPG/GIF/BMP）。⚠️ outputPath 必须落在 **WPS 可写目录**内（容器 tmp、用户文稿目录等）；写到 /tmp 之类不可达位置会「调用成功但不落盘」——桥接侧会用文件系统核对，返回值里的 fileWritten / fileSizeBytes 才是真实结果。工作表上有多个图表时须用 chartName 或 chartIndex 指定。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。 统一表格入口；host 必填。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chartIndex": {
+            "description": "或按图表序号，从 1 开始",
+            "type": "number"
+          },
+          "chartName": {
+            "description": "图表名（多个图表时必须指定其一）",
+            "type": "string"
+          },
+          "format": {
+            "description": "图片格式，默认 PNG",
+            "enum": [
+              "PNG",
+              "JPG",
+              "JPEG",
+              "GIF",
+              "BMP"
+            ],
+            "type": "string"
+          },
+          "host": {
+            "description": "明确选择 WPS 表格或 Microsoft Excel；Microsoft 通道在 macOS 与 Windows 均尚未实机验收",
+            "enum": [
+              "wps",
+              "microsoft"
+            ],
+            "type": "string"
+          },
+          "outputPath": {
+            "description": "导出文件的绝对路径，须在 WPS 可写目录内",
+            "type": "string"
+          },
+          "sheetName": {
+            "description": "工作表名称",
+            "type": "string"
+          },
+          "workbookName": {
+            "description": "目标工作簿名称，例如 '明细.xlsx'，防止多文件焦点漂移，请先从工作区摘要确认目标。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outputPath",
+          "host"
+        ],
+        "type": "object"
+      },
+      "schemaHash": "1983ddb9027181b0",
+      "descriptionHash": "96bf090b4398c1a5"
+    },
+    {
       "name": "wps_execute_script",
       "readOnlyHint": false,
       "description": "直接向当前 WPS 运行实例执行原生 JavaScript。注入变量：app（WPS 宿主）、wb（当前 Excel 工作簿；Excel 场景用 wb，doc 在该场景为 null）、doc（当前 Word 文档）、pres（当前 PPT 演示文稿）、params（本工具 params 参数）。专用工具未覆盖时使用，例如 Excel 矢量形状、连接线、组合、已有图表属性修改与 PPT 精细布局。先用 wps_inspect_api 或只读脚本确认目标 API，再执行并读回验证；没有专用工具不等于宿主不支持。返回值需是可序列化的扁平 JSON（深层嵌套会丢属性），勿返回宿主对象。",
@@ -6221,6 +6280,53 @@
       },
       "schemaHash": "7d41b012b1a41b98",
       "descriptionHash": "5abc9bd941ec8afa"
+    },
+    {
+      "name": "wps_export_chart_image",
+      "readOnlyHint": false,
+      "description": "把**图表导出为图片文件**（PNG/JPG/GIF/BMP）。⚠️ outputPath 必须落在 **WPS 可写目录**内（容器 tmp、用户文稿目录等）；写到 /tmp 之类不可达位置会「调用成功但不落盘」——桥接侧会用文件系统核对，返回值里的 fileWritten / fileSizeBytes 才是真实结果。工作表上有多个图表时须用 chartName 或 chartIndex 指定。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "chartIndex": {
+            "description": "或按图表序号，从 1 开始",
+            "type": "number"
+          },
+          "chartName": {
+            "description": "图表名（多个图表时必须指定其一）",
+            "type": "string"
+          },
+          "format": {
+            "description": "图片格式，默认 PNG",
+            "enum": [
+              "PNG",
+              "JPG",
+              "JPEG",
+              "GIF",
+              "BMP"
+            ],
+            "type": "string"
+          },
+          "outputPath": {
+            "description": "导出文件的绝对路径，须在 WPS 可写目录内",
+            "type": "string"
+          },
+          "sheetName": {
+            "description": "工作表名称",
+            "type": "string"
+          },
+          "workbookName": {
+            "description": "目标工作簿名称，例如 '明细.xlsx'，防止多文件焦点漂移，请先从工作区摘要确认目标。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outputPath"
+        ],
+        "type": "object"
+      },
+      "schemaHash": "3d0dd84f4a9d1045",
+      "descriptionHash": "833f2abb48affd46"
     },
     {
       "name": "wps_word_create_document",

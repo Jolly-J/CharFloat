@@ -104,6 +104,9 @@
         case "delete_sheet":
           result = deleteWorksheet(app, params);
           break;
+        case "export_chart_image":
+          result = exportChartImage(app, params);
+          break;
         case "clear_range":
           result = clearRange(app, params);
           break;
