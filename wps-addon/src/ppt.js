@@ -132,14 +132,29 @@
     else if (typeof chartType === "number") typeCode = chartType;
 
     let chartShape = null;
+    let addError = null;
     try {
       chartShape = slide.Shapes.AddChart(typeCode, left, top, width, height);
     } catch (e) {
+      addError = e.message;
+    }
+    if (!chartShape) {
       try {
         chartShape = slide.Shapes.AddChart2(-1, typeCode, left, top, width, height);
-      } catch (err) {
-        throw new Error("当前宿主无法创建原生图表：" + err.message);
+      } catch (e) {
+        addError = (addError ? addError + "；" : "") + e.message;
       }
+    }
+    // 本机 WPS 实测：`AddChart` / `AddChart2` 都是 function，但**返回 null 且不创建任何形状**（问题台账 ISS-80）。
+    // 原代码不检查返回值，随后 `chartShape.Chart` 抛错并被包装成"图表已创建，但数据配置未完成"——
+    // 让调用方以为图已经建出来了，实际什么都没建。
+    if (!chartShape) {
+      throw new Error(
+        "本宿主未能创建 PPT 原生图表：AddChart/AddChart2 未返回图表对象" +
+        "（已实测本机 WPS 上二者返回 null 且不创建形状）" +
+        (addError ? `；宿主返回：${addError}` : "") +
+        "。替代方案：用矢量形状自行绘制，或改用 WPS 表格的原生图表。"
+      );
     }
 
     try {
@@ -177,6 +192,27 @@
           }
           if (Array.isArray(sData.values)) {
             try { sObj.Values = sData.values; } catch (e) { throw e; }
+            // 写后读回：本机 WPS 上 `Values = [...]` **不抛错也不生效**（问题台账 ISS-75），
+            // 图表会显示宿主默认数据而调用方毫无察觉。这里核对是否真的落上。
+            let readBackRaw = null;
+            try { readBackRaw = sObj.Values; } catch (e) { readBackRaw = null; }
+            if (readBackRaw !== null && readBackRaw !== undefined) {
+              let readBack = [];
+              try {
+                const n = typeof readBackRaw.Count === "number" ? readBackRaw.Count : readBackRaw.length;
+                for (let k = 0; k < n; k++) readBack.push(readBackRaw[k]);
+              } catch (e) { readBack = []; }
+              const want = sData.values.map(Number);
+              const got = readBack.map(Number);
+              const same = got.length === want.length &&
+                want.every((value, index) => !Number.isFinite(value) || !Number.isFinite(got[index]) || value === got[index]);
+              if (!same) {
+                throw new Error(
+                  `第 ${i + 1} 个数据系列的 Values 未生效：写入 ${JSON.stringify(want).slice(0, 70)}，读回 ${JSON.stringify(got).slice(0, 70)}。` +
+                  `宿主忽略了数组赋值（实测本机 WPS 的 ChartData.Workbook 为 null）；请改用矢量形状绘制图表。`
+                );
+              }
+            }
           }
           if (sData.chartType) {
             const sType = sData.chartType;
@@ -208,7 +244,15 @@
         } catch (e) { throw e; }
       }
     } catch (e) {
-      throw new Error("图表已创建，但数据配置未完成：" + e.message);
+      // 配置失败时把**半成品形状**删掉再抛错：否则会留下一张数据空白/错乱的图表（问题台账 ISS-81）。
+      let cleaned = false;
+      try {
+        chartShape.Delete();
+        cleaned = true;
+      } catch (delErr) {}
+      throw new Error(
+        `PPT 原生图表已创建但配置失败${cleaned ? "（已删除半成品形状）" : "（半成品形状删除失败，请手动清理）"}：${e.message}`
+      );
     }
 
     return chartShape;

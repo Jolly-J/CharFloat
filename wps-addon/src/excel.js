@@ -1140,7 +1140,14 @@
       seriesColors,
       yAxis,
       seriesSettings,
-      replaceExisting = true
+      replaceExisting = true,
+      left: explicitLeft,
+      top: explicitTop,
+      width: explicitWidth,
+      height: explicitHeight,
+      startCell,
+      endCell,
+      cellRange
     } = params || {};
 
     // 1. 强制公式全局重算（彻底根治跨表引用公式未计算导致分类轴塌陷的严重时钟竞争 Bug！）
@@ -1182,6 +1189,40 @@
       }
       if (position.width) width = Number(position.width);
       if (position.height) height = Number(position.height);
+    }
+
+    // 原实现只认 `position.leftCell/width/height`，而 startCell / cellRange / endCell 与
+    // 顶层 left/top/width/height **全被静默忽略**，多图会叠在默认的 360/40（问题台账 ISS-18）。
+    // 这里把它们真正接上，并让"锚点"统一走一套解析顺序：position.leftCell > startCell/cellRange > 顶层像素。
+    const anchorRef = (position && position.leftCell)
+      ? String(position.leftCell)
+      : (startCell ? String(startCell) : (cellRange ? String(cellRange).split(":")[0] : null));
+    if (anchorRef && !(position && position.leftCell)) {
+      try {
+        const anchorRange = sheet.Range(anchorRef.includes(":") ? anchorRef.split(":")[0] : anchorRef);
+        left = anchorRange.Left;
+        top = anchorRange.Top;
+      } catch (e) {
+        log("图表定位锚点警告: " + e.message);
+      }
+    }
+    // 顶层像素参数直接生效（显式传入优先于上面的锚点推算）
+    if (Number.isFinite(Number(explicitLeft))) left = Number(explicitLeft);
+    if (Number.isFinite(Number(explicitTop))) top = Number(explicitTop);
+    if (Number.isFinite(Number(explicitWidth))) width = Number(explicitWidth);
+    if (Number.isFinite(Number(explicitHeight))) height = Number(explicitHeight);
+    // endCell：用"锚点单元格 → endCell"的矩形尺寸作为图表宽高
+    if (endCell) {
+      try {
+        const from = sheet.Range(anchorRef ? anchorRef.split(":")[0] : "A1");
+        const to = sheet.Range(String(endCell));
+        const w = to.Left + to.Width - from.Left;
+        const h = to.Top + to.Height - from.Top;
+        if (w > 0) width = w;
+        if (h > 0) height = h;
+      } catch (e) {
+        log("图表 endCell 尺寸推算警告: " + e.message);
+      }
     }
 
     // 3. 覆盖模式（如果开启 replaceExisting，先清理该锚点处的重叠旧图，杜绝废图堆叠）
