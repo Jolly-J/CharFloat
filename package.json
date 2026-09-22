@@ -56,8 +56,12 @@
     ],
     "mac": {
       "target": [
-        "zip",
-        "dir"
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "extendInfo": {
@@ -67,8 +71,12 @@
     },
     "win": {
       "target": [
-        "zip",
-        "dir"
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico"
     },
