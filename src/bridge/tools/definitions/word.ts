@@ -14,7 +14,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_create_document",
-        description: "新建空白 Word 文档或基于指定模板创建文档。",
+        description: "新建空白 Word 文档或基于指定模板创建文档。不传 templatePath 即新建空白文档；新建后需显式调用 wps_word_save_document 才会落盘。",
         parameters: {
           type: "object",
           properties: {
@@ -30,7 +30,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_save_document",
-        description: "保存当前 Word 文档、另存为指定路径或导出为 PDF 格式。",
+        description: "保存当前 Word 文档、另存为指定路径或导出为 PDF 格式。传 filePath 时会校验文件是否真的落盘，未写出即报错（宿主返回成功不代表已写出）。",
         parameters: {
           type: "object",
           properties: {
@@ -47,7 +47,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_close_document",
-        description: "安全关闭指定的 Word 文档。",
+        description: "关闭指定的 Word 文档。saveChanges 默认 false：未保存的修改会直接丢失；不传 documentName 时关闭当前活动文档，多文档场景请显式指定目标。",
         parameters: {
           type: "object",
           properties: {
@@ -156,7 +156,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_format_document",
-        description: "Word 文档精细化排版。支持国家标准公文规范、现代商务排版、指定单段/段落范围/选区/全篇的字体、字号、加粗、缩进与行间距。",
+        description: "Word 文档排版：按预设或自定义参数设置指定范围的字体、字号、加粗、缩进与行间距。target 默认 'all'（整篇），只作用于段落级格式；既不传 preset 也不传任何自定义参数时不会产生实际变化。",
         parameters: {
           type: "object",
           properties: {
@@ -198,7 +198,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_insert_table_of_contents",
-        description: "Word 智能目录生成。自动扫描全文各级标题（Heading 1-3），在文档开头或指定位置生成带点线前导符与页码的标准目录页。",
+        description: "在 Word 文档中生成目录：扫描全文 Heading 1-3 级标题，在指定位置插入带前导符与页码的目录域。标题必须已使用 Heading 样式才会被收录。",
         parameters: {
           type: "object",
           properties: {
@@ -288,7 +288,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_page_layout_and_watermark",
-        description: "Word 页面版式与水印设置。支持设置页眉页脚（支持奇偶页不同、首页不同）、注入倾斜半透明文字水印（如 '内部机密'）。",
+        description: "Word 页面版式与水印设置：页眉页脚文本（支持奇偶页不同、首页不同）与倾斜半透明文字水印。注意：页眉/页脚/水印当前只作用于第 1 节；水印落在正文层、只出现在第 1 页，跨页水印需用 wps_execute_script 改页眉层。三项至少传一项，否则本调用不产生任何变化。",
         parameters: {
           type: "object",
           properties: {

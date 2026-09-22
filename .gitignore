@@ -48,3 +48,6 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# 子代理中间产物（探测脚本、预览图等）
+.scratch/

@@ -31,7 +31,7 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_get_slide_shapes",
-        description: "【精准探测】深度获取指定幻灯片中所有形状的详细几何坐标、尺寸、文本内容、表格元数据及图层层级信息。",
+        description: "读取指定幻灯片中所有形状的几何坐标、尺寸、文本内容、表格元数据及图层层级。坐标为磅值(pt)。",
         parameters: {
           type: "object",
           properties: {
@@ -47,23 +47,23 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_generate_deck",
-        description: "根据结构化 JSON 大纲，按目标文稿真实页面尺寸生成演示胶片；返回 layoutWarnings，需逐页预览验证（封面页、2/3/4栏商业卡片页、原生图表页、结束页）。",
+        description: "按结构化 JSON 大纲在目标文稿中逐页生成幻灯片：title(封面) / cards_2、cards_3、cards_4(卡片页) / chart(原生图表页) / content(要点页) / end(结束页)。坐标为 720×405 设计基准并自动换算到实际页面尺寸（用返回的 pageWidth/pageHeight 核对）。'content' 布局缺 bulletPoints 时本页只有标题，会记入 layoutWarnings；返回的 layoutWarnings 必须逐页预览核实。",
         parameters: {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
             themeColor: { type: "string", description: "主题色十六进制值，如 '#0F4C81'(深蓝商务) 或 '#4B38B3'(科技紫)" },
-            themePreset: { type: "string", enum: ["business_blue", "tech_purple", "clean_light"], description: "主题配色预设" },
+            themePreset: { type: "string", enum: ["business_blue", "tech_purple", "clean_light"], description: "主题配色预设: 'business_blue'(商务蓝), 'tech_purple'(科技紫), 'clean_light'(浅色简洁)" },
             slides: {
               type: "array",
               description: "整套幻灯片规格清单",
               items: {
                 type: "object",
                 properties: {
-                  layout: { type: "string", enum: ["title", "cards_2", "cards_3", "cards_4", "chart", "content", "end"], description: "页面版式布局" },
+                  layout: { type: "string", enum: ["title", "cards_2", "cards_3", "cards_4", "chart", "content", "end"], description: "页面版式: 'title'(封面), 'cards_2'/'cards_3'/'cards_4'(2/3/4 栏卡片), 'chart'(原生图表页), 'content'(要点列表页), 'end'(结束页)" },
                   title: { type: "string", description: "页面大标题" },
                   subtitle: { type: "string", description: "副标题（封面页使用）" },
-                  bulletPoints: { type: "array", items: { type: "string" }, description: "普通内容页的要点列表" },
+                  bulletPoints: { type: "array", items: { type: "string" }, description: "普通内容页的要点列表；layout='content' 时必传，否则本页只有标题" },
                   cards: {
                     type: "array",
                     description: "商业卡片列表（cards_2 / cards_3 / cards_4 版式使用）",
@@ -82,16 +82,17 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
                     type: "object",
                     description: "原生图表规格（chart 版式使用）",
                     properties: {
-                      chartType: { type: "string", enum: ["column", "line", "bar", "pie"], description: "图表类型" },
+                      chartType: { type: "string", enum: ["column", "line", "bar", "pie"], description: "图表类型: 'column'(柱状图), 'line'(折线图), 'bar'(条形图), 'pie'(饼图)" },
                       title: { type: "string", description: "图表标题" },
                       categories: { type: "array", items: { type: "string" }, description: "横轴分类标签" },
                       series: {
                         type: "array",
+                        description: "数据系列数组，每个系列一组数值（长度应与 categories 对应）",
                         items: {
                           type: "object",
                           properties: {
-                            name: { type: "string" },
-                            values: { type: "array", items: { type: "number" } }
+                            name: { type: "string", description: "系列名称，显示在图例/图例项中" },
+                            values: { type: "array", items: { type: "number" }, description: "该系列的数值列表，长度应与 categories 一致" }
                           },
                           required: ["name", "values"]
                         }
@@ -113,15 +114,15 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_manage_slides",
-        description: "PowerPoint 幻灯片综合管理。支持单页幻灯片的增、删、移动顺序、复制克隆及背景颜色设置。",
+        description: "PowerPoint 幻灯片管理：新增、删除、移动顺序、复制克隆与背景颜色设置。add/duplicate 属追加型操作、不幂等，重复调用会产生多页；删除是破坏性操作，先确认 slideIndex。",
         parameters: {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
-            action: { type: "string", enum: ["add", "delete", "move", "duplicate", "set_background"], description: "操作类型" },
+            action: { type: "string", enum: ["add", "delete", "move", "duplicate", "set_background"], description: "操作: 'add'(新增页，可配 layoutIndex), 'delete'(删除页，需 slideIndex), 'move'(移动页，需 slideIndex + targetIndex), 'duplicate'(克隆页，需 slideIndex), 'set_background'(设置背景色，需 slideIndex + backgroundColor)" },
             slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
-            targetIndex: { type: "integer", description: "移动操作时的目标页码" },
-            layoutIndex: { type: "integer", description: "添加幻灯片时的版式序号(默认 12 空白版式)" },
+            targetIndex: { type: "integer", description: "移动操作的目标页码(1-based)" },
+            layoutIndex: { type: "integer", description: "新增页使用的 ppLayout 版式枚举，不是母版 CustomLayouts 的 1..N 序号。常用值：1=标题幻灯片(标题+副标题占位符)、2=标题和文本、7=标题和图示或组织结构图、12=空白(默认)。取值越界时宿主不报错但版式不可预期；要精确套用本模板的自定义版式，请改用 wps_execute_script 操作 slide.CustomLayout。" },
             backgroundColor: { type: "string", description: "设置背景时的十六进制颜色，如 '#0F172A'" }
           },
           required: ["action"],
@@ -133,22 +134,22 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_manage_table",
-        description: "【专精表格控制器】在 PowerPoint 中创建商业表格、批量注入二维数据、读取表格、读写单元格及应用专业主题色样式。",
+        description: "PowerPoint 表格操作：新建表格（可同时注入二维数据）、读取表格、改写单元格文字、套用表头/斑马纹/边框样式。宿主没有独立的“批量改写已有表格数据”操作：批量改数据请重新 create_table(data)，或逐格 set_cell_text。坐标与尺寸单位是 pt，不是像素或百分比。",
         parameters: {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
             slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
-            action: { type: "string", enum: ["create_table", "read_table", "set_table_data", "set_cell_text", "style_table"], description: "表格操作类型" },
-            shapeId: { description: "表格所在的形状 ID", oneOf: [{ type: "string" }, { type: "integer" }] },
-            tableIndex: { type: "integer", description: "页内第几个表格(默认 1)" },
+            action: { type: "string", enum: ["create_table", "read_table", "set_cell_text", "style_table"], description: "表格操作: 'create_table'(新建，需 rows/columns，可用 data 同时填充), 'read_table'(读取表格数据), 'set_cell_text'(改写单元格，需 row/column/text), 'style_table'(应用表头/斑马纹/字号/边框样式)" },
+            shapeId: { type: ["string", "integer"], description: "表格所在的形状 ID（数字）或名称（字符串）。数字先按 Shape.Id 匹配，未命中再按页内 1-based 索引兜底；不传则按 tableIndex 取第 N 个表格。" },
+            tableIndex: { type: "integer", description: "页内第几个表格(默认 1)，仅在 shapeId 未命中时生效" },
             rows: { type: "integer", description: "新建表格行数" },
             columns: { type: "integer", description: "新建表格列数" },
             left: { type: "number", description: "距页面左边缘的磅值 pt；先读取实际 pageWidth" },
             top: { type: "number", description: "距页面上边缘的磅值 pt；先读取实际 pageHeight" },
             width: { type: "number", description: "宽度，单位 pt，不是像素或百分比" },
             height: { type: "number", description: "高度，单位 pt，不是像素或百分比" },
-            data: { type: "array", items: { type: "array", items: { type: "string" } }, description: "二维表格数据数组" },
+            data: { type: "array", items: { type: "array", items: { type: "string" } }, description: "二维表格数据数组，仅 create_table 时用于初始填充。每个单元格必须是字符串：数字会被 schema 拒绝并报 arguments.data[行][列]: 类型不正确，请自行转成字符串（如 '1000'）。" },
             row: { type: "integer", description: "目标行号(1-based)" },
             column: { type: "integer", description: "目标列号(1-based)" },
             text: { type: "string", description: "单元格文字内容" },
@@ -173,7 +174,7 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_add_business_cards",
-        description: "在指定幻灯片自动计算排版 2 栏、3 栏、4 栏现代化商业信息卡片（圆角底卡、强调色顶线、分类 Tag、标题与正文）。",
+        description: "在指定幻灯片自动排版 2/3/4 栏信息卡片（圆角底卡、强调色顶线、分类 Tag、标题与正文）。卡片坐标按 720×405 设计基准换算到实际页面尺寸并限制在页面内。",
         parameters: {
           type: "object",
           properties: {
@@ -206,13 +207,13 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_insert_native_chart",
-        description: "在 PPT 中插入原生可交互矢量商业图表（柱状图、折线图、条形图、饼图）并自动绑定填充结构化业务数据。",
+        description: "在 PPT 中插入原生矢量图表并绑定结构化数据。插入后必须用 wps_ppt_get_slide_shapes 或预览核实图表真的生成、数据真的写入（宿主存在插入成功但不建形状的情况）。",
         parameters: {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
             slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)" },
-            chartType: { type: "string", enum: ["column", "line", "bar", "pie", "column_stacked", "bar_stacked", "bar_of_pie"], description: "图表类型: 'column'(柱状图), 'line'(折线图), 'bar'(条形图), 'pie'(饼图), 'column_stacked'(堆积柱形), 'bar_of_pie'(复合条饼图)" },
+            chartType: { type: "string", enum: ["column", "line", "bar", "pie", "column_stacked", "bar_stacked", "bar_of_pie"], description: "图表类型: 'column'(柱状图), 'line'(折线图), 'bar'(条形图), 'pie'(饼图), 'column_stacked'(堆积柱形图), 'bar_stacked'(堆积条形图), 'bar_of_pie'(复合条饼图)" },
             title: { type: "string", description: "图表标题" },
             hasLegend: { type: "boolean", description: "是否显示图例" },
             showDataLabels: { type: "boolean", description: "是否显示数据标签" },
@@ -247,25 +248,25 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_manage_shapes_and_media",
-        description: "坐标和字号统一使用 pt。先读页面尺寸和现有形状；新增时显式提供 left/top/width/height，文本还需 fontSize，避免默认位置重叠。添加文本框、形状、修改已有形状位置与尺寸、智能互换两个形状位置(swap_shapes)、设置图层层级及对齐分布。",
+        description: "坐标和字号统一使用 pt。先读页面尺寸和现有形状；新增时显式提供 left/top/width/height，文本还需 fontSize，避免默认位置重叠。支持添加文本框、添加形状、修改已有形状的位置/尺寸/文本/填充、交换两个形状位置(swap_shapes)、设置图层层级、对齐分布(align_shapes)与删除形状(delete_shape)。两个对齐/交换动作的真实语义见对应参数说明，勿按通用 PPT 语义理解。",
         parameters: {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
             slideIndex: { type: "integer", description: "目标幻灯片页码" },
-            action: { type: "string", enum: ["add_textbox", "add_shape", "update_shape", "swap_shapes", "set_z_order", "align_shapes", "delete_shape"], description: "操作类型" },
-            shapeType: { type: "string", enum: ["rectangle", "rounded_rectangle", "oval", "arrow"], description: "形状类型" },
-            shapeId: { description: "形状 ID / 标识", oneOf: [{ type: "string" }, { type: "integer" }] },
-            shapeId1: { description: "互换位置或对齐时的第一个形状 ID", oneOf: [{ type: "string" }, { type: "integer" }] },
-            shapeId2: { description: "互换位置或对齐时的第二个形状 ID", oneOf: [{ type: "string" }, { type: "integer" }] },
-            shapeIds: { type: "array", items: { oneOf: [{ type: "string" }, { type: "integer" }] }, description: "批量对齐时的形状 ID 列表" },
-            alignType: { type: "string", enum: ["left", "center", "right", "top", "middle", "bottom"], description: "对齐方式" },
-            zOrderAction: { type: "string", enum: ["bring_to_front", "send_to_back", "bring_forward", "send_backward"], description: "图层层级调整方式" },
+            action: { type: "string", enum: ["add_textbox", "add_shape", "update_shape", "swap_shapes", "set_z_order", "align_shapes", "delete_shape"], description: "操作: 'add_textbox', 'add_shape', 'update_shape', 'swap_shapes', 'set_z_order', 'align_shapes', 'delete_shape'(删除形状，破坏性操作，需 shapeId)" },
+            shapeType: { type: "string", enum: ["rectangle", "rounded_rectangle", "oval", "arrow"], description: "形状类型: 'rectangle'(矩形), 'rounded_rectangle'(圆角矩形), 'oval'(椭圆), 'arrow'(箭头)，action='add_shape' 时使用" },
+            shapeId: { type: ["string", "integer"], description: "形状 ID（数字）或名称（字符串）。数字先按 Shape.Id 匹配，未命中再按页内 1-based 索引兜底，因此传 1、2、3 这类小数字可能落到索引而不是 Id。" },
+            shapeId1: { type: ["string", "integer"], description: "互换位置或对齐时的第一个形状 ID（解析规则同 shapeId）。action='swap_shapes' 时与 shapeId2 只交换垂直位置(Top)、Left 不变：两个横向并排的形状交换后位置实际不变，需要水平换位请用 update_shape 显式设 left。" },
+            shapeId2: { type: ["string", "integer"], description: "互换位置或对齐时的第二个形状 ID（解析规则同 shapeId）" },
+            shapeIds: { type: "array", items: { type: ["string", "integer"] }, description: "批量对齐的形状 ID 列表。解析顺序同 shapeId；对齐基准是列表中第一个可解析到的形状，其余形状向它对齐。" },
+            alignType: { type: "string", enum: ["left", "center", "right", "top", "middle", "bottom"], description: "对齐方式（以 shapeIds 首个形状为基准，不是页面或选区对齐）: 'left'/'center'/'right'(左/水平居中/右边缘), 'top'/'middle'/'bottom'(上/垂直居中/下边缘)" },
+            zOrderAction: { type: "string", enum: ["bring_to_front", "send_to_back", "bring_forward", "send_backward"], description: "图层层级调整方式: 'bring_to_front'(置于顶层), 'send_to_back'(置于底层), 'bring_forward'(上移一层), 'send_backward'(下移一层)" },
             text: { type: "string", description: "文本内容" },
             fontSize: { type: "number", description: "字号，单位 pt；依据页面尺寸和文本框容量设置，编辑后读回并预览" },
             fontColor: { type: "string", description: "字体颜色十六进制" },
             fontBold: { type: "boolean", description: "是否加粗" },
-            alignment: { type: "string", enum: ["left", "center", "right", "justify"], description: "段落水平对齐" },
+            alignment: { type: "string", enum: ["left", "center", "right", "justify"], description: "段落水平对齐: 'left'(左), 'center'(居中), 'right'(右), 'justify'(两端对齐)" },
             left: { type: "number", description: "距页面左边缘的磅值 pt；先读取实际 pageWidth" },
             top: { type: "number", description: "距页面上边缘的磅值 pt；先读取实际 pageHeight" },
             width: { type: "number", description: "宽度，单位 pt，不是像素或百分比" },
@@ -283,7 +284,7 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_capture_slide_preview",
-        description: "【多模态自检】将指定幻灯片导出为高保真图片，供多模态大模型视觉核查排版是否重叠、排版是否美观对齐。",
+        description: "将指定幻灯片导出为图片，返回图片数据，用于视觉核查排版是否重叠、文字是否溢出。",
         parameters: {
           type: "object",
           properties: {
