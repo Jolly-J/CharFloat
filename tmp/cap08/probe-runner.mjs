@@ -38,9 +38,11 @@ ws.on('open', () => {
   }, 400);
 });
 
+ws.on('close', (code, reason) => { console.log('[probe] socket closed', code, reason?.toString?.()); });
 ws.on('message', (raw) => {
   let p;
   try { p = JSON.parse(raw.toString()); } catch { return; }
+  console.log('[probe] recv', JSON.stringify(p).slice(0, 300));
   if (p.type !== 'rpc_response') return;
   clearTimeout(timer);
   done({ ok: !p.error, token, response: p }, p.error ? 1 : 0);

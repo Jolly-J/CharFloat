@@ -105,6 +105,8 @@ const HANDLERS: Record<string, Handler> = {
   "wps_word_page_layout_and_watermark": word.pageLayoutAndWatermark,
   "wps_word_find_and_replace": word.findAndReplace,
   "wps_word_capture_preview": word.capturePreview,
+  "wps_word_update_fields": word.updateFields,
+  "wps_word_manage_content_controls": word.manageContentControls,
 
   // ---- PowerPoint（演示） ----
   "wps_ppt_read_presentation": ppt.readPresentation,

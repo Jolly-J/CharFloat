@@ -158,6 +158,23 @@
   }
 
   /**
+   * 读回条件格式的"是否启用"。
+   *
+   * 真机实测：本机 WPS 的 `FormatCondition` **没有 `Enabled` 属性**（读到 `undefined`）。
+   * 直接 `Boolean(rule.Enabled)` 会把它写成 `false`，让读回看起来像"规则被禁用了"——
+   * **读回说谎比没有读回更糟**。属性不存在时如实返回 null（未知），不猜测。
+   */
+  function readConditionEnabled(rule) {
+    try {
+      const raw = rule.Enabled;
+      if (raw === undefined || raw === null) return null;
+      return Boolean(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
    * 工作表级读回（只读，逐项 try/catch）。
    *
    * 这些状态原本都只有"写"没有"读"（问题台账 ISS-94）：调用方 set 完拿不到任何证据。
@@ -214,7 +231,7 @@
           rules.push({
             index: i,
             type: safe(() => Number(rule.Type), null),
-            enabled: safe(() => Boolean(rule.Enabled), null),
+            enabled: readConditionEnabled(rule),
             priority: safe(() => Number(rule.Priority), null),
             formula1: safe(() => (rule.Formula1 === undefined ? null : String(rule.Formula1)), null),
             interiorColor: safe(() => {
@@ -948,7 +965,7 @@
         conditions.push({
           index: i,
           type: Number(safeRead(() => rule.Type, null)),
-          enabled: safeRead(() => Boolean(rule.Enabled), null),
+          enabled: readConditionEnabled(rule),
           priority: safeRead(() => Number(rule.Priority), null),
           formula1: safeRead(() => (rule.Formula1 === undefined ? null : String(rule.Formula1)), null)
         });

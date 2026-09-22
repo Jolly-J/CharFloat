@@ -350,6 +350,102 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_update_fields",
+        description:
+          "更新 Word 的域（目录页码/REF/PAGEREF/页码域等），以及插入交叉引用。**这是修「目录页码不随内容更新」的唯一手段**：" +
+          "宿主实测改完内容后目录页码不会自动刷新（在目录后插一个分页符，目录里 14 个页码仍是旧值），必须显式更新。" +
+          "action='update'（默认）按 scope 更新：'all'（正文域，含目录重建、逐节页眉页脚域）、'toc'（只逐目录更新）、'section'（只该节正文域+页眉页脚域，必须配 sectionIndex）。" +
+          "tocMode='full' 重建目录（会收录新增标题）、'page_numbers' 只刷页码（新标题不会被收录）。" +
+          "更新后**读回**：逐域前后结果快照（updatedFields/changedFields/changes）、每个目录的页码前后对照（tablesOfContents.comparison.changedPages，能直接看出哪个条目的页码从 X 变成 Y）、逐节页眉页脚域清单。" +
+          "action='insert_cross_reference' 插入 REF（引用书签文字）/PAGEREF（引用书签页码）交叉引用；可传 anchorText+bookmarkName 现场建书签再引用（书签是交叉引用的唯一前提）。" +
+          "【宿主限制，实测】① 本宿主没有 CrossReference 对象（Application/Document.CrossReference 均为 undefined），交叉引用**只能按书签**，不能按「标题/图表编号」这类 Word 内置引用类型插入；" +
+          "② 引用不存在的书签时域结果恒为「错误！未定义书签。」，空书签的 REF 结果为空字符串；" +
+          "③ doc.Fields.Update() 无弹窗、无交互（实测 63 个域约 100ms），但它的返回值实测恒为 0，不能当「更新了几个域」的计数——本工具改用前后快照自己统计；" +
+          "④ doc.Fields 不含页眉/页脚 story 里的域，页眉页脚域由本工具逐节单独更新（includeHeadersFooters=false 可关）；" +
+          "⑤ 目录页码依赖文档已完成分页，刚大批量改完内容时页码可能滞后，可疑就再跑一次本工具。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称，不传则默认当前文档" },
+            action: { type: "string", enum: ["update", "insert_cross_reference"], description: "操作类型: 'update'(更新域与目录，默认), 'insert_cross_reference'(插入 REF/PAGEREF 交叉引用)" },
+            scope: { type: "string", enum: ["all", "toc", "section"], description: "更新范围（action='update'）: 'all'(正文域+全部目录+逐节页眉页脚域，默认), 'toc'(只更新目录), 'section'(只更新 sectionIndex 指定的节：正文域+该节页眉页脚域)" },
+            sectionIndex: { type: "integer", description: "scope='section' 时的节序号(1-based)，越界会报错并给出真实节数" },
+            tocMode: { type: "string", enum: ["full", "page_numbers"], description: "目录更新方式: 'full'(重建目录，会收录新增标题，默认), 'page_numbers'(只刷新页码，不收录新标题)。scope='all' 且 tocMode='full' 时不再重复调用目录更新——宿主实测 doc.Fields.Update() 已连目录条目一起重建" },
+            includeHeadersFooters: { type: "boolean", description: "是否逐节更新页眉/页脚 story 里的域，默认 true。宿主 doc.Fields 不含页眉页脚域，关掉就只剩正文域" },
+            bookmarkName: { type: "string", description: "书签名（action='insert_cross_reference'）。与 anchorText 同传时表示「先按 anchorText 建这个书签再引用」；单独传表示引用已有书签。书签名不能含空格" },
+            targetBookmark: { type: "string", description: "同 bookmarkName（兼容写法），两者取其一" },
+            anchorText: { type: "string", description: "要作为引用锚点的文本；传了就先在文中找到它并建书签（需同时给 bookmarkName），找不到会直接报错、不插入任何域" },
+            anchorOccurrence: { type: "integer", description: "anchorText 的第几处匹配，默认 1" },
+            crossReferenceType: { type: "string", enum: ["ref", "pageref", "both"], description: "引用内容: 'ref'(书签文字), 'pageref'(书签所在页码), 'both'(两者都要，默认)" },
+            crossReferenceTemplate: { type: "string", description: "crossReferenceType='both' 时的拼装模板，占位符 {ref} 与 {page}，默认 '{ref}（第 {page} 页）'" },
+            insertLocation: { type: "string", enum: ["end", "start", "selection", "after_paragraph"], description: "交叉引用插入位置: 'end'(文档末尾，默认), 'start'(文档最前), 'selection'(当前光标处，无选区时回退末尾并告警), 'after_paragraph'(指定段落后)" },
+            paragraphIndex: { type: "integer", description: "insertLocation='after_paragraph' 时的段落序号(1-based)，越界会报错" },
+            prefixText: { type: "string", description: "插在交叉引用之前的引导文字，例如 '详见 '" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_manage_content_controls",
+        description:
+          "Word 内容控件（可填模板/合同填空位/表单）的创建、读回、改值与删除。contentControls 读回每个控件的类型、标题、标签、当前值、下拉选项列表与范围。" +
+          "【本宿主实测可用类型】richText、plainText、comboBox、dropdownList、date、checkBox —— 这 6 类可创建、可写值、可读回；" +
+          "picture 与 buildingBlockGallery 能创建但**没有内容语义**（只是占位符号/文案）；" +
+          "**group(分组) 与 repeatingSection(重复节) 本宿主未实现**：ContentControls.Add 返回 null，本工具会直接报中文错误而不是假装成功。" +
+          "【listItems 说明】本宿主**没有** cc.ListItems（实测 undefined），下拉/组合框的选项统一用 listItems 参数传入，落到宿主是 DropdownListEntries.Add(text, value)。" +
+          "【实测坑，已内置处理】① 新建的下拉/组合框自带一条占位选项（Value 为空串），本工具会先删掉它再写你的选项；" +
+          "② 给 dropdownList 的 Range.Text 赋一个不在选项里的值是**静默无效**的（无报错、值不变），本工具改为按选项 Select() 并核对，选不中会在 warnings 里如实说明；" +
+          "③ 写占位符只能走 SetPlaceholderText，直接写 cc.PlaceholderText.Text 实测无效；" +
+          "④ 目标范围已在另一个内容控件内部时 Add 返回 null（本宿主不支持嵌套控件），本工具报错并提示先用 action='list' 看范围；" +
+          "⑤ 下拉/复选框等控件是插在原范围**之前**，本工具会删掉残留的标记原文；" +
+          "⑥ 宿主 ContentControls.Item(\"标题\") 按名字取实测返回 null，所以 set_value/delete 请用 index，或传 tag/title 让本工具遍历匹配。" +
+          "典型闭环：先在模板里写标记（如 '____'），再 action='add' + location='marker' + markerText='____' 把它变成控件，最后 action='set_value' 填值。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "目标文档名称，不传则默认当前文档" },
+            action: { type: "string", enum: ["list", "add", "set_value", "delete"], description: "操作类型: 'list'(列出全部内容控件与当前值，默认), 'add'(创建), 'set_value'(按 index 或 tag/title 改值), 'delete'(删除一个或全部)" },
+            type: {
+              type: "string",
+              enum: ["richText", "plainText", "comboBox", "dropdownList", "date", "checkBox", "picture", "buildingBlockGallery", "group", "repeatingSection"],
+              description: "控件类型（action='add'）: richText(富文本), plainText(纯文本), comboBox(组合框，可自由输入), dropdownList(下拉列表，只能选), date(日期), checkBox(复选框)——这 6 类本宿主可用；picture/buildingBlockGallery 能创建但无内容语义；group/repeatingSection 本宿主未实现，传了会明确报错"
+            },
+            index: { type: "integer", description: "目标控件序号(1-based)，action='set_value'/'delete' 时使用；先用 action='list' 拿序号" },
+            tag: { type: "string", description: "按标签定位控件（宿主不支持按名字取控件，本工具遍历匹配 Title/Tag）。也用于 action='add' 时给控件打标签" },
+            title: { type: "string", description: "按标题定位控件；action='add' 时是给新控件设标题（表单里显示给填写人看的名字）" },
+            value: { type: "string", description: "要写入的值：纯文本/富文本/组合框/日期写文字；下拉列表必须命中已有选项（选不中会如实告警，不会假装成功）" },
+            checked: { type: "boolean", description: "复选框是否勾选（只有 checkBox 控件有效，其它类型会告警忽略）" },
+            dateDisplayFormat: { type: "string", description: "日期控件显示格式，例如 'yyyy年M月d日'、'yyyy-MM-dd'（实测可写可读回）" },
+            dateDisplayLocale: { type: "integer", description: "日期控件区域设置 LCID，例如 2052（简体中文）" },
+            listItems: {
+              type: "array",
+              items: { type: ["string", "object"], properties: { text: { type: "string", description: "选项显示文字" }, value: { type: "string", description: "选项值，不传则同 text" } }, additionalProperties: false },
+              description: "下拉列表/组合框的选项列表。字符串数组（如 ['同意','不同意']）或对象数组（如 [{'text':'同意','value':'Y'}]）。本宿主没有 cc.ListItems，落到宿主是 DropdownListEntries.Add(text, value)"
+            },
+            clearListItems: { type: "boolean", description: "action='set_value' 时是否先清空原有选项再写 listItems，默认 false" },
+            placeholderText: { type: "string", description: "控件的占位提示文字（未填写时显示的灰字）。实测必须走 SetPlaceholderText，本工具已内置" },
+            lockContentControl: { type: "boolean", description: "是否禁止删除该控件（LockContentControl）" },
+            lockContents: { type: "boolean", description: "是否禁止编辑控件内容（LockContents）" },
+            location: { type: "string", enum: ["end", "start", "selection", "marker", "after_paragraph"], description: "创建位置（action='add'）: 'marker'(把 markerText 命中的文本变成控件，合同填空位用这个，传了 markerText 时的默认值), 'end'(文档末尾), 'start'(文档最前), 'selection'(光标处), 'after_paragraph'(指定段落后)" },
+            markerText: { type: "string", description: "要被替换成内容控件的标记文本，例如 '____'、'[[]]'；找不到会报错并指出第几处" },
+            markerOccurrence: { type: "integer", description: "markerText 的第几处匹配，默认 1" },
+            paragraphIndex: { type: "integer", description: "location='after_paragraph' 时的段落序号(1-based)" },
+            initialText: { type: "string", description: "location='end' 时先写入的初始文本（不传则由宿主的占位文案充当控件初始内容）" },
+            all: { type: "boolean", description: "action='delete' 时是否删除文档里全部内容控件，默认 false（只删 index/tag/title 命中的那一个）" },
+            maxControls: { type: "integer", description: "action='list' 最多返回多少个控件的明细，默认 100（count 始终是真实总数）" }
+          },
+          required: ["action"],
+          additionalProperties: false
+        }
+      }
     }
   ];
 }

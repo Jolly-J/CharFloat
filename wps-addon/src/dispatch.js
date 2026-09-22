@@ -173,6 +173,13 @@
           result = wordCapturePreview(app, params);
           break;
 
+        case "word_update_fields":
+          result = wordUpdateFields(app, params);
+          break;
+        case "word_manage_content_controls":
+          result = wordManageContentControls(app, params);
+          break;
+
         // PowerPoint (演示) RPC 分发
         case "ppt_read_presentation":
           result = pptReadPresentation(app, params);
