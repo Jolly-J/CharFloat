@@ -2433,12 +2433,26 @@
 
   /** 一次批次里把形状的全部可读属性挂上 load（读回口径只在这里维护一份）。 */
   function loadShapeDetail(shape) {
+    // ⚠️ 不能无条件 load `fill` / `textFrame`：
+    // **Line（连接符）没有 fill；Group（组合）既没有 fill 也没有 textFrame**。
+    // 对它们 load 这些属性会让整个 `context.sync()` 抛错——
+    // 于是「直线建不出来」「分组建不出来」看起来像宿主限制，
+    // 其实是**读回把它带崩了**（真机复核：addLine / addGroup 都真的建成了）。
+    //
+    // 注意 `try/catch` **挡不住**这个错：Office.js 的 load() 是延迟的，
+    // 失败发生在 sync() 时而不是 load() 调用点。所以必须**按形状类型**决定 load 什么。
     shape.load("name,id,type,left,top,width,height,rotation,zOrderPosition,visible");
-    try { shape.load("fill/type,fill/foregroundColor,fill/transparency"); } catch (e) { /* 宿主不支持则跳过 */ }
-    try { shape.load("lineFormat/color,lineFormat/weight,lineFormat/visible"); } catch (e) {}
-    try { shape.load("textFrame/textRange/text"); } catch (e) {}
-    try { shape.load("textFrame/textRange/font/bold,textFrame/textRange/font/size,textFrame/textRange/font/color"); } catch (e) {}
-    try { shape.load("textFrame/horizontalAlignment,textFrame/verticalAlignment"); } catch (e) {}
+    let typeName = "";
+    try { typeName = String(shape.type); } catch (e) {}
+    const isLine = /Line/i.test(typeName);
+    const isGroup = /Group/i.test(typeName);
+    if (!isLine && !isGroup) shape.load("fill/type,fill/foregroundColor,fill/transparency");
+    shape.load("lineFormat/color,lineFormat/weight,lineFormat/visible");
+    if (!isGroup) {
+      shape.load("textFrame/textRange/text");
+      shape.load("textFrame/textRange/font/bold,textFrame/textRange/font/size,textFrame/textRange/font/color");
+      shape.load("textFrame/horizontalAlignment,textFrame/verticalAlignment");
+    }
     return shape;
   }
 

@@ -48,8 +48,8 @@ export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
   // CAP-15~20 第二类能力（区域复制/超链接/命名区域/文档属性/结构化表格/图片）目前只实现了 WPS 侧，
   // Office.js 侧尚未实现，故对 Microsoft 声明为未实现。
   microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view',
-    'copy_range', 'manage_hyperlink', 'manage_named_range', 'manage_document_properties', 'manage_table', 'manage_pictures',
-    'export_chart_image', 'create_workbook']
+    'manage_hyperlink', 'manage_named_range', 'manage_document_properties', 'manage_table', 'manage_pictures',
+    'create_workbook']
 };
 
 /**
