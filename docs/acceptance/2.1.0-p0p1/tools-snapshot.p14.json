@@ -83,7 +83,7 @@
         "sizeBytes": 2670
       },
       "bridgeVersion": "2.1.0",
-      "capturedAt": 1790078174094,
+      "capturedAt": 1790078395121,
       "note": "指纹只证明**磁盘/部署副本**的构建身份；加载项目前不上报自身指纹，\"进程里加载的是哪一份字节\"无法由此证实（需宿主重载/重启后重新 register）。未实机验收。",
       "officeAddon": {
         "resource": {
@@ -99,29 +99,29 @@
         "deployed": [
           {
             "exists": true,
-            "mtime": "2026-09-22T11:53:15.926Z",
+            "mtime": "2026-09-22T11:59:32.595Z",
             "path": "/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
             "role": "WPS 加载项已部署副本",
-            "sha256": "3236efceb8ba9ac0bd2b897c3192a49975253163af6ca9554b15325c70dc56fe",
-            "sizeBytes": 397803
+            "sha256": "88e8b819f0bc99a57bceadc33ea08122eb3fbf9941a4cb880e69a76ac7f7ff92",
+            "sizeBytes": 398574
           },
           {
             "exists": true,
-            "mtime": "2026-09-22T11:53:15.947Z",
+            "mtime": "2026-09-22T11:59:32.611Z",
             "path": "/Users/jolin/Library/Containers/cn.wps.moffice_mac/Data/.local/share/Kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
             "role": "WPS 加载项已部署副本",
-            "sha256": "3236efceb8ba9ac0bd2b897c3192a49975253163af6ca9554b15325c70dc56fe",
-            "sizeBytes": 397803
+            "sha256": "88e8b819f0bc99a57bceadc33ea08122eb3fbf9941a4cb880e69a76ac7f7ff92",
+            "sizeBytes": 398574
           }
         ],
         "deployedMatchesResource": true,
         "resource": {
           "exists": true,
-          "mtime": "2026-09-22T11:52:47.247Z",
+          "mtime": "2026-09-22T11:59:22.664Z",
           "path": "/Users/Python/Office Agent Bridge/wps-addon/addon-core.js",
           "role": "WPS 加载项随包产物",
-          "sha256": "3236efceb8ba9ac0bd2b897c3192a49975253163af6ca9554b15325c70dc56fe",
-          "sizeBytes": 397803
+          "sha256": "88e8b819f0bc99a57bceadc33ea08122eb3fbf9941a4cb880e69a76ac7f7ff92",
+          "sizeBytes": 398574
         }
       }
     },
@@ -137,7 +137,7 @@
           "sizeBytes": 2670
         },
         "bridgeVersion": "2.1.0",
-        "capturedAt": 1790078174094,
+        "capturedAt": 1790078395121,
         "note": "指纹只证明**磁盘/部署副本**的构建身份；加载项目前不上报自身指纹，\"进程里加载的是哪一份字节\"无法由此证实（需宿主重载/重启后重新 register）。未实机验收。",
         "officeAddon": {
           "resource": {
@@ -153,29 +153,29 @@
           "deployed": [
             {
               "exists": true,
-              "mtime": "2026-09-22T11:53:15.926Z",
+              "mtime": "2026-09-22T11:59:32.595Z",
               "path": "/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
               "role": "WPS 加载项已部署副本",
-              "sha256": "3236efceb8ba9ac0bd2b897c3192a49975253163af6ca9554b15325c70dc56fe",
-              "sizeBytes": 397803
+              "sha256": "88e8b819f0bc99a57bceadc33ea08122eb3fbf9941a4cb880e69a76ac7f7ff92",
+              "sizeBytes": 398574
             },
             {
               "exists": true,
-              "mtime": "2026-09-22T11:53:15.947Z",
+              "mtime": "2026-09-22T11:59:32.611Z",
               "path": "/Users/jolin/Library/Containers/cn.wps.moffice_mac/Data/.local/share/Kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
               "role": "WPS 加载项已部署副本",
-              "sha256": "3236efceb8ba9ac0bd2b897c3192a49975253163af6ca9554b15325c70dc56fe",
-              "sizeBytes": 397803
+              "sha256": "88e8b819f0bc99a57bceadc33ea08122eb3fbf9941a4cb880e69a76ac7f7ff92",
+              "sizeBytes": 398574
             }
           ],
           "deployedMatchesResource": true,
           "resource": {
             "exists": true,
-            "mtime": "2026-09-22T11:52:47.247Z",
+            "mtime": "2026-09-22T11:59:22.664Z",
             "path": "/Users/Python/Office Agent Bridge/wps-addon/addon-core.js",
             "role": "WPS 加载项随包产物",
-            "sha256": "3236efceb8ba9ac0bd2b897c3192a49975253163af6ca9554b15325c70dc56fe",
-            "sizeBytes": 397803
+            "sha256": "88e8b819f0bc99a57bceadc33ea08122eb3fbf9941a4cb880e69a76ac7f7ff92",
+            "sizeBytes": 398574
           }
         }
       },

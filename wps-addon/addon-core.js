@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 493604a9271317ee9db23fadf28dd83307f79002eaff2de6e350b2e51605e4c0
+// ADDON_BUILD_FINGERPRINT: 503976199c3e9e818e7ce17f070c96011eee6deb18de78f83a501419f32c668b
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "493604a9271317ee9db23fadf28dd83307f79002eaff2de6e350b2e51605e4c0";
+  var ADDON_BUILD_FINGERPRINT = "503976199c3e9e818e7ce17f070c96011eee6deb18de78f83a501419f32c668b";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -4302,6 +4302,10 @@
 
     const wb = getWorkbook(app, workbookName);
     const srcSheet = getWorksheet(app, sourceSheetName, workbookName);
+    // 防御性激活。真机探到 Create(1, srcRange) 在活动表上返回对象、非活动表上返回 null，
+    // 随后 .CreatePivotTable 报错；同时源区域必须**有数据**，空区域同样建不出透视表
+    // （ISS-118 复核结论：双因，不是单一原因）。
+    try { srcSheet.Activate(); } catch (e) {}
     const srcRange = srcSheet.Range(sourceRange);
 
     // 目标表不存在时自动新建（原来必须由调用方先建好，问题台账 ISS-63 的第二个坑）
@@ -4458,6 +4462,12 @@
     }
 
     if (!range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
+
+    // 防御性激活：WPS 上部分 Range 级操作（AutoFilter / Sort）对非活动表可能静默 no-op。
+    // 说明：曾把「筛选不生效」记成产品缺陷（ISS-117），复核后确认是**验证脚本没检查写入结果**——
+    // 数据根本没写进表，空区域上 AutoFilter() 自然无效。激活保留作防御，但不是该问题的根因。
+    try { sheet.Activate(); } catch (e) {}
+
     const targetRange = sheet.Range(range);
     const warnings = [];
 
