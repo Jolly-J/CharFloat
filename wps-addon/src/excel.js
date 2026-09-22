@@ -36,6 +36,14 @@
 
   // 3. 新建或激活工作表 (显式锁定 workbookName)
   function createWorksheet(app, params) {
+    // 表名校验（excel-tester M-4）：非法字符或超长名字宿主会**静默创建 SheetN** 并返回成功，
+    // 调用方以为表叫自己给的名字，后续按名定位全部失败。这里先校验再创建。
+    if (params && params.sheetName !== undefined && params.sheetName !== null && String(params.sheetName) !== "") {
+      const want = String(params.sheetName);
+      if (want.length > 31) throw new Error(`工作表名过长（${want.length} 字符，上限 31）："${want}"`);
+      if (/[\\\/\?\*\[\]:]/.test(want)) throw new Error(`工作表名含非法字符（\\ / ? * [ ] :）："${want}"`);
+      if (/^'.*'$/.test(want)) throw new Error(`工作表名不能以单引号开头或结尾："${want}"`);
+    }
     const { sheetName, workbookName } = params;
     if (!sheetName) throw new Error("缺少 sheetName 参数");
 
@@ -2061,12 +2069,28 @@
   function saveWorkbook(app, params) {
     const { workbookName } = params || {};
     const wb = getWorkbook(app, workbookName);
-    wb.Save();
+    const warnings = [];
+    // 从未保存过的新工作簿（Path 为空）调 Save() 会失败或弹"另存为"——如实告知而非报成功（excel-tester L-4）
+    let pathBefore = "";
+    try { pathBefore = String(wb.Path || ""); } catch (e) {}
+    try { wb.Save(); }
+    catch (e) {
+      return { success: false, workbookName: wb.Name, hostError: e.message, warnings: [`保存失败: ${e.message}`],
+        message: `工作簿 [${wb.Name}] 保存失败${pathBefore === "" ? "（该工作簿从未保存过，请先用 save_as 指定路径）" : ""}` };
+    }
+    // 读回是否真的落盘（Saved 标志）
+    let savedFlag = null;
+    try { savedFlag = Boolean(wb.Saved); } catch (e) {}
+    if (savedFlag === false) {
+      warnings.push(pathBefore === "" ? "该工作簿从未保存过，Save() 未落盘；请用 save_as 指定路径" : "宿主报告保存后仍为未保存状态，请人工确认");
+    }
     return {
-      success: true,
+      success: savedFlag !== false,
       workbookName: wb.Name,
       fullName: wb.FullName,
-      message: `工作簿 [${wb.Name}] 已成功保存到磁盘`
+      saved: savedFlag,
+      warnings,
+      message: savedFlag === false ? `工作簿 [${wb.Name}] 未确认落盘` : `工作簿 [${wb.Name}] 已成功保存到磁盘`
     };
   }
 
@@ -2677,9 +2701,19 @@
     if (!name || !refersTo) throw new Error("add 需要 name 和 refersTo（如 'Sheet1!$A$1:$B$10'）");
     wb.Names.Add(String(name), String(refersTo), false, String(comment || ""));
     const back = g(() => String(wb.Names.Item(String(name)).RefersTo), null);
-    return { success: true, workbookName: wb.Name, name, requested: refersTo, readBack: back,
-      verified: !!back, warnings: back ? [] : ["写入后读不回该名称"],
-      message: `已添加命名区域 ${name} → ${back || refersTo}` };
+    // comment 是否真的写进去了（M-10：原先被静默忽略还不告警）
+    const warnings = [];
+    if (!back) warnings.push("写入后读不回该名称");
+    if (comment) {
+      const backComment = g(() => String(wb.Names.Item(String(name)).Comment), null);
+      if (backComment !== String(comment)) {
+        warnings.push(`comment 未生效：请求 ${JSON.stringify(String(comment))}，宿主读回 ${JSON.stringify(backComment)}`);
+      }
+    }
+    return { success: !!back, workbookName: wb.Name, name, requested: refersTo, readBack: back,
+      readBackComment: comment ? g(() => String(wb.Names.Item(String(name)).Comment), null) : undefined,
+      verified: !!back, warnings,
+      message: back ? `已添加命名区域 ${name} → ${back}` : `命名区域 ${name} 添加失败（读不回）` };
   }
 
   /** 文档属性（内置 + 自定义）。 */
@@ -3651,16 +3685,31 @@
     };
 
     if (Array.isArray(dataFields)) {
+      // 可用的源字段清单（用于字段名校验，M-7：名字不存在时宿主静默丢字段、工具照样报成功）
+      const availableFields = [];
+      try {
+        const rf = pivotTable.PivotFields();
+        for (let i = 1; i <= Number(rf.Count); i++) { try { availableFields.push(String(rf.Item(i).Name)); } catch (e) {} }
+      } catch (e) {}
+      const droppedFields = [];
       dataFields.forEach((df) => {
         try {
-          const pf = pivotTable.PivotFields(df.fieldName);
-          const caption = df.caption || (`${df.summaryFunction || "求和"}:${df.fieldName}`);
+          const wanted = String(df.fieldName);
+          if (availableFields.length && availableFields.indexOf(wanted) < 0) {
+            droppedFields.push({ fieldName: wanted, reason: "源区域没有该字段" });
+            return;
+          }
+          const pf = pivotTable.PivotFields(wanted);
+          const caption = df.caption || (`${df.summaryFunction || "求和"}:${wanted}`);
           const func = summaryFuncMap[df.summaryFunction] || 4;
           pivotTable.AddDataField(pf, caption, func);
         } catch (e) {
-          log("设置透视表数据字段异常: " + JSON.stringify(df) + ", " + e.message);
+          droppedFields.push({ fieldName: String(df.fieldName), reason: String(e.message) });
         }
       });
+      if (droppedFields.length) {
+        warnings.push(`有 ${droppedFields.length} 个数据字段未加上：${JSON.stringify(droppedFields)}；可用字段：${availableFields.join(" / ") || "（读不到）"}`);
+      }
     }
 
     // 新建后是"空骨架"，字段配好也必须显式刷新才会真正取数（问题台账 ISS-63：
