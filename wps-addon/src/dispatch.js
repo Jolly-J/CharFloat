@@ -98,6 +98,9 @@
         case "format_text_segment":
           result = formatTextSegment(app, params);
           break;
+        case "create_workbook":
+          result = createWorkbook(app, params);
+          break;
         case "create_sheet":
           result = createWorksheet(app, params);
           break;

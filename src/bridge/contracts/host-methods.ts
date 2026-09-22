@@ -23,7 +23,7 @@ export const EXCEL_METHODS = [
   'update_chart', 'delete_chart', 'create_pivot_table', 'set_filter_and_sort', 'set_data_validation', 'manage_sheet',
   'manage_rows_and_columns', 'manage_cell_comments', 'find_and_replace', 'duplicate_sheet', 'capture_sheet_preview',
   'rollback_cells', 'save_workbook', 'get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf',
-  'set_sheet_view', 'export_chart_image', 'copy_range', 'manage_hyperlink', 'manage_named_range',
+  'set_sheet_view', 'create_workbook', 'export_chart_image', 'copy_range', 'manage_hyperlink', 'manage_named_range',
   'manage_document_properties', 'manage_table', 'manage_pictures',
   'add_shape', 'list_shapes', 'update_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image'
 ] as const;
@@ -49,7 +49,7 @@ export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
   // Office.js 侧尚未实现，故对 Microsoft 声明为未实现。
   microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view',
     'copy_range', 'manage_hyperlink', 'manage_named_range', 'manage_document_properties', 'manage_table', 'manage_pictures',
-    'export_chart_image']
+    'export_chart_image', 'create_workbook']
 };
 
 /**
