@@ -51,8 +51,13 @@ const LOCAL_TOOLS = new Set([
  * 台账必须只减不增：新增死分支会让测试失败。
  */
 const KNOWN_UNREGISTERED_BRANCHES: readonly string[] = [
-  'wps_clear_range', 'wps_eval_code', 'wps_get_style_token',
-  'wps_ppt_add_chart', 'wps_reload_addon', 'wps_word_capture_preview'
+  // 2026-09-22：wps_clear_range / wps_get_style_token / wps_reload_addon / wps_word_capture_preview
+  // 已补齐 schema 并注册（原为"宿主能做但对外没有工具"）。台账按约定只减不增。
+  // 剩余两项是**有意不暴露**，不是遗漏：
+  //   wps_eval_code —— 与 wps_execute_script 重复，通用入口已覆盖，暴露只会多一条无校验的代码执行路径；
+  //   wps_ppt_add_chart —— PPT 原生图表在本机 WPS 上 AddChart 返回 null 且不建形状（ISS-80），
+  //     暴露会得到"必定失败"的工具；上游改用 insert_native_chart（报错明确）与矢量形状绘制。
+  'wps_eval_code', 'wps_ppt_add_chart'
 ];
 
 const { toolClassOf } = await import('../src/bridge/tools/index.js');

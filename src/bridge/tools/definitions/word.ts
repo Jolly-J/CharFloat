@@ -336,6 +336,20 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_word_capture_preview",
+        description: "把当前 Word 文档导出为 PDF 并返回**文件路径**，用于视觉验收——Word 没有截图通路，这是唯一能看见真实版式的手段。注意返回的是路径不是图片，需自行用 PDF 查看器检查；导出成功不代表版面符合预期。",
+        parameters: {
+          type: "object",
+          properties: {
+            documentName: { type: "string", description: "精确目标 Word 文档名" }
+          },
+          additionalProperties: false
+        }
+      }
     }
   ];
 }

@@ -864,6 +864,39 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_clear_range",
+        description: "清空指定区域的**内容**（值、公式、批注一并清除，保留格式）。这是唯一可靠的清空方式——用 patch_cells 写 null 矩阵在区域含公式或合并单元格时会残留。破坏性且不可回滚：先用 read_range 确认范围，并留意返回体里的 clearedCells。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            address: { type: "string", description: "要清空的区域，如 'A1:C10'" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          required: ["address"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_get_style_token",
+        description: "读取原表的**设计语言**（取样单元格的字体、字号、字色、底色、边框与数字格式），用于让新写的内容与既有表格风格一致。做看板/报表前先调它，不要自己臆造配色。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            sampleAddress: { type: "string", description: "取样单元格，默认 'A3'" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          additionalProperties: false
+        }
+      }
     }
   ];
 }

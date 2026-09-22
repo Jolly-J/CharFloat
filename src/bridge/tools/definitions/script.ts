@@ -48,6 +48,18 @@ export function scriptToolDefinitions(): GatewayToolDefinition[] {
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_reload_addon",
+        description: "让当前 WPS 重新加载桥接加载项，使**刚部署的新构建立即生效**，无需退出并重启 WPS。改了加载项代码并完成部署后调用它；调用成功不代表新代码已生效，随后用 bridge_get_capabilities 或 bridge_diagnose 读回构建指纹核对。无参数。",
+        parameters: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        }
+      }
     }
   ];
 }
