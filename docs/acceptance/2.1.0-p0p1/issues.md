@@ -8,11 +8,27 @@
 
 ---
 
+## 决策结论（2026-09-22，使用者确认）
+
+| 决策 | 结论 | 影响 |
+|---|---|---|
+| ISS-01 / DP7 | **方案 A**：`formulas` 中的空项视为"不动该单元格" | 改 `wps-addon/src/excel.js` 的 `patchCells` + 回归测试 + 工具说明 |
+| ISS-04 重打包 | **方案 B**：不重打，登记为已知差异 | 已交付三包 SHA 不变；包内文案待下次统一打包时修正 |
+| "假成功"整类（ISS-17/29/38/39/42） | **方案 A**：写工具执行后**主动读回校验**，未生效即报错 | 需要改适配层，是本次最大的架构性修复 |
+| ISS-09（D8/D9） | **方案 B**：要求处理 | 重写 WPS PPT 描述；让 `capabilities` 覆盖 Word/PPT |
+| ISS-44/45（工具缺口） | **补读回工具** | 条件格式 / 数据验证 / 冻结窗格的读回能力；`clear_range` 按 DP3 再评估 |
+| 测试工作表 | 保留 3 张 `sweep*` 成品表；**删除** `__MCP验收测试__` | 待第二轮子代理结束后执行 |
+| 工具说明变更 | **允许**（属有意变更，非契约漂移） | 改完重新留档契约快照并列出差异 |
+| 未提交改动 | **已提交**：`fbb0e83`（`main`，未推送） | 基线恢复实测 22/22 仍通过（锚点与 HEAD 解耦已验证） |
+| DP2 签名/公证 | **暂缓**，后期再议 | 不影响内部验收 |
+
+---
+
 ## 汇总
 
 | 编号 | 标题 | 严重度 | 状态 | 归属 |
 |---|---|---|---|---|
-| ISS-01 | `excel_patch_cells` 混用 `values`+`formulas` 会静默清空数据 | **高** | 待修（= DP7 待决策） | 宿主实现 + 工具说明 |
+| ISS-01 | `excel_patch_cells` 混用 `values`+`formulas` 会静默清空数据 | **高** | **已修已验证** | 宿主实现 + 工具说明 |
 | ISS-02 | `wps_get_workspace_summary` 的 `hasOpenWorkbook` 与真实打开状态不符 | **高** | 待修 | 目标锁语义 + 工具说明 |
 | ISS-03 | 参数约定不一致：多数 excel 工具要 `host`/`sheetName`，个别不要 | 中 | 待修 | 工具契约 |
 | ISS-04 | 已交付包内 `taskpane.html` 仍显示"42 项能力已就绪" | 中 | 源码已修、**包未重打** | 发布物 |
@@ -28,6 +44,16 @@
 | ISS-14 | `Shapes.Range([...]).Group()` 不报错但产出损坏的分组对象 | 中 | 待修 | 宿主 API 语义 |
 | ISS-15 | `native-scripting.md` 缺多元素构图范例与画布换算 | 中 | 待修 | skill 说明 |
 | ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 待修 | 并发语义 + 说明 |
+| ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | 待修 | 宿主实现 + 说明 |
+| ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | 待修 | 宿主实现 + 说明 |
+| ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修待验** | 宿主实现 + 说明 |
+| ISS-20 | `update_chart` 在 WPS 不可用，但工具说明未标注 | 中 | 待修 | 工具说明 |
+| ISS-21 | `patch_cells` 静默把字符串日期（`"2026-01"`）转成序列号 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-22 | `format_cells` 的 `rowHeight` 不生效 | 低中 | 待修 | 宿主实现 |
+| ISS-23 | `get_charts` 的 `leftCell` 与实际位置不自洽，`detail` 不返回类型枚举名与颜色 | 中 | 待修 | 宿主实现 |
+| ISS-24 | `seriesColors` 对单系列图表是**逐点染色**，导致彩虹柱 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-25 | `capture_sheet_preview` 的参数优先级与返回字段未说明 | 低中 | 待修 | 工具说明 |
+| ISS-26 | 脚本 API 差异：`ws.Cells(r,c)` 不存在；`AddChart2` 默认按行取系列须 `PlotBy=2` | 中 | 待修 | skill 说明 |
 | ISS-27 | 缺少**选型指引**：27 对 `excel_*`/`wps_*` 完全同构，`tools/list` 里无法区分 | **高** | 待修 | 工具说明 + skill |
 | ISS-28 | `wps_rollback` 说"原地恢复表格"，实际只覆盖 `patch_cells` 的值/公式 | **高** | 待修 | 工具说明 |
 | ISS-29 | `search_cells` 声称能搜公式，实测 0 命中**却返回 `success:true`** | **高** | 待修 | 宿主实现 + 说明 |
@@ -39,14 +65,67 @@
 | ISS-35 | 17 个写工具**零必填参数**（连目标都不是必填） | 中 | 待修 | 工具契约 |
 | ISS-36 | 说明营销化，6549 字符里约 13% 是样板套话，挤占有效信息 | 低中 | 待修 | 工具说明 |
 | ISS-37 | 错误提示不给允许值清单，参数集不一致时尤其费轮次 | 低 | 待修 | 工具契约 |
-| ISS-38 | `set_filter_and_sort` **假成功**：返回 `success` + `sortedRuleCount:1`，数据根本没排序 | **高** | 待修 | 宿主实现 + 说明 |
-| ISS-39 | `auto_fit_columns` 不传 `columnRules` 时静默 no-op；`address` 参数被完全忽略 | 中高 | 待修 | 宿主实现 + 说明 |
-| ISS-40 | 筛选范围不受 `range` 约束，自动扩展到最后一个已用行，把合计行卷进筛选区 | 中高 | 待修 | 宿主实现 + 说明 |
-| ISS-41 | `freeze_panes` 的 `freezeColumnIndex` 错位（set2→读回1、set3→读回2） | **高** | 待修 | 宿主实现 |
-| ISS-42 | `format_cells` 的 `merge` 失败被吞仍返回 success；`borders:'none'` 文档说可去边框但实现跳过 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-38 | `set_filter_and_sort` **假成功**：返回 `success` + `sortedRuleCount:1`，数据根本没排序 | **高** | **已修已验证** | 宿主实现 + 说明 |
+| ISS-39 |  `auto_fit_columns` 不传 `columnRules` 时静默 no-op；`address` 参数被完全忽略 | 中高 | **已修已验证** | 宿主实现 + 说明 |
+| ISS-40 |  筛选范围不受 `range` 约束，自动扩展到最后一个已用行，把合计行卷进筛选区 | 中高 | **已修已验证** | 宿主实现 + 说明 |
+| ISS-41 | `freeze_panes` 的 `freezeColumnIndex` 错位 | **高** | **结论存疑，待实测** | 宿主实现 |
+| ISS-42 |  `format_cells` 的 `merge` 失败被吞仍返回 success；`borders:'none'` 文档说可去边框但实现跳过 | 中 | **已修已验证**（merge 部分） | 宿主实现 + 说明 |
 | ISS-43 | `manage_cell_comments` 的 `author` 参数不生效 | 低中 | 待修 | 宿主实现 |
 | ISS-44 | 条件格式 / 数据验证 / 冻结窗格**没有读回工具**，只能靠脚本探测 | 中 | 待修 | 工具能力缺口 |
 | ISS-45 | `clear_range` 属 `declaredNotCallable`，清空只能写 `null` 矩阵，极易残留 | 中 | 待修 | 工具能力缺口 |
+| ISS-46 | 回滚的"后续修改"判定基于**内容相等**，重建的同内容数据会被旧 `auditId` **清空**（真实数据破坏） | **高** | 待修 | 回滚判定逻辑 |
+| ISS-47 |  回滚文案未说明范围，被误读为"整表还原"（**原判"样式未恢复=缺陷"经复核不成立**，见下） | 中 | **已修已验证** | 回滚文案 |
+| ISS-48 | 格式/条件格式/冻结/行列/图表类工具**不返回 auditId**，完全不可回滚且说明未写 | 中高 | 待修 | 审计覆盖 |
+| ISS-49 | 两个不同的 MCP 客户端在审计里都记成 `MCP Agent`，**无法区分归属** | 中高 | 待修 | 审计归属 |
+| ISS-50 | 后台未运行时错误不可操作（`fetch failed` / 原始 urlopen 错误，不给服务名/端口/恢复方式） | 中 | 待修 | 错误文案 |
+| ISS-51 | HTTP `/mcp` 会话硬上限 64 且**无空闲过期**，累积后 429，需手动 DELETE 释放 | 中 | 待修 | 会话生命周期 |
+| ISS-52 | `SKILL.md` 称脚本里 `doc`"已自动绑定"，实测 Excel 场景 `doc` 为 `null`，须用 `wb` | 中 | 待修 | skill 说明 |
+| ISS-53 | `generate_deck` 标题页背景**超框 33%**（1280×720 / 960×540），根因待干净实验 | 中高 | **现象确认，根因待定** | 宿主实现 |
+| ISS-54 |  `generate_deck` 的 `content` 布局缺 `bulletPoints` 时**静默只出标题**，无警告 | 中高 | **已修已验证** | 宿主实现 |
+| ISS-55 | `generate_deck` 坐标基准与说明不符，调用方被迫自己再换算一次 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-56 | `wps_execute_script` 返回值**嵌套超过两层就丢属性**（变 undefined 且不报错） | 中 | 待修 | 脚本返回值序列化 |
+| ISS-57 | `wps_word_page_layout_and_watermark` 不接 `pageNumberFormat`（422），页码只能退回脚本插域 | 中高 | 待修 | 宿主实现 + 说明 |
+| ISS-58 | 专用水印只落在**正文层第 1 页**，跨页水印需自行改页眉层 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-59 | **磁盘上是新构建、WPS 进程里跑的是旧构建**：部署后不重载，且没有任何指纹能判断"运行中的是哪一版" | **高（方法学）** | 待修 | 部署流程 + 版本可观测性 |
+| ISS-60 | 行隐藏 `hide` 返回 success 但没生效（`Range("5:6").Hidden=true` 静默 no-op） | **高** | **已修待验** | 宿主实现 |
+| ISS-61 | 批注 `author` 无效：宿主 `Comment.Author` 恒为 jolin，返回体里的 author 是**入参回显冒充读回** | 中 | 待修 | 宿主实现 |
+| ISS-62 | 公式查找替换静默不支持（`totalFound:0` + `success`） | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-63 | 透视表：建表瞬间是空骨架须手动 `Refresh`；`destSheetName` 必须已存在；`RecordCount` 恒为 1 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-64 | 条件格式无图标集/公式规则参数入口，也无读取/清除工具 | 中 | 待修 | 工具能力缺口 |
+| ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 待修 | 工具说明 |
+| ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | 待修 | 宿主实现 |
+| ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | 待修（根因待隔离） | 宿主实现 |
+| ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修待验** | 宿主实现 |
+| ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修待验** | 宿主实现 |
+| ISS-70 | `write_content` 的 `location:"bookmark"` 没插到书签处，还污染了另一个书签范围 | 中 | 待修 | 宿主实现 |
+| ISS-71 | `wps_word_capture_preview` **已实现但未注册**（调用报"未知工具"），Word 视觉验收有缺口 | 中 | 待修 | 死分支（DP3 实例） |
+| ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-73 | Word 侧无样式/书签/内容控件/交叉引用/分节/行列尺寸/文档属性工具，全需脚本 | 中 | 待修 | 工具能力缺口 |
+| ISS-74 | `native-scripting.md` 只有 Excel/PPT 示例，Word 表格/分节/样式零示例 | 中 | 待修 | skill 说明 |
+| ISS-75 | `generate_deck` **原生图表数据写不进去**：`ser.Values=` 不生效也不抛错，图表显示宿主默认值，却返回 success | **高** | 待修 | 宿主实现 |
+| ISS-76 | `wps_ppt_capture_slide_preview` 恒 422"PPT 未生成预览"，但同一 API 用脚本可成功 → **真实错误被兜底文案替换** | 中高 | 待修 | 宿主实现 |
+| ISS-77 | **目标锁语义不一致**：宿主 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测 | **高** | 待修 | 架构不一致（解释 ISS-02） |
+| ISS-78 | PPT 无「新建/保存」工具；追加型工具**不幂等**且说明未写 | 中 | 待修 | 工具能力缺口 + 说明 |
+| ISS-79 | 越界页码报宿主内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），缺中文上下文 | 低 | 待修 | 错误文案 |
+| ISS-80 | `insert_native_chart` **100% 失败**且文案误导：`AddChart/AddChart2/AddOLEObject` 都是 function 但返回 `null`、不建形状，报的却是"数据配置未完成" | **高** | 待修 | 宿主实现 |
+| ISS-81 | `generate_deck` 的 chart 布局同样失败，且**已插入的页不回滚**，留半成品 | 中高 | 待修 | 宿主实现 |
+| ISS-82 | `layoutIndex` 实为 **ppLayout 枚举**而非版式序号，越界（12）不报错 | 中 | 待修 | 工具说明 |
+| ISS-83 | `manage_table` 的 enum 里有 `set_table_data`，**宿主没有该操作** → 报"未知的表格操作" | 中 | 待修 | 契约漂移 |
+| ISS-84 | `set_table_data` 的 `data` 含数字就报 `arguments.data[1][2]: 类型不正确` | 中 | 待修 | 工具契约 |
+| ISS-85 | **PPT 无保存工具**（`wps_ppt_save_presentation` → 未知工具） | 中高 | 待修 | 工具能力缺口 |
+| ISS-86 | `capture_slide_preview` 吞掉 addon 原始返回、且不允许传 `outputPath` | 中 | 待修 | 宿主实现 |
+| ISS-87 | **`set_background` 会串改全部页**（受控复现：设第 1 页后第 2 页也变红） | **高** | 待修 | 宿主实现 |
+| ISS-89 | 深度属性反射会让 **WPS 进程崩溃**（3 次崩溃报告，2 次栈指向 jsetapi→etcore） | **高** | 待修 | 宿主 API 安全性 + 工具护栏 |
+| ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | 待修 | 可观测性 |
+| ISS-91 | **读操作被别名到写函数**：`list_conditional_formats` → 新增条件格式；调"读"会**写** | **高** | **已修待验** | Office.js 路由 |
+| ISS-92 | `list_comments` → 默认 action `add`（会在 **A1 插空批注**）；`update_comment` 静默 success | **高** | **已修待验** | Office.js 路由 + 处理函数 |
+| ISS-93 | `normalizer.ts` 只适配 14 个方法，**12 个 `excel_*` 在 host=microsoft 参数错位**；21 个 Word/PPT 工具在该宿主是死路 | **高** | 待修 | 跨宿主适配 |
+| ISS-94 | **C 类·只写不读共 7 项**：条件格式、冻结窗格、数据有效性、筛选状态、工作表保护/标签色、Word 页眉页脚/水印、透视表 | 中高 | 待修 | 工具能力缺口 |
+| ISS-95 | **B 类·宿主能做但没暴露**：清空区域 / 读原表设计语言 / Word 页面预览（**3 条零成本死分支**）＋超链接、命名区域、文档属性、区域复制、图片形状、结构化表格 | 中高 | 待修 | 工具能力缺口 |
+| ISS-96 | Office.js 的 `capture_sheet_preview` 是**伪渲染**：无图表时用 Canvas 按 `cellW=110/rowH=28` 硬编码合成假图 → **AI 视觉自检会得出与真实文件不符的结论** | **高** | 待修 | 证据可信度 |
+| ISS-97 | adapter 把整张 `EXCEL_METHODS`(30) 当 COM 回退白名单，而 COM 实际只覆盖 28/30 → **白名单过度声明** | 中高 | 待修 | 回退策略 |
+| ISS-98 | `excel_find_and_replace`（host=microsoft）字段名错位 → `text=""` → 每个非空单元格都命中并 `replaceAll("")`，**可能破坏内容** | **高** | **已修待验**（加空搜索阻断 + 兼容 `searchQuery`） | 跨宿主契约 |
+| ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | 待修 | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。
 
@@ -83,6 +162,23 @@ if (formulas !== undefined && formulas !== null) range.Formula = formulas;  // '
 **验证方式**：补一条测试——写值后对同区域用混合矩阵 patch，断言原值仍在；并在真实宿主复跑本文件 §复现表。
 
 **证据**：[p5.4-macos-wps-business-matrix.md](p5/p5.4-macos-wps-business-matrix.md) §3
+
+---
+
+### ✅ ISS-01 修复记录（2026-09-22，方案 A）
+
+**改动**：`wps-addon/src/excel.js` 的 `patchCells` —— `formulas` 矩阵中的空项（`''`/`null`/`undefined`）改为**跳过**，不再参与赋值；只有整张矩阵都没有空项时才走原来的整批 `range.Formula = formulas`（保住批量性能）。空项路径改为逐单元格 `range.Cells.Item(r, c).Formula = ...`。
+
+**回归测试**：`tests/addon.test.ts` 新增 3 项，宿主模拟**复刻了 WPS"给 Formula 赋空字符串即清空单元格"的真实行为**：
+- `formulas` 全空 → 同批写入的值必须保留；
+- 混合矩阵（`=1+1` + 空项）→ 公式落位、空项那格的值保留；
+- 无空项 → 值写入行为不变（防止修复误伤正常路径）。
+
+**修复前复现（证明测试有效）**：临时用 `git show HEAD:wps-addon/src/excel.js` 回退实现并重建 `addon-core.js`，重跑测试 → **正好这 2 项失败**；恢复修复版后 5/5 通过。全量回归 **76/76**（原 73 + 3）。
+
+**待验**：实现只在仓库里，**运行中的 WPS 加载项仍是旧版**——需重新部署加载项后，按本文件 §复现表在真实宿主复跑一遍才算验证通过。
+
+**剩余（归入批次 A）**：`excel_patch_cells` 的工具说明尚未写明"空项不改公式、清空请用 `values` 的 `null`"，待工具说明批次一并改。
 
 ---
 
@@ -713,6 +809,550 @@ if (formulas !== undefined && formulas !== null) range.Formula = formulas;  // '
 
 > 未验证的部分照实说明：`inventory` 只读实测 11 个工具，**70 个写工具的真实行为仍未验证**；3 个成品都**没做关闭重开后的持久化复验**（P5.6 只对测试表做过一次）。
 
+## 第二轮：故障与并发用例（`fault` 子代理）
+
+原始证据：`.scratch/fault/REPORT.md`（含每条用例的完整返回原文）。目标工作簿新建了 6 张 `fault_*` 测试表，未改他人表。
+
+### ✅ 通过项（这些是站得住的）
+
+| 用例 | 结果 |
+|---|---|
+| 回滚负向：事后改动同区域再回滚 | **正确拒绝** —— `目标区域已有后续修改或快照缺失，已拒绝覆盖。请先核对当前内容。` |
+| 回滚负向：行结构变更后回滚 | 正确拒绝 |
+| 重复回滚 / 不存在的 id / 缺参 / 类型错 | 均有明确且不同的提示 |
+| 乱序撤销：先撤销新记录、再撤销旧记录 | **逆序撤销正确** |
+| 区域外改动不影响回滚 | 正确（只回滚目标区域） |
+| 双客户端并发 8 次写入 | 8/8 成功，宿主串行 7.93s，**无串写** |
+| 双客户端锁隔离 | 锁按会话隔离，A 锁 A 文档、B 锁 B 文档互不影响 |
+| 同区域并发写（两会话各 5 次） | 10/10 成功，最后写入者获胜，审计 10 条按序完整，**无丢写** |
+| 审计按 sheetName 过滤 | 只返回该表记录，无串扰 |
+| 后台重启 | 加载项**自动重连**，工作簿 16 张表全在，审计历史 68 条保留 |
+
+### ISS-46 回滚把"别人重建的同内容数据"当成自己的修改，直接清空
+
+**严重度**：**高（真实数据破坏）**
+
+**复现**：
+1. `patch_cells` 写入 `fault_case2_tmp!A1:B2`，拿到 `auditId`；
+2. 删除该工作表；
+3. 重建同名空表并写回**完全相同的内容**（用脚本）；
+4. 用**旧 `auditId`** 回滚 → 返回 `{"success":true,"message":"成功恢复区域 $A$1:$B$2 的数据"}`；
+5. 读回 → `[[null,null],[null,null]]` —— **重建的数据被清空**。
+
+**根因**：回滚的"是否有后续修改"判定用的是**内容相等**，而不是"是否同一次修改"。内容碰巧相同就被放行。
+
+**建议修法**：判定加上工作表身份（如创建时间/内部 ID）或版本戳，而不是只比内容；或要求回滚时显式确认。
+
+**验证方式**：本用例应被**拒绝**；补一条回归测试。
+
+---
+
+### ISS-47 回滚执行后样式"没有回来"，但文案让人以为整表还原了
+
+> ⚠️ **本节结论已在下方"复核与修复记录"中修正**：现象成立，但"部分成功被报成完全成功"的因果判断**不成立**——样式从来不在该记录的范围内。降级为中，按文案清晰度修。
+
+**严重度**：**高（部分成功被报成完全成功）**
+
+**复现**：patch 得 `auditId` → 同区域**加粗 + 红底** → 用该 `auditId` 回滚 →
+`{"success":true,"message":"成功恢复区域 $A$1:$B$3 的数据","restoredRows":3,"restoredCols":2}`
+→ 读回：**值被清空，但 6 格仍是 `bold=true,fontColor=#FFFFFF,backgroundColor=#FF0000`**。
+
+**影响面**：调用方以为回到原状，实际样式仍是改后的状态，且文案没有任何提示。
+
+**建议修法**：要么把样式纳入快照/恢复，要么明确返回 `restored: {values: true, styles: false}` 并改文案。
+
+---
+
+### ISS-48 格式化类操作完全不进审计，也无法回滚
+
+**严重度**：中高
+
+**现象**：`format_cells` / `add_conditional_formatting` / `freeze_panes` / `modify_rows_columns` / `add_chart` **都不返回 `auditId`**；`wps_get_audit_history` 里只有 `actionType=update_values`（即 `patch_cells`）。图表即使建了，回滚数据记录也**不会删除图表**。
+
+**影响面**：与 ISS-28（`wps_rollback` 说明夸大范围）互为因果——说明没写，实现也没覆盖。
+
+**建议修法**：给这些写操作补审计记录与快照，或统一在说明里划清"可回滚 / 不可回滚"清单。
+
+---
+
+### ISS-49 两个不同的 MCP 客户端在审计里无法区分
+
+**严重度**：中高（审计归属失去意义）
+
+**现象**：两个独立 MCP 会话（sessionId `2752ce20…` / `dee788a5…`）写入后，审计里的 `clientName` **恒为 `MCP Agent`**（`src/bridge/mcp-server.ts:29`）。只有走 HTTP `/api/v1/tool/call` 才认 `clientName`（实测记为 `fault-HTTP-Client`）。
+
+**影响面**：多客户端场景下，审计记录无法回答"这条是谁改的"——而审计归属正是 P2.2 专门修过的问题。
+
+**建议修法**：MCP 会话应从客户端 `initialize` 的 `clientInfo` 取名称，而不是写死。
+
+**验证方式**：两个不同 MCP 客户端写入后，审计记录里的 `clientName` 应可区分。
+
+---
+
+### ISS-50 后台未运行时的错误不可操作
+
+**严重度**：中
+
+| 调用方 | 返回 | 问题 |
+|---|---|---|
+| 项目 skill 的 `bridge_client.py` | `<urlopen error [Errno 61] Connection refused>` | 不点明服务、端口、恢复方式 |
+| skill 的 `wps_client.py` | `无法连接到 WPS Bridge 服务 (http://127.0.0.1:19890)。请确认本地守护进程正在运行。` | ✅ 这条写得好，可作模板 |
+| `--doctor` | `{"installationRecord":true,"credentialsPresent":true,"error":"<urlopen error ...>"}` | 正常字段与原始错误混在一起 |
+| `--status` | `{"ready":false,"occupied":false,"message":"fetch failed"}` | **`fetch failed` 完全不可操作** |
+
+**建议修法**：统一按 `wps_client.py` 的口径（服务名 + 地址 + 恢复动作）。
+
+---
+
+### ISS-51 HTTP `/mcp` 会话无空闲过期，累积到 64 直接 429
+
+**严重度**：中（可用性）
+
+**现象**：`/mcp` 会话硬上限 **64**（`src/bridge/ws-server.ts:188`），**没有空闲过期**。一次性会话累积后 `initialize` 返回 `HTTP 429 {"error":"会话数量达到上限"}`（实测两次）；`DELETE /mcp` 可手动释放，恢复后新会话正常。
+
+**建议修法**：加空闲超时回收；429 文案里给出释放方式。
+
+---
+
+### ISS-52 `SKILL.md` 关于脚本里 `doc` 的说明与实测不符
+
+**严重度**：中
+
+**现象**：`SKILL.md` 第 11 行称脚本里 `doc`"已自动绑定"；实测 Excel 场景下 `doc` 为 `null`，脚本里访问 `doc.Worksheets` 报
+`原生脚本执行异常: Cannot read properties of null (reading 'Worksheets')`，必须改用 `wb`。
+
+**建议修法**：按组件说明可用变量（Excel → `wb`，Word/PPT 另计），并入 ISS-12 的"WPS JS API 差异"一节。
+
+---
+
+## 复核与修复记录（2026-09-22，第二批）
+
+> 复核原则：**动手前先读实现**。下面前两条是**修正我自己之前的判断**——子代理报的现象成立，但因果推断不成立。
+
+### ⚠️ ISS-47 重新定性：原判"部分成功被报成完全成功"**不成立**
+
+**子代理报的现象**（成立）：`patch_cells` 拿到 `auditId` → 同区域加粗+红底 → 用该 `auditId` 回滚 → 读回「值已恢复、样式仍是红底加粗」。
+
+**原判**（我写的）：回滚报成功但样式没恢复 = 部分成功被报成完全成功。**这条是错的。**
+
+**复核依据**：读完 `rollbackCells`（`wps-addon/src/excel.js`）与 `src/bridge/gateway/audit.ts` 后确认——**该审计记录从一开始就只快照了值与公式**，样式从来不在它的范围里。回滚确实**完整地做完了它承诺的事**（值+公式恢复），原文案"成功恢复区域的数据"里"数据"指的就是值/公式，**是准确的**。
+
+**真正的问题在三处，已分别归属**：
+- 工具**说明**写"原地恢复表格"，读起来像整表还原 → 归 **ISS-28**；
+- `format_cells` 等格式类写操作**根本不进审计**，所以样式改动无从回滚 → 归 **ISS-48**；
+- 返回**文案与结构**没能让调用方（连测试者都被误导）看清覆盖边界 → **本次修复**。
+
+**因此 ISS-47 降级为中，并按"文案清晰度"修**，不再按"数据缺陷"修。
+
+### ⚠️ ISS-41 结论存疑：子代理的推断与代码不符
+
+**子代理结论**：「要冻结 A、B 两列必须传 `freezeColumnIndex = 4`」。
+
+**代码事实**（`wps-addon/src/excel.js` `freezePanes`）：
+```js
+if (freezeRowIndex && freezeRowIndex > 1) win.SplitRow = freezeRowIndex - 1;
+if (freezeColumnIndex && freezeColumnIndex > 1) win.SplitColumn = freezeColumnIndex - 1;
+```
+行列**用的是同一套 `-1` 约定**，完全对称。要冻结 A、B 两列应传 `freezeColumnIndex = 3`（→ `SplitColumn = 2`），不是 4。
+
+**子代理的观察"set3→读回2"恰好就是这个正确行为**，它把"写入值比参数小 1"误当成了错位。
+
+**判定**：**不修**。若按子代理结论去掉 `-1`，反而会把正确的行为改坏。已标记为「结论存疑，待实测」——需要一个能读出"实际冻结了几列"的独立验证（`SplitColumn=2` 意味着冻结前两列，这是 Excel/WPS 的既有语义）。**在拿到实测证据前不动代码。**
+
+### ✅ ISS-42 修复（merge 失败不再被吞）
+
+**改动**：`formatCells` 的合并/取消合并从 `try { range.Merge() } catch { log(...) }` 改为**执行后读回校验**——捕获异常后抛出；并用 `range.MergeCells` 读回实际状态，与请求不符时抛出带读回值的错误。符合"写工具未生效必须报错"的决策。
+
+未覆盖部分：`borders: 'none'` 文档说可去边框而实现 falsy 跳过（同条目的后半），留待工具说明/边框批次。
+
+### ✅ ISS-39 修复（`auto_fit_columns` 不再静默 no-op）
+
+**改动**：不传或传空 `columnRules` 时，按 `sheet.UsedRange` 的列范围**逐列自适应**并返回实际结果（含 `mode: "usedRange"` 与条数说明）；已用区域为空时明确回"未调整任何列"。与说明承诺的"不传则自适应全表已用区域"对齐。
+
+### ✅ ISS-47/28（文案层）修复
+
+`src/bridge/gateway/audit.ts` 的返回改为：
+- `message`: `成功恢复区域 ${address} 的值与公式`
+- 新增 `restoredScope: { values: true, formulas: true, styles: false, charts: false, structure: false }`
+
+让调用方一眼看清覆盖边界，不再靠猜。
+
+**验证**：`npm run build:wps-addon` + `node --check` 通过；`typecheck 0`；全量测试 **76/76**；生成物与源码一致。三条均为**已修待验**——需重新部署加载项后在真实宿主复跑。
+
+---
+
+## 第二轮：PPT / Word 子代理（被 DSH 重启中断，由协调方接手复核）
+
+> **过程说明**：DSH 于 15:39 重启以开通屏幕查看权限，`ppt` 与 `word` 两个子代理进程被销毁（`send_message` 冷启动返回 "active teammate not found"），**无法续跑**。协调方接手：从它们留下的 `.scratch/ppt/`、`.scratch/word/`（含 244 行 `run.log`）与落盘成品中复核出下述结论。
+> **成品本身已在磁盘上**（见文末"成品完成度"），缺的是它们最后的汇报。
+
+### ISS-53 `generate_deck` 生成的标题页背景**超出页面 33%**
+
+**严重度**：中高（几何缺陷，实测可复现）
+
+**实测**（`测试演示文稿.pptx`，页面 `960×540` pt）：
+
+| 页 | 形状数 | 最右/最下 |
+|---|---|---|
+| 1（标题页） | 3 | **1280 × 720** ← 超框 |
+| 2/3/4/9（卡片页） | 22/17/22/17 | 893 × 480 ✅ |
+| 5/8 | 2 | 893 × 100 ⚠️ |
+| 6/7（图表页） | 3 | 893 × 500 ✅ |
+| 10（结尾页） | 2 | 960 × 540 ✅ |
+
+第 1 页的背景矩形是 `1280×720`，而页面只有 `960×540`。逐形状读数：
+```
+1|1|0,0|1280x720|          ← 背景，超框
+1|2|80,187|800x68|Office Agent Bridge
+1|3|80,307|800x39|让 AI 直接操作正在运行的办公文档｜2025 Q3 产品与运营复盘
+```
+
+**候选根因（假说，尚未证实）**：`wps-addon/src/ppt.js` 里 `generate_deck` **混用了两套坐标系**——标题页背景用**真实页面尺寸**创建（`AddShape(1, 0, 0, pageWidth, pageHeight)`），而多数元素用 **720×405 设计基准**的常量；随后第 357 行 `fitGeneratedPptShapes(slide, 1, page, warnings)` 又把**从索引 1 开始的全部形状**按 `pageWidth/720 = 1.333` 统一放大 → 按真实尺寸创建的元素被**二次放大**。
+
+**未证实的原因**：标题文本框读数（`80,187` / `800` 宽）只被放大过一次，与"背景被放大两次"不一致，说明还有别的因素（子代理的换算脚本也动过这份文件）。**需要一次干净实验**：新建空演示文稿 → 只调 `generate_deck` → 逐形状测量，才能定死根因。**在拿到该实验前不修代码。**
+
+### ISS-54 `content` 布局在 spec 缺 `bulletPoints` 时**静默只出标题**
+
+**严重度**：中高
+
+**实测**：第 5 页（"调用链路：一次请求如何落到文档"）与第 8 页（"关键指标明细"）只有两个形状：
+```
+5|1|67,40|827x48|调用链路：一次请求如何落到文档
+5|2|67,100|93x0|            ← 高度 0、无文字
+```
+正文完全缺失，且**没有任何警告**。
+
+**成因**：`generate_deck` 的 `content` 分支只在 `spec.bulletPoints` 非空时才建正文文本框；`deck-outline.json` 里第 5、8 页只有 `layout` 与 `title`，没有 `bulletPoints` → 什么都不生成。
+
+**建议**：`content` 布局在缺少正文时**至少要给警告**（工具已经会返回 `layoutWarnings`），或让 `content` 直接拒绝空正文。
+
+### ISS-55 `generate_deck` 的坐标基准与说明不符
+
+**严重度**：中
+
+**现象**：PPT 子代理留下一份 `js/01-normalize.js`，注释写着：
+
+> 背景：generate_deck 声称按真实页面尺寸生成，实测所有形状仍是 720x405 设计坐标，只占 960x540 页面的左上 75%。这里等价重做 addon 内部 fitGeneratedPptShapes 的换算。
+
+即**调用方被迫自己补一次换算**才能得到正确版面。
+
+**建议**：要么让说明写明"坐标为 720×405 设计基准"，要么让工具自己保证输出即正确版面（与 ISS-53 一并处理）。
+
+### ISS-56 `wps_execute_script` 返回值**嵌套超过两层就丢属性**
+
+**严重度**：中（脚本能力的关键可用性问题）
+
+**实测**（本次复核时亲历）：
+- 返回 `[{ page:{w,h}, slides:[{s,shapes,maxRight,maxBottom}] }]`（两层）→ **正常**
+- 返回 `[ { slide, shapes:[ { i, type, L, T, W, H, txt } ] } ]`（三层）→ **内层对象的全部属性变成 `undefined`**
+- 改成返回**扁平字符串数组** → 正常
+
+**影响面**：脚本里做结构化探查（最自然的写法）会拿到一堆 `undefined`，且不报错——又是一个"静默失真"。
+
+### ISS-57 页码格式无工具支持
+
+**严重度**：中高（Word 交付物必需能力缺口）
+
+**实测**：`wps_word_page_layout_and_watermark` 传 `pageNumberFormat: "第 X 页 / 共 Y 页"` → **HTTP 422 `arguments.pageNumberFormat: 未知参数`**（子代理试了两次都这样）。只能退回 `wps_execute_script`，用 `Find` 定位占位符 + `doc.Fields.Add(..., "PAGE"/"NUMPAGES")` 手工插域。
+
+**建议**：补页码格式参数，或在说明里写明"页码需自行用脚本插入域"。
+
+### ISS-58 专用水印只落在正文层第 1 页
+
+**严重度**：中
+
+**实测**：`wps_word_page_layout_and_watermark` 的 `watermarkText` 生成的是**正文层 WordArt**（`watermarkShape.name = "WordArt 2"`，`Anchor.Information(3) = 1`，即锚在第 1 页）。子代理为了让水印**每页都有**，删掉正文层水印、改在**页眉层**重建（`sec.Headers.Item(1)`），并同时处理 `DifferentFirstPageHeaderFooter`。
+
+**建议**：说明里写清水印的落点与跨页行为，或直接改为页眉层实现。
+
+### 成品完成度（协调方实测）
+
+| 成品 | 状态 |
+|---|---|
+| `测试演示文稿.pptx` | **10/10 页已建**（计划 10 页）；第 1、2、3、4、6、7、9、10 页内容完整；**第 5、8 页只有标题**（ISS-54）；第 1 页背景超框（ISS-53） |
+| `测试文字文稿.docx` | **完整**：封面（文档编号/密级/版本号/编制日期/编制单位）、114 段、2 张表、1027 字、多级大纲、页眉、页眉层水印、页脚 PAGE/NUMPAGES 域（"第 1 页 / 共 5 页"）、1 条批注、2 条修订痕迹、占位符全量替换（`{{VERSION}}`/`{{DATE}}` 0 残留）、已原地保存并导出 PDF |
+
+## 复核与修复记录（2026-09-22，第三批）
+
+### ✅ ISS-38 修复（排序不再假成功）
+
+**改动**（`wps-addon/src/excel.js` `setFilterAndSort`）：旧式 `targetRange.Sort(key1, order1, ...)` 在本机 WPS 上静默 no-op。改为：
+1. 先走 **`SortFields` 路径**（`SortFields.Clear/Add` + `SetRange` + `Header=1` + `Apply`）——上一轮子代理实测该路径有效；
+2. **读回校验**：用新加的纯函数 `isSortedByRules(matrix, rules)` 判断排序后顺序是否真的满足要求（首行按表头跳过，`colIndex` 按区域内相对列号）；
+3. 未通过则退回旧式 `Range.Sort` 再校验一次；
+4. **两条路径都失败就抛错**，错误信息里带上已尝试的路径与"`colIndex` 是区域内相对列号"的提示——不再返回 `success`。
+
+返回体新增 `sortApplied: { changed, attempts }`，调用方能看出是否真的改变了顺序。
+
+### ✅ ISS-40 修复（筛选范围改为回读并告警）
+
+**改动**：启用自动筛选后**回读** `sheet.AutoFilter.Range.Address()`，作为 `appliedFilterRange` 返回；与传入 `range` 不一致时追加 `warnings`（说明宿主会把筛选扩展到相邻数据块、如何用空行隔离）。不再让调用方以为筛选范围就是自己传的那个。
+
+### ✅ ISS-54 修复（`content` 布局缺正文不再静默）
+
+**改动**（`wps-addon/src/ppt.js`）：`generate_deck` 的 `content` 分支在没有 `bulletPoints` 时，往 `warnings` 里推一条带 `slideIndex` 的说明——本页只有标题、没有正文，请补 `bulletPoints` 或改用 `cards`/`chart` 布局。工具本来就返回 `layoutWarnings`，现在这一页也会出现在里面。
+
+### 本批验证
+
+`npm run build:wps-addon` + `node --check` 通过；生成物与源码一致；`typecheck 0`；全量测试 **76/76**。三条均为**已修待验**。
+
+### ⚠️ 部署状态提醒（重要）
+
+以上所有修复（ISS-01/28/39/42/47/38/40/54）**都只在仓库里**。运行中的 WPS 加载项仍是旧版，因此：
+- 第三轮子代理测到的仍是**旧行为**，它们若再次报出 ISS-38/39/40/01，属**预期**，不是修复无效；
+- 要真正验证，需要在**所有子代理收工后**重新部署加载项，再跑一遍对应复现步骤。
+
+---
+
+## 复核与修复记录（2026-09-22，第四批）
+
+> 本批起因：`sheet-adv` 子代理在报告里**直接质疑我刚写的排序校验函数有 off-by-one**。我按"先验证再改"的原则处理，并顺带修正了排序路径本身。
+
+### ✅ 质疑被推翻：`isSortedByRules` 没有漏最后一行（附测试）
+
+**质疑原文**：「`isSortedByRules`（`excel.js:1627`）从 `i=2` 起、且漏最后一行，off-by-one 让校验恒真，本该报错的保护失效。」
+
+**复核结论：不成立。**
+- `i` 从 2 到 `matrix.length - 1`，比较的是 `(i-1, i)`，即从 `(1,2)` 一直到 `(n-2, n-1)` —— **最后一对相邻行是被比较的**；
+- 从 `i=2` 起是正确的：第 0 行是表头（排序时传 `header=1`），不该参与比较。
+
+**用测试钉死，而不是靠嘴**：把两个纯函数抽成 `wps-addon/src/sheet-sort.js`（沿用 `ppt-layout.js` 的 `@build-strip` 导出模式，构建时整段移除），新增 `tests/sheet-sort.test.ts` **10 项**，其中专设一条回归项：
+
+```ts
+test('isSortedByRules 必须比较**最后一对**相邻行（"漏最后一行"回归项）', () => {
+  // 表头 + a, c, b —— 只有最后一对逆序
+  assert.equal(isSortedByRules([['h'], ['a'], ['c'], ['b']], asc()), false);
+});
+```
+实测 **10/10 通过**（含降序镜像、多列规则、非法列号、缺数据不抛错）。全量回归 **86/86**。
+
+**但这条质疑带来了两个真实收益**（照做）：
+
+1. **`Range.Sort` 在本机 WPS 上是方法不是对象** —— 子代理实测 `targetRange.Sort.SortFields` 抛 `Cannot read properties of undefined (reading 'Clear')`，而 `sheet.Sort` 才是可用的 Sort 对象。我原来的实现**只试了 `Range.Sort.SortFields`**，在这台机器上必然走进异常分支。**已改为三条路径依次尝试**（`sheet.Sort.SortFields` → `range.Sort.SortFields` → 旧式 `range.Sort(...)`），每条都读回校验，全不生效才报错；即使某条抛错也会读回（可能已部分生效）。
+2. **校验函数变得可测** —— 原来埋在 IIFE 里谁也测不到，"校验恒真"这类缺陷只能靠人读代码发现。现在有 10 项测试守着。
+
+### 本轮盘点新增问题
+
+第三轮 4 个子代理（`ppt-probe` / `word-adv` / `sheet-adv` / `pipeline`）的完整报告在 [mcp-sweep/](p5/mcp-sweep/)：
+- [02-ppt.md](p5/mcp-sweep/02-ppt.md) — 含**版本问题**的关键发现（磁盘新、进程旧）
+- [03-word.md](p5/mcp-sweep/03-word.md) — Word 高级能力 383 行
+- [04-sheet-advanced.md](p5/mcp-sweep/04-sheet-advanced.md) — 表格高级能力
+- [05-e2e.md](p5/mcp-sweep/05-e2e.md) — 跨组件端到端
+
+新增条目 **ISS-60 ~ ISS-74**（见汇总表）。其中三条最重：
+
+| 编号 | 为什么重 |
+|---|---|
+| **ISS-67** | `wps_word_write_content` **吞掉所有小写字母 `a`**：发 `a ab abc banana A Aa 啊阿` 读回 ` b bc bnn A A 啊阿`。子代理做了精确等值对照并隔离到 `Paragraphs.Add(targetRange)` 路径。**现象确凿、根因待定**（子代理也标为猜测），需要独立复现与源码复核 |
+| **ISS-69** | 导出 PDF 返回 `success` + `savedPath`，但**磁盘上根本没有这个文件**——这条同时被上一轮 Word 子代理的 `run.log` 佐证（当时 `.scratch/word/export/` 里只有截图、没有 PDF） |
+| **ISS-71** | `wps_word_capture_preview` **已实现但未注册**，调用报"未知工具"——正是 P2.5 台账里 6 条死分支的实例，且它恰好卡住 Word 侧视觉验收 |
+
+### 版本时间线（2026-09-22 定死，读全部宿主结论的前提）
+
+`ppt-probe` 的干净实验**对比出了重载前后的行为差异**，把版本之谜解开了：
+
+| 阶段 | 运行中的构建 | 判据 |
+|---|---|---|
+| 会话开始 ~ 中途 | **09-21 13:05 构建** | `generate_deck` 缩放系数 = **1.0**（形状停在 720×405 设计原值，只占 960×540 页面的 75%）；返回体**缺** `pageWidth`/`layoutWarnings`，与 `addon-core.js.backup-1789967115643`（sha `3b34c6a5…`）逐字一致 |
+| 中途之后 ~ 现在 | **09-22 11:51 部署的构建** | 加载项被重载后，**同参数**生成：背景正好 960×540、标题框 80/186.67/800、字号 36→48（sx=sy=4/3）；返回体**含** `pageWidth`/`layoutWarnings` |
+
+**成因**：WPS 进程在 11:51 那次部署之前就启动过；部署只写磁盘**不重载进程**，所以"文件是新的、进程里是旧的"。中途某次加载项重载（子代理操作或宿主行为）让新构建生效。
+
+**这对证据链的含义**：
+1. **重载前**的宿主结论 → 描述的是 **09-21 构建**（比我们的改造还早）；
+2. **重载后**的宿主结论 → 描述的是 **11:51 构建**（含 P3 重构，但**不含我本轮的修复**）；
+3. **我本轮的全部修复仍未上线** —— 磁盘部署文件 `c30e548a…`，仓库构建物已是 `42e884b9…`；
+4. 重载可能**打断了当时在跑的其他子代理**，个别异常行为需谨慎归因；
+5. 凡经**源码复核**的结论（ISS-01/38/39/40/42/54 等）不受影响——当前源码里确认存在同样的缺陷。
+
+**因此**：所有"已修待验"必须在**重新部署 + 重启 WPS** 之后再验，这是接下来唯一有效的基准。
+
+## 第三轮盘点总结（4 个子代理全部完成）
+
+| 代理 | 报告 | 核心产出 |
+|---|---|---|
+| `ppt-probe` | [02-ppt.md](p5/mcp-sweep/02-ppt.md) | **版本问题定案**；问题 B（content 无正文）稳定复现且根因在源码；问题 A 查明是旧构建行为；PPT 表格/形状/占位符/版式/批量 5 页 0.24s 均做成 |
+| `word-adv` | [03-word.md](p5/mcp-sweep/03-word.md) | 样式/分节/横向页/书签/交叉引用/内容控件/文档属性做成；**4 处 success 但没生效**（含吞字母 `a`） |
+| `sheet-adv` | [04-sheet-advanced.md](p5/mcp-sweep/04-sheet-advanced.md) | 透视表/条件格式五种/大数据量（5000 格 0.34s）/合并做成；**行隐藏假成功**等 6 条新问题 |
+| `pipeline` | [05-e2e.md](p5/mcp-sweep/05-e2e.md) | **端到端链路走通**，三份成品落盘并经 OOXML 独立解包校验；**跨组件一致性 18/18 全对**；失败恢复无半成品、指纹不变 |
+
+**新增条目 ISS-60 ~ ISS-88**（29 条）。本轮最重的四条：
+
+| 编号 | 内容 |
+|---|---|
+| **ISS-77** | **目标锁语义不一致**：宿主 `shared.js` 的 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测（同一无参调用一次报错命中残留锁、一次静默指向别的代理正在用的文稿）。**这条解释了 ISS-02** |
+| **ISS-67** | `wps_word_write_content` 吞掉所有小写字母 `a`（现象确凿、根因待定） |
+| **ISS-80** | `insert_native_chart` 100% 失败且文案误导（宿主 `AddChart/AddChart2` 返回 `null` 不建形状，却报"数据配置未完成"） |
+| **ISS-87** | `set_background` **串改全部页**（设第 1 页后第 2 页也变红） |
+
+**也有很扎实的好消息**：跨组件一致性 18/18、失败注入 4 类全部响亮报错且不落半成品、三份成品文件指纹 before/after 一致、5000 格写入 0.34s 逐格正确。
+
+## ✅ 第一批修复的真实宿主复验（2026-09-22 16:0x，**7/7 全部通过**）
+
+**复验环境**（三件事都做了才算数）：
+1. **加载项重新部署**：`npm run setup -- --addon` → 6 个组件目录全部更新，`addon-core.js` 哈希 `22636845359023ccffeb`，时间 16:03:02；
+2. **WPS 重启**：加载项重载，三类文档都打开；
+3. **桥接服务重建并重启**：`npm run build:main` → `dist/bridge/cli.cjs` 由 14:59 更新为含 `restoredScope` → `--stop` / `--start` → 新 pid 73823。
+
+> ⚠️ **ISS-59 又复现了一次（第二例）**：加载项修好了，但 **`dist/bridge/cli.cjs` 还是 14:59 的旧构建**，导致桥接侧修复（ISS-47）第一次复验**失败**。重建 + 重启后台后才通过。
+> **这坐实了 ISS-59 不是偶发**：本项目有**两个独立的代码落点**——WPS 加载项（需部署 + 宿主重载）与桥接后台（需 `build:main` + 后台重启），任何一处漏掉都会得到"改了没生效"。
+
+| 编号 | 复验项 | 结果 | 关键读数 |
+|---|---|---|---|
+| ✔ ISS-01 | `values` + 空公式矩阵不得清空同批写入的值 | ✔ | 读回 `[['新A','新B']]` |
+| ✔ ISS-38 | 排序必须真的生效 | ✔ | 读回 `[1,2,3,4]` 升序；`sortApplied.attempts = ["sheet.Sort.SortFields:ok:已生效"]` |
+| ✔ ISS-39 | 不传 `columnRules` 时真的自适应 | ✔ | `results` 5 列、`mode: "usedRange"` |
+| ✔ ISS-40 | 筛选范围回读 | ✔ | `appliedFilterRange: "$D$1:$E$5"`（与传入一致时 `warnings: []`） |
+| ✔ ISS-42 | 合并 / 取消合并读回校验 | ✔ | `merged: true` → 取消后 `merged: false` |
+| ✔ ISS-47 | 回滚文案与覆盖边界 | ✔ | `message: "成功恢复区域 $I$1:$I$2 的值与公式"`；`restoredScope: {values:true, formulas:true, styles:false, charts:false, structure:false}` |
+| ✔ ISS-54 | `content` 布局缺正文必须告警 | ✔ | `layoutWarnings: [{slideIndex:2, reason:"content 布局未提供 bulletPoints：本页只有标题、没有正文。…"}]` |
+
+**附带确认**：`sheet.Sort.SortFields` 确实是本机 WPS 上唯一有效的排序路径——`attempts` 里第一条就 `已生效`，**没有走到后两条兜底**。子代理的实测结论成立，第四条修复记录里改成"多路径依次尝试"是对的。
+
+测试脚本：`/tmp/verify-excel.mjs`、`/tmp/verify-ppt47.mjs`（临时脚本，未入库）。复验建在 `verify_修复复验` 工作表；另新建了 `verify-iss54.pptx`。两者均可随时删除。
+
+## 修复记录（第五批：向"假成功"整类开刀）
+
+> 决策 #3 定的原则：**写工具执行后必须读回校验，未生效就报错**。本批把这条落到四个最典型的点上。
+
+### ✅ ISS-60 行隐藏（逐行写 + 读回校验）
+
+**根因**：行用 `sheet.Range("5:6").Hidden = true`，本机 WPS 上**静默 no-op**；而列用 `sheet.Columns.Item(n).Hidden` 是正常的——同一个函数里两条路径行为不一致。
+
+**改动**：改为**逐行** `sheet.Rows.Item(r).Hidden = want`，写完**逐行读回**；任何一行与期望不符就抛错，错误里给出读回数组并提示检查工作表保护。
+
+### ✅ ISS-68 Word 查找替换（补上缺失的纯查找分支）
+
+**根因有三处**：
+1. **纯查找分支根本不存在** —— `replaceText` 与 `replaceFormatting` 都没传时两个 `if` 都不进，`matchCount` 恒为 0，却返回"已找到并应用格式化"；
+2. `catch (e) {}` **吞掉全部异常**；
+3. 替换分支**忽略 `Execute` 的返回值**并无条件 `matchCount++`，"一处没命中"也报 `replaced_all`。
+
+**改动**：补上纯查找/查找并格式化的遍历计数（5000 次上限防死循环）；替换分支**检查 `Execute` 返回值**，据此返回 `action: "replaced_all"` 或 `"no_match"`，文案区分"已替换 N 段"与"未找到、未做任何替换"；异常收进 `errors` 随响应返回，不再吞掉。
+
+### ✅ ISS-69 PDF 导出（桥接侧落盘校验）
+
+**根因**：加载项里 `doc.ExportAsFixedFormat(filePath, 17)` 之后**直接返回 success**，而宿主实测**不落盘**。加载项没有文件系统访问，校验只能放到桥接侧。
+
+**改动**（`src/bridge/gateway/word.ts` 的 `saveDocument`）：拿到 `savedPath` 后由桥接（Node，有 fs）`existsSync` + 大小检查；不存在或 0 字节**直接报错**；成功则返回 `verifiedOnDisk: true` 与 `fileSizeBytes`。
+
+### ✅ ISS-19 `delete_chart` 误删（破坏性操作先设卡）
+
+**根因**：`leftCell` 换算成像素坐标后按 **±30px 邻近**匹配——多张图叠在同一位置（正是 ISS-18 的后果）时**全部命中**，实测一次删掉 14 张；且匹配优先级里 `leftCell` 排在 `chartTitle` 之前。
+
+**改动**：先**收集候选**再决定删不删；`leftCell` 命中**多于一张**时**拒绝执行**并列出候选清单与坐标、提示改用 `shapeName`/`chartIndex` 或显式 `clearAll: true`；**一张都没匹配**时也报错（原来返回 `deletedCount: 0` 的假成功）；返回体新增 `matchedBy`。
+
+### 本批验证
+
+`build:wps-addon` + `node --check` 通过、生成物与源码一致、`build:main` 通过、`typecheck 0`、全量测试 **86/86**。
+
+四条均为**已修待验**——需要**再部署一次加载项 + 再重启一次后台**（两个落点都要，见 ISS-59）。
+
+### 复验清单（下次部署后依次跑）
+
+| 编号 | 复验步骤 | 期望 |
+|---|---|---|
+| ISS-60 | 对某几行 `hide` → 读回 `Rows.Item(n).Hidden` | 全部 `true`；失败时报错而不是 success |
+| ISS-68 | 传 `searchQuery` 不传替换 → 看 `matchCount` | 真实命中数；`action` 明确；异常不被吞 |
+| ISS-68 | 传不存在的词 + 替换 → 看 `action` | `no_match`，文案"未找到、未做任何替换" |
+| ISS-69 | 导出 PDF 到**不可写**目录 | 报错"保存未落盘"，不再返回假成功 |
+| ISS-19 | 两张图叠放，用 `leftCell` 删其中一张 | **拒绝执行**并列出候选；改用 `shapeName` 可精确删 |
+| ISS-19 | `clearAll: true` | 全部删除（显式确认路径仍可用） |
+
+## 🔴 WPS 宿主崩溃（2026-09-22，使用者报告；已定位到崩溃报告）
+
+使用者反馈"WPS 中途崩溃了几次"。查 `~/Library/Logs/DiagnosticReports/`，**今天 WPS 崩了 3 次**：
+
+| 时间 | 信号 | 崩溃线程 | 调用栈特征 |
+|---|---|---|---|
+| 15:56:10 | `EXC_CRASH / SIGABRT`（Abort trap: 6） | 线程 51（未命名） | `-[NSView addSubview:]` → `objc_exception_rethrow` → `std::__terminate` → `abort`；`libqcocoa` + `QtWidgetsKso`（**UI 层**） |
+| 16:10:24 | `EXC_BAD_ACCESS / SIGBUS`（KERN_PROTECTION_FAILURE） | 0 `CrBrowserMain` | `kso → etcore → etapi → **jsetapi → ksojscore** → jsapiservice → kshell → etmain` |
+| 16:10:58 | 同上，**栈与偏移完全一致** | 0 `CrBrowserMain` | 同上 |
+
+### ISS-89 深度属性反射会让 WPS 进程崩溃
+
+**严重度**：**高**（宿主级崩溃，非普通报错）
+
+**证据**：
+- 16:10 两次崩溃**调用栈逐帧一致**（`kso+4133660`、`etcore+11346284`、`jsetapi+88516`…），说明是**可稳定复现**的操作触发的，不是随机不稳定；
+- 栈里有 **`jsetapi` + `ksojscore`**（JS 引擎桥）→ `etcore`/`etapi`（**表格**核心），即"JS 属性访问扎进原生 ET 层"；
+- 当时正在跑的是 `wps-api-map` 子代理的**逐表达式反射**：`reflect.js` 对每个对象 `for (const k in v)` 并**逐个 `v[k]` 求值**，表达式列表里包含 `Comment` / `CommentThreaded` / `CommentsThreaded` / `Sort.SortFields` / `AutoFilter.Filters` / `PivotCaches()` / `ListObjects.Item(1)` / `FormatConditions.Item(1)` 这类**未防御的原生 getter**。
+
+**影响面**：`wps_execute_script` 允许执行任意 JS，**一次"无害的探测"就能把宿主搞崩**，且 AI 完全无法预判哪些成员是危险的。
+
+**建议修法**（与 ISS-13"反射能力不足"是一对张力，要一起定）：
+1. 反射类工具加**超时与逐项隔离**（每次只探一个表达式，崩溃即止损）；
+2. 提供**经过验证的安全白名单**（哪些成员可安全读取、哪些会崩），而不是让调用方盲探；
+3. `native-scripting.md` 里补"危险成员清单"（至少收录本次确认的）；
+4. 长期：把常用反射结果**缓存成静态能力表**，减少运行时盲探。
+
+### ISS-90 崩溃后宿主组件掉线，且没有恢复与提示
+
+**严重度**：中高
+
+**现象**：16:10 两次崩溃后，**Excel 组件从连接状态变为断开**（`excel: false`，Word/PPT 仍 `true`），但**桥接侧没有任何"宿主崩溃过"的信号**——调用方只会看到后续调用失败。
+
+**建议修法**：桥接检测到组件从 connected 变为 disconnected 且非正常退出时，显式上报"疑似宿主崩溃"并给恢复指引。
+
+### 备注：我们自己的 App 崩溃已修复，未再复现
+
+`~/Library/Logs/DiagnosticReports/Office Agent Bridge-*.ips` 有 4 份，时间 **11:33 / 11:34 / 11:38 / 11:39**，签名都是 `EXC_BREAKPOINT / SIGTRAP` on `ThreadPoolForegroundWorker`（栈顶 `v8::String::NewFromOneByte` / `v8::RegExp::New`）——**正是此前定位并修复的浮窗崩溃**（移除 `transparent`/`titleBarStyle` 与 `app.getFileIcon()` 这个唯一的线程池原生异步调用）。
+**修复后至今（15:39 起持续运行）没有新的 App 崩溃报告**，该修复判定为有效。
+
+## 能力对照盘点（3 个子代理，报告 06/07/08）
+
+> 目标：回答"我们还能补强哪些能力，让 AI 更精细地操控文档"。三份报告都在 [mcp-sweep/](p5/mcp-sweep/)。
+> ⚠️ MS 侧**零实测**（Excel 加载项未连接）——凡涉及 Microsoft 的结论都是**源码可证**或**文档推断**，已在各报告里标注依据等级。
+
+### 三条最有价值的结论
+
+**① 覆盖率：没有一项能力三边全通。** 对 `EXCEL_METHODS`（30 项）的覆盖：**WPS 29/30**（缺 `update_chart`）、**Office.js 29/30**（缺 `rollback_cells`）、**COM 28/30**（缺 `update_chart`、`save_workbook`）。
+
+**② WPS 宿主对象模型比 Office.js 更全。** 官方文档显示 WPS 表格对象模型是 VBA/COM 的**近乎全量克隆**：有 `AddSmartArt`、艺术字 `AddTextEffect`、`BuildFreeform`、`ThreeD/Shadow/Glow/Reflection/SoftEdge`、格式刷、`Application.Run`、`ExportAsFixedFormat`、45+ 事件、`Range.Characters`、`Names`、`FileSystem/PluginStorage/ApiEvent`。
+→ **短板不在宿主，在我方实现**：表格侧形状/图片能力为零、冻结窗格依赖 `ActiveWindow`（跨簿会打错目标）、`update_chart` 缺失、图表定位是磅值像素而非单元格锚定。
+
+**③ 补强方向（按报告给出的优先级）**：
+1. **修跨宿主字段契约**（本轮最大发现，M1–M8 源码可证）——schema/gateway/normalizer 三层按 WPS 语义写，Office.js 读另一套字段名；
+2. **补 MS 侧 Excel 矢量绘图域**（Office.js 宿主全套都在：几何形状/连接符/SVG/文本框/分组/导图，我们只实现了 `addImage`）；
+3. **修 `capture_sheet_preview` 伪渲染**（见 ISS-96）。
+
+### ISS-96 Office.js 侧预览是**伪造的渲染图**
+
+**严重度**：高（**证据可信度**问题）
+
+**现象**：MS 侧无原生图表时，`capture_sheet_preview` 用 **Canvas 按 `cellW=110` / `rowH=28` 硬编码合成**一张"看起来像表格"的图，而不是从真实文件渲染。
+
+**影响面**：这与本次验收反复强调的"**渲染自查**"直接冲突——AI 以为自己看到了真实版面，实际看到的是一张**按固定参数画出来的示意图**，据此得出的版式结论可能与真实文件完全不符。**这比报错更危险**：报错会让人停下来，假图不会。
+
+**建议修法**：COM 侧 `excel.ps1` 已有真实 `CopyPicture` 渲染可复用；MS 侧应改为真实渲染，或**明确标注"这是示意图，非真实渲染"**，绝不能让调用方误以为在看文件。
+
+### ISS-97 COM 回退白名单过度声明
+
+**严重度**：中高
+
+`adapter` 把整张 `EXCEL_METHODS`（30 项）当作"可回退到 Windows COM"的白名单，而 COM 实际只覆盖 **28/30**。后果：某些方法在 Office.js 失败后会被判为"可回退"，实际 COM 侧也没有实现。
+
+### ISS-93 补充：M1–M8 跨宿主字段错位清单（源码可证）
+
+| 症状 | 后果 |
+|---|---|
+| `excel_set_data_validation`（microsoft） | 只认 `params.rule` → **先清空校验再什么都不设** |
+| `excel_manage_sheet` 的 move / tab_color / protect / unprotect | **4 个 action 静默 no-op** |
+| `excel_find_and_replace` | `text=""` → 每个非空单元格都命中 + `replaceAll("")` → **可能破坏内容**（已修，见 ISS-98） |
+| `excel_get_charts` | 忽略全部选择器参数 |
+| `excel_add_chart` | 静默忽略 5 个参数 |
+| `excel_manage_rows_and_columns` | `targetType` 被忽略 → 想插列却插行 |
+
+### ✅ ISS-91 / ISS-92 / ISS-98 修复（本批，Office.js 侧）
+
+**ISS-91**（`office-addon/src/rpc.js`）：`list_conditional_formats` / `update_conditional_format` 原来和"新增条件格式"共用写处理函数——**调"读"会新增一条规则**。现已从写路径摘除并**显式报错**（Office.js 侧确无对应实现），错误里说明可改用 WPS 侧能力。
+
+**ISS-92**（`rpc.js` + `excel/comment.js`）：`handleManageComments` 的 `action` 默认是 `"add"`，而 `list_comments` 走同一条路 → **调"列批注"会在 A1 插一条空批注**；`update_comment` 则掉进未知 action 的 `return { success: true }` **静默成功**。现改为：`list_comments` 强制 `action: "list"`；`update_comment` 显式报错；未知 action 一律抛错（不再静默成功）；`delete` 缺 id 也报错。
+
+**ISS-98**（`excel/range.js`）：`find_and_replace` 的搜索文本兼容 `searchQuery`（网关字段名），并**在文本为空时直接抛错**——阻断 `replaceAll("", …)` 这条可能破坏内容的路径。
+
+验证：`build:office-addon` + `node --check` 通过、生成物与源码一致、`typecheck 0`、全量测试 **86/86**。三条均**已修待验**。
+
 ## 待补充
 
-第二轮（Word / PPT / 故障与并发用例 / Microsoft 通道）待使用者打开对应文档后启动，编号接 **ISS-46** 起。
+剩余待修 **70 条**（高严重度 15 条）。Microsoft Excel 通道仍未连接。三个 API 能力对照子代理（`wps-api-map` / `tool-gap` / `ms-vs-wps`）在跑，产出 `06/07/08-*.md`。

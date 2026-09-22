@@ -245,7 +245,15 @@
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
       const range = params.address ? sheet.getRange(params.address) : sheet.getUsedRange();
-      const text = params.text || params.query || params.findText || "";
+      // 字段名兼容：网关（WPS 语义）传的是 searchQuery，Office.js 侧原来只认 text/query/findText。
+      // 名字对不上 → text 落成空串 → `replaceAll("", …)` 会命中整片区域并可能破坏内容（问题台账 ISS-93）。
+      const text = params.text || params.query || params.findText || params.searchQuery || "";
+      if (!text) {
+        throw new Error(
+          "find_and_replace 缺少搜索文本（Office.js 通道识别 text / query / findText / searchQuery，当前都为空）。" +
+          "空搜索串会命中整个区域并可能破坏内容，已阻断；请显式提供要查找的文本。"
+        );
+      }
       const replaceText = params.replaceText;
       const matchCase = !!params.matchCase;
       const matchEntireCell = !!params.matchEntireCell;

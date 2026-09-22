@@ -20,14 +20,20 @@
           comments: comments.items.map(c => ({ id: c.id, content: c.content, author: c.authorName, created: c.creationDate }))
         };
       } else if (action === "delete") {
-        if (params.id || params.commentId) {
-          const comment = sheet.comments.getItem(params.id || params.commentId);
-          comment.delete();
+        if (!params.id && !params.commentId) {
+          throw new Error("删除批注必须提供 id 或 commentId：请先 list 取得批注 id");
         }
+        const comment = sheet.comments.getItem(params.id || params.commentId);
+        comment.delete();
         await context.sync();
         return { success: true, message: "批注已删除" };
       }
-      return { success: true };
+      // 不再对未知 action 静默返回成功（问题台账 ISS-92）：
+      // 原来 `update_comment` 就是掉进这里——什么都没做却报 success。
+      throw new Error(
+        `未支持的批注操作: ${action}（可用: add / list / delete）。` +
+        `若要修改批注，请先 list 取 id、delete 后再 add。`
+      );
     });
   }
 

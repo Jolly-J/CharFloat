@@ -1,0 +1,115 @@
+{
+  "duplicate_2": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "originalIndex": 2,
+      "message": "已成功克隆第 2 页幻灯片"
+    }
+  },
+  "move_2_to_5": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "from": 2,
+      "to": 5,
+      "message": "幻灯片已移动至第 5 页"
+    }
+  },
+  "set_background_5": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 5,
+      "backgroundColor": "#0F172A",
+      "message": "已将第 5 页背景设为 #0F172A"
+    }
+  },
+  "read5_after_bg": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 5,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "shapeCount": 2,
+      "shapes": [
+        {
+          "shapeIndex": 1,
+          "shapeId": 2,
+          "name": "矩形 1",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 0,
+          "top": 0,
+          "width": 720,
+          "height": 405,
+          "rotation": 0,
+          "zOrderPosition": 1,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 2,
+          "shapeId": 3,
+          "name": "文本框 2",
+          "typeCode": 17,
+          "typeName": "textbox",
+          "left": 60,
+          "top": 160,
+          "width": 600,
+          "height": 55.7,
+          "rotation": 0,
+          "zOrderPosition": 2,
+          "hasText": true,
+          "fontSize": 40,
+          "text": "谢谢观看",
+          "hasTable": false,
+          "hasChart": false
+        }
+      ],
+      "message": "已成功获取第 5 页幻灯片中全部 2 个形状的几何与属性信息"
+    }
+  },
+  "delete_14": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "deletedIndex": 14,
+      "message": "已成功删除第 14 页幻灯片"
+    }
+  },
+  "capture_slide1": {
+    "success": false,
+    "error": "PPT 未生成预览"
+  },
+  "capture_slide7": {
+    "success": false,
+    "error": "PPT 未生成预览"
+  },
+  "notes_test": {
+    "success": true,
+    "data": {
+      "success": true,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "layoutWarnings": [],
+      "visualVerificationRequired": true,
+      "presentationName": "ppt3-blank.pptx",
+      "createdSlidesCount": 1,
+      "createdSlideIndices": [
+        15
+      ],
+      "themeColor": "#0F4C81",
+      "message": "已成功基于大纲批量生成 1 页专业商业演示胶片！"
+    }
+  }
+}

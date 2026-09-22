@@ -351,6 +351,13 @@
           contentBox.TextFrame.TextRange.Font.Name = "Microsoft YaHei";
           contentBox.TextFrame.TextRange.Font.Size = 16;
           contentBox.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#334155");
+        } else {
+          // content 布局缺正文时，原实现静默只出标题、不报任何问题（问题台账 ISS-54）。
+          // 这里显式告警，避免调用方以为这一页已经做完了。
+          warnings.push({
+            slideIndex: slideIdx,
+            reason: "content 布局未提供 bulletPoints：本页只有标题、没有正文。请补 bulletPoints，或改用 cards/chart 布局"
+          });
         }
       }
 

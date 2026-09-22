@@ -1,0 +1,159 @@
+{
+  "add_layout_1": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 16,
+      "message": "已在位置 16 新增幻灯片"
+    }
+  },
+  "add_layout_2": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 17,
+      "message": "已在位置 17 新增幻灯片"
+    }
+  },
+  "add_layout_7": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 18,
+      "message": "已在位置 18 新增幻灯片"
+    }
+  },
+  "layout_readback": {
+    "success": true,
+    "data": {
+      "success": true,
+      "executionTimeMs": 2,
+      "returnValue": "[{\"idx\":16,\"layout\":1,\"clName\":\"标题幻灯片\",\"shapes\":2},{\"idx\":17,\"layout\":2,\"clName\":\"标题和文本\",\"shapes\":2},{\"idx\":18,\"layout\":7,\"clName\":\"标题和图示或组织结构图\",\"shapes\":2}]",
+      "logs": [],
+      "message": "WPS 原生图灵脚本执行完毕（耗时 2ms）"
+    }
+  },
+  "new_slide_for_align": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 19,
+      "message": "已在位置 19 新增幻灯片"
+    }
+  },
+  "add_s1": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 2,
+      "left": 100,
+      "top": 180,
+      "width": 200,
+      "height": 60,
+      "unit": "pt",
+      "message": "已成功添加形状"
+    }
+  },
+  "add_s2": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 3,
+      "left": 300,
+      "top": 260,
+      "width": 100,
+      "height": 60,
+      "unit": "pt",
+      "message": "已成功添加形状"
+    }
+  },
+  "add_s3": {
+    "success": true,
+    "data": {
+      "success": true,
+      "shapeId": 4,
+      "left": 600,
+      "top": 340,
+      "width": 300,
+      "height": 60,
+      "unit": "pt",
+      "message": "已成功添加形状"
+    }
+  },
+  "align_center": {
+    "success": true,
+    "data": {
+      "success": true,
+      "alignMode": "center",
+      "alignedCount": 3,
+      "message": "已完成 3 个形状的 [center] 对齐"
+    }
+  },
+  "after_align": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "ppt3-blank.pptx",
+      "slideIndex": 19,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "shapeCount": 3,
+      "shapes": [
+        {
+          "shapeIndex": 1,
+          "shapeId": 2,
+          "name": "矩形 1",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 100,
+          "top": 180,
+          "width": 200,
+          "height": 60,
+          "rotation": 0,
+          "zOrderPosition": 1,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 2,
+          "shapeId": 3,
+          "name": "矩形 2",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 150,
+          "top": 260,
+          "width": 100,
+          "height": 60,
+          "rotation": 0,
+          "zOrderPosition": 2,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        },
+        {
+          "shapeIndex": 3,
+          "shapeId": 4,
+          "name": "矩形 3",
+          "typeCode": 1,
+          "typeName": "shape",
+          "left": 600,
+          "top": 340,
+          "width": 300,
+          "height": 60,
+          "rotation": 0,
+          "zOrderPosition": 3,
+          "hasText": false,
+          "hasTable": false,
+          "hasChart": false
+        }
+      ],
+      "message": "已成功获取第 19 页幻灯片中全部 3 个形状的几何与属性信息"
+    }
+  }
+}

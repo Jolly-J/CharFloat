@@ -142,9 +142,16 @@
       case "freeze_panes":
         return await handleFreezePanes(params);
       case "add_conditional_formatting":
+        return await handleAddConditionalFormatting(params);
+      // 危险别名修复（问题台账 ISS-91）：`list_conditional_formats` / `update_conditional_format`
+      // 原来和"新增条件格式"走同一个写处理函数 —— 调"读条件格式"会**新增一条规则**。
+      // Office.js 侧暂无对应的读/改实现，这里**显式报错**，绝不再落到写路径。
       case "list_conditional_formats":
       case "update_conditional_format":
-        return await handleAddConditionalFormatting(params);
+        throw new Error(
+          `Office.js 通道尚未实现 "${method}"：原先它会落到"新增条件格式"的写路径，造成误写，已阻断。` +
+          `如需读取或修改条件格式，请改用 host=wps 的对应能力，或先用 wps_execute_script 探测。`
+        );
 
       // 6. 排序与筛选
       case "sort_range":
@@ -188,11 +195,18 @@
         return await handleUpdateShape(params);
 
       // 11. 审阅与批注
+      // 危险别名修复（问题台账 ISS-92）：`handleManageComments` 的 action 默认是 "add"，
+      // 原来 `list_comments` 走同一条路 —— 调"列批注"会在 A1 **插一条空批注**；`update_comment` 则静默返回成功。
       case "manage_cell_comments":
       case "add_comment":
+        return await handleManageComments({ ...params, action: params.action || "add" });
       case "list_comments":
+        return await handleManageComments({ ...params, action: "list" });
       case "update_comment":
-        return await handleManageComments(params);
+        throw new Error(
+          'Office.js 通道尚未实现 "update_comment"：原实现会落到未知 action 的静默成功分支，不做任何事却报成功，已阻断。' +
+          '如需修改批注，请先 list_comments 取 id、delete 后再 add。'
+        );
 
       // 12. 任意脚本自由运行
       case "run_script":

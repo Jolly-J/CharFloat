@@ -1,0 +1,14 @@
+{
+  "cap_slide_9999": {
+    "success": false,
+    "error": "Cannot read properties of null (reading 'Export')"
+  },
+  "cap_bad_pres": {
+    "success": false,
+    "error": "未在 WPS 中找到目标演示文稿 [不存在的文稿.pptx]。当前已打开: 测试演示文稿.pptx, ppt3-blank.pptx, e2e-钙钛矿产业现状与展望.pptx"
+  },
+  "capture_with_outputPath_direct": {
+    "success": false,
+    "error": "arguments.outputPath: 未知参数"
+  }
+}

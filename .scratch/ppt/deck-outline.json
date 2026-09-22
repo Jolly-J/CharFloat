@@ -1,0 +1,87 @@
+{
+  "presentationName": "测试演示文稿.pptx",
+  "themeColor": "#13315C",
+  "slides": [
+    {
+      "layout": "title",
+      "title": "Office Agent Bridge",
+      "subtitle": "让 AI 直接操作正在运行的办公文档｜2025 Q3 产品与运营复盘",
+      "notes": "开场：本次汇报覆盖产品能力、数据表现与下一阶段规划。"
+    },
+    {
+      "layout": "cards_4",
+      "title": "目录",
+      "cards": [
+        { "tag": "01", "title": "执行摘要", "description": "规模、成功率与交付节奏的整体结论，一页看清本季度经营基本面。" },
+        { "tag": "02", "title": "关键进展", "description": "产品能力覆盖、双平台接入与工程治理三条主线上的阶段性成果。" },
+        { "tag": "03", "title": "数据表现", "description": "任务量、工具调用分布与关键指标达成情况，含原生图表与明细表。" },
+        { "tag": "04", "title": "风险与规划", "description": "当前主要风险、应对措施，以及下季度需要重点投入的方向。" }
+      ]
+    },
+    {
+      "layout": "cards_3",
+      "title": "执行摘要",
+      "cards": [
+        { "tag": "SCALE", "title": "接入规模稳步扩大", "description": "本季度新增 12 个业务团队接入，累计活跃用户 386 人，周均任务量 4,120 次，环比增长 34%。" },
+        { "tag": "QUALITY", "title": "任务成功率 96.4%", "description": "端到端成功率环比提升 2.1 个百分点；写入类操作全部可读回校验，本季度零数据事故。" },
+        { "tag": "DELIVERY", "title": "交付节奏明显加快", "description": "完成 3 个版本迭代，需求平均交付周期由 11 天缩短至 7 天，回归缺陷率下降 41%。" }
+      ]
+    },
+    {
+      "layout": "cards_4",
+      "title": "关键进展",
+      "cards": [
+        { "tag": "PLATFORM", "title": "双平台接入", "description": "WPS 与 Microsoft Office 双通道打通，同一套工具契约在两端复用。" },
+        { "tag": "COVERAGE", "title": "三件套覆盖", "description": "表格、文字、演示三类文档的结构化工具全部落地，可读可写可校验。" },
+        { "tag": "CONTRACT", "title": "契约统一", "description": "工具定义、参数校验与宿主实现三者对齐，能力缺口显式暴露。" },
+        { "tag": "STABILITY", "title": "稳定性治理", "description": "补齐超时读回、失败分类与通道回退策略，杜绝重复写入。" }
+      ]
+    },
+    {
+      "layout": "content",
+      "title": "调用链路：一次请求如何落到文档"
+    },
+    {
+      "layout": "chart",
+      "title": "数据表现：近六个月任务量",
+      "chart": {
+        "chartType": "column",
+        "title": "月度任务量（次）",
+        "categories": ["4月", "5月", "6月", "7月", "8月", "9月"],
+        "series": [
+          { "name": "任务量（次）", "values": [2380, 2760, 3120, 3580, 3940, 4120], "color": "#13315C", "hasDataLabels": true }
+        ]
+      }
+    },
+    {
+      "layout": "chart",
+      "title": "数据表现：工具调用分布",
+      "chart": {
+        "chartType": "pie",
+        "title": "工具调用类型分布（Q3 累计）",
+        "categories": ["表格操作", "文字处理", "演示排版", "诊断与审计"],
+        "series": [
+          { "name": "调用占比", "values": [46, 27, 18, 9] }
+        ]
+      }
+    },
+    {
+      "layout": "content",
+      "title": "关键指标明细"
+    },
+    {
+      "layout": "cards_3",
+      "title": "风险与应对",
+      "cards": [
+        { "tag": "RISK 01", "title": "宿主版本差异", "description": "不同 WPS 版本的对象模型存在差异。应对：能力探测前置，缺口以清单形式显式暴露。" },
+        { "tag": "RISK 02", "title": "长任务超时", "description": "批量写入可能超时且结果未知。应对：先读回再决定是否重放，禁止自动重试。" },
+        { "tag": "RISK 03", "title": "权限与合规", "description": "真实文档写入不可逆。应对：目标锁定、操作留痕，高风险动作二次确认。" }
+      ]
+    },
+    {
+      "layout": "end",
+      "title": "谢谢观看",
+      "notes": "结束页：感谢聆听，欢迎提问。"
+    }
+  ]
+}

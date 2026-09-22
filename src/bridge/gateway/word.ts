@@ -20,11 +20,30 @@ export const createDocument: Handler = async (ctx) => {
 
 export const saveDocument: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("word_save_document", {
+    const result = await callOffice<any>("word_save_document", {
       documentName: args?.documentName,
       filePath: args?.filePath,
       format: args?.format || "docx"
     });
+
+    // 落盘校验：加载项没有文件系统访问，宿主 `ExportAsFixedFormat` 实测**返回成功但不落盘**
+    // （问题台账 ISS-69）。这里在桥接侧（Node，有 fs）确认文件真的存在，否则报错而不是返回假成功。
+    const requestedPath = typeof args?.filePath === "string" ? args.filePath : null;
+    const savedPath = typeof result?.savedPath === "string" ? result.savedPath : null;
+    const target = requestedPath || savedPath;
+    if (target && target.includes(".")) {
+      const { existsSync, statSync } = await import("node:fs");
+      const exists = existsSync(target);
+      const size = exists ? statSync(target).size : 0;
+      if (!exists || size === 0) {
+        throw new Error(
+          `保存未落盘：${target} ${exists ? "存在但为空文件" : "不存在"}。` +
+          `宿主返回成功不代表文件已写出；请检查目标目录权限与宿主导出实现。`
+        );
+      }
+      return { ...result, savedPath: target, verifiedOnDisk: true, fileSizeBytes: size };
+    }
+    return result;
 };
 
 export const closeDocument: Handler = async (ctx) => {

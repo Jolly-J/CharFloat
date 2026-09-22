@@ -1,0 +1,68 @@
+export: True None
+[
+  {
+    "slide": 2,
+    "lefttop_rgb": [
+      15,
+      23,
+      42
+    ],
+    "rightbottom_rgb": [
+      15,
+      23,
+      42
+    ]
+  },
+  {
+    "slide": 3,
+    "lefttop_rgb": [
+      15,
+      23,
+      42
+    ],
+    "rightbottom_rgb": [
+      15,
+      23,
+      42
+    ]
+  },
+  {
+    "slide": 5,
+    "lefttop_rgb": [
+      15,
+      76,
+      129
+    ],
+    "rightbottom_rgb": [
+      15,
+      23,
+      42
+    ]
+  },
+  {
+    "slide": 20,
+    "lefttop_rgb": [
+      75,
+      56,
+      179
+    ],
+    "rightbottom_rgb": [
+      75,
+      56,
+      179
+    ]
+  },
+  {
+    "slide": 22,
+    "lefttop_rgb": [
+      15,
+      23,
+      42
+    ],
+    "rightbottom_rgb": [
+      15,
+      23,
+      42
+    ]
+  }
+]

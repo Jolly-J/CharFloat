@@ -1,0 +1,205 @@
+{
+ "success": false,
+ "error": "HTTP 422: {\"success\":false,\"error\":\"加载项断开，执行结果未知，请先读回确认\"}",
+ "wb": {
+  "e": "wb",
+  "t": "object",
+  "n": 226,
+  "m": "AcceptLabelsInFormulas|boolean|,Activate|function|,ActiveChart|object|,ActiveSheet|object|,Author|string|,AutoUpdateFrequency|number|,AutoUpdateSaveChanges|object|,ChangeHistoryDuration|number|,ChangeFileAccess|function|,Close|function|,CodeName|string|,CommandBars|object|186,Comments|string|,ConflictResolution|number|,CreateBackup|boolean|,CustomDocumentProperties|object|3,BuiltinDocumentProperties|object|31,DialogSheets|object|0,DisplayDrawingObjects|number|,NewWindow|function|,DocumentInspectors|object|1,ForwardMailer|function|,SetLinkOnData|function|,FullName|string|,HasRoutingSlip|boolean|,LinkInfo|function|,LinkSources|function|,Route|function|,MergeWorkbook|function|,CheckIn|function|,Modules|object|0,Dummy17|function|,MultiUserEditing|boolean|,Keywords|string|,Path|string|,HighlightChangesOptions|function|,ProtectWindows|boolean|,__PrintOut|function|,PrintPreview|function|,_ProtectSharing|function|,ProtectStructure|boolean|,RefreshAll|function|,Charts|object|0,ReplyAll|function|,RemoveUser|function|,Routed|boolean|,RoutingSlip|object|,__SaveAs|function|,ChangeLink|function|,Saved|boolean|,Sheets|object|2,Title|string|,CheckInWithVersion|function|,Unprotect|function|,Parent|object|,UnprotectSharing|function|,SmartDocument|object|,UpdateFromFile|function|,OnSave|string|,Post|function|,PasswordEncryptionKeyLength|number|,ShowPivotTableFieldList|boolean|,UpdateRemoteReferences|boolean|,UserStatus|object|,Reply|function|,CustomViews|object|0,PivotTableWizard|function|,Windows|object|1,Worksheets|object|2,WriteReservedBy|string|,ListChangesOnNewSheet|boolean|,AcceptAllChanges|function|,FollowHyperlink|function|,AddToFavorites|function|,_PrintOut|function|,WebPagePreview|function|,_ReadOnlyRecommended|boolean|,PublishObjects|object|0,HTMLProject|object|,CalculationVersion|number|,_CodeName|string|,WebOptions|object|,UserControl|boolean|,JSProject|object|,sblt|function|,OnSheetActivate|string|,ServerViewableItems|object|1,Dummy16|function|,Container|object|,ReadOnly|boolean|,FileFormat|number|,OnSheetDeactivate|string|,SaveAsBinaryString|function|,_SaveAs|function|,WriteReserved|boolean|,PersonalViewPrintSettings|boolean|,CanCheckIn|function|,SendForReview|function|,SensitivityLabel|object|,SaveLinkValues|boolean|,HasPassword|boolean|,SharedWorkspace|object|,PublishToPBI|function|,DeleteNumberFormat|function|,IconSets|object|20,ReplyWithChanges|function|,Application|object|,SendMail|function|,EndReview|function|,Password|string|,PrecisionAsDisplayed|boolean|,WritePassword|string|,Subject|string|,RemovePersonalInformation|boolean|,ExportAsFixedFormat|function|,PasswordEncryptionAlgorithm|string|,DefaultPivotTableStyle|string|,ApplyTheme|function|,UseWholeCellCriteria|boolean|,SetPasswordEncryptionOptions|function|,Excel4IntlMacroSheets|object|1,PasswordEncryptionFileProperties|boolean|,ResetColors|function|,ReadOnlyRecommended|boolean|,_ExportAsFixedFormat|function|,UpdateLinks|number|,BreakLink|function|,SmartTagOptions|object|,Excel4MacroSheets|object|0,Protect|function|,HighlightChangesOnScreen|boolean|,XmlNamespaces|object|0,Dummy26|function|,Save|function|,Colors|function|,PersonalViewListSettings|boolean|,XmlMaps|object|0,EnableConnections|function|,PasswordEncryptionProvider|string|,XmlImport|function|,DocumentLibraryVersions|object|1,InactiveListBorderVisible|boolean|,XmlImportXml|function|,PivotCaches|function|,ForceFullCalculation|boolean|,DisplayInkComments|boolean|,SaveAsXMLData|function|,ContentTypeProperties|object|1,LockServerFile|function|,GetWorkflowTasks|function|,GetWorkflowTemplates|function|,PrintOut|function|,KeepChangeHistory|boolean|,EnvelopeVisible|boolean|,Styles|object|49,SaveCopyAs|function|,Sync|object|,FullNameURLEncoded|string|,UpdateLink|function|,TemplateRemoveExtData|boolean|,Model|object|,RecheckSmartTags|function|,TableStyles|object|284,SaveAs|function|,CheckCompatibility|boolean|,HasVBProject|object|,RejectAllChanges|function|,CreateForecastSheet|function|,Date1904|boolean|,DefaultSlicerStyle|string|,CustomXMLParts|object|3,CaseSensitive|boolean|,Research|object|,DefaultTableStyle|string|,ProtectSharing|function|,EncryptionProvider|string|,OpenLinks|function|,Signatures|object|1,IsAddin|boolean|,RemoveDocumentInformation|function|,ActiveSlicer|object|,ConnectionsDisabled|boolean|,ShowPivotChartActiveFields|boolean|,Queries|object|0,ExclusiveAccess|function|,_Protect|function|,IsInplace|boolean|,Permission|object|0,DefaultTimelineStyle|object|,AccuracyVersion|number|,ConvertComments|function|,SaveAsUrl|function|,Final|boolean|,UseWildcards|boolean|,RevisionNumber|number|,PurgeChangeHistoryNow|function|,PivotTables|object|,Creator|number|,HasMailer|boolean|,PublishToDocs|function|,WorkIdentity|string|,Mailer|object|,Dummy27|function|,GetWorkbookEx|function|,Name|string|,ToggleFormsDesign|function|,AutoSaveOn|boolean|,SlicerCaches|object|0,LookUpInDocs|function|,ReloadAs|function|,SendFaxOverInternet|function|,VBASigned|boolean|,Excel8CompatibilityMode|boolean|,DoNotPromptForConvert|boolean|,ExternalCodeServiceTimeout|number|,Connections|object|0,Theme|object|,ServerPolicy|object|1,ChartDataPointTrack|boolean|,ShowConflictHistory|boolean|,InvalidateRightsInfo|function|,Names|object|2,RunAutoMacros|function|,SendMailer|function|,EnableAutoRecover|boolean|,CompatibilityVersion|number|"
+ },
+ "wb.Worksheets.Item(\"Data\")": {
+  "e": "wb.Worksheets.Item(\"Data\")",
+  "t": "object",
+  "n": 135,
+  "m": "Application|object|,Parent|object|,Activate|function|,CodeName|string|,_CodeName|string|,Index|number|,Name|string|,Next|object|,OnSheetActivate|string|,PageSetup|object|,_Protect|function|,ProtectDrawingObjects|boolean|,Unprotect|function|,Shapes|object|1,TransitionExpEval|boolean|,AutoFilterMode|boolean|,Visible|number|,SetBackgroundPicture|function|,Cells|object|17179869184,ChartObjects|function|,AutoFilter|object|,CheckSpelling|function|,ClearArrows|function|,ConsolidationOptions|object|,Move|function|,ConsolidationSources|object|,DisplayAutomaticPageBreaks|boolean|,OnSheetDeactivate|string|,OnCalculate|string|,_SaveAs|function|,Drawings|function|,_CheckSpelling|function|,EnableOutlining|boolean|,_DisplayRightToLeft|number|,DrawingObjects|function|,Scripts|object|0,EnablePivotTable|boolean|,Evaluate|function|,FilterMode|boolean|,_Evaluate|function|,ResetAllPageBreaks|function|,GroupBoxes|function|,ConsolidationFunction|number|,Lines|function|,SmartTags|object|1,GroupObjects|function|,ListObjects|object|1,ScrollArea|string|,ListBoxes|function|,Tab|object|,Names|object|1,OLEObjects|function|,EditBoxes|function|,OnData|string|,Delete|function|,Previous|object|,Buttons|function|,Labels|function|,Hide|function|,Outline|object|,Ovals|function|,EnableSelection|number|,MailEnvelope|object|,Paste|function|,Pictures|function|,ProtectContents|boolean|,Rectangles|function|,ShowDataForm|function|,Spinners|function|,StandardHeight|number|,StandardWidth|number|,TextBoxes|function|,QueryTables|object|0,DisplayRightToLeft|boolean|,_Sort|object|,PivotTableWizard|function|,CheckBoxes|function|,HPageBreaks|object|0,_PrintOut|function|,CircleInvalid|function|,DisplayPageBreaks|boolean|,ExportToPNG|function|,ShowAllData|function|,Copy|function|,Protection|object|,Select|function|,Type|number|,CustomProperties|object|0,DropDowns|function|,Scenarios|function|,XmlMapQuery|function|,_PasteSpecial|function|,Rows|object|1048576,XmlDataQuery|function|,VPageBreaks|object|0,Calculate|function|,TransitionFormEntry|boolean|,UsedRange|object|77,CircularReference|object|,_ExportAsFixedFormat|function|,Range|function|,Hyperlinks|object|0,ProtectionMode|boolean|,PasteSpecial|function|,Creator|number|,ExportAsFixedFormat|function|,WorksheetEx|object|,CommentsThreaded|object|1,DefaultButton|object|,__SaveAs|function|,ClearCircles|function|,OnDoubleClick|string|,Show|function|,__PrintOut|function|,PrintPreview|function|,DialogFrame|object|,OptionButtons|function|,ScrollBars|function|,Columns|object|16384,OnEntry|string|,Focus|object|,PrintOut|function|,PrintedCommentPages|number|,EnableFormatConditionsCalculation|boolean|,NamedSheetViews|object|1,_AutoFilter|object|,ProtectScenarios|boolean|,Arcs|function|,Comments|object|1,EnableAutoFilter|boolean|,EnableCalculation|boolean|,Sort|object|,Protect|function|,PivotTables|function|,SaveAs|function|"
+ },
+ "wb.Worksheets.Item(\"Probe\")": {
+  "e": "wb.Worksheets.Item(\"Probe\")",
+  "t": "object",
+  "n": 135,
+  "m": "Application|object|,Parent|object|,Activate|function|,CodeName|string|,_CodeName|string|,Index|number|,Name|string|,Next|object|,OnSheetActivate|string|,PageSetup|object|,_Protect|function|,ProtectDrawingObjects|boolean|,Unprotect|function|,Shapes|object|5,TransitionExpEval|boolean|,AutoFilterMode|boolean|,Visible|number|,SetBackgroundPicture|function|,Cells|object|17179869184,ChartObjects|function|,AutoFilter|object|,CheckSpelling|function|,ClearArrows|function|,ConsolidationOptions|object|,Move|function|,ConsolidationSources|object|,DisplayAutomaticPageBreaks|boolean|,OnSheetDeactivate|string|,OnCalculate|string|,_SaveAs|function|,Drawings|function|,_CheckSpelling|function|,EnableOutlining|boolean|,_DisplayRightToLeft|number|,DrawingObjects|function|,Scripts|object|0,EnablePivotTable|boolean|,Evaluate|function|,FilterMode|boolean|,_Evaluate|function|,ResetAllPageBreaks|function|,GroupBoxes|function|,ConsolidationFunction|number|,Lines|function|,SmartTags|object|1,GroupObjects|function|,ListObjects|object|0,ScrollArea|string|,ListBoxes|function|,Tab|object|,Names|object|0,OLEObjects|function|,EditBoxes|function|,OnData|string|,Delete|function|,Previous|object|,Buttons|function|,Labels|function|,Hide|function|,Outline|object|,Ovals|function|,EnableSelection|number|,MailEnvelope|object|,Paste|function|,Pictures|function|,ProtectContents|boolean|,Rectangles|function|,ShowDataForm|function|,Spinners|function|,StandardHeight|number|,StandardWidth|number|,TextBoxes|function|,QueryTables|object|0,DisplayRightToLeft|boolean|,_Sort|object|,PivotTableWizard|function|,CheckBoxes|function|,HPageBreaks|object|0,_PrintOut|function|,CircleInvalid|function|,DisplayPageBreaks|boolean|,ExportToPNG|function|,ShowAllData|function|,Copy|function|,Protection|object|,Select|function|,Type|number|,CustomProperties|object|0,DropDowns|function|,Scenarios|function|,XmlMapQuery|function|,_PasteSpecial|function|,Rows|object|1048576,XmlDataQuery|function|,VPageBreaks|object|1,Calculate|function|,TransitionFormEntry|boolean|,UsedRange|object|10,CircularReference|object|,_ExportAsFixedFormat|function|,Range|function|,Hyperlinks|object|1,ProtectionMode|boolean|,PasteSpecial|function|,Creator|number|,ExportAsFixedFormat|function|,WorksheetEx|object|,CommentsThreaded|object|1,DefaultButton|object|,__SaveAs|function|,ClearCircles|function|,OnDoubleClick|string|,Show|function|,__PrintOut|function|,PrintPreview|function|,DialogFrame|object|,OptionButtons|function|,ScrollBars|function|,Columns|object|16384,OnEntry|string|,Focus|object|,PrintOut|function|,PrintedCommentPages|number|,EnableFormatConditionsCalculation|boolean|,NamedSheetViews|object|1,_AutoFilter|object|,ProtectScenarios|boolean|,Arcs|function|,Comments|object|0,EnableAutoFilter|boolean|,EnableCalculation|boolean|,Sort|object|,Protect|function|,PivotTables|function|,SaveAs|function|"
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A1:B2\")": {
+  "e": "wb.Worksheets.Item(\"Data\").Range(\"A1:B2\")",
+  "t": "object",
+  "n": 217,
+  "m": "Creator|number|,Address|function|,AdvancedFilter|function|,ApplyNames|function|,ApplyOutlineStyles|function|,Areas|object|1,AutoComplete|function|,AutoFill|function|,_AutoFilter|function|,AutoFit|function|,AutoOutline|function|,Borders|object|8,Calculate|function|,Cells|object|4,Parse|function|,Characters|function|,_ClearContents|function|,DataSeries|function|,ClearFormats|function|,ClearNotes|function|,Ungroup|function|,ShowErrors|function|,ColumnDifferences|function|,Previous|object|,Interior|object|,Columns|object|2,CopyFromRecordset|function|,Count|number|,DataTypeToText|function|,RemoveControls|function|,Errors|object|,MergeCells|boolean|,CurrentArray|object|0,AllocateChanges|function|,_Default|function|,TogglePythonMarshalMode|function|,Formula2Local|object|,DialogBox|function|,FindPrevious|function|,Font|object|,EntireColumn|object|2,FillLeft|function|,FormulaLabel|number|,SetPhonetic|function|,FormulaHidden|boolean|,SmartTags|object|1,FunctionWizard|function|,AddCommentThreaded|function|,ClearOutline|function|,Cut|function|,PivotTable|object|,HorizontalAlignment|number|,Insert|function|,Precedents|object|,ID|object|,ListHeaderRows|number|,Hyperlinks|object|0,LocationInTable|object|,Locked|boolean|,Dirty|function|,HasArray|boolean|,HasFormula|boolean|,Summary|object|,Merge|function|,Copy|function|,UnMerge|function|,Worksheet|object|,Run|function|,MergeArea|object|,Name|object|,Next|object|1,UpdatePictureInCellAlternativeText|function|,DirectPrecedents|object|,Sort|function|,NoteText|function|,_PrintOut|function|,SpillingToRange|object|,Text|object|,FormulaR1C1|object|,NumberFormatLocal|string|,CreatePublisher|function|,Offset|function|,Left|number|,PageBreak|number|,FormulaArray|object|,Height|number|,FillUp|function|,_PasteSpecial|function|,Parent|object|,Hidden|object|,PivotField|object|,Range|function|,RemoveSubtotal|function|,_Replace|function|,AutoFormat|function|,Row|number|,RowHeight|number|,Rows|object|2,Select|function|,PivotItem|object|,FormulaR1C1Local|object|,OutlineLevel|object|,Show|function|,ShowDetail|object|,VerticalAlignment|number|,CountLarge|number|,CurrentRegion|object|77,_Sort|function|,SortSpecial|function|,Style|object|,ConvertToLinkedDataType|function|,CopyPicture|function|,XPath|object|,GetRangeEx|function|,FlashFill|function|,Formula2|object|,FindNext|function|,ListObject|object|,ClearContents|function|,Top|number|,UseStandardHeight|boolean|,UseStandardWidth|object|,Value|function|,RealValue2|object|,FillDown|function|,Value2|object|,RangeEx|object|,Width|number|,_BorderAround|function|,ColumnWidth|number|,AddComment|function|,FormatConditions|object|0,Phonetics|object|1,Orientation|number|,PivotCell|object|,FillRight|function|,Speak|function|,NavigateArrow|function|,Phonetic|object|,PasteSpecial|function|,PlacePictureOverCells|function|,PastePictureInCell|function|,Formula2R1C1|object|,ReadingOrder|number|,RowDifferences|function|,SpecialCells|function|,PrefixCharacter|string|,__PrintOut|function|,PrintPreview|function|,ServerActions|object|1,_ExportAsFixedFormat|function|,AddIndent|number|,Column|number|,CellControl|object|,GoalSeek|function|,TextToColumns|function|,SparklineGroups|object|0,MDX|string|,ClearHyperlinks|function|,DisplayFormat|object|,SetCellDataTypeFromCell|function|,AddressLocal|function|,Clear|function|,BorderAround|function|,Find|function|,Formula|object|,ExportAsFixedFormat|function|,ShowDependents|function|,HasRichDataType|object|,PrintOut|function|,WrapText|boolean|,ShowCard|function|,Item|function|,Table|function|,EntireRow|object|2,IndentLevel|number|,AllowEdit|boolean|,SavedAsArray|object|,Application|object|,RefreshLinkedDataType|function|,SoundNote|object|,CommentThreaded|object|,Activate|function|,ClearComments|function|,Validation|object|,HasSpill|boolean|,Group|function|,LinkedDataTypeState|object|,FormulaLocal|object|,NumberFormat|string|,Justify|function|,CalculateRowMajorOrder|function|,Consolidate|function|,SubscribeTo|function|,RemoveDuplicates|function|,CreateNames|function|,End|function|,Formula2R1C1Local|object|,CheckSpelling|function|,QueryTable|object|,AutoFilter|function|,Delete|function|,InsertPictureInCell|function|,ResetContents|function|,EditionOptions|function|,Resize|function|,ShrinkToFit|boolean|,Replace|function|,ListNames|function|,ShowPrecedents|function|,DiscardChanges|function|,InsertIndent|function|,SpillParent|object|,Subtotal|function|,Comment|object|",
+  "re": "Dependents==An exception occurred during the jsapi GET call. ;; DirectDependents==An exception occurred during the jsapi GET call."
+ },
+ "wb.Worksheets.Item(\"Data\").Cells": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Rows": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Columns": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").ListObjects.Item(1)": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").ListObjects": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Probe\").PivotTables()": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.PivotCaches()": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"D2:D11\").FormatConditions.Item(1)": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"D2:D11\").FormatConditions": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Names": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Names.Item(1)": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"B2:B11\").Validation": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A1\").Comment": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A2\").CommentThreaded": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Comments": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").CommentsThreaded": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Sort": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Sort.SortFields": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").AutoFilter": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").AutoFilter.Filters": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").PageSetup": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Probe\").Shapes.Item(1)": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Probe\").Shapes": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Probe\").ChartObjects().Item(1)": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Probe\").ChartObjects().Item(1).Chart": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").QueryTables": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Connections": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "app.Windows.Item(1)": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "app.Windows.Item(1).Panes": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Tab": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Outline": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Hyperlinks": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Protection": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").CustomProperties": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").NamedSheetViews": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Names": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Styles": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").UsedRange": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A1\").Font": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A1\").Interior": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A1\").Borders": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "wb.Worksheets.Item(\"Data\").Range(\"A1\").NumberFormat": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "app.ActiveWindow": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ },
+ "app.CommandBars": {
+  "err": "CALL: HTTP 422: {\"success\":false,\"error\":\"WPS excel 加载项未连接，请先打开对应组件并检查 Bridge 加载项。\"}",
+  "drop": true
+ }
+}
