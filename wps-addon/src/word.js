@@ -1598,6 +1598,18 @@
     return { compared: compared, changed: changed, changes: changes, changesTruncated: changed > changes.length };
   }
 
+  /**
+   * 目录条目标题：HYPERLINK 域的结果形如 "一、概述\t4"（制表符 + 页码）。
+   * **必须在归一化之前切**：wordNormalizeFieldText 会把制表符压成空格，
+   * 之后再按 \t 切就切不掉页码，条目比对会全错（本轮实测到过这个假差异）。
+   */
+  function wordTocEntryTitle(rawResult) {
+    const raw = String(rawResult === undefined || rawResult === null ? "" : rawResult).replace(/[\r\n\x07]/g, "");
+    const tabIdx = raw.indexOf("\t");
+    if (tabIdx >= 0) return raw.slice(0, tabIdx).trim();
+    return raw.replace(/[\s\xa0]+\d+\s*$/, "").trim();
+  }
+
   /** 目录快照：条目文本 + 各条目的页码（目录页码本体就是条目里的 PAGEREF 域结果）。 */
   function wordTocSnapshot(doc) {
     let count = 0;
@@ -1611,11 +1623,11 @@
         for (let k = 1; k <= fields.Count; k++) {
           const f = fields.Item(k);
           const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim();
-          const result = wordNormalizeFieldText(f.Result ? f.Result.Text : "");
-          if (/^PAGEREF\b/i.test(code)) entry.pageNumbers.push(result);
+          const rawResult = f.Result ? f.Result.Text : "";
+          if (/^PAGEREF\b/i.test(code)) entry.pageNumbers.push(wordNormalizeFieldText(rawResult));
           else if (/^HYPERLINK\b/i.test(code)) {
             entry.entryCount++;
-            entry.entryTitles.push(result.replace(/\t[\d\s]*$/, "").trim());
+            entry.entryTitles.push(wordTocEntryTitle(rawResult));
           }
         }
         entry.range = { start: toc.Range.Start, end: toc.Range.End };
@@ -1706,23 +1718,87 @@
 
   /** 按出现次数查一段文本，返回命中的 Range（与生产其它函数一致的 Find 用法）。 */
   function wordFindTextRangeIn(doc, text, occurrence) {
+    return wordFindAnchorRange(doc, text, occurrence, null);
+  }
+
+  /**
+   * 命中范围是否落在**目录或域结果内部**。
+   *
+   * 真机实测（2026-09-22）：把书签打在目录条目上（目录条目本身是 HYPERLINK/PAGEREF 域的结果），
+   * 随后一次 `doc.Fields.Update()` 重建目录就把该书签**销毁**了，
+   * 引用它的交叉引用立刻变成 "错误！未定义书签。"（探针 xref_by_anchorText → docTextAfterXref）。
+   * 而 `Find` 从文首搜 "第二章 交付内容" 时**先命中目录里的那条**，所以必须显式跳过。
+   */
+  function wordUnsafeAnchorReason(doc, range) {
+    try {
+      const tocCount = doc.TablesOfContents.Count;
+      for (let i = 1; i <= tocCount; i++) {
+        try {
+          const r = doc.TablesOfContents.Item(i).Range;
+          if (range.Start >= r.Start && range.End <= r.End) return `第 ${i} 个目录内部（目录条目是域结果，域重建会销毁其中的书签）`;
+        } catch (e) {}
+      }
+    } catch (e) {}
+    try {
+      const total = Math.min(doc.Fields.Count, 200);
+      for (let i = 1; i <= total; i++) {
+        try {
+          const f = doc.Fields.Item(i);
+          const res = f.Result;
+          if (res && res.End > res.Start && range.Start >= res.Start && range.End <= res.End) {
+            const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim().slice(0, 40);
+            return `域结果内部（域码: ${code}）`;
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
+   * 按出现次数查文本，默认**跳过目录/域结果内部**的命中（那里不能放书签与内容控件）。
+   * meta.skipped 会记录被跳过的命中与原因，供调用方如实回报。
+   */
+  function wordFindAnchorRange(doc, text, occurrence, meta) {
     const want = Number(occurrence) || 1;
+    const needle = String(text);
+    let hitCount = 0;
     const scan = (rng) => {
-      let n = 0;
-      try {
-        const f = rng.Find;
-        f.ClearFormatting();
-        f.Text = text;
-        f.MatchCase = false;
-        f.MatchWholeWord = false;
-        f.MatchWildcards = false;
-        f.Forward = true;
-        f.Wrap = 0; // wdFindStop
-        while (f.Execute()) {
-          n++;
-          if (n >= want) return f.Parent;
+      let searchFrom = rng.Start;
+      const limit = rng.End;
+      let guard = 0;
+      while (guard++ < 2000 && searchFrom < limit) {
+        let hit = null;
+        try {
+          const sub = doc.Range(searchFrom, limit);
+          const f = sub.Find;
+          f.ClearFormatting();
+          f.Text = needle;
+          f.MatchCase = false;
+          f.MatchWholeWord = false;
+          f.MatchWildcards = false;
+          f.Forward = true;
+          f.Wrap = 0; // wdFindStop
+          if (!f.Execute()) return null;
+          hit = f.Parent;
+        } catch (e) {
+          return null;
         }
-      } catch (e) {}
+        if (!hit) return null;
+        const reason = wordUnsafeAnchorReason(doc, hit);
+        if (!reason) {
+          hitCount++;
+          if (hitCount >= want) return hit;
+        } else if (meta) {
+          meta.skipped = (meta.skipped || []).concat([{
+            text: (hit.Text || "").replace(/[\r\n\x07]/g, "").slice(0, 40),
+            range: { start: hit.Start, end: hit.End },
+            reason: reason
+          }]);
+        }
+        const next = hit.End > searchFrom ? hit.End : searchFrom + 1;
+        searchFrom = next;
+      }
       return null;
     };
     const hit = scan(doc.Content);
@@ -1747,6 +1823,38 @@
   }
 
   /**
+   * 命中范围若落在目录/域结果内部，返回该容器的结束位置（用于把插入点自动挪到容器之外）。
+   * 与 wordUnsafeAnchorReason 同一份实测依据（目录条目是域结果，域重建会清掉其中的内容）。
+   */
+  function wordUnsafeInsertContainer(doc, range) {
+    try {
+      const tocCount = doc.TablesOfContents.Count;
+      for (let i = 1; i <= tocCount; i++) {
+        try {
+          const r = doc.TablesOfContents.Item(i).Range;
+          if (range.Start >= r.Start && range.End <= r.End) {
+            return { end: r.End, reason: `插入点落在第 ${i} 个目录内部（目录是域结果，写进去的内容会被下一次域重建清掉）` };
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    try {
+      const total = Math.min(doc.Fields.Count, 200);
+      for (let i = 1; i <= total; i++) {
+        try {
+          const f = doc.Fields.Item(i);
+          const res = f.Result;
+          if (res && res.End > res.Start && range.Start >= res.Start && range.End <= res.End) {
+            const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim().slice(0, 40);
+            return { end: res.End + 1, reason: `插入点落在域结果内部（域码: ${code}）` };
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
    * 交叉引用插入：REF（引用书签文字）/ PAGEREF（引用书签所在页码）。
    * 支持先用 anchorText 现场建书签，再插域——书签是交叉引用的唯一前提（宿主无 CrossReference）。
    */
@@ -1762,8 +1870,23 @@
     if (anchorText !== undefined && anchorText !== null && String(anchorText) !== "") {
       if (!name) throw new Error("用 anchorText 现建书签时必须同时给 bookmarkName（书签名，不能含空格）");
       if (/\s/.test(name)) throw new Error(`书签名 [${name}] 含空格，宿主 Word 书签名不允许空格`);
-      const range = wordFindTextRangeIn(doc, String(anchorText), anchorOccurrence);
-      if (!range) throw new Error(`未在文档中找到锚点文本 [${anchorText}]（第 ${Number(anchorOccurrence) || 1} 处），未建书签也未插入交叉引用`);
+      const meta = { skipped: [] };
+      const range = wordFindAnchorRange(doc, String(anchorText), anchorOccurrence, meta);
+      if (!range) {
+        throw new Error(
+          `未在文档中找到可安全锚定的文本 [${anchorText}]（第 ${Number(anchorOccurrence) || 1} 处），未建书签也未插入交叉引用。` +
+          (meta.skipped.length
+            ? ` 已跳过 ${meta.skipped.length} 处命中：` + meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+            : "")
+        );
+      }
+      if (meta.skipped.length) {
+        warnings.push(
+          `有 ${meta.skipped.length} 处命中被跳过（锚点必须落在正文，不能落在目录或域结果里——` +
+          `真机实测：目录条目的书签会被下一次域重建销毁，交叉引用随即变成"错误！未定义书签。"）：` +
+          meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+        );
+      }
       const rangeInfo = { start: range.Start, end: range.End, text: (range.Text || "").replace(/[\r\n\x07]/g, "") };
       try { doc.Bookmarks.Add(name, range); } catch (e) { throw new Error(`Bookmarks.Add("${name}") 失败：${e.message}`); }
       let exists = false;
@@ -1813,6 +1936,14 @@
       pos = doc.Paragraphs.Item(idx).Range.End - 1;
     }
     if (pos === null) pos = doc.Content.End > 1 ? doc.Content.End - 1 : 0;
+    // 插入点落在目录/域结果内部时自动挪到容器之外：写进去的内容会被下一次域重建清掉（实测）
+    try {
+      const container = wordUnsafeInsertContainer(doc, doc.Range(pos, pos));
+      if (container) {
+        warnings.push(`${container.reason}；插入点已自动移到该容器之后（位置 ${pos} → ${container.end}）。`);
+        pos = container.end;
+      }
+    } catch (e) {}
 
     // 模板：{ref} / {page}
     const kind = crossReferenceType || "both";
@@ -1853,7 +1984,13 @@
         }
         // 关键：+1 跳过域结束标记，否则后续内容落在域内部，下次 Update 会被清掉（真机实测）
         pos = f.Result.End + 1;
-        inserted.push({ field: seg.field === "ref" ? "REF" : "PAGEREF", type: type, code: (f.Code.Text || "").replace(/[\r\n\x07]/g, " ").trim(), result: wordNormalizeFieldText(f.Result.Text) });
+        inserted.push({
+          field: seg.field === "ref" ? "REF" : "PAGEREF",
+          type: type,
+          code: (f.Code.Text || "").replace(/[\r\n\x07]/g, " ").trim(),
+          result: wordNormalizeFieldText(f.Result.Text),
+          _field: f
+        });
       } catch (e) {
         errors.push(`${seg.field ? (seg.field === "ref" ? "REF" : "PAGEREF") + " 域" : "文本段"}插入失败：${e.message}`);
       }
@@ -1862,24 +1999,43 @@
     let updateOk = false;
     try { doc.Fields.Update(); updateOk = true; } catch (e) { warnings.push(`插入后 Fields.Update() 失败：${e.message}`); }
 
-    // 读回：重新按域码定位本次插入的域，拿更新后的真实结果
+    // 读回：**优先读本次插入的那个域对象**。
+    // 不能只按域码回查：同一书签可能被引用多次（域码完全相同），按码匹配会读到别人那一个
+    // （本轮实测到过：after_paragraph 插入的 PAGEREF 回读成了先前那个、报出假的"未定义书签"）。
     for (const item of inserted) {
+      const nativeField = item._field;
+      delete item._field;
       try {
-        for (let k = 1; k <= doc.Fields.Count; k++) {
-          const f = doc.Fields.Item(k);
-          const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim();
-          if (code === item.code) {
-            item.resultAfterUpdate = wordNormalizeFieldText(f.Result.Text);
-            item.resolved = item.resultAfterUpdate !== "" && !/错误|Error!|未定义书签/.test(item.resultAfterUpdate);
-            item.fieldIndex = k;
-            break;
-          }
+        if (nativeField) {
+          item.resultAfterUpdate = wordNormalizeFieldText(nativeField.Result.Text);
+          item.bookmarkStillExists = (() => { try { return doc.Bookmarks.Exists(bookmark.name); } catch (e) { return undefined; } })();
         }
-      } catch (e) {}
-      if (item.resolved === undefined) {
+      } catch (e) {
+        warnings.push(`${item.field} 域对象在更新后不可读（${e.message}），改用域码回查`);
+      }
+      if (item.resultAfterUpdate === undefined) {
+        try {
+          for (let k = 1; k <= doc.Fields.Count; k++) {
+            const f = doc.Fields.Item(k);
+            const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim();
+            if (code === item.code) {
+              item.resultAfterUpdate = wordNormalizeFieldText(f.Result.Text);
+              item.fieldIndex = k;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+      if (item.resultAfterUpdate === undefined) {
         item.resolved = false;
         warnings.push(`${item.field} 域在更新后未能重新定位，无法确认结果`);
+      } else {
+        item.resolved = item.resultAfterUpdate !== "" && !/错误|Error!|未定义书签/.test(item.resultAfterUpdate);
       }
+    }
+    const bookmarkSurvived = (() => { try { return doc.Bookmarks.Exists(bookmark.name); } catch (e) { return undefined; } })();
+    if (bookmarkSurvived === false) {
+      warnings.push(`书签 [${bookmark.name}] 在域更新后**已不存在**：宿主在重建域时销毁了它。请改用正文里的锚点文本（本工具会自动跳过目录/域结果内部的命中）。`);
     }
 
     return {
@@ -1887,6 +2043,7 @@
       documentName: doc.Name,
       action: "insert_cross_reference",
       bookmark: bookmark,
+      bookmarkStillExistsAfterUpdate: bookmarkSurvived,
       insertLocation: loc,
       insertedFields: inserted,
       fieldsUpdateAfterInsert: updateOk,
@@ -2018,6 +2175,27 @@
     const tocComparison = wordCompareTocs(tocBefore, tocAfter);
     const pageNumbersChanged = tocComparison.some(t => t.pageNumbersChanged);
 
+    // 目录内部的域（PAGEREF/HYPERLINK）在目录重建后**域码里的 _Toc 书签名会整批变化**，
+    // 按 `kind|code` 配对根本配不上（实测更新后 5 个条目域只配到 1 个 TOC 域）。
+    // 因此目录内的变化改用目录快照对比来数，并合进 changes 明细，别让"只变了 1 个域"误导调用方。
+    let tocEntryFieldsChanged = 0;
+    const tocEntryChanges = [];
+    for (const t of tocComparison) {
+      tocEntryFieldsChanged += (t.changedPageCount || 0);
+      for (const c of (t.changedPages || [])) {
+        if (tocEntryChanges.length < 40) {
+          tocEntryChanges.push({
+            kind: "PAGEREF（目录条目）",
+            code: `TablesOfContents.Item(${t.index})`,
+            resultBefore: c.pageBefore === null ? "" : String(c.pageBefore),
+            resultAfter: c.pageAfter === null ? "" : String(c.pageAfter),
+            entry: c.entry
+          });
+        }
+      }
+    }
+    const hfFieldCount = storyUpdates.reduce((sum, s) => sum + (Number(s.fieldCountAfter) || 0), 0);
+
     return {
       success: true,
       documentName: doc.Name,
@@ -2029,10 +2207,16 @@
       fields: {
         countBefore: fieldsBefore.total,
         countAfter: fieldsAfter.total,
-        updatedFields: diff.compared,
-        changedFields: diff.changed,
-        changes: diff.changes,
-        changesTruncated: diff.changesTruncated
+        // 宿主 Fields.Update() 不返回计数，按"更新后文档里实际存在的域"计（正文 + 页眉页脚 story）
+        updatedFields: fieldsAfter.total + hfFieldCount,
+        bodyFieldsAfter: fieldsAfter.total,
+        headerFooterFieldsUpdated: hfFieldCount,
+        comparedByCode: diff.compared,
+        changedByCode: diff.changed,
+        tocEntryFieldsChanged: tocEntryFieldsChanged,
+        changedFields: diff.changed + tocEntryFieldsChanged,
+        changes: diff.changes.concat(tocEntryChanges),
+        changesTruncated: diff.changesTruncated || tocEntryFieldsChanged > tocEntryChanges.length
       },
       bodyUpdate: bodyUpdate,
       tocUpdate: tocUpdate,
@@ -2052,7 +2236,8 @@
         "交叉引用只能按书签（宿主无 CrossReference 对象）；用 action='insert_cross_reference' 可先建书签再插 REF/PAGEREF。"
       ],
       message:
-        `已更新 [${doc.Name}] 的域（scope=${scopeVal}，tocMode=${mode}）：正文域 ${diff.compared} 个中 ${diff.changed} 个结果发生变化；` +
+        `已更新 [${doc.Name}] 的域（scope=${scopeVal}，tocMode=${mode}）：更新后正文域 ${fieldsAfter.total} 个、页眉页脚域 ${hfFieldCount} 个，` +
+        `其中 ${diff.changed + tocEntryFieldsChanged} 个结果发生变化（按域码配对 ${diff.changed} 个 + 目录条目域 ${tocEntryFieldsChanged} 个）；` +
         `${tocAfter.count} 个目录，页码${pageNumbersChanged ? "**已变化**" : "未变化"}` +
         (errors.length ? `；有 ${errors.length} 条错误，见 errors` : "") +
         (warnings.length ? `；有 ${warnings.length} 条告警，见 warnings` : "")
@@ -2253,8 +2438,22 @@
       let range = null;
       if (loc === "marker") {
         if (!markerText) throw new Error("location='marker' 必须提供 markerText（要被替换成内容控件的标记文本，例如 '____'）");
-        range = wordFindTextRangeIn(doc, String(markerText), markerOccurrence);
-        if (!range) throw new Error(`未在文档中找到标记文本 [${markerText}]（第 ${Number(markerOccurrence) || 1} 处），未创建任何内容控件`);
+        const meta = { skipped: [] };
+        range = wordFindAnchorRange(doc, String(markerText), markerOccurrence, meta);
+        if (!range) {
+          throw new Error(
+            `未在文档中找到可用的标记文本 [${markerText}]（第 ${Number(markerOccurrence) || 1} 处），未创建任何内容控件。` +
+            (meta.skipped.length
+              ? ` 已跳过 ${meta.skipped.length} 处命中：` + meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+              : "")
+          );
+        }
+        if (meta.skipped.length) {
+          warnings.push(
+            `有 ${meta.skipped.length} 处标记命中被跳过（不能把内容控件做进目录或域结果里，那里会被域重建清掉）：` +
+            meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+          );
+        }
       } else if (loc === "start") {
         range = doc.Range(0, 0);
       } else if (loc === "selection") {

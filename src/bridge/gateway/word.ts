@@ -206,3 +206,55 @@ export const capturePreview: Handler = async (ctx) => {
     if (size === 0) throw new Error(`Word 预览落盘但为空文件：${produced}`);
     return { ...res, pdfPath: produced, verifiedOnDisk: true, fileSizeBytes: size, message: '已导出 PDF 并确认落盘；此结果为文件路径，请用 PDF 查看器检查。' };
 };
+
+/** CAP-04 Word 域更新与交叉引用。字段逐个转发（漏一个就等于该参数静默无效）。 */
+export const updateFields: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("word_update_fields", {
+      documentName: args?.documentName,
+      action: args?.action || "update",
+      scope: args?.scope || "all",
+      sectionIndex: args?.sectionIndex,
+      tocMode: args?.tocMode || "full",
+      includeHeadersFooters: args?.includeHeadersFooters ?? true,
+      bookmarkName: args?.bookmarkName,
+      targetBookmark: args?.targetBookmark,
+      anchorText: args?.anchorText,
+      anchorOccurrence: args?.anchorOccurrence,
+      crossReferenceType: args?.crossReferenceType || "both",
+      crossReferenceTemplate: args?.crossReferenceTemplate,
+      insertLocation: args?.insertLocation || "end",
+      paragraphIndex: args?.paragraphIndex,
+      prefixText: args?.prefixText
+    });
+};
+
+/** CAP-05 Word 内容控件。真机实测：重复节控件有宿主限制（只能围绕整段/整行），已在工具说明写明。 */
+export const manageContentControls: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    if (!args?.action) throw new Error("缺少必要参数: action ('list'|'add'|'set_value'|'delete')");
+    return await callOffice("word_manage_content_controls", {
+      documentName: args?.documentName,
+      action: args?.action,
+      type: args?.type,
+      index: args?.index,
+      tag: args?.tag,
+      title: args?.title,
+      value: args?.value,
+      checked: args?.checked,
+      dateDisplayFormat: args?.dateDisplayFormat,
+      dateDisplayLocale: args?.dateDisplayLocale,
+      listItems: args?.listItems,
+      clearListItems: args?.clearListItems ?? false,
+      placeholderText: args?.placeholderText,
+      lockContentControl: args?.lockContentControl,
+      lockContents: args?.lockContents,
+      location: args?.location,
+      markerText: args?.markerText,
+      markerOccurrence: args?.markerOccurrence,
+      paragraphIndex: args?.paragraphIndex,
+      initialText: args?.initialText,
+      all: args?.all ?? false,
+      maxControls: args?.maxControls
+    });
+};

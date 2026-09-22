@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 6259bb2cabf147a533c4643b9d373399f71fc9f743cf5c393e42876a5f9d4a1d
+// ADDON_BUILD_FINGERPRINT: f6c83112d6c8c1f249af831838c67e14ea21ecf631ad2e92c854fc70693c2635
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "6259bb2cabf147a533c4643b9d373399f71fc9f743cf5c393e42876a5f9d4a1d";
+  var ADDON_BUILD_FINGERPRINT = "f6c83112d6c8c1f249af831838c67e14ea21ecf631ad2e92c854fc70693c2635";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -1021,6 +1021,13 @@
           result = wordCapturePreview(app, params);
           break;
 
+        case "word_update_fields":
+          result = wordUpdateFields(app, params);
+          break;
+        case "word_manage_content_controls":
+          result = wordManageContentControls(app, params);
+          break;
+
         // PowerPoint (演示) RPC 分发
         case "ppt_read_presentation":
           result = pptReadPresentation(app, params);
@@ -1567,6 +1574,23 @@
   }
 
   /**
+   * 读回条件格式的"是否启用"。
+   *
+   * 真机实测：本机 WPS 的 `FormatCondition` **没有 `Enabled` 属性**（读到 `undefined`）。
+   * 直接 `Boolean(rule.Enabled)` 会把它写成 `false`，让读回看起来像"规则被禁用了"——
+   * **读回说谎比没有读回更糟**。属性不存在时如实返回 null（未知），不猜测。
+   */
+  function readConditionEnabled(rule) {
+    try {
+      const raw = rule.Enabled;
+      if (raw === undefined || raw === null) return null;
+      return Boolean(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
    * 工作表级读回（只读，逐项 try/catch）。
    *
    * 这些状态原本都只有"写"没有"读"（问题台账 ISS-94）：调用方 set 完拿不到任何证据。
@@ -1623,7 +1647,7 @@
           rules.push({
             index: i,
             type: safe(() => Number(rule.Type), null),
-            enabled: safe(() => Boolean(rule.Enabled), null),
+            enabled: readConditionEnabled(rule),
             priority: safe(() => Number(rule.Priority), null),
             formula1: safe(() => (rule.Formula1 === undefined ? null : String(rule.Formula1)), null),
             interiorColor: safe(() => {
@@ -2357,7 +2381,7 @@
         conditions.push({
           index: i,
           type: Number(safeRead(() => rule.Type, null)),
-          enabled: safeRead(() => Boolean(rule.Enabled), null),
+          enabled: readConditionEnabled(rule),
           priority: safeRead(() => Number(rule.Priority), null),
           formula1: safeRead(() => (rule.Formula1 === undefined ? null : String(rule.Formula1)), null)
         });
@@ -5309,6 +5333,1201 @@
         error: e.message
       };
     }
+  }
+
+  // ===========================================================================
+  // CAP-04：Word 域更新与交叉引用（RPC: word_update_fields）
+  //
+  // 真机实测（WPS for Mac 12.x，2026-09-22；把 `测试文字文稿.docx` 的内容经
+  // `Selection.InsertFile` 导入临时文档后测量，原文件未被改动）：
+  //   1. 目录页码**不会**随内容自动刷新——在 TOC 之后插入一个整页分页符后，TOC 内 14 个
+  //      PAGEREF 结果仍是 ["3"×6,"4"×3,"5"×5]（陈旧）；`doc.Fields.Update()` 100ms 后
+  //      变为 ["4"×6,"5"×3,"6"×5]，逐项 +1。这就是"交付物一改目录页码就全错"的根因。
+  //   2. `doc.Fields.Update()` **无弹窗、无交互**（实测 100ms / 63 个域）；
+  //      但它的**返回值实测恒为 0**，不能当"更新了几个域"的计数——本工具改为更新前后
+  //      逐域结果快照对比，自己数 changedFields。
+  //   3. `doc.Fields.Update()` 会**连目录条目一起重建**（新增标题会被收录）；
+  //      `TablesOfContents.Item(n).Update()` 同样可重建；`UpdatePageNumbers()` 只刷页码、
+  //      不收录新标题（实测新增标题后只调 UpdatePageNumbers，目录里仍然没有该标题）。
+  //   4. `doc.Fields` **不含页眉/页脚 story 里的域**，页眉页脚域必须逐节
+  //      `section.Headers/Footers.Item(k).Range.Fields.Update()` 单独更新。
+  //   5. 交叉引用**只能按书签**：`Application.CrossReference` 与 `Document.CrossReference`
+  //      实测均为 `undefined`，没有 Word 那套"引用类型 + 引用内容"选择器。
+  //      REF(wdFieldRef=3) / PAGEREF(wdFieldPageRef=37) 用 `Fields.Add(range, type, "书名签名 \\h", false)`
+  //      插入后**立即**就有结果，无需等待。书签不存在 → 结果恒为 "错误！未定义书签。"；
+  //      书签为空（起止位置相同）→ REF 结果为空字符串（两者都实测过）。
+  //   6. **域后继续插入内容必须跳过域结束标记**：`Fields.Add` 之后若按
+  //      `field.Result.End` 直接插入，插入内容会落在域内部，下一次 `Fields.Update()`
+  //      会把这段内容连同后面的域一起清掉（实测 advance=0 时 "（第 1 页）" 与 PAGEREF 域消失）。
+  //      正确推进量是 `field.Result.End + 1`（实测 advance=1 时模板完整存活、两个域都在）。
+  // ===========================================================================
+
+  const WORD_FIELD_TYPE_NAMES = {
+    3: "REF", 13: "TOC", 26: "NUMPAGES", 33: "PAGE", 37: "PAGEREF", 54: "AutoNum", 88: "HYPERLINK"
+  };
+
+  /** 域类型名：优先取域码首个单词（更准），否则退回类型号映射。 */
+  function wordFieldKindName(type, code) {
+    const m = /^\s*([A-Za-z]+)/.exec(String(code || ""));
+    if (m) return m[1].toUpperCase();
+    return WORD_FIELD_TYPE_NAMES[Number(type)] || String(type);
+  }
+
+  function wordNormalizeFieldText(text) {
+    return String(text === undefined || text === null ? "" : text)
+      .replace(/[\r\n\x07\xa0]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /** 域快照：更新前后各取一次，用于自己统计"哪些域真的变了"。 */
+  function wordFieldSnapshot(doc, limit) {
+    const max = Number(limit) || 200;
+    let total = 0;
+    try { total = doc.Fields.Count; } catch (e) { return { total: 0, list: [], truncated: false, error: e.message }; }
+    const list = [];
+    for (let i = 1; i <= Math.min(total, max); i++) {
+      try {
+        const f = doc.Fields.Item(i);
+        const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim();
+        list.push({
+          index: i,
+          type: Number(f.Type),
+          kind: wordFieldKindName(f.Type, code),
+          code: code,
+          result: wordNormalizeFieldText(f.Result ? f.Result.Text : "")
+        });
+      } catch (e) {
+        list.push({ index: i, kind: "?", code: "", result: "", error: e.message });
+      }
+    }
+    return { total: total, list: list, truncated: total > max };
+  }
+
+  /**
+   * 两个域快照的差异。
+   * 不能按 index 直接比：目录重建后域下标会整体平移（实测更新后域数 65 → 63）。
+   * 按 `kind|code` 分桶、同桶内按出现顺序配对比较，才是稳定口径。
+   */
+  function wordDiffFieldSnapshots(before, after, maxChanges) {
+    const limit = Number(maxChanges) || 60;
+    const bucket = new Map();
+    for (const f of before.list) {
+      if (f.error) continue;
+      const k = f.kind + "|" + f.code;
+      if (!bucket.has(k)) bucket.set(k, []);
+      bucket.get(k).push(f.result);
+    }
+    const cursor = new Map();
+    const changes = [];
+    let compared = 0;
+    let changed = 0;
+    for (const f of after.list) {
+      if (f.error) continue;
+      const k = f.kind + "|" + f.code;
+      const arr = bucket.get(k);
+      if (!arr) continue;
+      const n = cursor.get(k) || 0;
+      cursor.set(k, n + 1);
+      if (n >= arr.length) continue;
+      compared++;
+      if (arr[n] !== f.result) {
+        changed++;
+        if (changes.length < limit) {
+          changes.push({ kind: f.kind, code: f.code, resultBefore: arr[n], resultAfter: f.result });
+        }
+      }
+    }
+    return { compared: compared, changed: changed, changes: changes, changesTruncated: changed > changes.length };
+  }
+
+  /**
+   * 目录条目标题：HYPERLINK 域的结果形如 "一、概述\t4"（制表符 + 页码）。
+   * **必须在归一化之前切**：wordNormalizeFieldText 会把制表符压成空格，
+   * 之后再按 \t 切就切不掉页码，条目比对会全错（本轮实测到过这个假差异）。
+   */
+  function wordTocEntryTitle(rawResult) {
+    const raw = String(rawResult === undefined || rawResult === null ? "" : rawResult).replace(/[\r\n\x07]/g, "");
+    const tabIdx = raw.indexOf("\t");
+    if (tabIdx >= 0) return raw.slice(0, tabIdx).trim();
+    return raw.replace(/[\s\xa0]+\d+\s*$/, "").trim();
+  }
+
+  /** 目录快照：条目文本 + 各条目的页码（目录页码本体就是条目里的 PAGEREF 域结果）。 */
+  function wordTocSnapshot(doc) {
+    let count = 0;
+    try { count = doc.TablesOfContents.Count; } catch (e) { return { count: 0, list: [], error: e.message }; }
+    const list = [];
+    for (let i = 1; i <= count; i++) {
+      const entry = { index: i, entryCount: 0, entryTitles: [], pageNumbers: [], range: null };
+      try {
+        const toc = doc.TablesOfContents.Item(i);
+        const fields = toc.Range.Fields;
+        for (let k = 1; k <= fields.Count; k++) {
+          const f = fields.Item(k);
+          const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim();
+          const rawResult = f.Result ? f.Result.Text : "";
+          if (/^PAGEREF\b/i.test(code)) entry.pageNumbers.push(wordNormalizeFieldText(rawResult));
+          else if (/^HYPERLINK\b/i.test(code)) {
+            entry.entryCount++;
+            entry.entryTitles.push(wordTocEntryTitle(rawResult));
+          }
+        }
+        entry.range = { start: toc.Range.Start, end: toc.Range.End };
+        entry.upperHeadingLevel = (() => { try { return Number(toc.UpperHeadingLevel); } catch (e) { return undefined; } })();
+        entry.lowerHeadingLevel = (() => { try { return Number(toc.LowerHeadingLevel); } catch (e) { return undefined; } })();
+      } catch (e) { entry.error = e.message; }
+      list.push(entry);
+    }
+    return { count: count, list: list };
+  }
+
+  /** 目录更新前后对照（页码逐条比对 + 条目增删）。 */
+  function wordCompareTocs(before, after) {
+    const out = [];
+    const count = Math.max(before.count, after.count);
+    for (let i = 1; i <= count; i++) {
+      const b = before.list[i - 1] || {};
+      const a = after.list[i - 1] || {};
+      const pagesB = b.pageNumbers || [];
+      const pagesA = a.pageNumbers || [];
+      const titlesB = b.entryTitles || [];
+      const titlesA = a.entryTitles || [];
+      const changedPages = [];
+      const maxLen = Math.max(pagesB.length, pagesA.length);
+      for (let k = 0; k < maxLen; k++) {
+        if (pagesB[k] !== pagesA[k]) {
+          changedPages.push({
+            entry: titlesA[k] || titlesB[k] || `#${k + 1}`,
+            pageBefore: pagesB[k] === undefined ? null : pagesB[k],
+            pageAfter: pagesA[k] === undefined ? null : pagesA[k]
+          });
+        }
+      }
+      out.push({
+        index: i,
+        entryCountBefore: b.entryCount === undefined ? null : b.entryCount,
+        entryCountAfter: a.entryCount === undefined ? null : a.entryCount,
+        pageNumbersBefore: pagesB.slice(0, 60),
+        pageNumbersAfter: pagesA.slice(0, 60),
+        pageNumbersChanged: changedPages.length > 0,
+        changedPageCount: changedPages.length,
+        changedPages: changedPages.slice(0, 30),
+        changedPagesTruncated: changedPages.length > 30,
+        addedEntries: titlesA.filter(t => titlesB.indexOf(t) < 0).slice(0, 20),
+        removedEntries: titlesB.filter(t => titlesA.indexOf(t) < 0).slice(0, 20),
+        error: a.error || b.error
+      });
+    }
+    return out;
+  }
+
+  /** 节的页眉/页脚 story 槽位：只在文档真的启用"首页不同/奇偶页不同"时才去碰 2/3 号槽位。 */
+  function wordSectionStorySlots(doc, sectionIndex) {
+    const slots = [1];
+    try {
+      const ps = doc.Sections.Item(sectionIndex).PageSetup;
+      if (Number(ps.DifferentFirstPageHeaderFooter) !== 0) slots.push(2);
+      if (Number(ps.OddAndEvenPagesHeaderFooter) !== 0) slots.push(3);
+    } catch (e) {}
+    return slots;
+  }
+
+  function wordStorySnapshotAndUpdate(doc, sectionIndex, kind, slot, doUpdate, warnings) {
+    const entry = { story: kind + ".Item(" + slot + ")", ok: false };
+    try {
+      const section = doc.Sections.Item(sectionIndex);
+      const story = kind === "Headers" ? section.Headers.Item(slot) : section.Footers.Item(slot);
+      const fields = story.Range.Fields;
+      entry.fieldCountBefore = fields.Count;
+      entry.fieldCodesBefore = [];
+      for (let k = 1; k <= fields.Count; k++) {
+        entry.fieldCodesBefore.push((fields.Item(k).Code ? fields.Item(k).Code.Text : "").replace(/[\r\n\x07]/g, " ").trim());
+      }
+      if (doUpdate) {
+        const t0 = Date.now();
+        fields.Update();
+        entry.elapsedMs = Date.now() - t0;
+      }
+      entry.fieldCountAfter = story.Range.Fields.Count;
+      entry.text = (story.Range.Text || "").replace(/[\r\n\x07]/g, "").slice(0, 120);
+      entry.ok = true;
+    } catch (e) {
+      entry.error = e.message;
+      if (doUpdate) warnings.push(`第 ${sectionIndex} 节 ${kind}.Item(${slot}) 域更新失败：${e.message}`);
+    }
+    return entry;
+  }
+
+  /** 按出现次数查一段文本，返回命中的 Range（与生产其它函数一致的 Find 用法）。 */
+  function wordFindTextRangeIn(doc, text, occurrence) {
+    return wordFindAnchorRange(doc, text, occurrence, null);
+  }
+
+  /**
+   * 命中范围是否落在**目录或域结果内部**。
+   *
+   * 真机实测（2026-09-22）：把书签打在目录条目上（目录条目本身是 HYPERLINK/PAGEREF 域的结果），
+   * 随后一次 `doc.Fields.Update()` 重建目录就把该书签**销毁**了，
+   * 引用它的交叉引用立刻变成 "错误！未定义书签。"（探针 xref_by_anchorText → docTextAfterXref）。
+   * 而 `Find` 从文首搜 "第二章 交付内容" 时**先命中目录里的那条**，所以必须显式跳过。
+   */
+  function wordUnsafeAnchorReason(doc, range) {
+    try {
+      const tocCount = doc.TablesOfContents.Count;
+      for (let i = 1; i <= tocCount; i++) {
+        try {
+          const r = doc.TablesOfContents.Item(i).Range;
+          if (range.Start >= r.Start && range.End <= r.End) return `第 ${i} 个目录内部（目录条目是域结果，域重建会销毁其中的书签）`;
+        } catch (e) {}
+      }
+    } catch (e) {}
+    try {
+      const total = Math.min(doc.Fields.Count, 200);
+      for (let i = 1; i <= total; i++) {
+        try {
+          const f = doc.Fields.Item(i);
+          const res = f.Result;
+          if (res && res.End > res.Start && range.Start >= res.Start && range.End <= res.End) {
+            const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim().slice(0, 40);
+            return `域结果内部（域码: ${code}）`;
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
+   * 按出现次数查文本，默认**跳过目录/域结果内部**的命中（那里不能放书签与内容控件）。
+   * meta.skipped 会记录被跳过的命中与原因，供调用方如实回报。
+   */
+  function wordFindAnchorRange(doc, text, occurrence, meta) {
+    const want = Number(occurrence) || 1;
+    const needle = String(text);
+    let hitCount = 0;
+    const scan = (rng) => {
+      let searchFrom = rng.Start;
+      const limit = rng.End;
+      let guard = 0;
+      while (guard++ < 2000 && searchFrom < limit) {
+        let hit = null;
+        try {
+          const sub = doc.Range(searchFrom, limit);
+          const f = sub.Find;
+          f.ClearFormatting();
+          f.Text = needle;
+          f.MatchCase = false;
+          f.MatchWholeWord = false;
+          f.MatchWildcards = false;
+          f.Forward = true;
+          f.Wrap = 0; // wdFindStop
+          if (!f.Execute()) return null;
+          hit = f.Parent;
+        } catch (e) {
+          return null;
+        }
+        if (!hit) return null;
+        const reason = wordUnsafeAnchorReason(doc, hit);
+        if (!reason) {
+          hitCount++;
+          if (hitCount >= want) return hit;
+        } else if (meta) {
+          meta.skipped = (meta.skipped || []).concat([{
+            text: (hit.Text || "").replace(/[\r\n\x07]/g, "").slice(0, 40),
+            range: { start: hit.Start, end: hit.End },
+            reason: reason
+          }]);
+        }
+        const next = hit.End > searchFrom ? hit.End : searchFrom + 1;
+        searchFrom = next;
+      }
+      return null;
+    };
+    const hit = scan(doc.Content);
+    if (hit) return hit;
+    if (doc.Tables) {
+      for (let t = 1; t <= doc.Tables.Count; t++) {
+        try {
+          const h = scan(doc.Tables.Item(t).Range);
+          if (h) return h;
+        } catch (e) {}
+      }
+    }
+    return null;
+  }
+
+  function wordExistingBookmarkNames(doc, limit) {
+    const names = [];
+    try {
+      for (let i = 1; i <= doc.Bookmarks.Count && names.length < (limit || 30); i++) names.push(doc.Bookmarks.Item(i).Name);
+    } catch (e) {}
+    return names;
+  }
+
+  /**
+   * 命中范围若落在目录/域结果内部，返回该容器的结束位置（用于把插入点自动挪到容器之外）。
+   * 与 wordUnsafeAnchorReason 同一份实测依据（目录条目是域结果，域重建会清掉其中的内容）。
+   */
+  function wordUnsafeInsertContainer(doc, range) {
+    try {
+      const tocCount = doc.TablesOfContents.Count;
+      for (let i = 1; i <= tocCount; i++) {
+        try {
+          const r = doc.TablesOfContents.Item(i).Range;
+          if (range.Start >= r.Start && range.End <= r.End) {
+            return { end: r.End, reason: `插入点落在第 ${i} 个目录内部（目录是域结果，写进去的内容会被下一次域重建清掉）` };
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    try {
+      const total = Math.min(doc.Fields.Count, 200);
+      for (let i = 1; i <= total; i++) {
+        try {
+          const f = doc.Fields.Item(i);
+          const res = f.Result;
+          if (res && res.End > res.Start && range.Start >= res.Start && range.End <= res.End) {
+            const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim().slice(0, 40);
+            return { end: res.End + 1, reason: `插入点落在域结果内部（域码: ${code}）` };
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
+   * 交叉引用插入：REF（引用书签文字）/ PAGEREF（引用书签所在页码）。
+   * 支持先用 anchorText 现场建书签，再插域——书签是交叉引用的唯一前提（宿主无 CrossReference）。
+   */
+  function wordInsertCrossReference(app, doc, params) {
+    const {
+      targetBookmark, bookmarkName, anchorText, anchorOccurrence,
+      crossReferenceType, crossReferenceTemplate, insertLocation, paragraphIndex, prefixText
+    } = params || {};
+    const warnings = [];
+    const name = String(bookmarkName || targetBookmark || "").trim();
+    let bookmark = null;
+
+    if (anchorText !== undefined && anchorText !== null && String(anchorText) !== "") {
+      if (!name) throw new Error("用 anchorText 现建书签时必须同时给 bookmarkName（书签名，不能含空格）");
+      if (/\s/.test(name)) throw new Error(`书签名 [${name}] 含空格，宿主 Word 书签名不允许空格`);
+      const meta = { skipped: [] };
+      const range = wordFindAnchorRange(doc, String(anchorText), anchorOccurrence, meta);
+      if (!range) {
+        throw new Error(
+          `未在文档中找到可安全锚定的文本 [${anchorText}]（第 ${Number(anchorOccurrence) || 1} 处），未建书签也未插入交叉引用。` +
+          (meta.skipped.length
+            ? ` 已跳过 ${meta.skipped.length} 处命中：` + meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+            : "")
+        );
+      }
+      if (meta.skipped.length) {
+        warnings.push(
+          `有 ${meta.skipped.length} 处命中被跳过（锚点必须落在正文，不能落在目录或域结果里——` +
+          `真机实测：目录条目的书签会被下一次域重建销毁，交叉引用随即变成"错误！未定义书签。"）：` +
+          meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+        );
+      }
+      const rangeInfo = { start: range.Start, end: range.End, text: (range.Text || "").replace(/[\r\n\x07]/g, "") };
+      try { doc.Bookmarks.Add(name, range); } catch (e) { throw new Error(`Bookmarks.Add("${name}") 失败：${e.message}`); }
+      let exists = false;
+      try { exists = doc.Bookmarks.Exists(name); } catch (e) {}
+      if (!exists) throw new Error(`Bookmarks.Add("${name}") 执行后书签仍不存在，宿主未创建；已中止，未插入交叉引用`);
+      bookmark = { name: name, created: true, range: rangeInfo, text: rangeInfo.text, empty: rangeInfo.start === rangeInfo.end, exists: true };
+    } else {
+      if (!name) throw new Error("必须提供 bookmarkName 或 targetBookmark —— 本宿主没有 CrossReference 对象，交叉引用**只能**按书签");
+      let exists = false;
+      try { exists = doc.Bookmarks.Exists(name); } catch (e) {}
+      if (!exists) {
+        const names = wordExistingBookmarkNames(doc);
+        throw new Error(
+          `书签 [${name}] 在此文档中不存在，未插入任何交叉引用（REF/PAGEREF 引用不到书签时结果恒为"错误！未定义书签。"）。` +
+          (names.length ? `现有书签：${names.join("、")}` : "当前文档没有任何书签；可传 anchorText + bookmarkName 让本工具先建书签。")
+        );
+      }
+      const bm = doc.Bookmarks.Item(name);
+      const r = bm.Range;
+      bookmark = {
+        name: name, created: false, exists: true,
+        range: { start: r.Start, end: r.End },
+        text: (r.Text || "").replace(/[\r\n\x07]/g, ""),
+        empty: r.Start === r.End
+      };
+    }
+    if (bookmark.empty) {
+      warnings.push(`书签 [${bookmark.name}] 是空书签（起止位置相同）：真机实测 REF 域结果为空字符串、PAGEREF 仍能给出页码。`);
+    }
+
+    // 插入位置
+    const loc = insertLocation || "end";
+    let pos = null;
+    if (loc === "start") pos = 0;
+    else if (loc === "selection") {
+      const wordApp = getWordApp() || app;
+      try {
+        const sel = wordApp && wordApp.Selection && wordApp.Selection.Range;
+        if (sel) pos = sel.Start === sel.End ? sel.Start : sel.End;
+      } catch (e) {}
+      if (pos === null) { warnings.push("当前没有可用选区，交叉引用回退插入到文档末尾。"); }
+    } else if (loc === "after_paragraph") {
+      const idx = Number(paragraphIndex);
+      if (!idx || idx < 1 || idx > doc.Paragraphs.Count) {
+        throw new Error(`段落索引越界：第 ${paragraphIndex} 段不存在（当前共 ${doc.Paragraphs.Count} 段）`);
+      }
+      pos = doc.Paragraphs.Item(idx).Range.End - 1;
+    }
+    if (pos === null) pos = doc.Content.End > 1 ? doc.Content.End - 1 : 0;
+    // 插入点落在目录/域结果内部时自动挪到容器之外：写进去的内容会被下一次域重建清掉（实测）
+    try {
+      const container = wordUnsafeInsertContainer(doc, doc.Range(pos, pos));
+      if (container) {
+        warnings.push(`${container.reason}；插入点已自动移到该容器之后（位置 ${pos} → ${container.end}）。`);
+        pos = container.end;
+      }
+    } catch (e) {}
+
+    // 模板：{ref} / {page}
+    const kind = crossReferenceType || "both";
+    if (["ref", "pageref", "both"].indexOf(kind) < 0) {
+      throw new Error(`未知的 crossReferenceType: ${kind}（支持 ref, pageref, both）`);
+    }
+    const template = kind === "both"
+      ? String(crossReferenceTemplate || "{ref}（第 {page} 页）")
+      : (kind === "ref" ? "{ref}" : "{page}");
+    const segments = [];
+    const re = /\{(ref|page)\}/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(template)) !== null) {
+      if (m.index > last) segments.push({ text: template.slice(last, m.index) });
+      segments.push({ field: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < template.length) segments.push({ text: template.slice(last) });
+
+    const inserted = [];
+    const errors = [];
+    if (prefixText) {
+      try { doc.Range(pos, pos).InsertAfter(String(prefixText)); pos += String(prefixText).length; } catch (e) { errors.push(`前缀写入失败：${e.message}`); }
+    }
+    for (const seg of segments) {
+      try {
+        if (seg.text) {
+          doc.Range(pos, pos).InsertAfter(seg.text);
+          pos += seg.text.length;
+          continue;
+        }
+        const type = seg.field === "ref" ? 3 : 37; // wdFieldRef / wdFieldPageRef
+        const f = doc.Fields.Add(doc.Range(pos, pos), type, bookmark.name + " \\h", false);
+        if (f === null || f === undefined) {
+          errors.push(`${seg.field === "ref" ? "REF" : "PAGEREF"} 域插入返回 null（宿主未创建），该段被跳过`);
+          continue;
+        }
+        // 关键：+1 跳过域结束标记，否则后续内容落在域内部，下次 Update 会被清掉（真机实测）
+        pos = f.Result.End + 1;
+        inserted.push({
+          field: seg.field === "ref" ? "REF" : "PAGEREF",
+          type: type,
+          code: (f.Code.Text || "").replace(/[\r\n\x07]/g, " ").trim(),
+          result: wordNormalizeFieldText(f.Result.Text),
+          _field: f
+        });
+      } catch (e) {
+        errors.push(`${seg.field ? (seg.field === "ref" ? "REF" : "PAGEREF") + " 域" : "文本段"}插入失败：${e.message}`);
+      }
+    }
+
+    let updateOk = false;
+    try { doc.Fields.Update(); updateOk = true; } catch (e) { warnings.push(`插入后 Fields.Update() 失败：${e.message}`); }
+
+    // 读回：**优先读本次插入的那个域对象**。
+    // 不能只按域码回查：同一书签可能被引用多次（域码完全相同），按码匹配会读到别人那一个
+    // （本轮实测到过：after_paragraph 插入的 PAGEREF 回读成了先前那个、报出假的"未定义书签"）。
+    for (const item of inserted) {
+      const nativeField = item._field;
+      delete item._field;
+      try {
+        if (nativeField) {
+          item.resultAfterUpdate = wordNormalizeFieldText(nativeField.Result.Text);
+          item.bookmarkStillExists = (() => { try { return doc.Bookmarks.Exists(bookmark.name); } catch (e) { return undefined; } })();
+        }
+      } catch (e) {
+        warnings.push(`${item.field} 域对象在更新后不可读（${e.message}），改用域码回查`);
+      }
+      if (item.resultAfterUpdate === undefined) {
+        try {
+          for (let k = 1; k <= doc.Fields.Count; k++) {
+            const f = doc.Fields.Item(k);
+            const code = (f.Code ? f.Code.Text : "").replace(/[\r\n\x07]/g, " ").trim();
+            if (code === item.code) {
+              item.resultAfterUpdate = wordNormalizeFieldText(f.Result.Text);
+              item.fieldIndex = k;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+      if (item.resultAfterUpdate === undefined) {
+        item.resolved = false;
+        warnings.push(`${item.field} 域在更新后未能重新定位，无法确认结果`);
+      } else {
+        item.resolved = item.resultAfterUpdate !== "" && !/错误|Error!|未定义书签/.test(item.resultAfterUpdate);
+      }
+    }
+    const bookmarkSurvived = (() => { try { return doc.Bookmarks.Exists(bookmark.name); } catch (e) { return undefined; } })();
+    if (bookmarkSurvived === false) {
+      warnings.push(`书签 [${bookmark.name}] 在域更新后**已不存在**：宿主在重建域时销毁了它。请改用正文里的锚点文本（本工具会自动跳过目录/域结果内部的命中）。`);
+    }
+
+    return {
+      success: true,
+      documentName: doc.Name,
+      action: "insert_cross_reference",
+      bookmark: bookmark,
+      bookmarkStillExistsAfterUpdate: bookmarkSurvived,
+      insertLocation: loc,
+      insertedFields: inserted,
+      fieldsUpdateAfterInsert: updateOk,
+      errors: errors.length ? errors : undefined,
+      warnings: warnings,
+      hostLimitations: [
+        "本宿主没有 CrossReference 对象（Application/Document.CrossReference 实测 undefined），交叉引用只能按**书签**：不能按'标题/图表编号'这类 Word 内置引用类型插入。",
+        "REF/PAGEREF 引用不存在的书签时结果恒为 '错误！未定义书签。'；空书签的 REF 结果为空字符串（均已实测）。",
+        "域插入后立即就有结果，但页码要在文档完成分页后才准确；若结果可疑请再调 action='update' 刷新一次。"
+      ],
+      message: `已在 [${doc.Name}] 插入 ${inserted.length} 个交叉引用域（书签 [${bookmark.name}]${bookmark.created ? "，本次新建" : ""}）` +
+        (errors.length ? `；有 ${errors.length} 条失败，见 errors` : "") +
+        (warnings.length ? `；有 ${warnings.length} 条告警，见 warnings` : "")
+    };
+  }
+
+  function wordUpdateFields(app, params) {
+    const { documentName, action, scope, sectionIndex, tocMode, includeHeadersFooters } = params || {};
+    const doc = getWordDocument(app, documentName);
+    const act = action || "update";
+
+    if (act === "insert_cross_reference") return wordInsertCrossReference(app, doc, params);
+    if (act !== "update") {
+      throw new Error(`未知的 Word 域操作: ${action}（支持 update、insert_cross_reference）`);
+    }
+
+    const scopeVal = scope || "all";
+    if (["all", "toc", "section"].indexOf(scopeVal) < 0) {
+      throw new Error(`未知的 scope: ${scopeVal}（支持 all、toc、section；scope='section' 时必须配 sectionIndex）`);
+    }
+    const mode = tocMode || "full";
+    if (["full", "page_numbers"].indexOf(mode) < 0) {
+      throw new Error(`未知的 tocMode: ${tocMode}（支持 full、page_numbers）`);
+    }
+    const warnings = [];
+    const errors = [];
+    const startedAt = Date.now();
+
+    const sectionCount = (() => { try { return doc.Sections.Count; } catch (e) { return 0; } })();
+    let sectionTargets = [];
+    if (scopeVal === "section") {
+      const idx = Number(sectionIndex);
+      if (!idx || idx < 1 || idx > sectionCount) {
+        throw new Error(`sectionIndex 越界：收到 ${sectionIndex}，当前文档共 ${sectionCount} 个节`);
+      }
+      sectionTargets = [idx];
+    } else if (scopeVal === "all") {
+      for (let i = 1; i <= sectionCount; i++) sectionTargets.push(i);
+    }
+
+    const fieldsBefore = wordFieldSnapshot(doc, 200);
+    const tocBefore = wordTocSnapshot(doc);
+
+    // 1) 正文域
+    const bodyUpdate = { applied: false, scope: scopeVal };
+    if (scopeVal === "all") {
+      try {
+        const t0 = Date.now();
+        const ret = doc.Fields.Update();
+        bodyUpdate.applied = true;
+        bodyUpdate.elapsedMs = Date.now() - t0;
+        bodyUpdate.hostReturnValue = typeof ret === "number" ? ret : undefined;
+        bodyUpdate.note = "宿主 Fields.Update() 的返回值实测恒为 0，不能当计数用；本工具按快照差异统计。";
+        bodyUpdate.coversTableOfContents = "宿主实测：doc.Fields.Update() 会连目录条目一起重建（新增标题会被收录），tocMode='full' 时无需再单独调 toc.Update()。";
+      } catch (e) {
+        errors.push(`正文域更新失败：${e.message}`);
+      }
+    } else if (scopeVal === "section") {
+      for (const idx of sectionTargets) {
+        const entry = { sectionIndex: idx, ok: false };
+        try {
+          const t0 = Date.now();
+          const ret = doc.Sections.Item(idx).Range.Fields.Update();
+          entry.fieldsCount = doc.Sections.Item(idx).Range.Fields.Count;
+          entry.hostReturnValue = typeof ret === "number" ? ret : undefined;
+          entry.elapsedMs = Date.now() - t0;
+          entry.ok = true;
+        } catch (e) { entry.error = e.message; errors.push(`第 ${idx} 节正文域更新失败：${e.message}`); }
+        bodyUpdate.sections = (bodyUpdate.sections || []).concat([entry]);
+      }
+    }
+
+    // 2) 目录
+    const tocUpdate = [];
+    if (scopeVal === "all" || scopeVal === "toc") {
+      let count = 0;
+      try { count = doc.TablesOfContents.Count; } catch (e) { errors.push(`读取目录数量失败：${e.message}`); }
+      if (count === 0) {
+        warnings.push("文档里没有任何目录（TablesOfContents.Count = 0），本次没有可更新的目录对象。");
+      }
+      for (let i = 1; i <= count; i++) {
+        const item = { index: i, mode: mode, ok: false };
+        if (scopeVal === "all" && mode === "full") {
+          item.skippedBecause = "doc.Fields.Update() 已重建全部目录（含条目与页码），无需重复调用 toc.Update()";
+          item.ok = true;
+          tocUpdate.push(item);
+          continue;
+        }
+        try {
+          const t0 = Date.now();
+          const toc = doc.TablesOfContents.Item(i);
+          if (mode === "page_numbers") toc.UpdatePageNumbers();
+          else toc.Update();
+          item.elapsedMs = Date.now() - t0;
+          item.ok = true;
+        } catch (e) {
+          item.error = e.message;
+          errors.push(`第 ${i} 个目录更新失败：${e.message}`);
+        }
+        tocUpdate.push(item);
+      }
+    }
+
+    // 3) 页眉/页脚域（逐节逐 story；doc.Fields 不含页眉页脚 story）
+    const storyUpdates = [];
+    if (includeHeadersFooters !== false && (scopeVal === "all" || scopeVal === "section")) {
+      for (const idx of sectionTargets) {
+        for (const kind of ["Headers", "Footers"]) {
+          for (const slot of wordSectionStorySlots(doc, idx)) {
+            storyUpdates.push(wordStorySnapshotAndUpdate(doc, idx, kind, slot, true, warnings));
+          }
+        }
+      }
+    }
+
+    const fieldsAfter = wordFieldSnapshot(doc, 200);
+    const tocAfter = wordTocSnapshot(doc);
+    const diff = wordDiffFieldSnapshots(fieldsBefore, fieldsAfter, 60);
+    const tocComparison = wordCompareTocs(tocBefore, tocAfter);
+    const pageNumbersChanged = tocComparison.some(t => t.pageNumbersChanged);
+
+    // 目录内部的域（PAGEREF/HYPERLINK）在目录重建后**域码里的 _Toc 书签名会整批变化**，
+    // 按 `kind|code` 配对根本配不上（实测更新后 5 个条目域只配到 1 个 TOC 域）。
+    // 因此目录内的变化改用目录快照对比来数，并合进 changes 明细，别让"只变了 1 个域"误导调用方。
+    let tocEntryFieldsChanged = 0;
+    const tocEntryChanges = [];
+    for (const t of tocComparison) {
+      tocEntryFieldsChanged += (t.changedPageCount || 0);
+      for (const c of (t.changedPages || [])) {
+        if (tocEntryChanges.length < 40) {
+          tocEntryChanges.push({
+            kind: "PAGEREF（目录条目）",
+            code: `TablesOfContents.Item(${t.index})`,
+            resultBefore: c.pageBefore === null ? "" : String(c.pageBefore),
+            resultAfter: c.pageAfter === null ? "" : String(c.pageAfter),
+            entry: c.entry
+          });
+        }
+      }
+    }
+    const hfFieldCount = storyUpdates.reduce((sum, s) => sum + (Number(s.fieldCountAfter) || 0), 0);
+
+    return {
+      success: true,
+      documentName: doc.Name,
+      action: "update",
+      scope: scopeVal,
+      sectionIndex: scopeVal === "section" ? Number(sectionIndex) : undefined,
+      tocMode: mode,
+      elapsedMs: Date.now() - startedAt,
+      fields: {
+        countBefore: fieldsBefore.total,
+        countAfter: fieldsAfter.total,
+        // 宿主 Fields.Update() 不返回计数，按"更新后文档里实际存在的域"计（正文 + 页眉页脚 story）
+        updatedFields: fieldsAfter.total + hfFieldCount,
+        bodyFieldsAfter: fieldsAfter.total,
+        headerFooterFieldsUpdated: hfFieldCount,
+        comparedByCode: diff.compared,
+        changedByCode: diff.changed,
+        tocEntryFieldsChanged: tocEntryFieldsChanged,
+        changedFields: diff.changed + tocEntryFieldsChanged,
+        changes: diff.changes.concat(tocEntryChanges),
+        changesTruncated: diff.changesTruncated || tocEntryFieldsChanged > tocEntryChanges.length
+      },
+      bodyUpdate: bodyUpdate,
+      tocUpdate: tocUpdate,
+      stories: storyUpdates,
+      tablesOfContents: {
+        countBefore: tocBefore.count,
+        countAfter: tocAfter.count,
+        pageNumbersChanged: pageNumbersChanged,
+        comparison: tocComparison
+      },
+      warnings: warnings,
+      errors: errors.length ? errors : undefined,
+      hostLimitations: [
+        "doc.Fields.Update() 的返回值在本宿主实测恒为 0，不能当'更新了几个域'的计数；本工具用更新前后逐域结果快照自己统计 updatedFields / changedFields。",
+        "doc.Fields **不含页眉/页脚 story 里的域**，所以页眉页脚域由本工具逐节 Headers/Footers.Item(k).Range.Fields.Update() 单独更新（includeHeadersFooters=false 可关闭）。",
+        "域更新无弹窗、无交互（实测 63 个域约 100ms），但目录页码依赖文档已完成分页：刚大批量改完内容时页码可能滞后，建议稍后重跑一次本工具。",
+        "交叉引用只能按书签（宿主无 CrossReference 对象）；用 action='insert_cross_reference' 可先建书签再插 REF/PAGEREF。"
+      ],
+      message:
+        `已更新 [${doc.Name}] 的域（scope=${scopeVal}，tocMode=${mode}）：更新后正文域 ${fieldsAfter.total} 个、页眉页脚域 ${hfFieldCount} 个，` +
+        `其中 ${diff.changed + tocEntryFieldsChanged} 个结果发生变化（按域码配对 ${diff.changed} 个 + 目录条目域 ${tocEntryFieldsChanged} 个）；` +
+        `${tocAfter.count} 个目录，页码${pageNumbersChanged ? "**已变化**" : "未变化"}` +
+        (errors.length ? `；有 ${errors.length} 条错误，见 errors` : "") +
+        (warnings.length ? `；有 ${warnings.length} 条告警，见 warnings` : "")
+    };
+  }
+
+  // ===========================================================================
+  // CAP-05：Word 内容控件全类型（RPC: word_manage_content_controls）
+  //
+  // 真机实测（WPS for Mac 12.x，2026-09-22，全部在临时新建文档上做，原文档只读）：
+  //   - `doc.ContentControls.Add(Type, Range)` 可用；实测**可创建**：richText(0)、plainText(1)、
+  //     picture(2)、comboBox(3)、dropdownList(4)、buildingBlockGallery(5)、date(6)、checkBox(8)。
+  //   - **不支持**：group(7)、repeatingSection(9) —— `Add` 返回 null（不抛错），本工具显式报错。
+  //   - **没有 `ListItems`**：`cc.ListItems` 实测 `undefined`（Word 桌面版的 ListItems 在 WPS for Mac 上不存在），
+  //     下拉/组合框的选项要用 `cc.DropdownListEntries.Add(text, value)`；`Item(i).Delete()` 可删。
+  //     新建的下拉/组合框自带一条**占位条目**（Text=占位文案、Value=""），本工具会先删掉它再写调用方的选项。
+  //   - 值写入：plainText/richText/comboBox → `cc.Range.Text`；checkBox → `cc.Checked`（读回 Range.Text 是 ☐/☒）；
+  //     date → `cc.Range.Text` + `cc.DateDisplayFormat` + `cc.DateDisplayLocale`；dropdownList → 必须
+  //     `DropdownListEntries.Item(k).Select()`，**给 Range.Text 赋一个不在选项里的值是静默无效的**（实测无报错、值不变），
+  //     本工具因此会核对选项并如实告警。
+  //   - 占位符只能用 `cc.SetPlaceholderText(undefined, undefined, text)`；直接写 `cc.PlaceholderText.Text` 实测**无效**。
+  //   - 嵌套：目标范围已在另一个内容控件内时 `Add` 返回 null（本宿主不支持嵌套控件），本工具显式报错。
+  //   - 包裹语义：plainText/date 等把原范围**包起来**（文本保留）；dropdown/checkbox 是在原范围**之前**
+  //     插入控件并留下原文本，本工具会把残留文本删掉（否则文档里会多出一份"标记原文"）。
+  //   - `ContentControls.Item("标题")` 按名字取实测返回 null（无按 Title/Tag 查找），本工具改为遍历匹配。
+  // ===========================================================================
+
+  const WORD_CC_TYPES = {
+    richText: 0, plainText: 1, picture: 2, comboBox: 3, dropdownList: 4,
+    buildingBlockGallery: 5, date: 6, group: 7, checkBox: 8, repeatingSection: 9
+  };
+  const WORD_CC_TYPE_NAMES = {};
+  for (const k in WORD_CC_TYPES) WORD_CC_TYPE_NAMES[WORD_CC_TYPES[k]] = k;
+  // 实测不支持创建的类型（Add 返回 null）
+  const WORD_CC_UNSUPPORTED = {
+    group: "本宿主 WPS for Mac 实测 ContentControls.Add(7, range) 返回 null（不抛错），分组控件无法创建。",
+    repeatingSection: "本宿主 WPS for Mac 实测 ContentControls.Add(9, range) 返回 null（不抛错），重复节控件无法创建。"
+  };
+  const WORD_CC_LIMITED = {
+    picture: "可创建（Type=2），但本宿主没有图片填充通路，控件内容只是占位符号，不具备可填写语义。",
+    buildingBlockGallery: "可创建（Type=5），但本宿主无法写入构建基块，控件内容只是占位文案，不具备可填写语义。"
+  };
+
+  function wordCcTypeNumber(type) {
+    if (typeof type === "number" && WORD_CC_TYPE_NAMES[type] !== undefined) return type;
+    const key = String(type === undefined || type === null ? "" : type).trim();
+    if (WORD_CC_TYPES[key] !== undefined) return WORD_CC_TYPES[key];
+    const asNum = Number(key);
+    if (!isNaN(asNum) && WORD_CC_TYPE_NAMES[asNum] !== undefined) return asNum;
+    throw new Error(`未知的内容控件类型: ${type}（可用：${Object.keys(WORD_CC_TYPES).join("、")}；其中 group、repeatingSection 本宿主不支持）`);
+  }
+
+  function wordCcEntries(cc) {
+    const arr = [];
+    try {
+      const col = cc.DropdownListEntries;
+      if (!col) return arr;
+      for (let i = 1; i <= col.Count; i++) {
+        const e = col.Item(i);
+        arr.push({
+          text: (() => { try { return e.Text; } catch (x) { return undefined; } })(),
+          value: (() => { try { return e.Value; } catch (x) { return undefined; } })()
+        });
+      }
+    } catch (e) {}
+    return arr;
+  }
+
+  /** 单个内容控件的读回值（按类型取"当前值"这一项真正的语义）。 */
+  function wordCcValue(cc, type) {
+    if (type === 8) {
+      return {
+        checked: (() => { try { return Boolean(cc.Checked); } catch (e) { return undefined; } })(),
+        text: (() => { try { return (cc.Range.Text || "").replace(/[\r\n\x07]/g, ""); } catch (e) { return undefined; } })()
+      };
+    }
+    const v = {
+      text: (() => { try { return (cc.Range.Text || "").replace(/[\r\n\x07]/g, ""); } catch (e) { return undefined; } })()
+    };
+    if (type === 6) {
+      v.dateDisplayFormat = (() => { try { return cc.DateDisplayFormat; } catch (e) { return undefined; } })();
+      v.dateDisplayLocale = (() => { try { return cc.DateDisplayLocale; } catch (e) { return undefined; } })();
+    }
+    if (type === 3 || type === 4) v.entries = wordCcEntries(cc);
+    return v;
+  }
+
+  function wordCcDescribe(cc, index) {
+    const type = (() => { try { return Number(cc.Type); } catch (e) { return undefined; } })();
+    return {
+      index: index,
+      type: type,
+      typeName: WORD_CC_TYPE_NAMES[type] || String(type),
+      title: (() => { try { return cc.Title; } catch (e) { return undefined; } })(),
+      tag: (() => { try { return cc.Tag; } catch (e) { return undefined; } })(),
+      showingPlaceholder: (() => { try { return Boolean(cc.ShowingPlaceholderText); } catch (e) { return undefined; } })(),
+      lockContentControl: (() => { try { return Boolean(cc.LockContentControl); } catch (e) { return undefined; } })(),
+      lockContents: (() => { try { return Boolean(cc.LockContents); } catch (e) { return undefined; } })(),
+      value: wordCcValue(cc, type),
+      range: (() => { try { return { start: cc.Range.Start, end: cc.Range.End }; } catch (e) { return null; } })()
+    };
+  }
+
+  function wordCcList(doc, limit) {
+    const max = Number(limit) || 100;
+    let count = 0;
+    try { count = doc.ContentControls.Count; } catch (e) { return { count: 0, list: [], error: e.message }; }
+    const list = [];
+    for (let i = 1; i <= Math.min(count, max); i++) {
+      try { list.push(wordCcDescribe(doc.ContentControls.Item(i), i)); }
+      catch (e) { list.push({ index: i, error: e.message }); }
+    }
+    return { count: count, list: list, truncated: count > max };
+  }
+
+  /** 按 index / tag / title 定位控件；返回 {cc, index}。 */
+  function wordCcLocate(doc, params) {
+    const { index, tag, title } = params || {};
+    const total = doc.ContentControls.Count;
+    if (index !== undefined && index !== null && index !== "") {
+      const i = Number(index);
+      if (!i || i < 1 || i > total) throw new Error(`内容控件索引越界：收到 ${index}，当前共 ${total} 个内容控件`);
+      return { cc: doc.ContentControls.Item(i), index: i };
+    }
+    const matches = [];
+    for (let i = 1; i <= total; i++) {
+      const c = doc.ContentControls.Item(i);
+      let cTag = "", cTitle = "";
+      try { cTag = String(c.Tag === undefined || c.Tag === null ? "" : c.Tag); } catch (e) {}
+      try { cTitle = String(c.Title === undefined || c.Title === null ? "" : c.Title); } catch (e) {}
+      if (tag !== undefined && tag !== null && tag !== "" && cTag === String(tag)) matches.push(i);
+      else if (title !== undefined && title !== null && title !== "" && cTitle === String(title)) matches.push(i);
+    }
+    if (matches.length === 0) {
+      throw new Error(`没有匹配的内容控件（tag=${tag === undefined ? "-" : tag}, title=${title === undefined ? "-" : title}）；当前共 ${total} 个。宿主 ContentControls.Item("名字") 实测不可用，本工具按 Title/Tag 遍历匹配。`);
+    }
+    return { cc: doc.ContentControls.Item(matches[0]), index: matches[0], matchedIndexes: matches };
+  }
+
+  function wordCcApplyListItems(cc, listItems, warnings) {
+    const col = cc.DropdownListEntries;
+    if (!col) { warnings.push("本宿主该控件没有 DropdownListEntries，选项未写入"); return; }
+    // 清掉宿主自带的占位条目（Value 为空串），否则它会成为"第 1 个选项"
+    if (col.Count >= 1) {
+      try {
+        const first = col.Item(1);
+        const firstValue = first.Value === undefined || first.Value === null ? "" : String(first.Value);
+        if (firstValue === "") first.Delete();
+      } catch (e) { warnings.push(`占位选项清理失败：${e.message}`); }
+    }
+    for (const raw of listItems) {
+      const text = typeof raw === "string" ? raw : String(raw && raw.text !== undefined ? raw.text : "");
+      const value = typeof raw === "string" ? raw : (raw && raw.value !== undefined && raw.value !== null ? String(raw.value) : text);
+      if (text === "") continue;
+      try { col.Add(text, value); } catch (e) { warnings.push(`选项 [${text}] 写入失败：${e.message}`); }
+    }
+  }
+
+  function wordManageContentControls(app, params) {
+    const {
+      documentName, action, type, index, tag, title, value, checked, dateDisplayFormat, dateDisplayLocale,
+      listItems, placeholderText, lockContentControl, lockContents, location, markerText, markerOccurrence,
+      paragraphIndex, initialText, clearListItems
+    } = params || {};
+    const doc = getWordDocument(app, documentName);
+    const act = action || "list";
+    const warnings = [];
+    const hostSupport = {
+      supportedTypes: ["richText", "plainText", "comboBox", "dropdownList", "date", "checkBox"],
+      createOnlyWithoutContent: Object.keys(WORD_CC_LIMITED),
+      unsupportedTypes: WORD_CC_UNSUPPORTED,
+      listItemsNote: "本宿主没有 cc.ListItems（实测 undefined）；下拉/组合框选项请用 listItems 参数，落到宿主是 DropdownListEntries.Add(text, value)。",
+      lookupNote: "宿主 ContentControls.Item(str) 按名字取实测返回 null；本工具的 set_value / delete 用 index 或 tag / title 遍历匹配。"
+    };
+
+    if (act === "list") {
+      const ccList = wordCcList(doc, params.maxControls);
+      return {
+        success: true, documentName: doc.Name, action: "list",
+        contentControls: ccList,
+        hostSupport: hostSupport,
+        message: `[${doc.Name}] 共有 ${ccList.count} 个内容控件`
+      };
+    }
+
+    if (act === "add") {
+      const typeNum = wordCcTypeNumber(type);
+      const typeName = WORD_CC_TYPE_NAMES[typeNum];
+      if (WORD_CC_UNSUPPORTED[typeName]) {
+        throw new Error(`内容控件类型 '${typeName}' 本宿主未实现：${WORD_CC_UNSUPPORTED[typeName]}请改用 ${hostSupport.supportedTypes.join("/")}。`);
+      }
+      if (typeNum === 7 || typeNum === 9) {
+        throw new Error(`内容控件类型 '${typeName}' 本宿主未实现（Add 返回 null），请改用 ${hostSupport.supportedTypes.join("/")}。`);
+      }
+      if (WORD_CC_LIMITED[typeName]) warnings.push(`${typeName}：${WORD_CC_LIMITED[typeName]}`);
+
+      const loc = location || (markerText ? "marker" : "end");
+      let range = null;
+      if (loc === "marker") {
+        if (!markerText) throw new Error("location='marker' 必须提供 markerText（要被替换成内容控件的标记文本，例如 '____'）");
+        const meta = { skipped: [] };
+        range = wordFindAnchorRange(doc, String(markerText), markerOccurrence, meta);
+        if (!range) {
+          throw new Error(
+            `未在文档中找到可用的标记文本 [${markerText}]（第 ${Number(markerOccurrence) || 1} 处），未创建任何内容控件。` +
+            (meta.skipped.length
+              ? ` 已跳过 ${meta.skipped.length} 处命中：` + meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+              : "")
+          );
+        }
+        if (meta.skipped.length) {
+          warnings.push(
+            `有 ${meta.skipped.length} 处标记命中被跳过（不能把内容控件做进目录或域结果里，那里会被域重建清掉）：` +
+            meta.skipped.map(s => `[${s.text}] 在${s.reason}`).join("；")
+          );
+        }
+      } else if (loc === "start") {
+        range = doc.Range(0, 0);
+      } else if (loc === "selection") {
+        const wordApp = getWordApp() || app;
+        try {
+          const sel = wordApp && wordApp.Selection && wordApp.Selection.Range;
+          if (sel) range = sel;
+        } catch (e) {}
+        if (!range) { warnings.push("当前没有可用选区，内容控件回退创建到文档末尾。"); }
+      } else if (loc === "after_paragraph") {
+        const idx = Number(paragraphIndex);
+        if (!idx || idx < 1 || idx > doc.Paragraphs.Count) {
+          throw new Error(`段落索引越界：第 ${paragraphIndex} 段不存在（当前共 ${doc.Paragraphs.Count} 段）`);
+        }
+        const end = doc.Paragraphs.Item(idx).Range.End - 1;
+        range = doc.Range(end, end);
+      }
+      if (loc === "end" || !range) {
+        const e = doc.Content.End > 1 ? doc.Content.End - 1 : 0;
+        range = doc.Range(e, e);
+        if (initialText) {
+          const text = String(initialText);
+          range.InsertAfter(text);
+          range = doc.Range(e, e + text.length);
+        }
+      }
+
+      const target = { start: range.Start, end: range.End, markerText: markerText === undefined ? null : String(markerText) };
+      let cc = null;
+      try { cc = doc.ContentControls.Add(typeNum, range); }
+      catch (e) { throw new Error(`ContentControls.Add(${typeNum}) 抛错：${e.message}`); }
+      if (cc === null || cc === undefined) {
+        throw new Error(
+          `ContentControls.Add(${typeNum}, range) 返回 null，未创建任何控件。真机实测两类原因：` +
+          `(1) 目标范围已落在另一个内容控件内部——本宿主不支持嵌套内容控件；` +
+          `(2) 该类型本宿主不支持（group=7、repeatingSection=9）。` +
+          `当前文档已有 ${doc.ContentControls.Count} 个内容控件，可先用 action='list' 查看范围。`
+        );
+      }
+
+      // 非包裹型控件（下拉/组合框/复选框）会在原范围之前插入内容并留下原文，删掉残留
+      let leftoverDeleted = null;
+      try {
+        const ccEnd = cc.Range.End;
+        if (ccEnd < target.end) {
+          const rest = doc.Range(ccEnd, target.end);
+          const txt = (rest.Text || "").replace(/[\r\n\x07]/g, "");
+          rest.Delete();
+          leftoverDeleted = txt;
+        }
+      } catch (e) { warnings.push(`残留标记文本清理失败：${e.message}`); }
+
+      if (title !== undefined) { try { cc.Title = String(title); } catch (e) { warnings.push(`Title 写入失败：${e.message}`); } }
+      if (tag !== undefined) { try { cc.Tag = String(tag); } catch (e) { warnings.push(`Tag 写入失败：${e.message}`); } }
+      if (placeholderText !== undefined) {
+        // 实测：直接写 cc.PlaceholderText.Text 无效，必须走 SetPlaceholderText(BuildingBlock, Range, Text)
+        try { cc.SetPlaceholderText(undefined, undefined, String(placeholderText)); }
+        catch (e) { warnings.push(`占位符写入失败：${e.message}`); }
+      }
+      if (lockContentControl !== undefined) { try { cc.LockContentControl = Boolean(lockContentControl); } catch (e) { warnings.push(`LockContentControl 写入失败：${e.message}`); } }
+      if (lockContents !== undefined) { try { cc.LockContents = Boolean(lockContents); } catch (e) { warnings.push(`LockContents 写入失败：${e.message}`); } }
+      if (dateDisplayFormat !== undefined && typeNum === 6) { try { cc.DateDisplayFormat = String(dateDisplayFormat); } catch (e) { warnings.push(`日期格式写入失败：${e.message}`); } }
+      if (dateDisplayLocale !== undefined && typeNum === 6) { try { cc.DateDisplayLocale = Number(dateDisplayLocale); } catch (e) { warnings.push(`日期区域写入失败：${e.message}`); } }
+
+      if ((typeNum === 3 || typeNum === 4) && Array.isArray(listItems) && listItems.length) {
+        wordCcApplyListItems(cc, listItems, warnings);
+      }
+
+      let valueApplied = null;
+      if (checked !== undefined && typeNum === 8) {
+        try { cc.Checked = Boolean(checked); valueApplied = Boolean(cc.Checked); }
+        catch (e) { warnings.push(`Checked 写入失败：${e.message}`); }
+      }
+      if (value !== undefined && value !== null && String(value) !== "") {
+        const v = String(value);
+        if (typeNum === 4) {
+          let hit = false;
+          try {
+            const col = cc.DropdownListEntries;
+            for (let i = 1; i <= col.Count; i++) {
+              const e = col.Item(i);
+              const t = e.Text === undefined ? "" : String(e.Text);
+              const val = e.Value === undefined ? "" : String(e.Value);
+              if (t === v || val === v) { e.Select(); hit = true; break; }
+            }
+          } catch (e) { warnings.push(`下拉选中失败：${e.message}`); }
+          valueApplied = hit;
+          if (!hit) warnings.push(`下拉值 [${v}] 不在选项列表里：宿主对 Range.Text 赋非法值是**静默无效**的（实测无报错、值不变），本次未写入该值。`);
+        } else if (typeNum === 8) {
+          warnings.push("checkBox 的值请用 checked 参数，value 已忽略。");
+        } else {
+          try { cc.Range.Text = v; valueApplied = (cc.Range.Text || "").replace(/[\r\n\x07]/g, ""); }
+          catch (e) { warnings.push(`值写入失败：${e.message}`); }
+        }
+      }
+      if (typeNum === 6 && value !== undefined && value !== null && String(value) !== "") {
+        try { cc.Range.Text = String(value); } catch (e) {}
+      }
+
+      // 读回：按控件自身对象读（创建后下标会随文档顺序变化，不能按 Count 取）
+      let created = null;
+      try { created = wordCcDescribe(cc, null); } catch (e) { warnings.push(`创建后读回失败：${e.message}`); }
+      const listAfter = wordCcList(doc, 100);
+      // 定位本次创建控件的真实下标（按 range.start 匹配）
+      let createdIndex = null;
+      if (created && created.range) {
+        for (const item of listAfter.list) {
+          if (item.range && item.range.start === created.range.start) { createdIndex = item.index; break; }
+        }
+      }
+      if (createdIndex !== null) created.index = createdIndex;
+
+      const tagApplied = tag === undefined ? null : (created && created.tag === String(tag));
+      const titleApplied = title === undefined ? null : (created && created.title === String(title));
+      if (tagApplied === false) warnings.push(`Tag 写入后读回不一致（期望 [${tag}]，读回 [${created && created.tag}]）：宿主可能丢弃了该属性，请以本返回的读回值为准。`);
+      if (titleApplied === false) warnings.push(`Title 写入后读回不一致（期望 [${title}]，读回 [${created && created.title}]）。`);
+
+      return {
+        success: true, documentName: doc.Name, action: "add",
+        type: typeName, typeCode: typeNum, location: loc,
+        targetRange: target,
+        leftoverMarkerTextDeleted: leftoverDeleted,
+        valueApplied: valueApplied,
+        tagApplied: tagApplied,
+        titleApplied: titleApplied,
+        created: created,
+        contentControls: { count: listAfter.count, list: listAfter.list },
+        hostSupport: hostSupport,
+        warnings: warnings,
+        message: `已在 [${doc.Name}] 创建 ${typeName} 内容控件（${loc}${markerText ? "：" + markerText : ""}），文档现有 ${listAfter.count} 个内容控件`
+      };
+    }
+
+    if (act === "set_value") {
+      const found = wordCcLocate(doc, params);
+      const cc = found.cc;
+      const typeNum = (() => { try { return Number(cc.Type); } catch (e) { return undefined; } })();
+      const typeName = WORD_CC_TYPE_NAMES[typeNum] || String(typeNum);
+      const applied = {};
+
+      if (title !== undefined) { try { cc.Title = String(title); applied.title = cc.Title; } catch (e) { warnings.push(`Title 写入失败：${e.message}`); } }
+      if (tag !== undefined) { try { cc.Tag = String(tag); applied.tag = cc.Tag; } catch (e) { warnings.push(`Tag 写入失败：${e.message}`); } }
+      if (placeholderText !== undefined) {
+        try { cc.SetPlaceholderText(undefined, undefined, String(placeholderText)); applied.placeholderApplied = true; }
+        catch (e) { warnings.push(`占位符写入失败：${e.message}`); }
+      }
+      if (lockContentControl !== undefined) { try { cc.LockContentControl = Boolean(lockContentControl); applied.lockContentControl = cc.LockContentControl; } catch (e) { warnings.push(`LockContentControl 写入失败：${e.message}`); } }
+      if (lockContents !== undefined) { try { cc.LockContents = Boolean(lockContents); applied.lockContents = cc.LockContents; } catch (e) { warnings.push(`LockContents 写入失败：${e.message}`); } }
+      if (dateDisplayFormat !== undefined && typeNum === 6) { try { cc.DateDisplayFormat = String(dateDisplayFormat); applied.dateDisplayFormat = cc.DateDisplayFormat; } catch (e) { warnings.push(`日期格式写入失败：${e.message}`); } }
+      if (clearListItems && (typeNum === 3 || typeNum === 4)) {
+        try {
+          const col = cc.DropdownListEntries;
+          while (col.Count > 0) col.Item(col.Count).Delete();
+          applied.listItemsCleared = true;
+        } catch (e) { warnings.push(`选项清空失败：${e.message}`); }
+      }
+      if (Array.isArray(listItems) && listItems.length && (typeNum === 3 || typeNum === 4)) {
+        wordCcApplyListItems(cc, listItems, warnings);
+        applied.listItemsApplied = listItems.length;
+      }
+      if (checked !== undefined) {
+        if (typeNum === 8) { try { cc.Checked = Boolean(checked); applied.checked = Boolean(cc.Checked); } catch (e) { warnings.push(`Checked 写入失败：${e.message}`); } }
+        else warnings.push(`控件类型是 ${typeName}，checked 参数已忽略（只有 checkBox 支持）。`);
+      }
+      if (value !== undefined && value !== null && String(value) !== "") {
+        const v = String(value);
+        if (typeNum === 8) {
+          warnings.push("checkBox 的值请用 checked 参数，value 已忽略。");
+        } else if (typeNum === 4) {
+          let hit = false;
+          try {
+            const col = cc.DropdownListEntries;
+            for (let i = 1; i <= col.Count; i++) {
+              const e = col.Item(i);
+              const t = e.Text === undefined ? "" : String(e.Text);
+              const val = e.Value === undefined ? "" : String(e.Value);
+              if (t === v || val === v) { e.Select(); hit = true; break; }
+            }
+          } catch (e) { warnings.push(`下拉选中失败：${e.message}`); }
+          applied.value = hit ? v : null;
+          if (!hit) warnings.push(`下拉值 [${v}] 不在选项列表里：宿主静默无效（实测无报错、值不变），本次未写入。`);
+        } else {
+          try { cc.Range.Text = v; applied.value = (cc.Range.Text || "").replace(/[\r\n\x07]/g, ""); }
+          catch (e) { warnings.push(`值写入失败：${e.message}`); }
+        }
+      }
+
+      const readBack = wordCcDescribe(cc, found.index);
+      return {
+        success: true, documentName: doc.Name, action: "set_value",
+        type: typeName, matchedIndex: found.index,
+        matchedIndexes: found.matchedIndexes,
+        applied: applied,
+        contentControl: readBack,
+        hostSupport: hostSupport,
+        warnings: warnings,
+        message: `已更新 [${doc.Name}] 第 ${found.index} 个内容控件（${typeName}）`
+      };
+    }
+
+    if (act === "delete") {
+      if (params.all === true) {
+        const before = (() => { try { return doc.ContentControls.Count; } catch (e) { return 0; } })();
+        const deleted = [];
+        for (let i = before; i >= 1; i--) {
+          try { doc.ContentControls.Item(i).Delete(); deleted.push(i); }
+          catch (e) { warnings.push(`删除第 ${i} 个控件失败：${e.message}`); }
+        }
+        return {
+          success: true, documentName: doc.Name, action: "delete", deleteAll: true,
+          deletedCount: deleted.length, countBefore: before,
+          contentControls: wordCcList(doc, 100),
+          warnings: warnings,
+          message: `已删除 [${doc.Name}] 的 ${deleted.length} 个内容控件（原有 ${before} 个）`
+        };
+      }
+      const found = wordCcLocate(doc, params);
+      const before = wordCcDescribe(found.cc, found.index);
+      found.cc.Delete();
+      const after = wordCcList(doc, 100);
+      return {
+        success: true, documentName: doc.Name, action: "delete",
+        deleted: before,
+        contentControls: { count: after.count, list: after.list },
+        hostSupport: hostSupport,
+        warnings: warnings,
+        message: `已删除 [${doc.Name}] 第 ${found.index} 个内容控件（${before.typeName}，删除后剩余 ${after.count} 个）`
+      };
+    }
+
+    throw new Error(`未知的内容控件操作: ${action}（支持 list, add, set_value, delete）`);
   }
 
   // ---------------------------------------------------------------------------
