@@ -1210,6 +1210,9 @@
     flow_chart_terminator: 68, flow_chart_data: 62, line_horizontal: 130, text_box: 17
   };
 
+  /** 形状文字的默认字体。中文报表里微软雅黑比宿主默认的宋体更清晰、字重更统一。 */
+  const DEFAULT_SHAPE_FONT = "微软雅黑";
+
   function resolveShapeType(raw) {
     if (raw === undefined || raw === null || raw === "") return AUTO_SHAPE_TYPES.rectangle;
     if (typeof raw === "number") return raw;
@@ -1259,6 +1262,11 @@
       lineColor: safe(() => { const v = Number(shape.Line.ForeColor.RGB); return Number.isFinite(v) && v >= 0 ? excelColorToHex(v) : null; }, null),
       lineWeight: safe(() => Number(shape.Line.Weight), null),
       text,
+      // 真实对齐（Excel 对象模型：HorizontalAlignment/VerticalAlignment）。
+      // 放进 readShape 而不是只在 addShape 里，这样 list_shapes 也能核对——
+      // 「框居中了但字没居中」这类静默失败必须能被读回发现。
+      textAlign: safe(() => { const h = Number(shape.TextFrame.HorizontalAlignment); return h === -4108 ? "center" : h === -4152 ? "right" : h === -4131 ? "left" : null; }, null),
+      textVAlign: safe(() => { const v = Number(shape.TextFrame.VerticalAlignment); return v === -4108 ? "middle" : v === -4107 ? "bottom" : v === -4160 ? "top" : null; }, null),
       topLeftCell: safe(() => shapeAddressOf(shape.TopLeftCell), null),
       isGroup: safe(() => Number(shape.Type) === 6, false),
       groupItemCount: safe(() => (Number(shape.Type) === 6 && shape.GroupItems ? Number(shape.GroupItems.Count) : null), null)
@@ -1318,6 +1326,10 @@
       // 调用方显式传 fillColor/lineColor 时才打开对应可见性（见下方）。
       try { shape.Line.Visible = 0; } catch (e) {}
       try { shape.Fill.Visible = 0; } catch (e) {}
+      // 关掉自动缩放：宿主默认会把文本框收缩到文字宽度，导致"按给定宽度算的居中"全部偏掉
+      // （真机踩到：柱顶数据标签偏离柱心 1~2pt）。宽度按调用方给的固定，版面才可预测。
+      try { shape.TextFrame.AutoSize = 0; } catch (e) {}
+      try { shape.TextFrame.WordWrap = 0; } catch (e) {}
     } else if (k === "wordart" || k === "texteffect") {
       // 艺术字：WPS 相对 Office.js 的独有能力
       const preset = Number.isFinite(Number(wordArtPreset)) ? Number(wordArtPreset) : 0;
@@ -1357,7 +1369,7 @@
         if (Number.isFinite(Number(fontSize))) chars.Font.Size = Number(fontSize);
         if (bold !== undefined) chars.Font.Bold = bold ? -1 : 0;
         if (italic !== undefined) chars.Font.Italic = italic ? -1 : 0;
-        if (fontName) { chars.Font.Name = String(fontName); }
+        chars.Font.Name = String(fontName || DEFAULT_SHAPE_FONT);
         if (fontColor) {
           const fc = hexToExcelColor(fontColor);
           if (fc !== null) chars.Font.Color = fc;
@@ -1368,31 +1380,32 @@
           else if (light === false) chars.Font.Color = hexToExcelColor("#FFFFFF");
         }
         // 对齐：文本框默认左对齐/顶对齐，自选图形默认居中/垂直居中。
-        // 原来完全不设——于是"流程框里的字顶在框顶"、"卡片里的字挤在左上角"。
+        //
+        // ⚠️ 这里是 **Excel 的对象模型**，不是 PowerPoint 的：
+        //   `TextFrame.TextRange.ParagraphFormat.Alignment` 在 Excel 里**不存在**
+        //   （TextRange=undefined、Characters().ParagraphFormat=undefined），
+        //   正确属性是 `TextFrame.HorizontalAlignment` / `VerticalAlignment`。
+        // 之前用错的那条路径被 try/catch 吞掉，于是"框居中了、框里的字还是居左"，
+        // 既不报错也看不出来（使用者一眼就看出来了）——所以这里改成**失败即告警**，不再静默。
         const tf = shape.TextFrame;
-        try {
-          if (textAlign === "center") tf.TextRange.ParagraphFormat.Alignment = 2;
-          else if (textAlign === "right") tf.TextRange.ParagraphFormat.Alignment = 3;
-          else if (textAlign === "left") tf.TextRange.ParagraphFormat.Alignment = 1;
-          else if (k !== "textbox" && k !== "text") tf.TextRange.ParagraphFormat.Alignment = 2;
-        } catch (e) {}
-        try {
-          if (textVAlign === "top") tf.VerticalAnchor = 1;
-          else if (textVAlign === "bottom") tf.VerticalAnchor = 3;
-          else if (textVAlign === "middle") tf.VerticalAnchor = 2;
-          else if (k !== "textbox" && k !== "text") tf.VerticalAnchor = 2;   // 自选图形默认垂直居中
-        } catch (e) {}
+        const H = { left: -4131, center: -4108, right: -4152 };   // xlHAlign*
+        const V = { top: -4160, middle: -4108, bottom: -4107 };   // xlVAlign*
+        const wantH = textAlign || ((k !== "textbox" && k !== "text") ? "center" : null);
+        const wantV = textVAlign || ((k !== "textbox" && k !== "text") ? "middle" : null);
+        if (wantH && H[wantH] !== undefined) {
+          try { tf.HorizontalAlignment = H[wantH]; } catch (e) { warnings.push(`设置水平对齐失败: ${e.message}`); }
+        }
+        if (wantV && V[wantV] !== undefined) {
+          try { tf.VerticalAlignment = V[wantV]; } catch (e) { warnings.push(`设置垂直对齐失败: ${e.message}`); }
+        }
         for (const [key, val] of Object.entries({ MarginLeft: marginLeft, MarginRight: marginRight, MarginTop: marginTop, MarginBottom: marginBottom })) {
-          if (Number.isFinite(Number(val))) { try { tf[key] = Number(val); } catch (e) {} }
+          if (Number.isFinite(Number(val))) { try { tf[key] = Number(val); } catch (e) { warnings.push(`设置 ${key} 失败: ${e.message}`); } }
         }
       } catch (e) { warnings.push(`写入文字失败: ${e.message}`); }
     }
 
     const actual = readShape(shape, sheet);
-    try {
-      actual.textAlign = (() => { const a = Number(shape.TextFrame.TextRange.ParagraphFormat.Alignment); return a === 1 ? "left" : a === 2 ? "center" : a === 3 ? "right" : null; })();
-      actual.textVAlign = (() => { const v = Number(shape.TextFrame.VerticalAnchor); return v === 1 ? "top" : v === 2 ? "middle" : v === 3 ? "bottom" : null; })();
-    } catch (e) {}
+
     // 核对请求与读回：不一致就如实告警（不抛错，因为部分属性宿主可能合法地做了归一）
     const requested = { kind: k, left: Number(left), top: Number(top), width: Number(width), height: Number(height) };
     if (k === "geometric" || k === "autoshape") {
@@ -2062,6 +2075,46 @@
     } catch (e) {}
   }
 
+  // 13.9 工作表视图：网格线 / 行列标题 / 缩放
+  //
+  // 为什么必须是个独立能力：用矢量形状搭画布页时**必须先隐藏网格线**，
+  // 否则形状浮在格线上、观感很乱。此前没有任何工具入口，
+  // 只能让 AI 退回 wps_execute_script 手写（真机踩到过）。
+  function setSheetView(app, params) {
+    const { sheetName, workbookName, showGridlines, showHeadings, zoom } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    try { sheet.Activate(); } catch (e) {}
+    const win = app.ActiveWindow;
+    const before = {
+      showGridlines: (() => { try { return Boolean(win.DisplayGridlines); } catch (e) { return null; } })(),
+      showHeadings: (() => { try { return Boolean(win.DisplayHeadings); } catch (e) { return null; } })(),
+      zoom: (() => { try { return Number(win.Zoom); } catch (e) { return null; } })()
+    };
+    const warnings = [];
+    if (showGridlines !== undefined) {
+      try { win.DisplayGridlines = showGridlines ? true : false; } catch (e) { warnings.push(`设置网格线失败: ${e.message}`); }
+    }
+    if (showHeadings !== undefined) {
+      try { win.DisplayHeadings = showHeadings ? true : false; } catch (e) { warnings.push(`设置行列标题失败: ${e.message}`); }
+    }
+    if (Number.isFinite(Number(zoom))) {
+      try { win.Zoom = Number(zoom); } catch (e) { warnings.push(`设置缩放失败: ${e.message}`); }
+    }
+    // 读回核对：写没写进去必须能验证
+    const after = {
+      showGridlines: (() => { try { return Boolean(win.DisplayGridlines); } catch (e) { return null; } })(),
+      showHeadings: (() => { try { return Boolean(win.DisplayHeadings); } catch (e) { return null; } })(),
+      zoom: (() => { try { return Number(win.Zoom); } catch (e) { return null; } })()
+    };
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      before, after, warnings,
+      message: `工作表 [${sheet.Name}] 视图：网格线 ${after.showGridlines ? "显示" : "隐藏"}、行列标题 ${after.showHeadings ? "显示" : "隐藏"}、缩放 ${after.zoom}%`
+    };
+  }
+
   // 14. 捕获工作表或指定区域的渲染预览图 (原生 JSA 高保真推入剪贴板)
   function captureSheetPreview(app, params) {
     const { sheetName, address, range, workbookName } = params || {};
@@ -2076,7 +2129,28 @@
     if (targetAddr) {
       targetRange = sheet.Range(targetAddr);
     } else {
-      targetRange = sheet.UsedRange;
+      // 默认范围必须是"**整张画布**"，不能只用 UsedRange——
+      // UsedRange 只统计**有数据的单元格，不含形状**。当一页全是矢量图形、
+      // 单元格没有任何值时，UsedRange 会退化成 $A$1，截出来只有 146x50 的废图
+      //（真机踩到过）。所以这里把"所有形状的外框"并入 UsedRange。
+      const ur = sheet.UsedRange;
+      let r1 = ur.Row, c1 = ur.Column;
+      let r2 = r1 + ur.Rows.Count - 1, c2 = c1 + ur.Columns.Count - 1;
+      try {
+        const shapes = sheet.Shapes;
+        for (let i = 1; i <= shapes.Count; i++) {
+          const sh = shapes.Item(i);
+          let tl = null, br = null;
+          try { tl = sh.TopLeftCell; br = sh.BottomRightCell; } catch (e) {}
+          if (!tl || !br) continue;
+          r1 = Math.min(r1, tl.Row); c1 = Math.min(c1, tl.Column);
+          r2 = Math.max(r2, br.Row); c2 = Math.max(c2, br.Column);
+        }
+      } catch (e) {}
+      // 注意：WPS JSA 的 Worksheet **没有 `Cells()` 方法**（Excel VBA 有），
+      // 调它会报 "sheet.Cells is not a function"。这里自己拼 A1 地址。
+      const colName = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+      targetRange = sheet.Range(`${colName(c1)}${r1}:${colName(c2)}${r2}`);
     }
 
     // 执行高保真选区图形渲染并推入系统剪贴板 (1 = xlScreen, -4147 = xlBitmap)

@@ -1158,6 +1158,24 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_set_sheet_view",
+        description: "设置工作表**视图**：是否显示网格线、行列标题、缩放比例。⚠️ **用矢量形状搭画布页（看板/信息图/封面页）前必须先隐藏网格线**，否则所有形状都浮在格线上，观感很乱。写后读回核对并返回 before/after，能确认是否真的生效。",
+        parameters: {
+          type: "object",
+          properties: {
+            showGridlines: { type: "boolean", description: "是否显示单元格网格线（画布页传 false）" },
+            showHeadings: { type: "boolean", description: "是否显示行列标题（A/B/C 与 1/2/3）" },
+            zoom: { type: "number", description: "缩放百分比，如 100" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          additionalProperties: false
+        }
+      }
     }
   ];
 }

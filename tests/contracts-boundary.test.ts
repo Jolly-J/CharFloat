@@ -183,12 +183,13 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   // 本护栏的用意是"搬迁过程中不得顺手增减"，**有意扩展能力时按此格式写明理由再改**，不是禁止增长。
   // 2026-09-22 由 30 依次扩展：format_text_segment（富文本，CAP-03）、
   // configure_print_layout（打印与分页，CAP-01）、export_sheet_pdf（导出 PDF，CAP-02）、
+  // set_sheet_view（画布页必须先隐藏网格线，CAP-07 验收暴露的缺口）、
   // add_shape/list_shapes/update_shape/group_shapes/ungroup_shapes/set_shape_zorder/export_shape_image
   // （矢量图形，CAP-07 WPS 表格侧 + CAP-08 Office.js 侧）——
   // 三者都是**真实存在的宿主方法**：dispatch.js 有 RPC 分支、excel.js 有实现、网关有处理器与注册项。
   // 同样是**真实存在的宿主方法**：wps-addon/src/dispatch.js 有 RPC 分支、excel.js 有
   // formatTextSegment 实现、网关有对应处理器与注册项。
-  assert.equal(c.EXCEL_METHODS.length, 41, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
+  assert.equal(c.EXCEL_METHODS.length, 42, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
   assert.equal(c.isReadOnlyTool('excel_read_range'), true);
   assert.equal(c.isReadOnlyTool('wps_inspect_api'), false, '表达式探测不是只读');
   assert.equal(c.isReplaySafeMethod('read_range'), true);
@@ -204,6 +205,6 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   assert.deepEqual(c.HOST_IMPLEMENTATION_GAPS, {
     // CAP-07 后 WPS 侧已实现形状增删改查/分组/层级；仍缺形状导图与 MS 独有的 get_active_shape
     wps: ['update_chart', 'export_shape_image'],
-    microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf']
+    microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view']
   });
 });
