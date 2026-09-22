@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 9591117d99dd8eaadb4dc020227f3bddf4cd0006a603ac8506200befa141c17b
+// ADDON_BUILD_FINGERPRINT: b36fa6d2dc35a81669b4cbcbf78a73a033def7d74b7ee53983c43818681e9c2e
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "9591117d99dd8eaadb4dc020227f3bddf4cd0006a603ac8506200befa141c17b";
+  var ADDON_BUILD_FINGERPRINT = "b36fa6d2dc35a81669b4cbcbf78a73a033def7d74b7ee53983c43818681e9c2e";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -900,6 +900,24 @@
           break;
         case "export_sheet_pdf":
           result = exportSheetPdf(app, params);
+          break;
+        case "add_shape":
+          result = addShape(app, params);
+          break;
+        case "list_shapes":
+          result = listShapes(app, params);
+          break;
+        case "update_shape":
+          result = updateShape(app, params);
+          break;
+        case "group_shapes":
+          result = groupShapes(app, params);
+          break;
+        case "ungroup_shapes":
+          result = ungroupShapes(app, params);
+          break;
+        case "set_shape_zorder":
+          result = setShapeZorder(app, params);
           break;
         case "format_text_segment":
           result = formatTextSegment(app, params);
@@ -2611,6 +2629,336 @@
       elapsedMs: Date.now() - startedAt,
       hostCannotVerify: true,
       message: `宿主已接受导出请求（${scope === "sheet" ? "工作表 " + (sheetName || "活动表") : "整个工作簿"} → ${outputPath}）；文件是否真的写出由桥接侧校验`
+    };
+  }
+
+  // 10.27 表格矢量绘图（CAP-07）
+  //
+  // 依据真机探测（WPS 12.1.28496）：宿主 `Sheet.Shapes` 全套可用——
+  //   AddShape / AddLine / AddTextbox / **AddTextEffect（艺术字）** / AddPicture / BuildFreeform，
+  //   分组走 `Shapes.Range([名...]).Group()`（**WPS 表格能分组，Office.js 侧这条未打通**）。
+  // 这是 WPS 相对 Microsoft Excel 的**能力优势**：艺术字与自由曲线在 Office.js 侧没有对应 API。
+  // 此前我们一个表格绘图工具都没有，AI 只能用 wps_execute_script 手写。
+
+  /** 几何形状枚举（msoAutoShapeType 常用值）。 */
+  const AUTO_SHAPE_TYPES = {
+    rectangle: 1, rounded_rectangle: 5, oval: 9, ellipse: 9, diamond: 4, triangle: 7,
+    right_triangle: 8, pentagon: 51, hexagon: 10, arrow_right: 33, arrow_left: 34,
+    arrow_up: 35, arrow_down: 36, chevron: 52, cross: 11, star_5: 12, star_6: 13,
+    callout_rounded: 106, cloud: 179, heart: 21, lightning: 22, sun: 24, moon: 23,
+    can: 13, cube: 17, donut: 18, flow_chart_process: 61, flow_chart_decision: 63,
+    flow_chart_terminator: 68, flow_chart_data: 62, line_horizontal: 130, text_box: 17
+  };
+
+  function resolveShapeType(raw) {
+    if (raw === undefined || raw === null || raw === "") return AUTO_SHAPE_TYPES.rectangle;
+    if (typeof raw === "number") return raw;
+    const key = String(raw).toLowerCase().trim();
+    if (AUTO_SHAPE_TYPES[key] !== undefined) return AUTO_SHAPE_TYPES[key];
+    if (/^\d+$/.test(key)) return parseInt(key, 10);
+    throw new Error(`不认识的形状类型 "${raw}"。可用：${Object.keys(AUTO_SHAPE_TYPES).join(" / ")}`);
+  }
+
+  /** 单元格地址取值：宿主方法是原生实现，**必须保留接收者**直接调用（摘出来会丢 this）。 */
+  function shapeAddressOf(cell) {
+    try { return String(cell.Address()); } catch (e) {
+      try { return String(cell.Address); } catch (e2) { return ""; }
+    }
+  }
+
+  /** 读回单个形状的完整状态。 */
+  function readShape(shape, sheet) {
+    const safe = (fn, fallback) => { try { const v = fn(); return v === undefined ? fallback : v; } catch (e) { return fallback; } };
+    let text = null;
+    try { text = String(shape.TextFrame.Characters().Text); } catch (e) { text = null; }
+    return {
+      name: safe(() => String(shape.Name), null),
+      type: safe(() => Number(shape.Type), null),
+      autoShapeType: safe(() => Number(shape.AutoShapeType), null),
+      left: safe(() => Math.round(Number(shape.Left) * 100) / 100, null),
+      top: safe(() => Math.round(Number(shape.Top) * 100) / 100, null),
+      width: safe(() => Math.round(Number(shape.Width) * 100) / 100, null),
+      height: safe(() => Math.round(Number(shape.Height) * 100) / 100, null),
+      rotation: safe(() => Number(shape.Rotation), null),
+      visible: safe(() => Number(shape.Visible) !== 0, null),
+      fillColor: safe(() => { const v = Number(shape.Fill.ForeColor.RGB); return Number.isFinite(v) && v >= 0 ? excelColorToHex(v) : null; }, null),
+      lineColor: safe(() => { const v = Number(shape.Line.ForeColor.RGB); return Number.isFinite(v) && v >= 0 ? excelColorToHex(v) : null; }, null),
+      lineWeight: safe(() => Number(shape.Line.Weight), null),
+      text,
+      topLeftCell: safe(() => shapeAddressOf(shape.TopLeftCell), null),
+      isGroup: safe(() => Number(shape.Type) === 6, false),
+      groupItemCount: safe(() => (Number(shape.Type) === 6 && shape.GroupItems ? Number(shape.GroupItems.Count) : null), null)
+    };
+  }
+
+  /** 找出形状：优先按名字，其次按序号（1 基）。 */
+  function findShape(sheet, params) {
+    const shapes = sheet.Shapes;
+    if (params.name || params.shapeName) {
+      const name = String(params.name || params.shapeName);
+      for (let i = 1; i <= shapes.Count; i++) {
+        const sh = shapes.Item(i);
+        try { if (String(sh.Name) === name) return sh; } catch (e) {}
+      }
+      const available = [];
+      for (let i = 1; i <= Math.min(shapes.Count, 30); i++) {
+        try { available.push(String(shapes.Item(i).Name)); } catch (e) {}
+      }
+      throw new Error(`找不到名为 "${name}" 的形状。现有形状（最多 30 个）：${available.join(" / ") || "无"}`);
+    }
+    if (Number.isFinite(Number(params.shapeIndex))) {
+      const idx = Number(params.shapeIndex);
+      if (idx < 1 || idx > shapes.Count) throw new Error(`形状序号 ${idx} 越界（当前共 ${shapes.Count} 个）`);
+      return shapes.Item(idx);
+    }
+    throw new Error("需要提供 name（形状名）或 shapeIndex（序号，从 1 开始）");
+  }
+
+  /**
+   * 画矢量形状：几何形状 / 直线 / 文本框 / **艺术字**。
+   * 写完**读回真实几何与样式**，宿主没接受某个属性时写进 warnings，不做假成功。
+   */
+  function addShape(app, params) {
+    const { sheetName, workbookName, kind = "geometric", shapeType, text, name,
+            left = 0, top = 0, width = 160, height = 80, rotation,
+            x1, y1, x2, y2, fillColor, lineColor, lineWeight,
+            wordArtPreset, fontName, fontSize, bold, italic } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const shapes = sheet.Shapes;
+    const warnings = [];
+
+    let shape = null;
+    const k = String(kind).toLowerCase();
+    if (k === "geometric" || k === "autoshape") {
+      shape = shapes.AddShape(resolveShapeType(shapeType), Number(left), Number(top), Number(width), Number(height));
+    } else if (k === "line" || k === "connector") {
+      shape = shapes.AddLine(
+        Number(x1 !== undefined ? x1 : left), Number(y1 !== undefined ? y1 : top),
+        Number(x2 !== undefined ? x2 : Number(left) + Number(width)),
+        Number(y2 !== undefined ? y2 : Number(top) + Number(height))
+      );
+    } else if (k === "textbox" || k === "text") {
+      shape = shapes.AddTextbox(1, Number(left), Number(top), Number(width), Number(height));
+    } else if (k === "wordart" || k === "texteffect") {
+      // 艺术字：WPS 相对 Office.js 的独有能力
+      const preset = Number.isFinite(Number(wordArtPreset)) ? Number(wordArtPreset) : 0;
+      shape = shapes.AddTextEffect(
+        preset, String(text === undefined ? "" : text), String(fontName || "宋体"),
+        Number(fontSize || 36), bold === false ? 0 : -1, italic ? -1 : 0, Number(left), Number(top)
+      );
+    } else {
+      throw new Error(`不支持的形状种类: ${kind}（可用 geometric / line / textbox / wordart）`);
+    }
+    if (!shape) throw new Error("宿主没有返回形状对象（创建失败）");
+
+    if (name) { try { shape.Name = String(name); } catch (e) { warnings.push(`设置名字失败: ${e.message}`); } }
+    if (k !== "line" && Number.isFinite(Number(rotation))) {
+      try { shape.Rotation = Number(rotation); } catch (e) { warnings.push(`设置旋转失败: ${e.message}`); }
+    }
+    if (fillColor) {
+      const rgb = hexToExcelColor(fillColor);
+      if (rgb === null) warnings.push(`fillColor 无法解析: ${fillColor}`);
+      else { try { shape.Fill.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置填充失败: ${e.message}`); } }
+    }
+    if (lineColor) {
+      const rgb = hexToExcelColor(lineColor);
+      if (rgb === null) warnings.push(`lineColor 无法解析: ${lineColor}`);
+      else { try { shape.Line.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置线条色失败: ${e.message}`); } }
+    }
+    if (Number.isFinite(Number(lineWeight))) {
+      try { shape.Line.Weight = Number(lineWeight); } catch (e) { warnings.push(`设置线宽失败: ${e.message}`); }
+    }
+    // 文字：几何形状/文本框都能写字（艺术字的文字在创建时给）
+    if (k !== "wordart" && k !== "texteffect" && text !== undefined && text !== null && String(text) !== "") {
+      try { shape.TextFrame.Characters().Text = String(text); } catch (e) { warnings.push(`写入文字失败: ${e.message}`); }
+    }
+
+    const actual = readShape(shape, sheet);
+    // 核对请求与读回：不一致就如实告警（不抛错，因为部分属性宿主可能合法地做了归一）
+    const requested = { kind: k, left: Number(left), top: Number(top), width: Number(width), height: Number(height) };
+    if (k === "geometric" || k === "autoshape") {
+      const tol = 1.5;
+      for (const key of ["left", "top", "width", "height"]) {
+        if (actual[key] !== null && Math.abs(Number(actual[key]) - requested[key]) > tol) {
+          warnings.push(`${key} 请求 ${requested[key]} 读回 ${actual[key]}`);
+        }
+      }
+    }
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      kind: k,
+      shape: actual,
+      requested,
+      shapeCount: shapes.Count,
+      warnings,
+      message: `已在 [${sheet.Name}] 创建 ${k} 形状「${actual.name || name || ""}」（当前共 ${shapes.Count} 个形状）`
+    };
+  }
+
+  /** 读回工作表上的全部形状（绘图能力的验收入口）。 */
+  function listShapes(app, params) {
+    const { sheetName, workbookName, detail = true, filterName } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const shapes = sheet.Shapes;
+    const items = [];
+    for (let i = 1; i <= shapes.Count; i++) {
+      const sh = shapes.Item(i);
+      if (filterName) {
+        let nm = null;
+        try { nm = String(sh.Name); } catch (e) {}
+        if (nm !== String(filterName)) continue;
+      }
+      items.push(detail ? readShape(sh, sheet) : { name: (() => { try { return String(sh.Name); } catch (e) { return null; } })() });
+    }
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      count: items.length,
+      shapes: items,
+      message: `工作表 [${sheet.Name}] 上共有 ${items.length} 个形状`
+    };
+  }
+
+  /** 修改形状：位置/尺寸/旋转/填充/线条/文字/可见性，或删除。 */
+  function updateShape(app, params) {
+    const { sheetName, workbookName, action, left, top, width, height, rotation,
+            fillColor, lineColor, lineWeight, text, visible, newName } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const shape = findShape(sheet, params);
+    const warnings = [];
+
+    const act = String(action || "update").toLowerCase();
+    if (act === "delete") {
+      const nm = (() => { try { return String(shape.Name); } catch (e) { return null; } })();
+      shape.Delete();
+      return {
+        success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name,
+        action: "delete", deletedName: nm, shapeCountAfter: sheet.Shapes.Count,
+        message: `已删除形状「${nm}」（剩余 ${sheet.Shapes.Count} 个）`
+      };
+    }
+
+    if (Number.isFinite(Number(left))) shape.Left = Number(left);
+    if (Number.isFinite(Number(top))) shape.Top = Number(top);
+    if (Number.isFinite(Number(width))) shape.Width = Number(width);
+    if (Number.isFinite(Number(height))) shape.Height = Number(height);
+    if (Number.isFinite(Number(rotation))) shape.Rotation = Number(rotation);
+    if (newName) { try { shape.Name = String(newName); } catch (e) { warnings.push(`改名失败: ${e.message}`); } }
+    if (visible !== undefined) { try { shape.Visible = visible ? -1 : 0; } catch (e) { warnings.push(`设置可见性失败: ${e.message}`); } }
+    if (fillColor) {
+      const rgb = hexToExcelColor(fillColor);
+      if (rgb === null) warnings.push(`fillColor 无法解析: ${fillColor}`);
+      else { try { shape.Fill.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置填充失败: ${e.message}`); } }
+    }
+    if (lineColor) {
+      const rgb = hexToExcelColor(lineColor);
+      if (rgb === null) warnings.push(`lineColor 无法解析: ${lineColor}`);
+      else { try { shape.Line.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置线条色失败: ${e.message}`); } }
+    }
+    if (Number.isFinite(Number(lineWeight))) {
+      try { shape.Line.Weight = Number(lineWeight); } catch (e) { warnings.push(`设置线宽失败: ${e.message}`); }
+    }
+    if (text !== undefined && text !== null) {
+      try { shape.TextFrame.Characters().Text = String(text); } catch (e) { warnings.push(`写入文字失败: ${e.message}`); }
+    }
+
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      action: "update",
+      shape: readShape(shape, sheet),
+      warnings,
+      message: `已更新形状「${(() => { try { return String(shape.Name); } catch (e) { return ""; } })()}」`
+    };
+  }
+
+  /** 分组：`Shapes.Range([名...]).Group()`（WPS 表格可用；Office.js 侧未打通）。 */
+  function groupShapes(app, params) {
+    const { sheetName, workbookName, names, groupName } = params || {};
+    const list = Array.isArray(names) ? names.filter(Boolean).map(String) : [];
+    if (list.length < 2) throw new Error("group_shapes 需要至少 2 个形状（names 传形状名数组）");
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const shapes = sheet.Shapes;
+    // 先确认都存在，错误信息才有用
+    const existing = [];
+    for (let i = 1; i <= shapes.Count; i++) { try { existing.push(String(shapes.Item(i).Name)); } catch (e) {} }
+    const missing = list.filter(n => existing.indexOf(n) < 0);
+    if (missing.length) throw new Error(`这些形状不存在: ${missing.join(", ")}。现有形状：${existing.join(" / ") || "无"}`);
+
+    const group = shapes.Range(list).Group();
+    if (groupName) { try { group.Name = String(groupName); } catch (e) {} }
+    const members = [];
+    try {
+      const gi = group.GroupItems;
+      for (let i = 1; i <= gi.Count; i++) { try { members.push(String(gi.Item(i).Name)); } catch (e) {} }
+    } catch (e) {}
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      group: readShape(group, sheet),
+      requestedMembers: list,
+      memberCount: members.length,
+      members,
+      verified: members.length === list.length,
+      warnings: members.length === list.length ? [] : [`请求组合 ${list.length} 个，读回组内 ${members.length} 个`],
+      message: `已把 ${list.length} 个形状组合为「${(() => { try { return String(group.Name); } catch (e) { return groupName || ""; } })()}」`
+    };
+  }
+
+  /** 解散分组，返回释放后的形状名单。 */
+  function ungroupShapes(app, params) {
+    const { sheetName, workbookName } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const shape = findShape(sheet, params);
+    const type = (() => { try { return Number(shape.Type); } catch (e) { return null; } })();
+    if (type !== 6) {
+      throw new Error(`形状「${(() => { try { return String(shape.Name); } catch (e) { return ""; } })()}」不是组合（Type=${type}，组合应为 6）`);
+    }
+    const before = [];
+    try { const gi = shape.GroupItems; for (let i = 1; i <= gi.Count; i++) { try { before.push(String(gi.Item(i).Name)); } catch (e) {} } } catch (e) {}
+    shape.Ungroup();
+    const after = [];
+    const shapes = sheet.Shapes;
+    for (let i = 1; i <= shapes.Count; i++) { try { after.push(String(shapes.Item(i).Name)); } catch (e) {} }
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      released: before,
+      releasedStillPresent: before.filter(n => after.indexOf(n) >= 0),
+      shapeCountAfter: shapes.Count,
+      message: `已解散组合，释放 ${before.length} 个形状`
+    };
+  }
+
+  /** 调整层级。VBA ZOrder 常量：0=置顶 1=置底 2=上移一层 3=下移一层。 */
+  function setShapeZorder(app, params) {
+    const { sheetName, workbookName, zOrder = "bringToFront" } = params || {};
+    const Z = { bringtofront: 0, sendtoback: 1, bringforward: 2, sendbackward: 3 };
+    const code = Z[String(zOrder).toLowerCase()];
+    if (code === undefined) throw new Error(`不支持的 zOrder: ${zOrder}（可用 bringToFront / sendToBack / bringForward / sendBackward）`);
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const shape = findShape(sheet, params);
+    shape.ZOrder(code);
+    // 读回全部形状以核对层级（WPS 上 ZOrderPosition 不可读，改用"绘制顺序"近似：
+    // 按 ZOrder(0) 逐个置顶来还原顺序代价太高，这里只如实返回当前形状与形状总数）
+    const names = [];
+    const shapes = sheet.Shapes;
+    for (let i = 1; i <= shapes.Count; i++) { try { names.push(String(shapes.Item(i).Name)); } catch (e) {} }
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      applied: zOrder,
+      shape: readShape(shape, sheet),
+      shapeNames: names,
+      warnings: ["WPS 表格读不到 ZOrderPosition，无法直接回读层级；shapeNames 的顺序是 Shapes 集合顺序，可作为近似参考"],
+      message: `已把形状「${(() => { try { return String(shape.Name); } catch (e) { return ""; } })()}」调整为 ${zOrder}`
     };
   }
 

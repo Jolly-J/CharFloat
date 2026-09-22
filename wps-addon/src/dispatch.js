@@ -53,6 +53,24 @@
         case "export_sheet_pdf":
           result = exportSheetPdf(app, params);
           break;
+        case "add_shape":
+          result = addShape(app, params);
+          break;
+        case "list_shapes":
+          result = listShapes(app, params);
+          break;
+        case "update_shape":
+          result = updateShape(app, params);
+          break;
+        case "group_shapes":
+          result = groupShapes(app, params);
+          break;
+        case "ungroup_shapes":
+          result = ungroupShapes(app, params);
+          break;
+        case "set_shape_zorder":
+          result = setShapeZorder(app, params);
+          break;
         case "format_text_segment":
           result = formatTextSegment(app, params);
           break;

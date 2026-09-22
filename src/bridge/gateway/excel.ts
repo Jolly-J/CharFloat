@@ -844,27 +844,51 @@ export const addShape: Handler = async (ctx) => {
       left: args?.left, top: args?.top, width: args?.width, height: args?.height, rotation: args?.rotation,
       x1: args?.x1, y1: args?.y1, x2: args?.x2, y2: args?.y2,
       fillColor: args?.fillColor, fill: args?.fill, lineColor: args?.lineColor, lineWeight: args?.lineWeight,
+      fontName: args?.fontName, fontSize: args?.fontSize, bold: args?.bold, italic: args?.italic, wordArtPreset: args?.wordArtPreset,
       name: args?.name
     });
 };
 
 export const groupShapes: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("group_shapes", { sheetName: args?.sheetName, shapeNames: args?.shapeNames, groupName: args?.groupName });
+    // 宿主读的是 `names`，schema 对外是 `shapeNames`：两个都传，避免"schema 有但宿主读不到"的静默失效。
+    return await callOffice("group_shapes", { sheetName: args?.sheetName, names: args?.shapeNames || args?.names, shapeNames: args?.shapeNames, groupName: args?.groupName });
 };
 
 export const ungroupShapes: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("ungroup_shapes", { sheetName: args?.sheetName, shapeName: args?.shapeName, shapeId: args?.shapeId });
+    return await callOffice("ungroup_shapes", { sheetName: args?.sheetName, name: args?.shapeName || args?.name, shapeName: args?.shapeName, shapeId: args?.shapeId });
 };
 
 export const setShapeZOrder: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.zOrder) throw new Error("缺少必要参数: zOrder (bringToFront | sendToBack | bringForward | sendBackward)");
-    return await callOffice("set_shape_zorder", { sheetName: args?.sheetName, shapeName: args?.shapeName, shapeId: args?.shapeId, zOrder: args?.zOrder });
+    return await callOffice("set_shape_zorder", { sheetName: args?.sheetName, name: args?.shapeName || args?.name, shapeName: args?.shapeName, shapeId: args?.shapeId, zOrder: args?.zOrder });
 };
 
 export const exportShapeImage: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     return await callOffice("export_shape_image", { sheetName: args?.sheetName, shapeName: args?.shapeName, shapeId: args?.shapeId, format: args?.format, scale: args?.scale });
+};
+
+/** CAP-07 WPS 表格矢量绘图：读回全部形状（绘图能力的验收入口，双宿主通用）。 */
+export const listShapes: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("list_shapes", {
+      sheetName: args?.sheetName, workbookName: args?.workbookName,
+      detail: args?.detail ?? true, filterName: args?.filterName
+    });
+};
+
+/** 修改形状：位置/尺寸/旋转/填充/线条/文字/可见性，或删除。 */
+export const updateShape: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("update_shape", {
+      sheetName: args?.sheetName, workbookName: args?.workbookName,
+      name: args?.name, shapeName: args?.shapeName, shapeIndex: args?.shapeIndex, shapeId: args?.shapeId,
+      action: args?.action || "update",
+      left: args?.left, top: args?.top, width: args?.width, height: args?.height, rotation: args?.rotation,
+      fillColor: args?.fillColor, lineColor: args?.lineColor, lineWeight: args?.lineWeight,
+      text: args?.text, visible: args?.visible, newName: args?.newName
+    });
 };

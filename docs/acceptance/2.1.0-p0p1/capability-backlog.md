@@ -31,8 +31,8 @@
 | **CAP-04** | **Word 域更新与交叉引用**：目录页码、交叉引用、页数随内容刷新 | 两边都支持 | 文档可证 | 两侧 | 现在只"插入目录"，**改一下页码就全错** | ✅ 已完成（真机验证：目录页码 [3×6,4×3,5×5] → [4×6,5×3,6×5]） |
 | **CAP-05** | **Word 内容控件全类型**：日期、复选框、下拉、组合框、富文本、纯文本（含 `listItems`） | WordApi 1.9 / VBA 全类型 | 文档可证 | 两侧 | AI 做不出"可填模板/合同填空位/表单" | ✅ 已完成（真机验证：6 类控件可建；group/repeatingSection 如实报宿主未实现） |
 | **CAP-06** | **条件格式图标集与完整规则族**：红黄绿灯、Top10、重复值、文本包含、公式规则、规则列表与更新 | 两边都支持（WPS `AddIconSetCondition`/`Top10`；Office.js 1.17） | 文档可证 | 两侧 | 报表缺"红黄绿灯"这类最常见的业务信号 | ✅ 已完成（真机验证：图标集/Top-N/重复值/公式/文字包含 全部通过） |
-| **CAP-07** | **WPS 表格侧矢量绘图与 SmartArt**：`AddShape`/`AddTextEffect`/`AddSmartArt`/`BuildFreeform`/`ThreeD`/`Shadow`/格式刷 | WPS 宿主对象模型 | 文档可证 | WPS 侧 | WPS 明明能画，我们只会 `add_chart` | 待排期 |
-| **CAP-08** | **MS 侧矢量绘图**：几何形状、连接符、SVG、文本框、分组、层级、旋转缩放、形状导图 | Office.js ExcelApi 1.9 `Shape` 全套 | 文档可证 | Office.js 侧 | MS 用户完全用不上那套 134 元素信息图 | 待排期 |
+| **CAP-07** | **WPS 表格侧矢量绘图与 SmartArt**：`AddShape`/`AddTextEffect`/`AddSmartArt`/`BuildFreeform`/`ThreeD`/`Shadow`/格式刷 | WPS 宿主对象模型 | 文档可证 | WPS 侧 | WPS 明明能画，我们只会 `add_chart` | ✅ 已完成（真机 11/11：几何/直线/文本框/**艺术字**/**分组解组**/层级/改删/读回全部通过；WPS 比 MS Excel 更能画） |
+| **CAP-08** | **MS 侧矢量绘图**：几何形状、连接符、SVG、文本框、分组、层级、旋转缩放、形状导图 | Office.js ExcelApi 1.9 `Shape` 全套 | 文档可证 | Office.js 侧 | MS 用户完全用不上那套 134 元素信息图 | ✅ 部分完成（真机：矩形/文本框/层级/导图/缩放/删除读回可用；**直线报宿主限制、SVG 与 getActiveShape 本机无 API、组合经工具未打通**） |
 | **CAP-09** | **PPT 页面尺寸与母版/版式控制、批量导出** | MS `SlideMaster`/`SlideLayout`（**无页面尺寸、无导出**）；WPS 有 `PageSetup` | 文档可证 | 两侧 | 没法把 4:3 改 16:9、没法套公司母版、没法批量导图 | 待排期 |
 | **CAP-10** | **数据验证读回与违规定位** | MS `getInvalidCells`；WPS 读 `Validation` 属性 | 文档可证 / 推测 | 两侧 | AI 写完下拉/范围校验，**无法自检哪些值越界** | 待排期 |
 | **CAP-11** | **事件驱动的"变更感知"**：用户刚改了哪个单元格、保存前拦一手 | WPS 45+ Application 事件 + `wps.ApiEvent`；Office.js 仅 3 个事件 | 文档可证 | WPS 侧 | AI 只能盲写，无法基于用户刚做的修改做增量协作 | 待排期 |

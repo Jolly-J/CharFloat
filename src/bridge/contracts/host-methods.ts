@@ -23,7 +23,7 @@ export const EXCEL_METHODS = [
   'update_chart', 'delete_chart', 'create_pivot_table', 'set_filter_and_sort', 'set_data_validation', 'manage_sheet',
   'manage_rows_and_columns', 'manage_cell_comments', 'find_and_replace', 'duplicate_sheet', 'capture_sheet_preview',
   'rollback_cells', 'save_workbook', 'get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf',
-  'add_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image'
+  'add_shape', 'list_shapes', 'update_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image'
 ] as const;
 
 /**
@@ -35,8 +35,10 @@ export const EXCEL_METHODS = [
  * - `office-addon/public/taskpane.js` 的 dispatchExcelTool 有 update_chart，故 Microsoft 侧无此缺口。
  */
 export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
-  // 矢量形状操作目前只在 Office.js（Microsoft）侧实现；WPS 表格侧的形状能力尚未实现。
-  wps: ['update_chart', 'add_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image'],
+  // CAP-07 后 WPS 表格侧已实现 add_shape/list_shapes/update_shape/group_shapes/
+  // ungroup_shapes/set_shape_zorder（实测分组在 WPS 侧可用，Office.js 侧反而未打通）；
+  // 仍缺 export_shape_image 与 MS 独有的 get_active_shape。
+  wps: ['update_chart', 'export_shape_image'],
   // get_style_token 是 WPS 宿主独有的"读原表设计语言"能力，Office.js 的 dispatchExcelTool 无此分支；
   // 声明在此，使 excel_get_style_token(host=microsoft) 的失败被正确归类为"宿主未实现"而非未知工具。
   // format_text_segment 同为 WPS 独有（Office.js 无字符级富文本入口）

@@ -1003,11 +1003,11 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_add_shape",
-        description: "在表格上画**矢量形状**：几何形状（矩形/椭圆等）、文本框、直线连接符。返回体带**读回的真实几何与样式**（位置/尺寸/旋转/填充/线条），并在宿主没接受某个属性时写进 warnings——不做假成功。宿主差异（已实测）：矩形与文本框可用；**直线在本机 Microsoft Excel 上报「当前对象不允许此操作」**；SVG 需要 ExcelApi 1.9+ 的 `addSvg`，本机无此方法。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "在表格上画**矢量形状**：几何形状（矩形/椭圆/箭头/流程图形状等 30 种）、文本框、直线连接符、**艺术字（kind=wordart，WPS 独有）**。返回体带**读回的真实几何与样式**（位置/尺寸/旋转/填充/线条/文字），宿主没接受某个属性时写进 warnings——不做假成功。宿主差异（均已实测）：**WPS 表格全套可用**（矩形/直线/文本框/艺术字都成功）；Microsoft Excel 只有矩形与文本框可用，**直线报「当前对象不允许此操作」**，且没有 addSvg/getActiveShape。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
-            kind: { type: "string", enum: ["geometric", "textBox", "line", "connector"], description: "形状种类，默认 geometric" },
+            kind: { type: "string", enum: ["geometric", "textBox", "textbox", "line", "connector", "wordart"], description: "形状种类，默认 geometric；wordart 为艺术字（WPS 独有，需配 text/fontName/fontSize）" },
             shapeType: { type: "string", description: "kind=geometric 时的形状名（如 rectangle / ellipse / triangle / pentagon / arrow）" },
             text: { type: "string", description: "kind=textBox 时的文本内容；几何形状也可带文本" },
             left: { type: "number", description: "左边缘（磅）" },
@@ -1023,6 +1023,11 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             lineColor: { type: "string", description: "线条色" },
             lineWeight: { type: "number", description: "线条粗细（磅）" },
             name: { type: "string", description: "给形状起稳定名字，便于后续按名定位" },
+            fontName: { type: "string", description: "kind=wordart 时的字体名" },
+            fontSize: { type: "number", description: "kind=wordart 时的字号（磅）" },
+            bold: { type: "boolean", description: "kind=wordart 时是否加粗" },
+            italic: { type: "boolean", description: "kind=wordart 时是否斜体" },
+            wordArtPreset: { type: "number", description: "kind=wordart 的艺术字预设编号（msoTextEffect），默认 0" },
             sheetName: { type: "string", description: "工作表名称" }
           },
           required: [],
@@ -1034,7 +1039,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_group_shapes",
-        description: "把若干形状**组合**成一个组（按 shapeNames 指定）。⚠️ **本机 Microsoft Excel 尚未打通**：宿主 API（addGroup）本身可用（任务窗格内置自检在新建且激活的表上能组合成功），但经本工具对已存在的表调用会报「当前对象不允许此操作」，已试过先激活目标表与单独 sync 均无效，**根因未定位**——请把失败当作真实失败，不要重试绕过。WPS 表格侧未实现该能力。",
+        description: "把若干形状**组合**成一个组（按 shapeNames 指定）。**WPS 表格可用且能读回成员数**（走 Shapes.Range([...]).Group()，已实测）；⚠️ Microsoft Excel 侧尚未打通：宿主 API 本身可用（任务窗格自检在新建且激活的表上能组合成功），但经本工具对已存在的表调用会报「当前对象不允许此操作」，根因未定位——请把失败当作真实失败，不要重试绕过。",
         parameters: {
           type: "object",
           properties: {
@@ -1051,11 +1056,12 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_ungroup_shapes",
-        description: "**解散分组**：把组内成员释放回工作表。⚠️ 依赖组合成功，而组合在本机经工具路径未打通（见 wps_group_shapes），因此本工具当前通常拿到「参数无效或缺少」——先确认组确实存在再调用。WPS 表格侧未实现该能力。",
+        description: "**解散分组**：把组内成员释放回工作表，返回释放后的形状名单与实际仍在表上的形状。仅对组合（Type=6）有效，传非组合会明确报错。WPS 表格可用；Microsoft Excel 侧依赖组合先成功（见 wps_group_shapes）。",
         parameters: {
           type: "object",
           properties: {
             shapeName: { type: "string", description: "要解散的组合名（组本身的名字）" },
+            name: { type: "string", description: "要解散的组合名（与 shapeName 等价，二选一）" },
             shapeId: { type: "string", description: "或用形状 id 定位" },
             sheetName: { type: "string", description: "工作表名称" }
           },
@@ -1073,6 +1079,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           type: "object",
           properties: {
             shapeName: { type: "string", description: "目标形状名" },
+            name: { type: "string", description: "目标形状名（与 shapeName 等价，二选一）" },
             shapeId: { type: "string", description: "或用形状 id 定位" },
             zOrder: { type: "string", enum: ["bringToFront", "sendToBack", "bringForward", "sendBackward"], description: "层级调整方式" },
             sheetName: { type: "string", description: "工作表名称" }
@@ -1097,6 +1104,52 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             sheetName: { type: "string", description: "工作表名称" }
           },
           required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_list_shapes",
+        description: "**读回工作表上的全部形状**——绘图能力的验收入口。默认 detail=true 返回每个形状的名字/类型/位置/尺寸/旋转/可见性/填充色/线条色线宽/文字/所在单元格，组合还带成员数。写完形状后用它核对是否真的画上去了。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            detail: { type: "boolean", description: "是否返回完整属性，默认 true；false 只返回名字" },
+            filterName: { type: "string", description: "只看某个名字的形状" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_update_shape",
+        description: "**修改已有形状**：位置/尺寸/旋转/填充色/线条色线宽/文字/可见性，改名，或 action='delete' 删除。写完返回**读回的真实状态**。按 name 或 shapeIndex（从 1 开始）定位。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "要修改的形状名（推荐）" },
+            shapeIndex: { type: "number", description: "或按序号定位，从 1 开始" },
+            action: { type: "string", enum: ["update", "delete"], description: "update（默认）或 delete" },
+            left: { type: "number", description: "左边缘（磅）" },
+            top: { type: "number", description: "上边缘（磅）" },
+            width: { type: "number", description: "宽度（磅）" },
+            height: { type: "number", description: "高度（磅）" },
+            rotation: { type: "number", description: "旋转角度（度）" },
+            fillColor: { type: "string", description: "填充色，如 '#2F6FEB'" },
+            lineColor: { type: "string", description: "线条色" },
+            lineWeight: { type: "number", description: "线条粗细（磅）" },
+            text: { type: "string", description: "形状内文字" },
+            visible: { type: "boolean", description: "是否可见" },
+            newName: { type: "string", description: "改名" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
           additionalProperties: false
         }
       }
