@@ -479,11 +479,24 @@ export class OfficeAddonInstaller {
       } catch (regErr: any) {
         appendServiceLog('AddonInstaller', `[Windows] 注册表写入异常: ${regErr.message}`);
       }
+      // ⚠️ 先移除历史遗留的**违规 CA**：
+      // 2026-09-23 之前的版本生成的是默认 `CA:TRUE`、且不带 keyUsage 的证书，
+      // 并被装进受信任根存储。那一张**能签发任意域名证书**，而它的私钥随包分发给了所有用户，
+      // 属于必须清除的共享信任锚。只按指纹精确删除，不做模糊匹配，避免误删用户自己的证书。
+      try {
+        const LEGACY_CA_SHA1 = '502cb216bbabfd96c10153de6c886dbd3047c46d';
+        execSync(`certutil -user -delstore "Root" "${LEGACY_CA_SHA1}"`, { stdio: 'ignore' });
+        appendServiceLog('AddonInstaller', '[Windows] 已清理历史遗留的 CA 证书（若存在）');
+      } catch {
+        // 不存在时 certutil 返回非零，属正常情况
+      }
       try {
         getOrGenerateCerts();
         const certPath = path.join(runtimeHome(), 'certs/localhost.crt');
         if (fs.existsSync(certPath)) {
-          appendServiceLog('AddonInstaller', `[Windows] 导入受信任根证书: ${certPath}`);
+          // 现在装入的是**叶证书**（CA:FALSE + keyUsage + EKU serverAuth，SAN 仅 localhost/127.0.0.1），
+          // 只能用于本机回环，不再具备签发其他站点证书的能力。
+          appendServiceLog('AddonInstaller', `[Windows] 导入受信任证书（叶证书）: ${certPath}`);
           execSync(`certutil -user -addstore "Root" "${certPath}"`, { stdio: 'ignore' });
           appendServiceLog('AddonInstaller', `[Windows] 证书导入完成`);
         }
