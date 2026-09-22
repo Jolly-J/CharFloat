@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 76ae602c5d766227516e320589d1ac94771634b3759c4b1687ceb03bdeac4b80
+// ADDON_BUILD_FINGERPRINT: 1b8c0ee4ecef489d0a46c6be44e051a8570a81f9167ed8f05cbe5ec60ea0500c
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "76ae602c5d766227516e320589d1ac94771634b3759c4b1687ceb03bdeac4b80";
+  var ADDON_BUILD_FINGERPRINT = "1b8c0ee4ecef489d0a46c6be44e051a8570a81f9167ed8f05cbe5ec60ea0500c";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -5639,7 +5639,21 @@ case "ppt_read_presentation":
     // 4. 事务性配置（一旦发生异常，自动自毁半成品 Shape，绝不在工作表留下空白废图！）
     try {
       const chart = shape.Chart;
-      const srcRange = sheet.Range(targetDataRange);
+      // ⚠️ 数据源**支持跨表**（ISS-120）：宿主拒绝把带表名的字符串交给 AddChart2
+      // （报 `Parameter type error source (arg 0)`），但 `chart.SetSourceData(跨表 Range 对象)`
+      // **确实可用**（真机实测：跨表拿到 2 个系列）。
+      // 所以这里把 `表名!A1:C3` 解析出来，从**那张表**取 Range 对象再传进去。
+      let srcSheet = sheet;
+      let srcAddr = String(targetDataRange);
+      const m = srcAddr.match(/^\s*(?:'([^']+)'|([^!]+))!\s*(.+)$/);
+      if (m) {
+        const otherName = (m[1] || m[2] || "").trim();
+        if (otherName) {
+          try { srcSheet = wb.Worksheets.Item(otherName); srcAddr = String(m[3]).trim(); }
+          catch (e) { warnings.push(`数据源表 "${otherName}" 不存在，已按当前表解析：${e.message}`); }
+        }
+      }
+      const srcRange = srcSheet.Range(srcAddr);
       chart.SetSourceData(srcRange);
 
       // 安全设置标题（防范 ChartTitle 空指针崩溃）

@@ -395,3 +395,30 @@ for (let i = 1; i <= wb.Names.Count; i++) if (String(wb.Names.Item(i).Name) === 
 
 **判据只有一条**：改完之后用脚本或读回工具**直接问宿主**，拿到真实值再比对。
 不一致就当作失败处理，不要因为 `success` 是 true 就往下走。
+
+### 6. 脚本里删工作表 / 覆盖保存会**弹模态框阻塞整个 WPS**
+
+用 `wps_execute_script` 直接写 `ws.Delete()` 或 `wb.SaveAs(已存在的路径)`，
+宿主会弹确认框；**没人点它就一直卡着**，之后所有工具调用全部无响应、超时。
+
+真机踩到两次：
+- `wb.SaveAs` 覆盖已存在文件 → 卡住（已在 `createWorkbook` 里修）
+- 脚本里 `ws.Delete()` 删临时表 → 连续弹框，把整轮验证打断
+
+**工具本身是对的**：`wps_delete_sheet` 的宿主实现里已经 `DisplayAlerts = false` 包住删除、
+并在 finally 里恢复。**踩坑的只有绕过工具、用脚本裸写的那条路。**
+
+正确做法：
+
+```js
+const prev = app.DisplayAlerts;
+try {
+  app.DisplayAlerts = false;
+  ws.Delete();            // 或 wb.SaveAs(path)
+} finally {
+  if (prev !== null) app.DisplayAlerts = prev;   // 一定要恢复，否则后续提示被静默吞掉
+}
+```
+
+**推论**：调试用的临时脚本要删表/覆盖保存时，要么走工具，要么自己关对话框；
+**别以为"只是一次临时调用"就不会卡住宿主。**

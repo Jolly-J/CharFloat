@@ -4166,7 +4166,21 @@
     // 4. 事务性配置（一旦发生异常，自动自毁半成品 Shape，绝不在工作表留下空白废图！）
     try {
       const chart = shape.Chart;
-      const srcRange = sheet.Range(targetDataRange);
+      // ⚠️ 数据源**支持跨表**（ISS-120）：宿主拒绝把带表名的字符串交给 AddChart2
+      // （报 `Parameter type error source (arg 0)`），但 `chart.SetSourceData(跨表 Range 对象)`
+      // **确实可用**（真机实测：跨表拿到 2 个系列）。
+      // 所以这里把 `表名!A1:C3` 解析出来，从**那张表**取 Range 对象再传进去。
+      let srcSheet = sheet;
+      let srcAddr = String(targetDataRange);
+      const m = srcAddr.match(/^\s*(?:'([^']+)'|([^!]+))!\s*(.+)$/);
+      if (m) {
+        const otherName = (m[1] || m[2] || "").trim();
+        if (otherName) {
+          try { srcSheet = wb.Worksheets.Item(otherName); srcAddr = String(m[3]).trim(); }
+          catch (e) { warnings.push(`数据源表 "${otherName}" 不存在，已按当前表解析：${e.message}`); }
+        }
+      }
+      const srcRange = srcSheet.Range(srcAddr);
       chart.SetSourceData(srcRange);
 
       // 安全设置标题（防范 ChartTitle 空指针崩溃）
