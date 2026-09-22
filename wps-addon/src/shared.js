@@ -181,6 +181,31 @@
     ppt: null
   };
 
+  /**
+   * ISS-126 残留目标锁的**自愈**。
+   *
+   * 场景：锁定的文档被关掉（或宿主重启）后，`lockedTargets.<组件>` 仍指向一个不存在的名字，
+   * 于是本会话**后续所有带锁工具全部失败**，而报错只说"未找到目标"，不指向"该重新锁目标"。
+   *
+   * 两条判据必须同时成立才自愈：
+   *   ① 目标名字在宿主里确实不存在；
+   *   ② 这个名字是**锁隐式生效**的，不是调用方显式传进来的。
+   *      —— 调用方显式传了错名字时**绝不改动他的锁**，只报错，否则会悄悄换掉他要操作的文档。
+   *
+   * 返回 true 表示"已自愈，调用方继续走活动文档分支"。
+   */
+  function healStaleLock(component, targetName, explicitlyPassed, openList) {
+    if (explicitlyPassed) return false;          // 调用方显式传名：不碰锁
+    if (targetName !== lockedTargets[component]) return false;
+    lockedTargets[component] = null;             // 锁失效 → 清掉，避免后续调用继续撞墙
+    try {
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn(`[Bridge] 目标锁 [${component}=${targetName}] 指向的文档已不存在（当前打开: ${openList.join(", ") || "无"}），已自动解除该锁并回退到活动文档。`);
+      }
+    } catch (e) {}
+    return true;
+  }
+
   function getWordDocument(app, docName) {
     const wordApp = getWordApp() || getWpsApp() || app || (typeof Application !== "undefined" ? Application : null);
     if (!wordApp) throw new Error("WPS 文字 (Word) 未就绪或未打开任何文档");
@@ -202,7 +227,9 @@
       try {
         for (let i = 1; i <= wordApp.Documents.Count; i++) openList.push(wordApp.Documents.Item(i).Name);
       } catch (e) {}
-      throw new Error(`未在 WPS 中找到目标 Word 文档 [${targetName}]。当前已打开: ${openList.join(", ") || "无"}`);
+      if (!healStaleLock("word", targetName, !!docName, openList)) {
+        throw new Error(`未在 WPS 中找到目标 Word 文档 [${targetName}]。当前已打开: ${openList.join(", ") || "无"}`);
+      }
     }
 
     if (wordApp.Documents && wordApp.Documents.Count === 1) {
@@ -237,7 +264,9 @@
       try {
         for (let i = 1; i <= pptApp.Presentations.Count; i++) openList.push(pptApp.Presentations.Item(i).Name);
       } catch (e) {}
-      throw new Error(`未在 WPS 中找到目标演示文稿 [${targetName}]。当前已打开: ${openList.join(", ") || "无"}`);
+      if (!healStaleLock("ppt", targetName, !!presName, openList)) {
+        throw new Error(`未在 WPS 中找到目标演示文稿 [${targetName}]。当前已打开: ${openList.join(", ") || "无"}`);
+      }
     }
 
     if (pptApp.Presentations && pptApp.Presentations.Count === 1) {
@@ -275,7 +304,10 @@
       try {
         for (let i = 1; i <= excelApp.Workbooks.Count; i++) openList.push(excelApp.Workbooks.Item(i).Name);
       } catch (e) {}
-      throw new Error(`未在 WPS 中找到目标工作簿 [${targetName}]。当前已打开: ${openList.join(", ") || "无"}`);
+      // ISS-126：锁隐式生效且目标已不存在 → 自愈（清锁 + 回退活动工作簿）
+      if (!healStaleLock("excel", targetName, !!workbookName, openList)) {
+        throw new Error(`未在 WPS 中找到目标工作簿 [${targetName}]。当前已打开: ${openList.join(", ") || "无"}`);
+      }
     }
 
     if (excelApp.Workbooks && excelApp.Workbooks.Count === 1) {
