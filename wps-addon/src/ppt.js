@@ -433,6 +433,149 @@
   }
 
   // 幻灯片页码校验：宿主对越界页码会抛内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），
+  // ── CAP-09 页面尺寸 / 母版版式 / 批量导出
+  //
+  // 真机探测确认（WPS 12.1.28496）：`pres.PageSetup` 上 SlideWidth / SlideHeight /
+  // SlideSize / SlideOrientation 都**可读可写**；`pres.SlideMaster.CustomLayouts.Count` 可读；
+  // `pres.ApplyTemplate(路径)` 可用。
+  //
+  // 为什么需要：此前 PPT 侧**完全没有页面设置能力**——改不了 4:3↔16:9，
+  // 也没法把公司母版套上去，只能靠脚本手写。
+
+  /** 常用页面尺寸预设（磅）。16:9=960x540，4:3=720x540，A4 横向=842x595。 */
+  const SLIDE_PRESETS = {
+    "16:9": { width: 960, height: 540 },
+    "16_9": { width: 960, height: 540 },
+    "169": { width: 960, height: 540 },
+    widescreen: { width: 960, height: 540 },
+    "4:3": { width: 720, height: 540 },
+    "4_3": { width: 720, height: 540 },
+    "43": { width: 720, height: 540 },
+    standard: { width: 720, height: 540 },
+    "a4": { width: 842, height: 595 },
+    "a4_landscape": { width: 842, height: 595 },
+    "a4_portrait": { width: 595, height: 842 }
+  };
+
+  /**
+   * 读写演示文稿的**页面尺寸与母版版式**。
+   * `action: "read"` 只读回现状；默认 `"apply"` 先写后**逐项读回核对**。
+   */
+  function configureSlideLayout(app, params) {
+    const { presentationName, action = "apply", preset, slideWidth, slideHeight,
+            orientation, templatePath, layoutName, layoutIndex } = params || {};
+    const p = getPptPresentation(app, presentationName);
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+
+    const snapshot = () => ({
+      slideWidth: g(() => Math.round(Number(p.PageSetup.SlideWidth) * 100) / 100, null),
+      slideHeight: g(() => Math.round(Number(p.PageSetup.SlideHeight) * 100) / 100, null),
+      slideSize: g(() => Number(p.PageSetup.SlideSize), null),
+      slideOrientation: g(() => Number(p.PageSetup.SlideOrientation), null),
+      designCount: g(() => Number(p.Designs.Count), null),
+      layoutCount: g(() => Number(p.SlideMaster.CustomLayouts.Count), null),
+      layoutNames: g(() => {
+        const out = []; const n = Number(p.SlideMaster.CustomLayouts.Count);
+        for (let i = 1; i <= n; i++) { try { out.push(String(p.SlideMaster.CustomLayouts.Item(i).Name)); } catch (e) {} }
+        return out;
+      }, []),
+      slideCount: g(() => Number(p.Slides.Count), null)
+    });
+
+    // 版式清单（单独一个动作，方便先看再套）
+    if (action === "list_layouts") {
+      const names = snapshot().layoutNames;
+      return { success: true, presentationName: p.Name, layoutCount: names.length, layouts: names, warnings: [],
+        message: `演示文稿 [${p.Name}] 母版共有 ${names.length} 个版式：${names.slice(0, 8).join(" / ")}${names.length > 8 ? " …" : ""}` };
+    }
+
+    if (action === "read") {
+      const s = snapshot();
+      return { success: true, presentationName: p.Name, ...s, warnings: [],
+        message: `演示文稿 [${p.Name}] 页面 ${s.slideWidth}×${s.slideHeight} 磅，${s.slideCount} 页，母版 ${s.layoutCount} 个版式` };
+    }
+
+    const warnings = [];
+    const applied = {};
+    const before = snapshot();
+
+    // 1. 套母版/模板（先套，再改尺寸——套模板会重置页面尺寸）
+    if (templatePath) {
+      try { p.ApplyTemplate(String(templatePath)); applied.templatePath = String(templatePath); }
+      catch (e) { warnings.push(`套用模板失败: ${e.message}`); }
+    }
+
+    // 2. 页面尺寸：preset 优先，其次显式宽高
+    let targetW = null, targetH = null;
+    if (preset !== undefined && preset !== null && String(preset) !== "") {
+      const key = String(preset).toLowerCase().replace(/\s/g, "");
+      const found = SLIDE_PRESETS[key];
+      if (!found) warnings.push(`不认识的 preset: ${preset}（可用 16:9 / 4:3 / a4 / a4_portrait，或直接传 slideWidth+slideHeight）`);
+      else { targetW = found.width; targetH = found.height; }
+    }
+    if (Number.isFinite(Number(slideWidth))) targetW = Number(slideWidth);
+    if (Number.isFinite(Number(slideHeight))) targetH = Number(slideHeight);
+    if (targetW !== null) { try { p.PageSetup.SlideWidth = targetW; applied.slideWidth = targetW; } catch (e) { warnings.push(`设置页宽失败: ${e.message}`); } }
+    if (targetH !== null) { try { p.PageSetup.SlideHeight = targetH; applied.slideHeight = targetH; } catch (e) { warnings.push(`设置页高失败: ${e.message}`); } }
+
+    // 3. 方向：1=横向 2=纵向（msoOrientation）
+    if (orientation !== undefined && orientation !== null && orientation !== "") {
+      const ORI = { landscape: 1, portrait: 2, 横向: 1, 纵向: 2 };
+      const code = typeof orientation === "number" ? orientation : ORI[String(orientation).toLowerCase()];
+      if (code === undefined) warnings.push(`不认识的 orientation: ${orientation}（可用 landscape / portrait）`);
+      else { try { p.PageSetup.SlideOrientation = code; applied.slideOrientation = code; } catch (e) { warnings.push(`设置页面方向失败: ${e.message}`); } }
+    }
+
+    // 4. 给指定页套版式（CustomLayouts）
+    if (layoutName || Number.isFinite(Number(layoutIndex))) {
+      try {
+        const layouts = p.SlideMaster.CustomLayouts;
+        let layout = null;
+        if (Number.isFinite(Number(layoutIndex))) {
+          const idx = Number(layoutIndex);
+          if (idx < 1 || idx > Number(layouts.Count)) throw new Error(`版式序号 ${idx} 越界（共 ${layouts.Count} 个）`);
+          layout = layouts.Item(idx);
+        } else {
+          for (let i = 1; i <= Number(layouts.Count); i++) {
+            if (String(layouts.Item(i).Name) === String(layoutName)) { layout = layouts.Item(i); break; }
+          }
+          if (!layout) throw new Error(`找不到名为 "${layoutName}" 的版式`);
+        }
+        // 套到所有页（PPT 的 CustomLayout 归属只读，这里按"应用到每一页"实现）
+        const appliedPages = [];
+        for (let i = 1; i <= Number(p.Slides.Count); i++) {
+          try { p.Slides.Item(i).CustomLayout = layout; appliedPages.push(i); } catch (e) {}
+        }
+        applied.layout = { name: g(() => String(layout.Name), null), appliedPages: appliedPages.length };
+        if (!appliedPages.length) warnings.push("版式对象已找到，但没有页面成功套用（宿主可能限制逐页改版式）");
+      } catch (e) { warnings.push(`套用版式失败: ${e.message}`); }
+    }
+
+    // ── 读回核对：写没写进去必须能验证（本仓库的通用规矩）
+    const after = snapshot();
+    if (applied.slideWidth !== undefined && after.slideWidth !== applied.slideWidth) {
+      warnings.push(`页宽未生效：请求 ${applied.slideWidth}，宿主读回 ${after.slideWidth}`);
+    }
+    if (applied.slideHeight !== undefined && after.slideHeight !== applied.slideHeight) {
+      warnings.push(`页高未生效：请求 ${applied.slideHeight}，宿主读回 ${after.slideHeight}`);
+    }
+    if (applied.slideOrientation !== undefined && after.slideOrientation !== applied.slideOrientation) {
+      warnings.push(`页面方向未生效：请求 ${applied.slideOrientation}，宿主读回 ${after.slideOrientation}`);
+    }
+
+    const changed = ["slideWidth", "slideHeight", "slideOrientation", "templatePath", "layout"]
+      .filter(k => applied[k] !== undefined);
+    return {
+      success: warnings.length === 0,
+      presentationName: p.Name,
+      action: "apply",
+      applied,
+      before, after,
+      warnings,
+      message: `演示文稿 [${p.Name}] 页面 ${after.slideWidth}×${after.slideHeight} 磅（改动 ${changed.length} 项）${warnings.length ? `，${warnings.length} 条告警` : ""}`
+    };
+  }
+
   // 调用方看不出是哪一页越界（问题台账 ISS-79）。这里统一前置校验并给中文上下文。
   function pptRequireSlideIndex(pres, slideIndex, actionLabel) {
     const total = pres.Slides.Count;

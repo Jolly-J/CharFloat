@@ -235,7 +235,10 @@
           break;
 
         // PowerPoint (演示) RPC 分发
-        case "ppt_read_presentation":
+                case "configure_slide_layout":
+          result = configureSlideLayout(app, params);
+          break;
+case "ppt_read_presentation":
           result = pptReadPresentation(app, params);
           break;
         case "ppt_get_slide_shapes":

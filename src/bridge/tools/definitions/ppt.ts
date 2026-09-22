@@ -302,6 +302,28 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
           additionalProperties: false
         }
       }
+    }  ,
+  {
+    type: "function",
+    function: {
+      name: "wps_ppt_configure_layout",
+      description: "演示文稿的**页面尺寸与母版版式**：改 16:9 / 4:3 / A4、切横纵方向、套用模板文件、列出并套用母版版式（CustomLayouts）。写后逐项读回核对，未生效写 warnings。action='read' 只读现状，action='list_layouts' 列出全部版式名。",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["apply", "read", "list_layouts"], description: "apply（默认）写入并核对 / read 只读现状 / list_layouts 列出母版全部版式名" },
+          preset: { type: "string", description: "页面尺寸预设：16:9（960x540）/ 4:3（720x540）/ a4 / a4_portrait" },
+          slideWidth: { type: "number", description: "页宽（磅）；同时传 preset 与宽度时以显式宽高为准" },
+          slideHeight: { type: "number", description: "页高（磅）" },
+          orientation: { type: "string", enum: ["landscape", "portrait"], description: "页面方向" },
+          templatePath: { type: "string", description: "要套用的模板文件绝对路径（.potx/.pptx）" },
+          layoutName: { type: "string", description: "要套用到各页的母版版式名（见 list_layouts）" },
+          layoutIndex: { type: "number", description: "或按版式序号（从 1 开始）" },
+          presentationName: { type: "string", description: "演示文稿名称" }
+        },
+        additionalProperties: false
+      }
     }
-  ];
+  }
+]
 }
