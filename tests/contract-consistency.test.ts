@@ -207,6 +207,52 @@ test('只读标注与重放安全性与契约层同源', () => {
   }
 });
 
+/**
+ * 解析 Windows 原生通道 `resources/office/excel.ps1` 的**真实分支**（宿主侧实现）。
+ *
+ * 覆盖两种写法：前置 `if($method -eq 'x')` 与 `switch($method)` 标签
+ * （`'x' {` 与 `{$_ -in @('a','b')} {`）。
+ */
+function comExcelMethods(): Set<string> {
+  const src = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'resources', 'office', 'excel.ps1'), 'utf8');
+  const start = src.indexOf('function Invoke-ExcelTool');
+  const end = src.indexOf('function Select-ExcelCharts');
+  const body = start >= 0 && end > start ? src.slice(start, end) : '';
+  const out = new Set<string>();
+  for (const m of body.matchAll(/if\(\$method\s+-eq\s+'([a-z_0-9]+)'\)/g)) out.add(m[1]);
+  for (const m of body.matchAll(/^ {4}\{\$_ -in @\(([^)]*)\)\}/gm)) {
+    for (const n of m[1].matchAll(/'([a-z_0-9]+)'/g)) out.add(n[1]);
+  }
+  for (const m of body.matchAll(/^ {4}'([a-z_0-9]+)' \{/gm)) out.add(m[1]);
+  return out;
+}
+
+test('CAP-51：COM 回退白名单与 excel.ps1 实际分支同源（不是整张路由表）', () => {
+  // 关键：这里解析的是**原生脚本真实分支**，删掉某个 `case` 时本项必须失败；
+  // 同源清单互相比对做不到这一点（ISS-97 就是这样漏掉的：手写缺口清单只在路由表 30 项时成立，
+  // 路由表涨到 50 项后 `EXCEL_METHODS - ['update_chart','save_workbook']` = 48 项，
+  // 其中 20 项在脚本里没有分支，回退判定仍是过度声明）。
+  const implemented = comExcelMethods();
+  // 防"解析器失效 → 空集 → 空跑通过"：excel.ps1 当前有 28 个方法名（含 3 个别名分支）。
+  assert.ok(implemented.size >= 20, `未解析到 excel.ps1 分支（只解析到 ${implemented.size} 个），解析器已失效，本项不得空跑通过`);
+
+  assert.deepEqual([...contracts.COM_IMPLEMENTED_METHODS].sort(), [...implemented].sort(),
+    'COM 实现集与 excel.ps1 实际分支不一致：改了脚本（或清单）必须同步另一侧');
+
+  const expected = EXCEL_METHODS.filter(m => implemented.has(m));
+  assert.deepEqual([...contracts.COM_EXCEL_METHODS].sort(), [...expected].sort(),
+    'COM 回退白名单必须等于「路由表 ∩ excel.ps1 实际实现」');
+  assert.equal(contracts.COM_EXCEL_METHODS.length, 28,
+    'COM 白名单当前为 28/50（真实覆盖）；有意扩展脚本分支时按此格式写明理由再改数值');
+  assert.equal(contracts.COM_EXCEL_METHODS.includes('update_chart' as any), false,
+    'update_chart 在 excel.ps1 里没有分支，不得算作"可回退"（回退只会抛 Unsupported Excel method）');
+  assert.equal(contracts.COM_EXCEL_METHODS.includes('save_workbook' as any), false,
+    'save_workbook 连 case 都不存在，不得算作"可回退"');
+  assert.deepEqual([...contracts.COM_IMPLEMENTATION_GAPS],
+    EXCEL_METHODS.filter(m => !implemented.has(m)),
+    'COM 缺口清单必须由实际实现集派生，不能是第二份手写清单');
+});
+
 test('审计归属：clientName 真正落到审计记录', async () => {
   const original = bridgeServer.callWps;
   (bridgeServer as any).callWps = async (method: string) => ({

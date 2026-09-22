@@ -153,7 +153,8 @@ export const manageShapesAndMedia: Handler = async (ctx) => {
 
 export const captureSlidePreview: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    const outputPath = previewPath('png');
+    // schema 声明了 outputPath，就该真的用它——否则调用方传了也不生效（check:params 会抓这种）
+    const outputPath = args?.outputPath || previewPath('png');
     const res: any = await callOffice("ppt_capture_slide_preview", { presentationName: args?.presentationName, slideIndex: args?.slideIndex, outputPath });
     // ISS-105/76/86：原来这里用 `res?.error || 'PPT 未生成预览'` 兜底，把宿主回传的真实错误
     // （`hostError` / 两次导出尝试的失败原因）盖成一句无信息量的话，调用方无从排查。
@@ -177,4 +178,21 @@ export const captureSlidePreview: Handler = async (ctx) => {
       );
     }
     return { ...res, imageBase64: fs.readFileSync(outputPath).toString('base64'), imageMimeType: 'image/png' };
+};
+
+/** CAP-09 页面尺寸与母版版式。宿主 `PageSetup.SlideWidth/Height` 可读写；
+ *  写后逐项读回核对，未生效写 warnings。 */
+export const configureSlideLayout: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("configure_slide_layout", {
+    presentationName: args?.presentationName,
+    action: args?.action,
+    preset: args?.preset,
+    slideWidth: args?.slideWidth,
+    slideHeight: args?.slideHeight,
+    orientation: args?.orientation,
+    templatePath: args?.templatePath,
+    layoutName: args?.layoutName,
+    layoutIndex: args?.layoutIndex
+  });
 };

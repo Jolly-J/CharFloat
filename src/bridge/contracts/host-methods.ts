@@ -53,19 +53,43 @@ export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
 };
 
 /**
- * Windows 原生 COM 通道（`resources/office/excel.ps1`）**实际实现**的方法缺口。
+ * Windows 原生 COM 通道（`resources/office/excel.ps1`）**实际实现**的方法集。
  *
- * ISS-97：`office/adapter.ts` 曾把整张 `EXCEL_METHODS`(30) 当作 COM 回退白名单，
- * 而 COM 只覆盖 28/30 —— `update_chart` 与 `save_workbook` 在 `excel.ps1` 的
- * `switch($method)` 里没有分支（`save_workbook` 连 case 都不存在），
- * 于是这两个方法会被判为"可回退"，回退后却抛 `Unsupported Excel method`，
- * 白名单成了过度声明。这里按实际覆盖生成，回退判定只认这张表。
+ * ISS-97 / CAP-51：这里曾经是一份**手写缺口清单**（`['update_chart','save_workbook']`），
+ * 它只在路由表还是 30 项时成立；路由表涨到 50 项后仍按它做减法，
+ * `COM_EXCEL_METHODS` 变成 48 项 —— 其中 20 项在 `excel.ps1` 里**根本没有分支**，
+ * 回退判定会说"可以回退"，回退后却抛 `Unsupported Excel method`，白名单再次过度声明。
+ *
+ * 修法：把**实际实现集**作为唯一事实来源，白名单与缺口都从它派生（不再维护第二份手写清单）。
+ * 本清单逐项对应 `excel.ps1` 的 `Invoke-ExcelTool`：前置 `if($method -eq ...)` 两个分支
+ * （`get_workspace_summary` / `create_sheet`）＋ `switch($method)` 的 23 个标签
+ * （含 `{$_ -in @(...)}` 形式的多别名分支）。
+ * 漂移由 `tests/contract-consistency.test.ts` 的「COM 回退白名单与实际脚本同源」守住：
+ * 该测试**解析 excel.ps1 真实分支**再与这里比对，不是同源清单互相比对。
  */
-export const COM_IMPLEMENTATION_GAPS: readonly string[] = ['update_chart', 'save_workbook'];
+export const COM_IMPLEMENTED_METHODS: readonly string[] = [
+  'get_workspace_summary', 'create_sheet',
+  'get_sheet_outline', 'read_range', 'get_range_styles', 'patch_cells', 'rollback_cells', 'clear_range',
+  'delete_sheet', 'duplicate_sheet', 'format_cells', 'auto_fit_columns', 'freeze_panes',
+  'modify_rows_columns', 'manage_rows_and_columns', 'insert_dimension', 'manage_sheet',
+  'search_cells', 'find_and_replace', 'set_filter_and_sort', 'set_data_validation',
+  'add_conditional_formatting', 'manage_cell_comments', 'create_pivot_table',
+  'get_charts', 'delete_chart', 'add_chart', 'capture_sheet_preview'
+];
 
-/** COM 通道真实可执行的方法集（按实际实现生成，不是整张路由表）。 */
+/** COM 通道真实可执行的方法集（路由表 ∩ 实际实现，28/50）。回退判定只认这张表。 */
 export const COM_EXCEL_METHODS: readonly string[] = EXCEL_METHODS.filter(
-  method => !COM_IMPLEMENTATION_GAPS.includes(method)
+  method => COM_IMPLEMENTED_METHODS.includes(method)
+);
+
+/**
+ * 路由表里声明了、但 COM 通道**没有实现**的方法（由 {@link COM_IMPLEMENTED_METHODS} 派生）。
+ *
+ * 这些方法在 Office.js 通道失败后**不得回退**原生通道：回退只会拿到 `Unsupported Excel method`，
+ * 而回退本身还可能把失败种类改写（尤其不能把 unknown 写成"未执行"）。
+ */
+export const COM_IMPLEMENTATION_GAPS: readonly string[] = EXCEL_METHODS.filter(
+  method => !COM_IMPLEMENTED_METHODS.includes(method)
 );
 
 /**

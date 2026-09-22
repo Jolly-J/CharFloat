@@ -127,6 +127,7 @@ const HANDLERS: Record<string, Handler> = {
   "wps_word_manage_content_controls": word.manageContentControls,
 
   // ---- PowerPoint（演示） ----
+  "wps_ppt_configure_layout": ppt.configureSlideLayout,
   "wps_ppt_read_presentation": ppt.readPresentation,
   "wps_ppt_get_slide_shapes": ppt.getSlideShapes,
   "wps_ppt_generate_deck": ppt.generateDeck,

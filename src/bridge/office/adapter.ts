@@ -15,9 +15,12 @@ const queues = new Map<string, Promise<unknown>>();
  * 判定集中在 errors.routeOfficeFailure：只有确认前一通道未执行，或该方法不修改文档时才回退；
  * 写入类方法在超时、断连、宿主报错时一律拒绝回退并要求先读回，避免跨通道重复写入。
  *
- * 白名单用 `COM_EXCEL_METHODS`（按 COM 真实覆盖生成，28/30），不再用整张路由表：
- * 整张 `EXCEL_METHODS` 会把 `update_chart` / `save_workbook` 也说成"可回退"，
- * 回退后却抛 `Unsupported Excel method`（ISS-97）。
+ * 白名单用 `COM_EXCEL_METHODS`（按 `resources/office/excel.ps1` 的**实际分支**生成，28/50），
+ * 不再用整张路由表：路由表里只有 28 个方法在 COM 脚本里有分支，其余（`update_chart`、
+ * `save_workbook`、`set_sheet_view`、形状系列等 22 项）回退后只会抛
+ * `Unsupported Excel method`，把它们算作"可回退"就是过度声明（ISS-97 / CAP-51）。
+ * 覆盖集与漂移由 `contracts/host-methods.ts` 的 `COM_IMPLEMENTED_METHODS` +
+ * `tests/contract-consistency.test.ts` 的同源守卫保证；处理器实际覆盖见 `COM_IMPLEMENTED_METHODS`。
  */
 function fallbackToNative<T>(method: string, params: ChannelParams, failure: BridgeError): Promise<T> | never {
   const route = routeOfficeFailure(method, failure, { platform: process.platform, supportedMethods: COM_EXCEL_METHODS });
