@@ -768,3 +768,66 @@ export const captureSheetPreview: Handler = async (ctx) => {
       message: `已成功生成 [${res.sheetName}] 区域 ${res.address} 的高保真渲染图（大小: ${(imageSize / 1024).toFixed(1)} KB）`
     };
 };
+
+/** CAP-01 打印与分页设置。字段逐个转发（漏一个就等于该参数静默无效）。 */
+export const configurePrintLayout: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("configure_print_layout", {
+      sheetName: args?.sheetName,
+      workbookName: args?.workbookName,
+      action: args?.action || "apply",
+      printArea: args?.printArea,
+      printTitleRows: args?.printTitleRows,
+      printTitleColumns: args?.printTitleColumns,
+      orientation: args?.orientation,
+      paperSize: args?.paperSize,
+      zoom: args?.zoom,
+      fitToPagesWide: args?.fitToPagesWide,
+      fitToPagesTall: args?.fitToPagesTall,
+      centerHorizontally: args?.centerHorizontally,
+      centerVertically: args?.centerVertically,
+      printGridlines: args?.printGridlines,
+      leftMargin: args?.leftMargin,
+      rightMargin: args?.rightMargin,
+      topMargin: args?.topMargin,
+      bottomMargin: args?.bottomMargin,
+      headerMargin: args?.headerMargin,
+      footerMargin: args?.footerMargin,
+      centerHeader: args?.centerHeader,
+      leftHeader: args?.leftHeader,
+      rightHeader: args?.rightHeader,
+      centerFooter: args?.centerFooter,
+      leftFooter: args?.leftFooter,
+      rightFooter: args?.rightFooter,
+      clearPrintArea: args?.clearPrintArea,
+      addHorizontalPageBreak: args?.addHorizontalPageBreak,
+      addVerticalPageBreak: args?.addVerticalPageBreak,
+      clearPageBreaks: args?.clearPageBreaks
+    });
+};
+
+/** CAP-02 导出 PDF。输出路径由桥接生成（必须是**宿主可写**目录），落盘由桥接侧校验。 */
+export const exportSheetPdf: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    const outputPath = previewPath("pdf");
+    const res: any = await callOffice("export_sheet_pdf", {
+      sheetName: args?.sheetName,
+      workbookName: args?.workbookName,
+      outputPath,
+      scope: args?.scope || "workbook",
+      quality: args?.quality || "standard"
+    });
+    if (!res?.success) throw new Error(`导出 PDF 失败：${res?.hostError || res?.error || "宿主未给出原因"}`);
+    // 加载项没有文件系统访问：**落盘校验只能在桥接侧做**。
+    // Word 预览的教训（ISS-111）：宿主返回成功但文件可能根本没写出。
+    const { existsSync, statSync } = await import("node:fs");
+    if (!existsSync(outputPath)) {
+      throw new Error(
+        `导出 PDF 未落盘：宿主接受了请求，但 ${outputPath} 不存在。` +
+        `请确认输出目录是宿主可写位置（WPS 为沙箱应用）。宿主返回：${JSON.stringify(res).slice(0, 200)}`
+      );
+    }
+    const size = statSync(outputPath).size;
+    if (size === 0) throw new Error(`导出 PDF 落盘但为空文件：${outputPath}`);
+    return { ...res, outputPath, verifiedOnDisk: true, fileSizeBytes: size, message: `已导出 PDF 并确认落盘（${size} 字节）：${outputPath}` };
+};

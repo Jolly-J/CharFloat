@@ -48,7 +48,8 @@
           startColumn: 1,
           rowCount: 0,
           columnCount: 0,
-          headerPreview: []
+          headerPreview: ["DIAG:" + JSON.stringify(DIAG)],
+          diag: DIAG
         };
       }
 

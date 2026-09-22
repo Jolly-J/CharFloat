@@ -66,6 +66,8 @@ const HANDLERS: Record<string, Handler> = {
   "wps_delete_sheet": excel.deleteSheet,
   "wps_get_style_token": excel.getStyleToken,
   "wps_format_text_segment": excel.formatTextSegment,
+  "wps_configure_print_layout": excel.configurePrintLayout,
+  "wps_export_sheet_pdf": excel.exportSheetPdf,
   "wps_clear_range": excel.clearRange,
   "wps_auto_fit_columns": excel.autoFitColumns,
   "wps_read_range": excel.readRange,

@@ -936,6 +936,66 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_configure_print_layout",
+        description: "**打印与分页设置**：打印区域、重复打印的标题行列、纸张、横竖向、缩放/适配页数、居中、网格线、页边距、页眉页脚（居中/左/右），以及手动分页符的增删。action='read' 只读回当前设置；默认 apply 先写后**逐项读回核对**（打印区域写错会直接报错）。做「可直接打印装订」的报表必用。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）先写后读回核对；read 只读回当前设置" },
+            printArea: { type: "string", description: "打印区域，如 'A1:F40'；传空串或配合 clearPrintArea 清除" },
+            printTitleRows: { type: "string", description: "每页重复的标题行，如 '$1:$2'（多页表格的必备项）" },
+            printTitleColumns: { type: "string", description: "每页重复的标题列，如 '$A:$B'" },
+            clearPrintArea: { type: "boolean", description: "清除打印区域与打印标题" },
+            orientation: { type: "string", enum: ["portrait", "landscape"], description: "纸张方向：纵向/横向" },
+            paperSize: { type: "string", enum: ["a4", "a3", "letter", "legal", "b5"], description: "纸张大小" },
+            zoom: { type: "number", description: "缩放百分比（10-400）；与 fitToPages 互斥" },
+            fitToPagesWide: { type: "number", description: "横向压缩到几页宽（1 = 一页宽）" },
+            fitToPagesTall: { type: "number", description: "纵向压缩到几页高" },
+            centerHorizontally: { type: "boolean", description: "水平居中" },
+            centerVertically: { type: "boolean", description: "垂直居中" },
+            printGridlines: { type: "boolean", description: "打印网格线" },
+            leftMargin: { type: "number", description: "左边距（磅）" },
+            rightMargin: { type: "number", description: "右边距（磅）" },
+            topMargin: { type: "number", description: "上边距（磅）" },
+            bottomMargin: { type: "number", description: "下边距（磅）" },
+            headerMargin: { type: "number", description: "页眉边距（磅）" },
+            footerMargin: { type: "number", description: "页脚边距（磅）" },
+            centerHeader: { type: "string", description: "居中页眉文本" },
+            leftHeader: { type: "string", description: "左页眉文本" },
+            rightHeader: { type: "string", description: "右页眉文本" },
+            centerFooter: { type: "string", description: "居中页脚文本" },
+            leftFooter: { type: "string", description: "左页脚文本" },
+            rightFooter: { type: "string", description: "右页脚文本" },
+            addHorizontalPageBreak: { type: "number", description: "在第几行**之前**插入水平分页符" },
+            addVerticalPageBreak: { type: "number", description: "在第几列**之前**插入垂直分页符（传列号数字）" },
+            clearPageBreaks: { type: "boolean", description: "清除全部手动分页符" },
+            sheetName: { type: "string", description: "工作表名称" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_export_sheet_pdf",
+        description: "**导出为 PDF**：scope='workbook' 导整个工作簿，'sheet' 只导指定工作表。返回 outputPath 与**落盘校验结果**（桥接侧用 existsSync 确认文件真的写出，宿主返回成功不代表写出）。交付链路的最后一步——生成 xlsx 之后直接出可发送的 PDF。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            scope: { type: "string", enum: ["workbook", "sheet"], description: "导出范围：整个工作簿（默认）或单个工作表" },
+            quality: { type: "string", enum: ["standard", "minimum"], description: "导出质量，默认 standard" },
+            sheetName: { type: "string", description: "scope='sheet' 时要导出的工作表名" },
+            workbookName: { type: "string", description: ctx.wbDesc }
+          },
+          additionalProperties: false
+        }
+      }
     }
   ];
 }
