@@ -292,6 +292,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
         parameters: {
           type: "object",
           properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入；read 只读回页眉页脚与水印现状" },
             documentName: { type: "string", description: "目标文档名称" },
             headerText: { type: "string", description: "页眉文本内容（覆盖各节原有页眉文本，会清掉页眉里已有的域）" },
             footerText: { type: "string", description: "页脚文本内容；同时传 pageNumberFormat 时会被页码域覆盖" },

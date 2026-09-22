@@ -1259,6 +1259,56 @@
     const warnings = [];
     const sectionCount = doc.Sections.Count;
 
+    // CAP-35 页眉页脚与水印读回：此前只能写不能读，AI 无法确认
+    // "现在页眉里是什么""有没有水印"，也无法在改写前先看现状。
+    if ((params || {}).action === "read") {
+      const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+      const readHF = (hf) => ({
+        exists: g(() => Boolean(hf.Exists), null),
+        text: g(() => String(hf.Range.Text).replace(/[\r\n\x07]+$/, ""), ""),
+        linkToPrevious: g(() => Boolean(hf.LinkToPrevious), null)
+      });
+      const sections = [];
+      for (let i = 1; i <= sectionCount; i++) {
+        const sec = doc.Sections.Item(i);
+        sections.push({
+          index: i,
+          header: readHF(sec.Headers.Item(1)),          // wdHeaderFooterPrimary
+          footer: readHF(sec.Footers.Item(1)),
+          firstPageHeader: g(() => readHF(sec.Headers.Item(2)), null),   // wdHeaderFooterFirstPage
+          firstPageFooter: g(() => readHF(sec.Footers.Item(2)), null),
+          evenPagesHeader: g(() => readHF(sec.Headers.Item(3)), null),   // wdHeaderFooterEvenPages
+          evenPagesFooter: g(() => readHF(sec.Footers.Item(3)), null)
+        });
+      }
+      // 水印：WPS/Word 里是页眉中的 WordArt 形状，从 Header.Shapes 里找
+      let watermark = null;
+      try {
+        const shapes = doc.Sections.Item(1).Headers.Item(1).Shapes;
+        const n = Number(shapes.Count);
+        for (let i = 1; i <= n; i++) {
+          const sh = shapes.Item(i);
+          const nm = String(g(() => sh.Name, ""));
+          const txt = String(g(() => sh.TextEffect.Text, "") || g(() => sh.TextFrame.TextRange.Text, ""));
+          if (nm.indexOf("WordArt") >= 0 || nm.indexOf("水印") >= 0 || txt) {
+            watermark = { name: nm, text: txt, type: String(g(() => sh.Type, "")) };
+            break;
+          }
+        }
+      } catch (e) {}
+      return {
+        success: true,
+        documentName: doc.Name,
+        sectionCount,
+        differentFirstPage: g(() => Boolean(doc.PageSetup.DifferentFirstPageHeaderFooter), null),
+        differentOddEvenPages: g(() => Boolean(doc.PageSetup.OddAndEvenPagesHeaderFooter), null),
+        sections,
+        watermark,
+        warnings,
+        message: `文档 [${doc.Name}] 共 ${sectionCount} 节；第 1 节页眉「${String(sections[0]?.header?.text || "").slice(0, 30)}」页脚「${String(sections[0]?.footer?.text || "").slice(0, 30)}」；水印 ${watermark ? `「${watermark.text}」` : "无"}`
+      };
+    }
+
     if (headerText === undefined && footerText === undefined && pageNumberFormat === undefined && watermarkText === undefined &&
         differentFirstPage === undefined && differentOddEvenPages === undefined) {
       throw new Error("headerText / footerText / pageNumberFormat / watermarkText / differentFirstPage / differentOddEvenPages 至少传一项，否则本调用不产生任何变化");

@@ -160,6 +160,7 @@ export const reviewAndComments: Handler = async (ctx) => {
 export const pageLayoutAndWatermark: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     return await callOffice("word_page_layout_and_watermark", {
+      action: args?.action,
       documentName: args?.documentName,
       headerText: args?.headerText,
       footerText: args?.footerText,

@@ -797,6 +797,73 @@
 
   // 10.1 条件格式与数据条/色阶
   function addConditionalFormatting(app, params) {
+    // CAP-30 条件格式读回：此前只有"加"没有"读"，AI 无法回答
+    // "这块区域现在挂了哪些规则"，改完也只能靠人看。
+    // 覆盖单元格值 / 公式 / 色阶 / 数据条 / Top10 / 图标集 / 重复值 / 唯一值 / 文本 / 空值。
+    if ((params || {}).action === "read") {
+      const { sheetName, address, workbookName } = params || {};
+      const sheet = getWorksheet(app, sheetName, workbookName);
+      const TYPE = {
+        1: "cell_value", 2: "formula", 3: "color_scale", 4: "data_bar", 5: "top10",
+        6: "icon_set", 8: "unique_values", 9: "text_contains", 10: "blanks", 11: "time_period",
+        12: "above_average", 13: "no_blanks", 16: "duplicate_values"
+      };
+      const OPER = { 1: "between", 2: "not_between", 3: "equal", 4: "not_equal", 5: "greater_than", 6: "less_than", 7: "greater_equal", 8: "less_equal" };
+      const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+      const toHex = (v) => (v === null || v === undefined || v < 0 || v === 16777215) ? null
+        : "#" + [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff].map(n => n.toString(16).padStart(2, "0")).join("").toUpperCase();
+
+      const ranges = address ? [sheet.Range(address)] : (() => {
+        // 整表：宿主没有"枚举所有条件格式区域"的 API，按行扫描已用区域
+        const ur = sheet.UsedRange, out = [];
+        const colName = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+        const rows = Math.min(ur.Rows.Count, 2000), cols = Math.min(ur.Columns.Count, 100);
+        for (let r = ur.Row; r < ur.Row + rows; r++) {
+          for (let c = ur.Column; c < ur.Column + cols; c++) out.push(sheet.Range(`${colName(c)}${r}`));
+        }
+        return out;
+      })();
+
+      const items = [];
+      for (const rng of ranges) {
+        let fcs = null;
+        try { fcs = rng.FormatConditions; } catch (e) { continue; }
+        const n = g(() => Number(fcs.Count), 0);
+        if (!n) continue;
+        const entry = { address: g(() => rng.Address(), null), rules: [] };
+        for (let i = 1; i <= n; i++) {
+          const fc = (() => { try { return fcs.Item(i); } catch (e) { return null; } })();
+          if (!fc) continue;
+          const tc = g(() => Number(fc.Type), null);
+          const rule = {
+            index: i,
+            type: TYPE[tc] || `unknown(${tc})`,
+            typeCode: tc,
+            operator: OPER[g(() => Number(fc.Operator), null)] || null,
+            formula1: g(() => fc.Formula1, null),
+            formula2: g(() => fc.Formula2, null),
+            priority: g(() => Number(fc.Priority), null),
+            stopIfTrue: g(() => Boolean(fc.StopIfTrue), null),
+            fillColor: toHex(g(() => Number(fc.Interior.Color), null)),
+            fontColor: toHex(g(() => Number(fc.Font.Color), null)),
+            fontBold: g(() => Boolean(fc.Font.Bold), null),
+            // 图标集 / 数据条 / 色阶的特有属性（宿主不支持的会落到 null）
+            iconSet: g(() => String(fc.IconSet), null),
+            showIconOnly: g(() => Boolean(fc.ShowIconOnly), null),
+            barColor: toHex(g(() => Number(fc.BarColor), null)),
+            text: g(() => fc.Text, null)
+          };
+          entry.rules.push(rule);
+        }
+        items.push(entry);
+      }
+      const total = items.reduce((s, x) => s + x.rules.length, 0);
+      return {
+        success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name,
+        areaCount: items.length, ruleCount: total, areas: items, warnings: [],
+        message: `工作表 [${sheet.Name}] 上 ${items.length} 个区域共 ${total} 条条件格式规则`
+      };
+    }
     const {
       sheetName,
       address,
@@ -986,12 +1053,34 @@
 
   // 10.2 冻结窗格吸顶
   function freezePanes(app, params) {
-    const { sheetName, workbookName, freezeRowIndex, freezeColumnIndex, unfreeze } = params || {};
+    const { sheetName, workbookName, freezeRowIndex, freezeColumnIndex, unfreeze, action = "apply" } = params || {};
     const sheet = getWorksheet(app, sheetName, workbookName);
     try { sheet.Activate(); } catch (e) {}
 
     const win = app.ActiveWindow;
     if (!win) throw new Error("无法获取 WPS 活动窗口句柄");
+
+    // CAP-31 冻结窗格读回：只写不读的话，AI 无法确认"到底冻了几行"，
+    // 也就没法在多次操作后知道自己当前处于什么状态。
+    if (action === "read") {
+      const frozen = (() => { try { return Boolean(win.FreezePanes); } catch (e) { return null; } })();
+      const splitRow = (() => { try { return Number(win.SplitRow) || 0; } catch (e) { return null; } })();
+      const splitColumn = (() => { try { return Number(win.SplitColumn) || 0; } catch (e) { return null; } })();
+      return {
+        success: true,
+        workbookName: sheet.Parent.Name,
+        sheetName: sheet.Name,
+        frozen,
+        // 对外给"冻结到第几行/列"（1 基，更接近用户说法），同时保留原始 SplitRow/SplitColumn
+        freezeRowIndex: splitRow === null ? null : splitRow + 1,
+        freezeColumnIndex: splitColumn === null ? null : splitColumn + 1,
+        splitRow, splitColumn,
+        warnings: [],
+        message: frozen
+          ? `工作表 [${sheet.Name}] 已冻结：第 ${splitRow} 行之上的 ${splitRow} 行、第 ${splitColumn} 列之左的 ${splitColumn} 列保持不动`
+          : `工作表 [${sheet.Name}] 当前未冻结窗格`
+      };
+    }
 
     if (unfreeze) {
       win.FreezePanes = false;
@@ -2697,6 +2786,63 @@
 
   // 16. 数据透视表一键生成 (第三梯队)
   function createPivotTable(app, params) {
+    // CAP-36 透视表读回：此前只能建、不能读，AI 无法回答
+    // "这张表上现有哪些透视表、数据源是哪、字段怎么摆、刷新过没有"。
+    if ((params || {}).action === "read") {
+      const { workbookName, sheetName, pivotTableName } = params || {};
+      const wb = getWorkbook(app, workbookName);
+      const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+      const readOne = (pt) => {
+        const fields = [];
+        try {
+          const raw = pt.PivotFields();
+          const n = Number(raw.Count);
+          for (let i = 1; i <= n; i++) {
+            const f = raw.Item(i);
+            fields.push({
+              name: g(() => String(f.Name), null),
+              orientation: g(() => Number(f.Orientation), null),   // 1=行 2=列 4=页 0=隐藏
+              position: g(() => Number(f.Position), null),
+              function: g(() => Number(f.Function), null),
+              subtotals: g(() => Boolean(f.Subtotals), null)
+            });
+          }
+        } catch (e) {}
+        return {
+          name: g(() => String(pt.Name), null),
+          sourceData: g(() => String(pt.SourceData), null),
+          rowRange: g(() => String(pt.RowRange.Address()), null),
+          tableRange1: g(() => String(pt.TableRange1.Address()), null),
+          refreshDate: g(() => (pt.RefreshDate ? new Date(pt.RefreshDate).toISOString() : null), null),
+          version: g(() => String(pt.Version), null),
+          fieldCount: fields.length,
+          fields
+        };
+      };
+      const out = [];
+      const sheets = sheetName ? [sheetName] : (() => {
+        const names = [];
+        for (let i = 1; i <= wb.Worksheets.Count; i++) { try { names.push(String(wb.Worksheets.Item(i).Name)); } catch (e) {} }
+        return names;
+      })();
+      for (const sn of sheets) {
+        let pts = null;
+        try { pts = wb.Worksheets.Item(sn).PivotTables(); } catch (e) { continue; }
+        const n = g(() => Number(pts.Count), 0);
+        for (let i = 1; i <= n; i++) {
+          const pt = (() => { try { return pts.Item(i); } catch (e) { return null; } })();
+          if (!pt) continue;
+          const one = readOne(pt);
+          if (pivotTableName && one.name !== String(pivotTableName)) continue;
+          out.push({ sheetName: sn, ...one });
+        }
+      }
+      return {
+        success: true, workbookName: wb.Name,
+        count: out.length, pivotTables: out, warnings: [],
+        message: `工作簿 [${wb.Name}] 共 ${out.length} 个数据透视表`
+      };
+    }
     const {
       workbookName,
       sourceSheetName,
@@ -2823,10 +2969,52 @@
 
   // 17. 自动筛选与数据排序 (第三梯队)
   function setFilterAndSort(app, params) {
-    const { sheetName, workbookName, range, enableAutoFilter, sortRules } = params || {};
-    if (!range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
+    const { sheetName, workbookName, range, enableAutoFilter, sortRules, action = "apply" } = params || {};
 
     const sheet = getWorksheet(app, sheetName, workbookName);
+
+    // CAP-33 筛选状态读回：不传 range 也能读（读的是"这张表当前有没有筛选、覆盖哪一块"）。
+    if (action === "read") {
+      const active = (() => { try { return Boolean(sheet.AutoFilterMode); } catch (e) { return null; } })();
+      const addr = (() => {
+        try { return sheet.AutoFilterMode && sheet.AutoFilter && sheet.AutoFilter.Range ? sheet.AutoFilter.Range.Address() : null; } catch (e) { return null; }
+      })();
+      // 逐个字段的筛选条件（Criteria1/Criteria2/Operator）
+      const filters = [];
+      try {
+        if (active && addr) {
+          const f = sheet.AutoFilter;
+          const rng = f.Range;
+          const cols = rng.Columns.Count;
+          for (let i = 1; i <= cols; i++) {
+            const flt = f.Filters.Item(i);
+            let on = false;
+            try { on = Boolean(flt.On); } catch (e) {}
+            if (!on) continue;
+            const one = (() => { try { return flt.Criteria1 === undefined ? null : flt.Criteria1; } catch (e) { return null; } })();
+            const two = (() => { try { return flt.Criteria2 === undefined ? null : flt.Criteria2; } catch (e) { return null; } })();
+            const op = (() => { try { return Number(flt.Operator); } catch (e) { return null; } })();
+            const header = (() => { try { return String(rng.Cells(1, i).Value2); } catch (e) { return null; } })();
+            filters.push({ columnIndex: i, header, criteria1: one, criteria2: two, operator: op });
+          }
+        }
+      } catch (e) {}
+      return {
+        success: true,
+        workbookName: sheet.Parent.Name,
+        sheetName: sheet.Name,
+        autoFilterOn: active,
+        filterRange: addr,
+        columnCount: addr ? sheet.Range(addr).Columns.Count : 0,
+        filters,
+        warnings: [],
+        message: active
+          ? `工作表 [${sheet.Name}] 筛选范围 ${addr}，其中 ${filters.length} 列设有条件`
+          : `工作表 [${sheet.Name}] 当前没有启用筛选`
+      };
+    }
+
+    if (!range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
     const targetRange = sheet.Range(range);
     const warnings = [];
 
@@ -2966,9 +3154,66 @@
       errorMessage
     } = params || {};
 
+    const sheet = getWorksheet(app, sheetName, workbookName);
+
+    // CAP-32 数据有效性读回：读整张表**所有**带校验的区域，或指定 address 的那一块。
+    // 只写不读时 AI 无法回答"这列现在允许哪些值"，复核只能靠人看。
+    if ((params || {}).action === "read") {
+      const VALTYPE = { 1: "whole_number", 2: "decimal", 3: "list", 4: "date", 5: "time", 6: "text_length", 7: "custom" };
+      const OP = { 1: "between", 2: "not_between", 3: "equal", 4: "not_equal", 5: "greater_than", 6: "less_than", 7: "greater_equal", 8: "less_equal" };
+      const readOne = (rng) => {
+        const v = rng.Validation;
+        let type = null;
+        try { type = Number(v.Type); } catch (e) { return null; }
+        // Type = -4142 (xlValidateInputOnly) 表示没设校验，跳过
+        if (type === -4142 || !Number.isFinite(type)) return null;
+        const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+        return {
+          address: g(() => rng.Address(), null),
+          type: VALTYPE[type] || `unknown(${type})`,
+          typeCode: type,
+          operator: OP[g(() => Number(v.Operator), null)] || null,
+          formula1: g(() => v.Formula1, null),
+          formula2: g(() => v.Formula2, null),
+          inCellDropdown: g(() => Boolean(v.InCellDropdown), null),
+          ignoreBlank: g(() => Boolean(v.IgnoreBlank), null),
+          showError: g(() => Boolean(v.ShowError), null),
+          errorTitle: g(() => v.ErrorTitle, null),
+          errorMessage: g(() => v.ErrorMessage, null),
+          promptTitle: g(() => v.InputTitle, null),
+          promptMessage: g(() => v.InputMessage, null)
+        };
+      };
+      let items = [];
+      if (address) {
+        const one = readOne(sheet.Range(address));
+        items = one ? [one] : [];
+      } else {
+        // 逐行扫描已用区域（宿主没有"枚举所有校验区域"的 API）
+        const ur = sheet.UsedRange;
+        const r0 = ur.Row, c0 = ur.Column;
+        const rows = Math.min(ur.Rows.Count, 2000), cols = Math.min(ur.Columns.Count, 100);
+        const colName = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+        for (let r = r0; r < r0 + rows; r++) {
+          for (let c = c0; c < c0 + cols; c++) {
+            const one = readOne(sheet.Range(`${colName(c)}${r}`));
+            if (one) items.push(one);
+          }
+        }
+      }
+      return {
+        success: true,
+        workbookName: sheet.Parent.Name,
+        sheetName: sheet.Name,
+        count: items.length,
+        validations: items,
+        warnings: address ? [] : [],
+        message: `工作表 [${sheet.Name}] 上共 ${items.length} 处数据有效性设置`
+      };
+    }
+
     if (!address) throw new Error("缺少必要参数: address (例如 'E5:E20')");
 
-    const sheet = getWorksheet(app, sheetName, workbookName);
     const targetRange = sheet.Range(address);
 
     try {
@@ -3020,10 +3265,37 @@
   function manageSheet(app, params) {
     const { sheetName, workbookName, action, newName, targetIndex, color, password } = params || {};
     if (!sheetName) throw new Error("缺少必要参数: sheetName");
-    if (!action) throw new Error("缺少必要参数: action (rename, move, tab_color, protect, unprotect)");
+    if (!action) throw new Error("缺少必要参数: action (rename, move, tab_color, protect, unprotect, read)");
 
     const wb = getWorkbook(app, workbookName);
     const sheet = getWorksheet(app, sheetName, workbookName);
+
+    // CAP-34 工作表状态读回：保护状态与标签色此前只能写不能读，
+    // 于是"这张表是不是被保护了""标签什么颜色"只能靠人看。
+    if (action === "read") {
+      const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+      const prot = g(() => Boolean(sheet.ProtectContents), null);
+      const colorRaw = g(() => Number(sheet.Tab.Color), null);
+      // Tab.Color 是 BGR 整数；-4142/16777215 之类表示"无颜色"
+      const hasColor = colorRaw !== null && colorRaw >= 0 && colorRaw !== 16777215;
+      const toHex = (v) => "#" + [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff].map(n => n.toString(16).padStart(2, "0")).join("").toUpperCase();
+      return {
+        success: true,
+        workbookName: wb.Name,
+        sheetName: sheet.Name,
+        index: g(() => Number(sheet.Index), null),
+        visible: g(() => Number(sheet.Visible), null),
+        protection: {
+          protectContents: prot,
+          protectDrawingObjects: g(() => Boolean(sheet.ProtectDrawingObjects), null),
+          protectionMode: g(() => Boolean(sheet.ProtectionMode), null)
+        },
+        tabColor: hasColor ? toHex(colorRaw) : null,
+        tabColorRaw: colorRaw,
+        warnings: [],
+        message: `工作表 [${sheet.Name}]：${prot ? "已保护" : "未保护"}，标签色 ${hasColor ? toHex(colorRaw) : "未设置（默认）"}`
+      };
+    }
 
     switch (action) {
       case "rename": {

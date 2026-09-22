@@ -216,6 +216,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
         parameters: {
           type: "object",
           properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入并读回核对；read 只读回当前状态、不做任何修改" },
             address: { type: "string", description: "应用条件格式的目标区域（例如 'E5:E20' 针对每日良率列，或 'C5:C20' 针对产出量）" },
             sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
             workbookName: { type: "string", description: ctx.wbDesc },
@@ -263,6 +264,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
         parameters: {
           type: "object",
           properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入并读回核对；read 只读回当前状态、不做任何修改" },
             freezeRowIndex: { type: "number", description: "冻结分割行号（从 1 开始）。例如 freezeRowIndex: 5 表示将第 1 至 4 行锁定吸顶，用户向下滚动到几千行时表头始终悬浮在最顶部" },
             freezeColumnIndex: { type: "number", description: "冻结分割列号（可选）。例如 freezeColumnIndex: 3 表示将第 1 至 2 列（如 A、B 列）固定吸左，向右滚动时不被移出" },
             unfreeze: { type: "boolean", description: "若设为 true，则解除当前工作表的所有窗口冻结状态" },
@@ -555,6 +557,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入并读回核对；read 只读回当前状态、不做任何修改" },
             sourceRange: {
               type: "string",
               description: "原始明细数据区域（必须包含第一行表头）。例如: 'A1:K5422' 或配合 sourceSheetName 跨表指定"
@@ -600,7 +603,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
-          required: ["sourceRange", "destCell"],
+          required: [],   // read 模式不需要 sourceRange/destCell；写模式缺参时宿主会明确报错
           additionalProperties: false
         }
       }
@@ -613,6 +616,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入并读回核对；read 只读回当前筛选状态（筛选范围与各列条件），此时 range 可省略" },
             range: {
               type: "string",
               description: "目标表格区域（包含表头）。例如: 'A4:G50' 或 'A1:E20'"
@@ -640,7 +644,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
-          required: ["range"],
+          required: [],   // read 模式不需要 range；写模式缺参时宿主会明确报错
           additionalProperties: false
         }
       }
@@ -653,6 +657,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
+            action: { type: "string", enum: ["apply", "read"], description: "apply（默认）写入并读回核对；read 只读回当前状态、不做任何修改" },
             address: {
               type: "string",
               description: "目标单元格区域。例如: 'E5:E50' 针对状态列，或 'C5:C20' 针对合格率输入"
@@ -681,7 +686,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
-          required: ["address", "validationType"],
+          required: ["address"],
           additionalProperties: false
         }
       }
@@ -700,7 +705,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             },
             action: {
               type: "string",
-              enum: ["rename", "move", "tab_color", "protect", "unprotect"],
+              enum: ["rename", "move", "tab_color", "protect", "unprotect", "read"],
               description: "执行的管理操作: 'rename'(重命名), 'move'(调整位置顺序), 'tab_color'(设置工作表标签底色), 'protect'(锁定保护工作表), 'unprotect'(解除锁定保护)"
             },
             newName: {

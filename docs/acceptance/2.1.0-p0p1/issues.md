@@ -143,6 +143,8 @@
 | ISS-111 | **Word 页面预览恒不落盘**：宿主返回 `hasPdf:true` + `pdfPath`，但磁盘上没有文件。根因＝桥接把预览输出到 `~/.wps-bridge/previews/`，而 **WPS 是沙箱应用写不进去**（实测：该目录/`os.tmpdir()`/`~/Downloads` 子目录 均 ❌，只有 WPS 容器 tmp ✅） | **高** | **已修已验证** | 桥接预览路径 + 落盘校验 |
 | ISS-112 | **宿主方法被"摘出来"调用导致 this 丢失**：`const f = cell.Address; f()` 抛 "Address called on null or undefined"，被 catch 吞掉后表现为**地址为空**（成功消息变成"已在单元格  添加批注"）。这是 ISS-66 的真正根因，前一版修复（把取地址提前）方向对但没解决 this 问题 | 中 | **已修已验证** | 宿主实现（真机定位） |
 | ISS-113 | **MS 侧矢量形状：经工具路径组合失败**。宿主 `addGroup` 本身可用（任务窗格内置自检在新建且激活的表上组合成功、并能读回成员），但经工具对已存在的表调用报「当前对象不允许此操作」；试过先 `sheet.activate()`、激活后单独 `sync()` 均无效，**根因未定位** | 中高 | **待查**（工具说明已如实标注，不冒充可用） | Office.js 宿主实现 |
+| ISS-117 | **`wps_set_filter_and_sort` 写入静默不生效**：返回 `success:true` 但 `appliedFilterRange=null`，宿主 `sheet.AutoFilterMode` 仍为 false。**由新增的筛选读回发现**（读回如实报 `autoFilterOn:false`，与写入的成功不符）——此前无读回入口，这种"假成功"无人能发现 | 中高 | **待修**（已定位触发点，根因待查：`Range.AutoFilter()` 在本机 WPS 上疑似 no-op，需与 ISS-38 的 `Range.Sort` 同类处理） | WPS 宿主实现 |
+| ISS-118 | **`wps_create_pivot_table` 写入报错**：`Cannot read properties of null (reading 'CreatePivotTable')` —— 透视表创建路径本身不可用。**由新增的透视表读回发现**（读回入口通了之后才去验写入） | 中 | **待修** | WPS 宿主实现 |
 | ISS-114 | MS 侧形状自检**存在级联依赖**：后续检查引用前面创建的 `cap08_line`/`cap08_svg`，一旦前面失败就报「请求的资源不存在」，把「分组/删除不支持」误报成结论（修正为各项独立后，真实结果是 10/13 而非 5/12） | 中高 | **已修**（每项自查前置形状） | 测试设计 |
 | ISS-115 | Office.js 的 `getTargetSheet` 从不 `load("name")`，而返回体普遍写 `sheet.name` → 读未 load 的属性直接抛「属性 name 不可用」，**形状工具全套因此全挂** | 中高 | **已修**（共享助手统一 load） | Office.js 宿主实现 |
 | ISS-116 | MS 侧热重载失效：`window.location.reload(true)` 的 forceGet 参数在 Excel for Mac 的 WKWebView 中不生效（信号发出、返回成功、代码不变） | 中高 | **已修已验证**（改为 `location.replace` + 时间戳查询串强制不命中缓存） | 桥接 + 宿主 |
