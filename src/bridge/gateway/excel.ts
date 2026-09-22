@@ -781,11 +781,34 @@ export const captureSheetPreview: Handler = async (ctx) => {
       throw new Error("WPS 原生渲染预览失败");
     }
 
+    // ⚠️ **不能只看"宿主有没有返回字节"**：装了 DLP（如亿赛通）的机器上，
+    // 凡是 WPS/Office **写出的文件**都会被 DLP 包成加密容器——宿主导出的预览图正是这种文件，
+    // 读回来的字节**非空但不是图片**。此前"非空就直接采用"的写法会一路用下去，
+    // 永远走不到剪贴板兜底，调用方拿到一堆无法解码的字节。
+    //
+    // 判据：**校验图片 magic 字节**（PNG/JPEG/BMP/GIF）。不是图片就视为"宿主产物不可用"，
+    // 改走剪贴板——剪贴板是内存通道，不经过 DLP 的文件加密，
+    // 在加密环境里往往才是唯一能用的那条路。
+    const isRealImage = (b64: unknown): boolean => {
+      if (!b64) return false;
+      try {
+        const head = Buffer.from(String(b64).slice(0, 64), 'base64');
+        if (head.length < 4) return false;
+        const a = head[0], b = head[1], c = head[2], d = head[3];
+        return (a === 0x89 && b === 0x50 && c === 0x4e && d === 0x47)   // PNG
+          || (a === 0xff && b === 0xd8 && c === 0xff)                    // JPEG
+          || (a === 0x42 && b === 0x4d)                                  // BMP
+          || (a === 0x47 && b === 0x49 && c === 0x46);                   // GIF
+      } catch { return false; }
+    };
+
     let imageBase64 = (res as any).imageBase64;
     let imageSize = 0;
-    if (imageBase64) {
+    const hostImageRejected = Boolean(imageBase64) && !isRealImage(imageBase64);
+    if (isRealImage(imageBase64)) {
       imageSize = Buffer.from(imageBase64, "base64").length;
     } else {
+      imageBase64 = undefined;
       try {
         imageBase64 = await extractClipboardImageBase64();
         imageSize = Buffer.from(imageBase64, "base64").length;
@@ -795,7 +818,16 @@ export const captureSheetPreview: Handler = async (ctx) => {
           workbookName: res.workbookName || args?.workbookName || "工作簿1.xlsx",
           sheetName: res.sheetName || args?.sheetName || "Sheet1",
           address: res.address || targetAddr || "A1",
-          message: `已完成 [${res.sheetName || args?.sheetName || '当前工作表'}] 区域排版与格式自检`
+          imageUnavailable: true,
+          warnings: [
+            hostImageRejected
+              ? "宿主导出的预览图不是可解码的图片（**很可能是 DLP 加密容器**：装了亿赛通等加密软件的机器上，WPS 写出的文件会被加密）"
+              : "宿主未返回预览图",
+            `剪贴板取图也不可用：${String((clipErr as any)?.message || clipErr).slice(0, 120)}`
+          ],
+          message: hostImageRejected
+            ? `[${res.sheetName || args?.sheetName || '当前工作表'}] 排版已完成；**预览图不可用**——宿主导出的文件被 DLP 加密、剪贴板也取不到。本机建议改用**几何回读**核验（list_shapes / get_charts(detail=true) / read_range），不要依赖截图。`
+            : `已完成 [${res.sheetName || args?.sheetName || '当前工作表'}] 区域排版与格式自检`
         };
       }
     }

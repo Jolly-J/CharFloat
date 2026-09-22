@@ -12,7 +12,24 @@ export function mergeMcpConfig(file: string, entry: unknown) {
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('现有配置不是 JSON 对象，未覆盖');
   }
   if (config.mcpServers !== undefined && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) throw new Error('mcpServers 格式无效，未覆盖');
-  config.mcpServers = { ...config.mcpServers, 'office-agent-bridge': entry, 'wps-bridge': entry };
+  // 只写当前名字。此前同时写 `wps-bridge`（遗留名）导致客户端里出现**两条指向同一个桥的条目**：
+  // 连接器里既看到旧的 "WPS Bridge"、又看到新的，同一个服务被连两次。
+  // 加载项那边早已做过同样的改名（mergePluginIndex 会把 "WPS Bridge" 迁成 "Office Agent Bridge"），
+  // MCP 配置这边此前没跟上。
+  //
+  // 迁移规则：只清掉**确属本产品**的遗留条目（命令/参数与原条目一致），
+  // 别人的 `wps-bridge`（若有）一律保留——安全性质与"合并写入、不覆盖他人"保持一致。
+  const LEGACY = 'wps-bridge';
+  const prevLegacy = config.mcpServers[LEGACY];
+  const legacyIsOurs = prevLegacy
+    && typeof prevLegacy === 'object'
+    && !Array.isArray(prevLegacy)
+    && Boolean(entry && typeof entry === 'object'
+      && (prevLegacy as any).command === (entry as any).command
+      && JSON.stringify((prevLegacy as any).args) === JSON.stringify((entry as any).args));
+  const next: Record<string, unknown> = { ...config.mcpServers, 'office-agent-bridge': entry };
+  if (legacyIsOurs) delete next[LEGACY];
+  config.mcpServers = next;
   atomicWrite(file, JSON.stringify(config, null, 2) + '\n', true);
 }
 export class InstallerEngine {

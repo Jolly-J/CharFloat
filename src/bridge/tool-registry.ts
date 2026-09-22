@@ -20,7 +20,18 @@ function hostFor(name: string, args: Record<string, unknown>): Host {
 /** 用真实的 catalog 实现绑定工具服务。 */
 export function createLocalToolService(): ToolService {
   return {
-    list: () => getTools() as McpToolDescriptor[],
+    // ⚠️ 只发 MCP 规范里的字段。
+    // `getTools()` 返回的对象还带一个**我们自己的内部字段 `toolClass`**（工具分类，由 assembleTools 附加）。
+    // 此前这里用 `as McpToolDescriptor[]` 强制转换，**类型断言把多余字段藏了起来**，
+    // 于是非标准字段随 `tools/list` 一起发给了客户端。
+    // 真机现象：WorkBuddy 连接器里服务连上了（绿点）却**显示不出工具清单**，
+    // 而同界面的其它 MCP（工具少）正常显示。
+    // 规范字段：name / title / description / inputSchema / outputSchema / annotations / _meta。
+    // `toolClass` 仍保留在内部对象上供工具分类使用，只是**不出现在对外响应里**。
+    list: () => getTools().map((tool) => {
+      const { toolClass: _internalToolClass, ...standard } = tool as McpToolDescriptor & { toolClass?: string };
+      return standard as McpToolDescriptor;
+    }),
     capabilities: () => capabilities(),
     execute: (name, args, context: ToolCallContext) => requestContext.run(
       { sessionId: context.sessionId, host: hostFor(name, args) },

@@ -407,8 +407,8 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
                   type: "string",
                   description: "图表左上角锚定的单元格坐标，例如 'G4'；WPS 宿主按该单元格的 Left/Top 像素定位"
                 },
-                width: { type: "number", description: "图表像素宽度，默认 480" },
-                height: { type: "number", description: "图表像素高度，默认 280" }
+                width: { type: "number", description: "图表宽度，**单位是磅(pt)不是像素**，默认 480（≈640px）。宿主 AddChart2 收磅；换算：px ≈ pt × 4/3" },
+                height: { type: "number", description: "图表高度，**单位是磅(pt)不是像素**，默认 280（≈373px）。宿主 AddChart2 收磅；按像素给会宽出一截（实测 620px 的诉求写成 620 得到 620pt≈826px）" }
               },
               required: ["leftCell"],
               description: "图表放置位置（WPS 宿主唯一生效的定位参数）。不传时落在 360/40，多图会叠在一起。"
