@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: dbb561dbef68461839595cd75e8a682f9d9ddae015e72153dadb0c2763ee0bdc
+// ADDON_BUILD_FINGERPRINT: 557331aa3673a8f80ce377daa39027e72ca8bc4e67098ffe169ea3dcdef8b9a5
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "dbb561dbef68461839595cd75e8a682f9d9ddae015e72153dadb0c2763ee0bdc";
+  var ADDON_BUILD_FINGERPRINT = "557331aa3673a8f80ce377daa39027e72ca8bc4e67098ffe169ea3dcdef8b9a5";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -2052,13 +2052,17 @@
     if (bold !== undefined) range.Font.Bold = !!bold;
 
     // 2. 颜色
+    // 非法颜色值原先被 `if (bgr !== null)` 静默吞掉——调用方以为设上了（excel-tester L-1）。
+    // 现在解析不出来就写 warnings，让"没生效"可见。
     if (backgroundColor) {
       const bgr = hexToExcelColor(backgroundColor);
       if (bgr !== null) range.Interior.Color = bgr;
+      else warnings.push(`backgroundColor 无法解析为颜色: ${JSON.stringify(backgroundColor)}（应为 #RRGGBB 或 RRGGBB），该项已跳过`);
     }
     if (fontColor) {
       const bgr = hexToExcelColor(fontColor);
       if (bgr !== null) range.Font.Color = bgr;
+      else warnings.push(`fontColor 无法解析为颜色: ${JSON.stringify(fontColor)}（应为 #RRGGBB 或 RRGGBB），该项已跳过`);
     }
 
     // 3. 对齐
@@ -3688,8 +3692,20 @@
       // （真机踩到：create_workbook 超时，WPS 被模态框阻塞，四组件全部无响应。）
       const prevAlerts = (() => { try { return app.DisplayAlerts; } catch (e) { return null; } })();
       try { app.DisplayAlerts = false; } catch (e) {}
-      try { wb.SaveAs(String(savePath), 51); saved = String(savePath); }
-      catch (e) { saveError = String(e.message || e); }
+      try {
+        wb.SaveAs(String(savePath), 51);
+        saved = String(savePath);
+        // ⚠️ **不能以"没抛异常"判定保存成功**：DisplayAlerts=false 时，
+        // 宿主对**已存在的路径**既不抛异常也不落盘
+        // （excel-tester H-4：返回"已保存"但磁盘 mtime 完全没变）。
+        // 读回 `wb.Path` 与 `wb.Saved` 才是判据。
+        const savedPathBack = (() => { try { return String(wb.Path || ""); } catch (e) { return ""; } })();
+        const savedFlag = (() => { try { return Boolean(wb.Saved); } catch (e) { return null; } })();
+        if (savedPathBack === "" || savedFlag === false) {
+          saveError = `宿主未真正落盘（Path="${savedPathBack}" Saved=${savedFlag}）`;
+          saved = null;
+        }
+      } catch (e) { saveError = String(e.message || e); }
       finally {
         // 无论成功失败都要恢复，否则后续所有操作都静默吞掉提示
         if (prevAlerts !== null) { try { app.DisplayAlerts = prevAlerts; } catch (e) {} }
@@ -5255,6 +5271,13 @@
     if (Array.isArray(sortRules) && sortRules.length > 0) {
       const rowCount = targetRange.Rows.Count;
       const colCount = targetRange.Columns.Count;
+      // colIndex 越界时宿主静默 no-op（excel-tester M-6）——先做边界校验
+      for (const rule of sortRules) {
+        const ci = Number(rule && rule.colIndex);
+        if (!Number.isFinite(ci) || ci < 1 || ci > colCount) {
+          throw new Error(`sortRules.colIndex=${rule && rule.colIndex} 越界：目标区域 ${range} 只有 ${colCount} 列（1..${colCount}）`);
+        }
+      }
       const before = normalize2DArray(targetRange.Value2, rowCount, colCount);
       const attempts = [];
       let after = before;
@@ -5427,6 +5450,8 @@
 
     if (validationType === "list") {
       const listStr = Array.isArray(listItems) ? listItems.join(",") : String(listItems || "");
+      // 缺候选项时宿主会静默 no-op（excel-tester M-5）——直接报错而不是假装设上了
+      if (listStr.trim() === "") throw new Error("validationType='list' 必须提供 listItems（候选项数组），否则宿主会静默不设任何校验");
       // Type: 3 (xlValidateList), AlertStyle: 1 (xlValidAlertStop), Operator: 1 (xlBetween)
       targetRange.Validation.Add(3, 1, 1, listStr);
       targetRange.Validation.InCellDropdown = true;
