@@ -50,6 +50,7 @@
       "skills/**/*",
       "prompts/**/*",
       "package.json",
+      "!**/*.map",
       "!**/AGENTS.md",
       "!wps-addon/src/**",
       "!office-addon/src/**"
