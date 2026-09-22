@@ -38,7 +38,7 @@
 | **CAP-11** | **事件驱动的"变更感知"**：用户刚改了哪个单元格、保存前拦一手 | WPS 45+ Application 事件 + `wps.ApiEvent`；Office.js 仅 3 个事件 | 文档可证 | WPS 侧 | AI 只能盲写，无法基于用户刚做的修改做增量协作 | 待排期 |
 | **CAP-12** | **Excel 线程化批注完整语义**：回复、@提及、标记已解决 | Office.js `Comment` | 文档可证 | Office.js 侧 | AI 只能"贴一条"，不能参与讨论 | ❌ **宿主做不到**（真机探明）：WPS 的线程批注 API **存在但功能是空壳** —— `AddCommentThreaded` 返回对象却**不存正文**（读回 Text=null、回复文本恒为 "default"）、`Replies.Add` 不是函数、`AddReply` 返回对象但 **Count 恒为 1 不增**、`Resolved` 写不进去（读回仍 false）。**处置**：工具已按"如实报失败"实现（不因没抛异常就报成功），并在返回里指引改用传统批注 `action=add`（传统批注真机可用）。读回 `read_threads` 可用但拿到的是宿主默认值，意义有限 |
 | **CAP-13** | **数据透视表字段编排与刷新** | Office.js `PivotTable` 可加行/列/数据字段；WPS `PivotFields` | 文档可证 | 两侧 | MS 侧"建透视表"目前只能建空壳 | ✅ 已完成已验证（真机：把已有透视表从「行=月份」重排为**行=区域 / 列=月份 / 值=金额**，宿主读回 `["月份/2","区域/1","值/2"]` 完全吻合；支持 clearFields 清旧布局、refresh 刷新、字段不存在时写 warnings） |
-| **CAP-14** | **Excel 切片器 / 工作表视图 / 链接数据类型（富值）** | MS 支持；WPS **未查证** | 文档可证 / 未查证 | Office.js 侧 | 交互式仪表盘、"从数据源自动带出公司/股票信息" | 待排期 |
+| **CAP-14** | **Excel 切片器 / 工作表视图 / 链接数据类型（富值）** | MS 支持；WPS **未查证** | 文档可证 / 未查证 | Office.js 侧 | 交互式仪表盘、"从数据源自动带出公司/股票信息" | ◐ **部分完成（宿主限制所致）**。真机逐项探明：**自定义视图 `wb.CustomViews` 可用**（实测建成并读回 Name）——已实现 `wps_manage_workbook_views`（list/add/show/delete）；切片器 `wb.SlicerCaches` 存在（列出缓存清单），但 `ws.Slicers` 不存在；**链接数据类型（富值）本机做不到**——`wb.LinkedDataTypes` 与 `ws.Slicers` 均 undefined，工具对富值**如实拒绝**并说明替代方案。真机验证 4/4 |
 | **CAP-15** | **区域复制（`copy_range`）** | 宿主支持 | 源码可证（我方未实现） | WPS 侧补齐 | MS 有、WPS 没有 | ✅ 已完成已验证（真机：复制到目标并读回；支持 all/values/formats/formulas 与转置） |
 | **CAP-16** | **超链接（`set_hyperlink`）** | 宿主支持 | 源码可证 | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：加链接后从锚点读回显示文字；list 列出地址/文字/提示/锚点） |
 | **CAP-17** | **命名区域**（增删查改） | WPS 宿主支持 | 文档可证 | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：add 后读回 refersTo；list 返回 4 条既有名称） |

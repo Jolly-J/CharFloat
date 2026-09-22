@@ -72,6 +72,7 @@ const HANDLERS: Record<string, Handler> = {
   "wps_copy_range": excel.copyRange,
   "wps_manage_hyperlink": excel.manageHyperlink,
   "wps_manage_named_range": excel.manageNamedRange,
+  "wps_manage_workbook_views": excel.manageWorkbookViews,
   "wps_manage_document_properties": excel.manageDocumentProperties,
   "wps_manage_table": excel.manageTable,
   "wps_manage_pictures": excel.managePictures,

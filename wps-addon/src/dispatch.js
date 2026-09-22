@@ -65,6 +65,9 @@
         case "manage_named_range":
           result = manageNamedRange(app, params);
           break;
+        case "manage_workbook_views":
+          result = manageWorkbookViews(app, params);
+          break;
         case "manage_document_properties":
           result = manageDocumentProperties(app, params);
           break;

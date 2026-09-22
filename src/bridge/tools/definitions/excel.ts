@@ -1365,6 +1365,22 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    }  ,
+  {
+    type: "function",
+    function: {
+      name: "wps_manage_workbook_views",
+      description: "工作簿**自定义视图**与切片器清单：list 列出全部自定义视图与切片器缓存、add 新建视图、show 切换、delete 删除。另外 action='read_rich_values' 会**如实告知**本机宿主不支持链接数据类型（富值）——不要指望它返回数据。",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["list", "add", "show", "delete", "read_rich_values"], description: "list（默认）列出视图与切片器 / add 新建 / show 切换 / delete 删除 / read_rich_values 查询富值（本机宿主不支持，会如实拒绝）" },
+          viewName: { type: "string", description: "add/show/delete 时的视图名" },
+          workbookName: { type: "string", description: "工作簿名称" }
+        },
+        additionalProperties: false
+      }
     }
-  ];
+  }
+]
 }

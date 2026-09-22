@@ -189,7 +189,11 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   // 三者都是**真实存在的宿主方法**：dispatch.js 有 RPC 分支、excel.js 有实现、网关有处理器与注册项。
   // 同样是**真实存在的宿主方法**：wps-addon/src/dispatch.js 有 RPC 分支、excel.js 有
   // formatTextSegment 实现、网关有对应处理器与注册项。
-  assert.equal(c.EXCEL_METHODS.length, 50, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
+  // 2026-09-22（CAP-14）：新增 `manage_workbook_views` —— WPS 侧「自定义视图」宿主方法。
+  // 真机确认：`wb.CustomViews` 可用（实测能建视图并读回 Name），而 `wb.LinkedDataTypes` 不存在，
+  // 所以「链接数据类型（富值）」在本机**做不到**（工具会如实拒绝），只实现自定义视图与切片器清单。
+  // 该能力**仅 WPS 实现**，已同时声明进 `HOST_IMPLEMENTATION_GAPS.microsoft`。**有意扩展。**
+  assert.equal(c.EXCEL_METHODS.length, 51, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
   assert.equal(c.isReadOnlyTool('excel_read_range'), true);
   assert.equal(c.isReadOnlyTool('wps_inspect_api'), false, '表达式探测不是只读');
   assert.equal(c.isReplaySafeMethod('read_range'), true);
@@ -207,6 +211,8 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
     wps: ['export_shape_image'],
     microsoft: ['get_style_token', 'format_text_segment', 'configure_print_layout', 'export_sheet_pdf', 'set_sheet_view',
       'manage_hyperlink', 'manage_named_range', 'manage_document_properties', 'manage_table', 'manage_pictures',
+      // CAP-14：自定义视图（wb.CustomViews）在 WPS 可用、Office.js 侧未实现 → 声明为 MS 缺口
+      'manage_workbook_views',
       'create_workbook']
   });
 });
