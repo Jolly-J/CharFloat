@@ -1328,6 +1328,21 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
           additionalProperties: false
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_create_workbook",
+        description: "**新建一个空白工作簿**（可同时保存到指定路径、给首张表命名）。写后读回工作簿名/表数/首表名核对。注意：新建的工作簿会成为活动工作簿，后续操作请显式带 workbookName 以免落到别的文件上。",
+        parameters: {
+          type: "object",
+          properties: {
+            savePath: { type: "string", description: "保存到的绝对路径（.xlsx）；省略则只新建不落盘" },
+            sheetName: { type: "string", description: "给首张工作表起的名字" }
+          },
+          additionalProperties: false
+        }
+      }
     }
   ];
 }

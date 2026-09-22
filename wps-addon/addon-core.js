@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 8e7a9ab5d828ad6db8083e8d6a571988f9b999214e7352a9f2c0f88209515fc1
+// ADDON_BUILD_FINGERPRINT: 1b4c16d1dacf6925c6c462770b4a5efbc6be366fefb8d791a40053847258b9db
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "8e7a9ab5d828ad6db8083e8d6a571988f9b999214e7352a9f2c0f88209515fc1";
+  var ADDON_BUILD_FINGERPRINT = "1b4c16d1dacf6925c6c462770b4a5efbc6be366fefb8d791a40053847258b9db";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -945,6 +945,9 @@
           break;
         case "format_text_segment":
           result = formatTextSegment(app, params);
+          break;
+        case "create_workbook":
+          result = createWorkbook(app, params);
           break;
         case "create_sheet":
           result = createWorksheet(app, params);
@@ -3629,6 +3632,58 @@
         });
       }
     } catch (e) {}
+  }
+
+  // ── CAP-53 新建工作簿
+  //
+  // 之前**没有这个工具**（Word 有 word_create_document、PPT 有 new_presentation，Excel 漏了）。
+  // 但宿主一直支持：真机实测 `app.Workbooks.Add()` + `wb.SaveAs(路径)` 均可用。
+  // 「工具缺失」不等于「宿主不能做」——这是补工具，不是补能力。
+  function createWorkbook(app, params) {
+    const { savePath, sheetName } = params || {};
+    const before = Number(app.Workbooks.Count);
+    const wb = app.Workbooks.Add();
+    const created = wb && wb.Name ? String(wb.Name) : null;
+
+    let saved = null, saveError = null;
+    if (savePath) {
+      // ⚠️ **必须关掉宿主对话框**：目标路径已存在时 `SaveAs` 会弹"是否覆盖"的**模态框**，
+      // 它会阻塞整个 WPS——所有后续调用全部无响应，而且没人点它就一直卡着。
+      // （真机踩到：create_workbook 超时，WPS 被模态框阻塞，四组件全部无响应。）
+      const prevAlerts = (() => { try { return app.DisplayAlerts; } catch (e) { return null; } })();
+      try { app.DisplayAlerts = false; } catch (e) {}
+      try { wb.SaveAs(String(savePath), 51); saved = String(savePath); }
+      catch (e) { saveError = String(e.message || e); }
+      finally {
+        // 无论成功失败都要恢复，否则后续所有操作都静默吞掉提示
+        if (prevAlerts !== null) { try { app.DisplayAlerts = prevAlerts; } catch (e) {} }
+        else { try { app.DisplayAlerts = true; } catch (e) {} }
+      }
+    }
+    // 首张工作表改名（可选）
+    let firstSheet = null;
+    try {
+      const ws = wb.Worksheets.Item(1);
+      if (sheetName) { ws.Name = String(sheetName); }
+      firstSheet = String(ws.Name);
+    } catch (e) {}
+
+    // 读回核对：工作簿确实存在、页数、首表名、是否已落盘
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+    const after = Number(app.Workbooks.Count);
+    const warnings = [];
+    if (after !== before + 1) warnings.push(`新建后工作簿数 ${after}，期望 ${before + 1}`);
+    if (savePath && !saved) warnings.push(`保存失败：${saveError}`);
+
+    return {
+      success: after === before + 1 && (!savePath || !!saved),
+      workbookName: g(() => String(wb.Name), created),
+      sheetCount: g(() => Number(wb.Worksheets.Count), null),
+      firstSheetName: firstSheet,
+      savedPath: saved,
+      warnings,
+      message: `已新建工作簿 [${g(() => String(wb.Name), created)}]（${g(() => Number(wb.Worksheets.Count), "?")} 张表，首表 ${firstSheet}）${saved ? `并保存到 ${saved}` : ""}`
+    };
   }
 
   // ── CAP-22 图表导图（clear_range 早已存在，此处不重复实现）
