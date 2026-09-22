@@ -31,7 +31,8 @@ PPT 在大页面集中左上角 → 固定 720×405 坐标直接用于所有页�
 
 `watermarkText` 与 `AddTextEffect` → 以为只是"水印落在正文层、只在第 1 页"这种效果问题 → 真机实测该调用会让 **WPS 主进程 SIGSEGV 崩溃**（崩溃报告已核实：`wpsapi` 栈帧连续重复 6 帧＝无限递归；Word/PPT/Excel 同时掉线，可能带走用户未保存数据）→ **该参数已在源码层硬禁用**：`wordPageLayoutAndWatermark` 在任何宿主写操作之前拒绝、已删除 `AddTextEffect` 实现、`action:"read"` 读回通路保留；解除禁用前必须换宿主版本并在**独立测试文档**上单独验证不再崩 → 证据：[issues.md ISS-125](../docs/acceptance/2.1.0-p0p1/issues.md)、[agent-tests/word-fixes.md §2](../docs/acceptance/2.1.0-p0p1/agent-tests/word-fixes.md)。
 
+`app.Workbooks.Add()` 返回 null、工作簿数不变 → 以为是自己代码的 bug 去改代码 → 真机复现：**WPS 长会话（高频调用累积）后会进入拒绝新建文档的状态**，`Add()` 返回 null 且 `Workbooks.Count` 不变（`DisplayAlerts=true`，不是对话框阻塞）；**重启 WPS 后立即恢复** → 建簿路径必须**校验返回值**并明说「宿主拒绝 + 建议重启 WPS」，不要报成「已新建工作簿 [null]」（那文案会被误读成代码 bug，把排查方向带偏）；**此类问题的排查顺序是「先重启宿主、再怀疑代码」** → 证据见 [issues.md ISS-131](../docs/acceptance/2.1.0-p0p1/issues.md)。
+
 ## 同步维护
 
 文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。
-`app.Workbooks.Add()` 返回 null、工作簿数不变 → 以为是自己代码的 bug 去改代码 → 真机复现：**WPS 长会话（高频调用累积）后会进入拒绝新建文档的状态**，`Add()` 返回 null 且 `Workbooks.Count` 不变（`DisplayAlerts=true`，不是对话框阻塞）；**重启 WPS 后立即恢复** → 建簿路径必须**校验返回值**并明说「宿主拒绝 + 建议重启 WPS」，不要报成「已新建工作簿 [null]」（那文案会被误读成代码 bug，把排查方向带偏）；**此类问题的排查顺序是「先重启宿主、再怀疑代码」** → 证据见 [issues.md ISS-131](../docs/acceptance/2.1.0-p0p1/issues.md)。
