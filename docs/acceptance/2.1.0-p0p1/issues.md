@@ -46,7 +46,7 @@
 | ISS-16 | 多任务并发时 `save_workbook` 会把**整个工作簿**的内存状态落盘（含他人在途结果） | 中 | 待修 | 并发语义 + 说明 |
 | ISS-17 | `add_chart` 的 `chartType` **静默降级**（`scatter`/`area`/`column`/`bar` 全变成柱状/条形） | **高** | 待修 | 宿主实现 + 说明 |
 | ISS-18 | `add_chart` 定位参数被静默忽略（4 张图叠在 360/40），而说明写"100% 完美的行级锁定" | **高** | 待修 | 宿主实现 + 说明 |
-| ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修待验** | 宿主实现 + 说明 |
+| ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修已验证** | 宿主实现 + 说明 |
 | ISS-20 | `update_chart` 在 WPS 不可用，但工具说明未标注 | 中 | 待修 | 工具说明 |
 | ISS-21 | `patch_cells` 静默把字符串日期（`"2026-01"`）转成序列号 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-22 | `format_cells` 的 `rowHeight` 不生效 | 低中 | 待修 | 宿主实现 |
@@ -87,7 +87,7 @@
 | ISS-57 | `wps_word_page_layout_and_watermark` 不接 `pageNumberFormat`（422），页码只能退回脚本插域 | 中高 | 待修 | 宿主实现 + 说明 |
 | ISS-58 | 专用水印只落在**正文层第 1 页**，跨页水印需自行改页眉层 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-59 | **磁盘上是新构建、WPS 进程里跑的是旧构建**：部署后不重载，且没有任何指纹能判断"运行中的是哪一版" | **高（方法学）** | 待修 | 部署流程 + 版本可观测性 |
-| ISS-60 | 行隐藏 `hide` 返回 success 但没生效（`Range("5:6").Hidden=true` 静默 no-op） | **高** | **已修待验** | 宿主实现 |
+| ISS-60 | 行隐藏 `hide` 返回 success 但没生效（`Range("5:6").Hidden=true` 静默 no-op） | **高** | **已修已验证** | 宿主实现 |
 | ISS-61 | 批注 `author` 无效：宿主 `Comment.Author` 恒为 jolin，返回体里的 author 是**入参回显冒充读回** | 中 | 待修 | 宿主实现 |
 | ISS-62 | 公式查找替换静默不支持（`totalFound:0` + `success`） | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-63 | 透视表：建表瞬间是空骨架须手动 `Refresh`；`destSheetName` 必须已存在；`RecordCount` 恒为 1 | 中 | 待修 | 宿主实现 + 说明 |
@@ -95,8 +95,8 @@
 | ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 待修 | 工具说明 |
 | ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | 待修 | 宿主实现 |
 | ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | 待修（根因待隔离） | 宿主实现 |
-| ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修待验** | 宿主实现 |
-| ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修待验** | 宿主实现 |
+| ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修已验证** | 宿主实现 |
+| ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修已验证** | 宿主实现 |
 | ISS-70 | `write_content` 的 `location:"bookmark"` 没插到书签处，还污染了另一个书签范围 | 中 | 待修 | 宿主实现 |
 | ISS-71 | `wps_word_capture_preview` **已实现但未注册**（调用报"未知工具"），Word 视觉验收有缺口 | 中 | 待修 | 死分支（DP3 实例） |
 | ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | 待修 | 宿主实现 + 说明 |
@@ -117,14 +117,14 @@
 | ISS-87 | **`set_background` 会串改全部页**（受控复现：设第 1 页后第 2 页也变红） | **高** | 待修 | 宿主实现 |
 | ISS-89 | 深度属性反射会让 **WPS 进程崩溃**（3 次崩溃报告，2 次栈指向 jsetapi→etcore） | **高** | 待修 | 宿主 API 安全性 + 工具护栏 |
 | ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | 待修 | 可观测性 |
-| ISS-91 | **读操作被别名到写函数**：`list_conditional_formats` → 新增条件格式；调"读"会**写** | **高** | **已修待验** | Office.js 路由 |
-| ISS-92 | `list_comments` → 默认 action `add`（会在 **A1 插空批注**）；`update_comment` 静默 success | **高** | **已修待验** | Office.js 路由 + 处理函数 |
+| ISS-91 | **读操作被别名到写函数**：`list_conditional_formats` → 新增条件格式；调"读"会**写** | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | Office.js 路由 |
+| ISS-92 | `list_comments` → 默认 action `add`（会在 **A1 插空批注**）；`update_comment` 静默 success | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | Office.js 路由 + 处理函数 |
 | ISS-93 | `normalizer.ts` 只适配 14 个方法，**12 个 `excel_*` 在 host=microsoft 参数错位**；21 个 Word/PPT 工具在该宿主是死路 | **高** | 待修 | 跨宿主适配 |
 | ISS-94 | **C 类·只写不读共 7 项**：条件格式、冻结窗格、数据有效性、筛选状态、工作表保护/标签色、Word 页眉页脚/水印、透视表 | 中高 | 待修 | 工具能力缺口 |
 | ISS-95 | **B 类·宿主能做但没暴露**：清空区域 / 读原表设计语言 / Word 页面预览（**3 条零成本死分支**）＋超链接、命名区域、文档属性、区域复制、图片形状、结构化表格 | 中高 | 待修 | 工具能力缺口 |
 | ISS-96 | Office.js 的 `capture_sheet_preview` 是**伪渲染**：无图表时用 Canvas 按 `cellW=110/rowH=28` 硬编码合成假图 → **AI 视觉自检会得出与真实文件不符的结论** | **高** | 待修 | 证据可信度 |
 | ISS-97 | adapter 把整张 `EXCEL_METHODS`(30) 当 COM 回退白名单，而 COM 实际只覆盖 28/30 → **白名单过度声明** | 中高 | 待修 | 回退策略 |
-| ISS-98 | `excel_find_and_replace`（host=microsoft）字段名错位 → `text=""` → 每个非空单元格都命中并 `replaceAll("")`，**可能破坏内容** | **高** | **已修待验**（加空搜索阻断 + 兼容 `searchQuery`） | 跨宿主契约 |
+| ISS-98 | `excel_find_and_replace`（host=microsoft）字段名错位 → `text=""` → 每个非空单元格都命中并 `replaceAll("")`，**可能破坏内容** | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | 跨宿主契约 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | 待修 | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。
@@ -1353,6 +1353,38 @@ test('isSortedByRules 必须比较**最后一对**相邻行（"漏最后一行"�
 
 验证：`build:office-addon` + `node --check` 通过、生成物与源码一致、`typecheck 0`、全量测试 **86/86**。三条均**已修待验**。
 
+## ✅ 第二批修复的真实宿主复验（2026-09-22 16:2x，**14/14 全通过**）
+
+**复验前置**（"两个落点"都做了）：
+1. `npm run setup -- --addon` → 4 个组件目录全部更新为 `d4c01c7b`，**与仓库构建物哈希一致**（16:23:30）；
+2. `npm run build:main` + 后台 `--stop`/`--start` → 新 pid **77013**，产物含 `restoredScope` 与 `verifiedOnDisk`；
+3. WPS 重启，表格/文字/演示三组件均 `connected=true`。
+
+| 编号 | 复验项 | 结果 | 关键读数 |
+|---|---|---|---|
+| ISS-01 | `values` + 空公式不得清空 | ✔ | 读回 `[['新A','新B']]` |
+| ISS-38 | 排序真实生效 | ✔ | 升序 `[1,2,3,4]`；`attempts = ["sheet.Sort.SortFields:ok:已生效"]` |
+| ISS-39 | 不传 `columnRules` 也自适应 | ✔ | `mode: "usedRange"`，返回实际列宽 |
+| ISS-40 | 筛选范围回读 | ✔ | `appliedFilterRange: "$D$1:$E$5"` |
+| ISS-42 | 合并 / 取消合并读回 | ✔ | `merged: true` → `false` |
+| ISS-47 | 回滚文案与边界 | ✔ | `"…的值与公式"` + `restoredScope` |
+| ISS-54 | `content` 缺正文告警 | ✔ | `layoutWarnings: [{slideIndex:2, reason:"…未提供 bulletPoints…"}]` |
+| **ISS-60** | 行隐藏（**独立读回**，不只看工具返回值） | ✔ | `hide` 后 `ws.Rows.Item(10..12).Hidden` = `10=true 11=true 12=true`；`unhide` 后全 `false` |
+| **ISS-68** | 纯查找返回真实命中数 | ✔ | 查"概述" → `matchCount=3`（修复前恒 0） |
+| **ISS-68** | 未命中的替换不谎报 | ✔ | `action: "no_match"`，文案 `"未找到 …，未做任何替换"` |
+| **ISS-68** | 命中的替换 | ✔ | `action: "replaced_all"`，`matchCount=1` |
+| **ISS-69** | 真实落盘 | ✔ | `verifiedOnDisk: true`，磁盘文件 **617,992 字节** |
+| **ISS-69** | 导出到不可写目录 | ✔ | 明确报错 `保存未落盘：/System/verify-iss69.pdf 不存在。宿主返回成功不代表文件已写出…` |
+| **ISS-19** | 两张叠图时 `leftCell` 拒绝批量删除 | ✔ | `leftCell 按像素邻近（±30px）匹配，本次命中 2 张图表，**已拒绝批量删除**以免误伤。命中清单：Chart 3(左360,上40)；Chart 4(左360,上40)…`；**拒绝后图表数不变**；显式 `clearAll` 仍可全删 |
+
+> **两处复验方法教训**（记录备查）：
+> 1. **ISS-60 第一轮"失败"是测试脚本的错**：上一个脚本结尾已经 `unhide`，第二个脚本读到的是取消后的状态。→ **验"写操作"必须在自己脚本内成对完成 hide→读→unhide，不能跨脚本。**
+> 2. **ISS-19 第一轮没触发拒绝路径**：因为前一步已删掉一张图，只剩 1 张，`leftCell` 命中唯一目标属正常删除。→ **验"防护逻辑"必须先构造出触发条件（叠图 ≥ 2），否则会得到假通过。**
+
+### Office.js 侧（ISS-91 / 92 / 98）：**只做了静态验证**
+
+改的是 `office-addon/src/{rpc.js, excel/comment.js, excel/range.js}`，构建 + 语法 + 生成物一致性都过了，但**本机 Microsoft Excel 加载项未连接**，无法运行时验证。状态标为"已修·静态验证"，**不得当成已验证**。
+
 ## 待补充
 
-剩余待修 **70 条**（高严重度 15 条）。Microsoft Excel 通道仍未连接。三个 API 能力对照子代理（`wps-api-map` / `tool-gap` / `ms-vs-wps`）在跑，产出 `06/07/08-*.md`。
+剩余待修 **77 条**（高严重度 15 条）。Microsoft Excel 通道仍未连接；`06-wps-api-map.md` 的 Word / PPT 两组件测绘待补（需改用**逐项隔离 + 限流**的安全扫法，见 ISS-89）。
