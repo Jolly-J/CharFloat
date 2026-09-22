@@ -275,11 +275,13 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             documentName: { type: "string", description: "目标文档名称" },
             action: {
               type: "string",
-              enum: ["enable_track_changes", "disable_track_changes", "accept_all_revisions", "reject_all_revisions", "add_comment", "list_comments"],
+              enum: ["enable_track_changes", "disable_track_changes", "accept_all_revisions", "reject_all_revisions", "add_comment", "list_comments", "resolve", "reopen", "reply"],
               description: "审阅动作: 'enable_track_changes'/'disable_track_changes'(开启/关闭修订记录), 'accept_all_revisions'/'reject_all_revisions'(接受/拒绝全部修订，不可撤销), 'add_comment'(插入批注), 'list_comments'(读取批注列表)"
             },
             commentText: { type: "string", description: "添加批注时的批注内容，action='add_comment' 时必传" },
-            author: { type: "string", description: "批注作者名称" }
+            author: { type: "string", description: "批注作者名称" },
+            commentIndex: { type: "number", description: "resolve/reopen/reply 时的批注序号（从 1 开始，见 list_comments 返回顺序）" },
+            replyText: { type: "string", description: "reply 时的回复内容（⚠️ 本机 WPS 文字的批注回复不可用，会如实返回失败与建议）" }
           },
           required: ["action"],
           additionalProperties: false
