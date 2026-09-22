@@ -1166,7 +1166,7 @@
   }
 
   function wordReviewAndComments(app, params) {
-    const { documentName, action, commentText, author } = params || {};
+    const { documentName, action, commentText, author, commentIndex, replyText } = params || {};
     const doc = getWordDocument(app, documentName);
     const wordApp = getWordApp() || app;
 
@@ -1192,7 +1192,62 @@
         const range = (wordApp.Selection && wordApp.Selection.Range.Text) ? wordApp.Selection.Range : doc.Range(0, 0);
         const comment = doc.Comments.Add(range, commentText);
         if (author) comment.Author = author;
-        return { success: true, documentName: doc.Name, commentId: doc.Comments.Count, message: `已成功添加批注: "${commentText}"` };
+        // 读回核对：宿主可能"接受了调用但不存内容"（Excel 侧的 CommentThreaded 就是空壳）。
+        // WPS 文字侧真机确认**会存**（作者=当前用户、正文可读回），但读回才算数。
+        const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+        const backText = g(() => String(comment.Range.Text), null);
+        const backAuthor = g(() => String(comment.Author), null);
+        const cmtWarnings = [];
+        if (backText === null) cmtWarnings.push("批注已创建但读不回正文，宿主可能未真正保存");
+        return {
+          success: cmtWarnings.length === 0, documentName: doc.Name, commentId: doc.Comments.Count,
+          comment: { text: backText, author: backAuthor, done: g(() => Boolean(comment.Done), null) },
+          warnings: cmtWarnings,
+          message: `已成功添加批注: "${commentText}"（作者 ${backAuthor || "读不到"}）`
+        };
+      }
+      case "resolve":
+      case "reopen": {
+        if (!commentIndex) throw new Error(`${action} 需要 commentIndex（从 1 开始，见 action='list_comments'）`);
+        const idx = Number(commentIndex);
+        const total = doc.Comments ? Number(doc.Comments.Count) : 0;
+        if (!(idx >= 1) || idx > total) throw new Error(`commentIndex=${commentIndex} 越界：文档共 ${total} 条批注（有效范围 1..${total}）`);
+        const c = doc.Comments.Item(idx);
+        const want = action === "resolve";
+        try { c.Done = want; } catch (e) {}
+        const actual = (() => { try { return Boolean(c.Done); } catch (e) { return null; } })();
+        const ok = actual === want;
+        return {
+          success: ok, documentName: doc.Name, action, commentIndex: idx,
+          requested: want, actual,
+          warnings: ok ? [] : [`宿主读回与请求不一致（请求 ${want}，读回 ${actual}）`],
+          message: ok ? `批注 #${idx} 已${want ? "标记为已解决" : "重新打开"}`
+                      : `批注 #${idx} 的解决状态未能修改（请求 ${want}，读回 ${actual}）`
+        };
+      }
+      case "reply": {
+        if (!commentIndex) throw new Error("reply 需要 commentIndex（从 1 开始）");
+        const replyBody = params && (params.replyText || params.commentText);
+        if (!replyBody) throw new Error("reply 需要 replyText（回复内容）");
+        const idx = Number(commentIndex);
+        const total = doc.Comments ? Number(doc.Comments.Count) : 0;
+        if (!(idx >= 1) || idx > total) throw new Error(`commentIndex=${commentIndex} 越界：文档共 ${total} 条批注`);
+        const c = doc.Comments.Item(idx);
+        const before = (() => { try { return Number(c.Replies.Count); } catch (e) { return null; } })();
+        let hostError = null;
+        // ⚠️ 真机实测（WPS 12.1.28496）：`Replies.Add(Range, 文本)` **返回对象但 Count 恒为 0** ——
+        // 与 Excel 侧同属"API 存在但功能是空壳"。用**条数是否增加**判定，不因"没抛异常"就报成功。
+        try { c.Replies.Add(c.Range, String(replyBody)); }
+        catch (e) { hostError = String(e.message || e); }
+        const after = (() => { try { return Number(c.Replies.Count); } catch (e) { return null; } })();
+        const grew = before !== null && after !== null && after > before;
+        return {
+          success: grew, documentName: doc.Name, action: "reply", commentIndex: idx,
+          replyCountBefore: before, replyCountAfter: after, hostError,
+          warnings: grew ? [] : [`本机 WPS 文字的批注**回复功能不可用**：Replies.Add 返回对象但回复数不增加（${before} → ${after}）${hostError ? "；宿主报错：" + hostError : ""}`],
+          message: grew ? `已在批注 #${idx} 下回复（${before} → ${after}）`
+                        : `本机 WPS 文字不支持批注回复（回复数 ${before} → ${after}）；建议把回复内容追加到批注正文，或人工在 WPS 里回复`
+        };
       }
       case "list_comments": {
         const list = [];

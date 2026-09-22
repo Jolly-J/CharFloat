@@ -153,7 +153,9 @@ export const reviewAndComments: Handler = async (ctx) => {
       documentName: args?.documentName,
       action: args?.action,
       commentText: args?.commentText,
-      author: args?.author || clientName
+      author: args?.author || clientName,
+      commentIndex: args?.commentIndex,
+      replyText: args?.replyText
     });
 };
 
