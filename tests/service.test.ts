@@ -11,6 +11,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'bridge-service-'));
 process.env.WPS_BRIDGE_HOME=root;process.env.WPS_BRIDGE_PORT=String(22000+Math.floor(Math.random()*10000));
 const {bridgeServer}=await import('../src/bridge/ws-server.js');
+const {composeBridgeServer}=await import('../src/bridge/compose.js');
 const {getToken}=await import('../src/bridge/runtime.js');
 const {auditStore}=await import('../src/bridge/audit-store.js');
 const port=Number(process.env.WPS_BRIDGE_PORT),base=`http://127.0.0.1:${port}`;
@@ -19,6 +20,7 @@ const headers=()=>({Authorization:`Bearer ${token}`,'Content-Type':'application/
 let values:any[][]=[[7]],formulas:any[][]=[[7]],writes=0;
 async function call(name:string,args:any={}) {const r=await fetch(base+'/api/v1/tool/call',{method:'POST',headers:headers(),body:JSON.stringify({name,arguments:args})});return {status:r.status,result:await r.json() as any};}
 test.before(async()=>{
+  composeBridgeServer();   // 组装入口：注入工具服务（P2.2）
   await bridgeServer.start();token=getToken();
   ws=new WebSocket(`ws://127.0.0.1:${port}/addon?token=${token}`);await once(ws,'open');
   ws.on('message',raw=>{const p=JSON.parse(raw.toString());let result:any;

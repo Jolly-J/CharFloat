@@ -1,8 +1,9 @@
 import type { WorkspaceSummary, SheetOutline, PatchResult } from '../types.js';
+import type { ChannelParams, ToolArgs } from '../contracts/boundary.js';
 
 export interface NormalizedRequest {
   method: string;
-  params: any;
+  params: ChannelParams;
 }
 
 /**
@@ -25,8 +26,10 @@ const CHART_TYPE_MAP: Record<string, string> = {
 /**
  * 将 Gateway 标准工具调用请求正规化为 Office.js 加载项期望的契约 (统一参数适配管道)
  */
-export function normalizeOfficeRequest(method: string, params: any = {}): NormalizedRequest {
-  const p = { ...params };
+export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): NormalizedRequest {
+  // 边界签名已收敛为 ToolArgs；函数内部的规范化工作副本按 P2.4 的范围要求保留宽松类型，
+  // 避免为了消除 any 而重写全部字段访问（那属于大规模类型重写）。
+  const p: any = { ...params };
 
   switch (method) {
     case 'wps_get_workspace_summary':
@@ -206,7 +209,13 @@ export function normalizeOfficeRequest(method: string, params: any = {}): Normal
 /**
  * 将 Office.js 加载项的原生响应标准化为 Gateway 与 MCP 契约
  */
-export function normalizeOfficeResponse(method: string, raw: any, originalParams: any = {}): any {
+/**
+ * @param raw 宿主原始响应。形状由各宿主决定，保持 `any` 是刻意的：
+ *            这里正是"宿主差异显式留在适配器"的落点，收窄会掩盖不同宿主的返回语义。
+ *            返回类型同样保持宽松：各分支产出的是具名业务类型（WorkspaceSummary / PatchResult 等），
+ *            强行套统一的 ToolResult 会要求它们都有索引签名，属大规模类型重写。
+ */
+export function normalizeOfficeResponse(method: string, raw: any, originalParams: ToolArgs = {}): any {
   if (!raw) return raw;
 
   const baseMethod = method.replace(/^(wps_|excel_)/, '');
@@ -242,8 +251,11 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
 
     case 'patch_cells':
     case 'write_range': {
-      const rows = raw.rowCount || (originalParams.values?.length) || (originalParams.formulas?.length) || 1;
-      const cols = raw.columnCount || (originalParams.values?.[0]?.length) || (originalParams.formulas?.[0]?.length) || 1;
+      // 边界签名是 ToolArgs（值形状由 schema 约束），此处按二维数组读取是已知契约。
+      const values = originalParams.values as unknown[][] | undefined;
+      const formulas = originalParams.formulas as unknown[][] | undefined;
+      const rows = raw.rowCount || values?.length || formulas?.length || 1;
+      const cols = raw.columnCount || values?.[0]?.length || formulas?.[0]?.length || 1;
       const count = raw.modifiedCount || (rows * cols);
       return {
         success: true,

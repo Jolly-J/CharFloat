@@ -4,6 +4,7 @@ import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { atomicWrite, getToken, resourcePath, runtimePort, runtimeHome, getOrGenerateCerts, appendServiceLog, VERSION } from '../bridge/runtime.js';
+import { detectPermissionIssueCore } from './permission-detect.js';
 import { serviceRequest } from '../bridge/service-client.js';
 
 const activeNames = ['Office Agent Bridge', 'Office Agent Bridge (表格)', 'Office Agent Bridge (文字)', 'Office Agent Bridge (演示)'];
@@ -224,6 +225,9 @@ export class AddonInstaller {
       return { success: true, message: `加载项已成功部署并更新至 v${VERSION}！请在 WPS 中点击功能区【重新连接】或重启 WPS 生效。`, targetPath: dirs.join(' | '), warnings: dirs.filter(dir => fs.existsSync(path.join(dir, 'jsaddinblockhost.ini'))).map(() => '检测到 WPS 阻断配置，未删除。请在 WPS 中检查加载项权限。') };
     } catch (e: any) {
       appendServiceLog('AddonInstaller', `WPS 加载项安装失败: ${e.message}\n堆栈: ${e.stack || ''}`);
+      // 权限受限不是普通失败：交给界面走引导流程，而不是甩一条裸 EPERM 文案给用户。
+      const permissionIssue = detectPermissionIssueCore(e);
+      if (permissionIssue) return { success: false, message: 'WPS 加载项目录需要 macOS 完全磁盘访问权限', permissionIssue };
       return { success: false, message: e.message };
     }
   }
@@ -346,7 +350,10 @@ export class OfficeAddonInstaller {
         } catch (cpErr: any) {
           const cpMsg = cpErr.stderr || cpErr.message || String(cpErr);
           appendServiceLog('AddonInstaller', `cp -f 命令执行受阻: ${cpMsg}`);
-          throw new Error(`macOS 磁盘访问受限（${cpMsg.trim() || 'EPERM: Operation not permitted'}）。请在【系统设置 -> 隐私与安全性 -> 完全磁盘访问权限】中为应用开启权限后再试。`);
+          // 不再只给一句"请去设置里开启"的死路文案：抛带 code 的错误，由统一入口识别为权限问题并走引导。
+          const err: any = new Error(`macOS 磁盘访问受限（${cpMsg.trim() || 'EPERM: Operation not permitted'}）`);
+          err.code = 'EPERM';
+          throw err;
         }
       }
     }
@@ -434,6 +441,8 @@ export class OfficeAddonInstaller {
       };
     } catch (e: any) {
       appendServiceLog('AddonInstaller', `Office 加载项部署失败: ${e.message}`);
+      const permissionIssue = detectPermissionIssueCore(e);
+      if (permissionIssue) return { success: false, message: 'Office 加载项目录需要 macOS 完全磁盘访问权限', permissionIssue };
       return { success: false, message: e.message };
     }
   }
@@ -459,6 +468,8 @@ export class OfficeAddonInstaller {
       return { success: true, message: '已移除 Office 加载项清单，重启 Excel 后生效。' };
     } catch (e: any) {
       appendServiceLog('AddonInstaller', `Office 加载项卸载失败: ${e.message}`);
+      const permissionIssue = detectPermissionIssueCore(e);
+      if (permissionIssue) return { success: false, message: 'Office 加载项目录需要 macOS 完全磁盘访问权限', permissionIssue };
       return { success: false, message: e.message };
     }
   }

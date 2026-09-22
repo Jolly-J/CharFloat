@@ -98,4 +98,16 @@ powershell -NoProfile -File tests/windows-office.ps1 -RunOffice
 
 WPS 和客户端验收步骤见 [验证矩阵](docs/validation.md)。构建成功和模拟宿主通过不等于 Windows 实机验收通过。
 
-默认打包输出在 `release/`：macOS DMG / ZIP，Windows NSIS / portable。安装包签名与公证需要发布者凭据，源码不包含签名密钥。
+打包产物按版本与平台输出到 `release/<版本>/<平台>/`，平台名称为 `mac`、`win`。发布包统一命名为 `Office-Agent-Bridge-<版本>-<平台>-<架构>.<扩展名>`，即使是 x64 也不省略架构。
+
+当前默认生成 macOS / Windows ZIP 和解包目录；不默认生成 DMG 或 EXE 安装程序。ZIP 用于分发，`mac-*`、`win-*-unpacked` 等目录是可运行的解包程序，不能随意删除其中的 DLL、resources 或 locales。`.blockmap` 是包的配套校验数据，应与原包一起保留。`builder-*.yml/yaml` 是构建诊断信息，可能出现在版本目录中，不是安装包。
+
+已有旧发布包保留原名并按版本、平台归档；未确认版本的旧解包目录和辅助文件放在 `release/_legacy-build/`。该目录是历史归档，不是最新发布入口。后续构建不会自动删除旧版本，同版本同平台同架构再次打包会覆盖对应产物。开发编译输出仍在 `dist/`，与发布包分开。
+
+安装包签名与公证需要发布者凭据，源码不包含签名密钥。
+
+## AI 协作导航
+
+开发任务先读 [AGENTS.md](AGENTS.md)，按任务进入对应模块，避免默认扫描全项目。关键文件、调用链或验证命令变化时，同步更新对应导航及已证实的避坑条目。运行 `npm run check:agents` 检查路径和导航；该检查不替代对说明准确性的审核。
+
+项目结构改造见 [改造计划与执行台账](docs/refactoring-plan.md)，包括分阶段清单、双平台业务验收及执行备忘。

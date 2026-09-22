@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.js";
+import { PermissionFloat } from "./components/PermissionFloat.js";
 import "./index.css";
 
 interface Props {
@@ -50,7 +51,7 @@ class ErrorBoundary extends Component<Props, State> {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {window.location.hash === "#permission-guide" ? <PermissionFloat /> : <App />}
     </ErrorBoundary>
   </React.StrictMode>
 );

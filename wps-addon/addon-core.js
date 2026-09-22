@@ -1,9 +1,15 @@
+// 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
+(function () {
+  // ---------------------------------------------------------------------------
+  // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
 /**
  * WPS Bridge - WPS 内部加载项核心运行时 (专业美学与多功能版)
  * 运行在 WPS Office 进程内部 (JSA 环境)
  */
 
-(function () {
   const ADDON_VERSION = "2.1.0";
   const config = window.WPS_BRIDGE_CONFIG || {};
   const currentVersion = config.version || ADDON_VERSION;
@@ -80,95 +86,6 @@
     log("[Alert]", msg);
   }
 
-  // ==========================================
-  // Ribbon 全局回调顶置与原生状态呈现
-  // ==========================================
-
-  window.OnActionBridgeStatus = function () {
-    try {
-      const app = getApp();
-      const host = detectHostComponent();
-      const summary = app ? getWorkspaceSummary(app) : null;
-      let msg = "【Office Agent Bridge 运行状态】\n\n";
-      msg += `插件版本: v${currentVersion} (协议 v2)\n`;
-      msg += `通信状态: ${isConnected ? `已连接 (127.0.0.1:${BRIDGE_PORT})` : `未连接 (${lastDisconnectReason})`}\n`;
-      msg += `网关配置: 127.0.0.1:${BRIDGE_PORT} (Token: ${BRIDGE_TOKEN ? "已配置" : "缺失"})\n`;
-      if (serverVersionNotice) {
-        msg += `版本提示: 发现新版本 v${serverVersionNotice.latestVersion} (建议从客户端升级)\n`;
-      }
-      msg += `当前组件: ${host === "word" ? "WPS 文字 (Word)" : (host === "ppt" ? "WPS 演示 (PowerPoint)" : "WPS 表格 (Excel)")}\n\n`;
-
-      if (host === "word") {
-        if (summary && summary.hasOpenDocument) {
-          msg += `当前文档: ${summary.documentName}\n`;
-          msg += `段落总数: ${summary.paragraphCount} 段\n`;
-          msg += `表格总数: ${summary.tableCount} 个\n`;
-          msg += `字数统计: ${summary.wordCount} 字\n`;
-        } else {
-          msg += "当前未检测到打开的 Word 文档\n";
-        }
-      } else if (host === "ppt") {
-        if (summary && summary.hasOpenPresentation) {
-          msg += `当前演示文稿: ${summary.presentationName}\n`;
-          msg += `幻灯片总数: ${summary.slideCount} 页\n`;
-        } else {
-          msg += "当前未检测到打开的 PPT 演示文稿\n";
-        }
-      } else {
-        if (summary && summary.hasOpenWorkbook) {
-          msg += `当前工作簿: ${summary.workbookName}\n`;
-          msg += `活动工作表: ${summary.activeSheetName}\n`;
-          if (summary.selection) {
-            msg += `鼠标光标选区: ${summary.selection.address} (${summary.selection.rowCount}行 × ${summary.selection.columnCount}列)\n`;
-          }
-        } else {
-          msg += "当前未检测到打开的 Excel 表格文件\n";
-        }
-      }
-
-      if (!isConnected) {
-        msg += "\n排查建议:\n1. 确认 Office Agent Bridge 桌面客户端已启动后台服务；\n2. 若长期无法连通，可在客户端点击【安装 / 升级加载项】。";
-      }
-      showNativeAlert(msg);
-    } catch (e) {
-      showNativeAlert("获取 Bridge 状态异常: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnActionForceReconnect = function () {
-    try {
-      log("用户点击重新连接...");
-      if (ws) {
-        try { ws.close(); } catch (e) {}
-      }
-      initWebSocket();
-      window.location.reload();
-    } catch (e) {
-      showNativeAlert("重连异常: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnRibbonLoaded = function (ribbonUI) {
-    try {
-      log("WPS 功能区载入，自动激活连接...");
-      initWebSocket();
-    } catch (e) {}
-  };
-
-  window.OnGetImage = function (control) {
-    try {
-      const id = typeof control === "object" && control ? (control.Id || control.id) : String(control);
-      if (id === "btnBrandHero") {
-        return "logo.png";
-      }
-      if (id === "btnAutoFitFormat") {
-        return "table-format.png";
-      }
-    } catch (e) {
-      log("[OnGetImage Error]", e.message);
-    }
-    return "";
-  };
 
   function getWordApp() {
     try {
@@ -413,6 +330,123 @@
     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
   }
 
+
+
+  // 1. 获取工作区总览 (支持 Word、PPT、Excel 智能自适应)
+  function getWorkspaceSummary(app, workbookName) {
+    const hostType = detectHostComponent();
+
+    // 1. 如果处于 Word (文字) 环境
+    if (hostType === "word") {
+      try {
+        const doc = getWordDocument(app);
+        return {
+          hostType: "word",
+          hasOpenDocument: Boolean(doc),
+          hasOpenWorkbook: false,
+          documentName: doc ? doc.Name : "未命名文档",
+          fullName: doc ? (doc.FullName || doc.Name) : "",
+          paragraphCount: doc && doc.Paragraphs ? doc.Paragraphs.Count : 0,
+          tableCount: doc && doc.Tables ? doc.Tables.Count : 0,
+          wordCount: doc && doc.Words ? doc.Words.Count : 0,
+          message: doc ? `当前已打开 Word 文档: ${doc.Name}` : "当前没有打开的 Word 文档"
+        };
+      } catch (e) {
+        return { hostType: "word", hasOpenDocument: false, hasOpenWorkbook: false, message: e.message || "当前没有打开的 Word 文档" };
+      }
+    }
+
+    // 2. 如果处于 PPT (演示) 环境
+    if (hostType === "ppt") {
+      try {
+        const pres = getPptPresentation(app);
+        return {
+          hostType: "ppt",
+          hasOpenPresentation: Boolean(pres),
+          hasOpenWorkbook: false,
+          presentationName: pres ? pres.Name : "未命名演示文稿",
+          fullName: pres ? (pres.FullName || pres.Name) : "",
+          slideCount: pres && pres.Slides ? pres.Slides.Count : 0,
+          message: pres ? `当前已打开 PPT 演示文稿: ${pres.Name}` : "当前没有打开的 PPT 演示文稿"
+        };
+      } catch (e) {
+        return { hostType: "ppt", hasOpenPresentation: false, hasOpenWorkbook: false, message: e.message || "当前没有打开的 PPT 演示文稿" };
+      }
+    }
+
+    // 3. 默认处于 Excel (表格) 环境
+    try {
+      const wb = getWorkbook(app, workbookName);
+      if (!wb) {
+        return {
+          hostType: "excel",
+          hasOpenWorkbook: false,
+          message: "当前没有打开的 Excel 表格"
+        };
+      }
+
+      const openWorkbooks = [];
+      try {
+        const wbCount = app.Workbooks.Count;
+        for (let i = 1; i <= wbCount; i++) {
+          const w = app.Workbooks.Item(i);
+          openWorkbooks.push({
+            name: w.Name,
+            fullName: w.FullName || w.Name,
+            isActive: app.ActiveWorkbook ? app.ActiveWorkbook.Name === w.Name : false
+          });
+        }
+      } catch (e) {}
+
+      const sheets = [];
+      const count = wb.Worksheets.Count;
+      for (let i = 1; i <= count; i++) {
+        const sheet = wb.Worksheets.Item(i);
+        sheets.push({
+          index: i,
+          name: sheet.Name,
+          visible: sheet.Visible === -1
+        });
+      }
+
+      const activeSheet = wb.ActiveSheet;
+      let selectionInfo = null;
+      try {
+        const sel = app.Selection;
+        if (sel && sel.Address) {
+          selectionInfo = {
+            address: sel.Address(),
+            rowCount: sel.Rows.Count,
+            columnCount: sel.Columns.Count
+          };
+        }
+      } catch (e) {}
+
+      return {
+        hostType: "excel",
+        hasOpenWorkbook: true,
+        workbookName: wb.Name,
+        fullName: wb.FullName || wb.Name,
+        openWorkbooks: openWorkbooks,
+        activeSheetName: activeSheet ? activeSheet.Name : "",
+        sheetCount: count,
+        sheets: sheets,
+        selection: selectionInfo
+      };
+    } catch (e) {
+      return {
+        hostType: "excel",
+        hasOpenWorkbook: false,
+        message: e.message || "当前没有打开的 Excel 表格"
+      };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // connection.js — WebSocket 建连与握手、断线重连、报文发送与 RPC 回包
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
   function initWebSocket() {
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
       return;
@@ -503,6 +537,314 @@
     }
   }
 
+  function sendRpcResponse(id, result, error) {
+    sendPacket({
+      type: "rpc_response",
+      id: id,
+      result: result,
+      error: error
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // ribbon.js — Ribbon 全局回调 window.OnAction* 与剪贴板工具
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
+  // ==========================================
+  // Ribbon 全局回调顶置与原生状态呈现
+  // ==========================================
+
+  window.OnActionBridgeStatus = function () {
+    try {
+      const app = getApp();
+      const host = detectHostComponent();
+      const summary = app ? getWorkspaceSummary(app) : null;
+      let msg = "【Office Agent Bridge 运行状态】\n\n";
+      msg += `插件版本: v${currentVersion} (协议 v2)\n`;
+      msg += `通信状态: ${isConnected ? `已连接 (127.0.0.1:${BRIDGE_PORT})` : `未连接 (${lastDisconnectReason})`}\n`;
+      msg += `网关配置: 127.0.0.1:${BRIDGE_PORT} (Token: ${BRIDGE_TOKEN ? "已配置" : "缺失"})\n`;
+      if (serverVersionNotice) {
+        msg += `版本提示: 发现新版本 v${serverVersionNotice.latestVersion} (建议从客户端升级)\n`;
+      }
+      msg += `当前组件: ${host === "word" ? "WPS 文字 (Word)" : (host === "ppt" ? "WPS 演示 (PowerPoint)" : "WPS 表格 (Excel)")}\n\n`;
+
+      if (host === "word") {
+        if (summary && summary.hasOpenDocument) {
+          msg += `当前文档: ${summary.documentName}\n`;
+          msg += `段落总数: ${summary.paragraphCount} 段\n`;
+          msg += `表格总数: ${summary.tableCount} 个\n`;
+          msg += `字数统计: ${summary.wordCount} 字\n`;
+        } else {
+          msg += "当前未检测到打开的 Word 文档\n";
+        }
+      } else if (host === "ppt") {
+        if (summary && summary.hasOpenPresentation) {
+          msg += `当前演示文稿: ${summary.presentationName}\n`;
+          msg += `幻灯片总数: ${summary.slideCount} 页\n`;
+        } else {
+          msg += "当前未检测到打开的 PPT 演示文稿\n";
+        }
+      } else {
+        if (summary && summary.hasOpenWorkbook) {
+          msg += `当前工作簿: ${summary.workbookName}\n`;
+          msg += `活动工作表: ${summary.activeSheetName}\n`;
+          if (summary.selection) {
+            msg += `鼠标光标选区: ${summary.selection.address} (${summary.selection.rowCount}行 × ${summary.selection.columnCount}列)\n`;
+          }
+        } else {
+          msg += "当前未检测到打开的 Excel 表格文件\n";
+        }
+      }
+
+      if (!isConnected) {
+        msg += "\n排查建议:\n1. 确认 Office Agent Bridge 桌面客户端已启动后台服务；\n2. 若长期无法连通，可在客户端点击【安装 / 升级加载项】。";
+      }
+      showNativeAlert(msg);
+    } catch (e) {
+      showNativeAlert("获取 Bridge 状态异常: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnActionForceReconnect = function () {
+    try {
+      log("用户点击重新连接...");
+      if (ws) {
+        try { ws.close(); } catch (e) {}
+      }
+      initWebSocket();
+      window.location.reload();
+    } catch (e) {
+      showNativeAlert("重连异常: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnRibbonLoaded = function (ribbonUI) {
+    try {
+      log("WPS 功能区载入，自动激活连接...");
+      initWebSocket();
+    } catch (e) {}
+  };
+
+  window.OnGetImage = function (control) {
+    try {
+      const id = typeof control === "object" && control ? (control.Id || control.id) : String(control);
+      if (id === "btnBrandHero") {
+        return "logo.png";
+      }
+      if (id === "btnAutoFitFormat") {
+        return "table-format.png";
+      }
+    } catch (e) {
+      log("[OnGetImage Error]", e.message);
+    }
+    return "";
+  };
+
+  window.OnActionUndoAiAction = async function () {
+    try {
+      if (detectHostComponent() !== "excel") throw new Error("审计撤销仅覆盖表格单元格的值与公式。");
+      const summary = getWorkspaceSummary(getApp());
+      if (!summary.workbookName) throw new Error("请先打开目标工作簿。");
+      const call = async (name, args) => {
+        const response = await fetch("http://127.0.0.1:" + (config.port || 19890) + "/api/v1/tool/call", {
+          method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.token },
+          body: JSON.stringify({ name: name, arguments: args, clientName: "WPS Ribbon", sessionId: "wps-ribbon" })
+        });
+        const result = await response.json();
+        if (!response.ok || result.success === false) throw new Error(result.error || "Bridge 请求失败");
+        return result.data;
+      };
+      const records = await call("wps_get_audit_history", { workbookName: summary.workbookName, sheetName: summary.activeSheetName, status: "applied", limit: 20 });
+      const record = records.find(item => !item.host || item.host === "wps");
+      if (!record) { showNativeAlert("当前工作表没有可撤销的单元格修改记录。"); return; }
+      if (!confirm("撤销此修改？\n" + record.description + "\n" + record.workbookName + " / " + record.sheetName + " / " + record.address + "\n有后续修改时会拒绝覆盖。")) return;
+      await call("wps_rollback", { auditId: record.id });
+      showNativeAlert("已恢复记录中的单元格值与公式。");
+    } catch (error) { showNativeAlert("撤销未完成：" + error.message); }
+  };
+
+  function copyTextToClipboard(text) {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {}
+    try {
+      if (typeof document !== "undefined") {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  window.OnActionOpenDesktopApp = function () {
+    try {
+      showNativeAlert("【Office Agent Bridge 控制中心】\n\n请在屏幕顶部菜单栏或程序坞中切换至「Office Agent Bridge」桌面管理窗口。\n\n您可以在管理中心中配置 AI 助手（豆包、Kimi、Claude、WorkBuddy 等）、查看单元格修改快照以及进行系统诊断。");
+    } catch (e) {
+      showNativeAlert("打开控制中心提示: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnActionShowAuditHistory = async function () {
+    try {
+      if (detectHostComponent() !== "excel") {
+        showNativeAlert("修改历史清单功能目前主要面向表格（Excel/WPS表格）单元格变更。");
+        return;
+      }
+      const summary = getWorkspaceSummary(getApp());
+      if (!summary.workbookName) throw new Error("请先打开目标工作簿。");
+      const response = await fetch("http://127.0.0.1:" + (config.port || 19890) + "/api/v1/tool/call", {
+        method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.token },
+        body: JSON.stringify({ name: "wps_get_audit_history", arguments: { workbookName: summary.workbookName, limit: 10 }, clientName: "WPS Ribbon", sessionId: "wps-ribbon" })
+      });
+      const result = await response.json();
+      const records = result?.data || [];
+      if (!records.length) {
+        showNativeAlert("【安全时光机 · 历史清单】\n\n当前工作簿尚未产生 AI 修改记录。\n当 AI 智能体执行表格写入时，系统将自动记录前后快照。");
+        return;
+      }
+      let msg = `【安全时光机 · 最近 ${records.length} 条修改快照】\n\n`;
+      records.forEach((r, idx) => {
+        const time = r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "刚刚";
+        const statusText = r.status === "rolled_back" ? "[已撤销]" : "[有效]";
+        msg += `${idx + 1}. [${time}] ${statusText} ${r.sheetName || "Sheet1"}!${r.address || "区域"}\n   说明: ${r.description || "单元格写入"}\n`;
+      });
+      msg += "\n如需撤销最近修改，可直接点击功能区【撤销 AI 修改】。";
+      showNativeAlert(msg);
+    } catch (e) {
+      showNativeAlert("获取修改历史异常: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnActionToggleSheetLock = function () {
+    try {
+      const app = getApp();
+      if (!app) throw new Error("未检测到活动办公应用");
+      const host = detectHostComponent();
+      if (host === "excel") {
+        const sheet = app.ActiveSheet;
+        if (!sheet) throw new Error("未检测到活动工作表");
+        if (sheet.ProtectContents) {
+          sheet.Unprotect();
+          showNativeAlert("【工作表安全锁已解除】\n\n当前工作表已允许编辑与 AI 智能体写入。");
+        } else {
+          sheet.Protect();
+          showNativeAlert("【工作表已锁定保护】\n\n已开启工作表防误改保护！AI 智能体尝试写入时将受到安全防护拒绝。");
+        }
+      } else {
+        showNativeAlert("锁定保护功能目前优先适配表格工作表。");
+      }
+    } catch (e) {
+      showNativeAlert("锁定操作异常: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnActionAutoFitFormat = function () {
+    try {
+      const app = getApp();
+      if (!app) throw new Error("未检测到活动办公应用");
+      const host = detectHostComponent();
+      if (host === "excel") {
+        const sheet = app.ActiveSheet;
+        if (!sheet) throw new Error("未检测到活动工作表");
+        if (sheet.UsedRange && sheet.UsedRange.Columns) {
+          sheet.UsedRange.Columns.AutoFit();
+          showNativeAlert("【自适应排版完成】\n\n已自动根据内容长度优化并自适应整张工作表的所有列宽！");
+        } else {
+          showNativeAlert("当前工作表没有可用数据区域。");
+        }
+      } else {
+        showNativeAlert("自适应排版功能优先适配表格（Excel）排版。");
+      }
+    } catch (e) {
+      showNativeAlert("自适应排版失败: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnActionCopyAsMarkdown = function () {
+    try {
+      const app = getApp();
+      if (!app) throw new Error("未检测到活动办公应用");
+      const host = detectHostComponent();
+      if (host === "excel") {
+        const sel = app.Selection;
+        if (!sel) throw new Error("请先用鼠标框选需要复制的单元格区域。");
+        const rowCount = sel.Rows.Count;
+        const colCount = sel.Columns.Count;
+        if (rowCount === 0 || colCount === 0) throw new Error("选区为空");
+        
+        let md = "";
+        for (let r = 1; r <= rowCount; r++) {
+          let rowCells = [];
+          for (let c = 1; c <= colCount; c++) {
+            const cell = sel.Cells.Item(r, c);
+            const val = cell.Text || cell.Value2 || "";
+            rowCells.push(String(val).replace(/\|/g, "\\|").replace(/\n/g, " "));
+          }
+          md += "| " + rowCells.join(" | ") + " |\n";
+          if (r === 1) {
+            md += "| " + rowCells.map(() => "---").join(" | ") + " |\n";
+          }
+        }
+        copyTextToClipboard(md);
+        showNativeAlert(`【选区已复制为 Markdown】\n\n已成功将 ${rowCount} 行 × ${colCount} 列数据格式化为 Markdown 表格并写入剪贴板！\n可直接在任意 AI 助手（豆包、Kimi、ChatGPT 等）对话框中按 Ctrl+V / Cmd+V 粘贴提问。`);
+      } else {
+        showNativeAlert("复制为 Markdown 功能目前主要面向表格数据选区。");
+      }
+    } catch (e) {
+      showNativeAlert("复制选区失败: " + (e.message || String(e)));
+    }
+  };
+
+  window.OnActionClearEmptyRows = function () {
+    try {
+      showNativeAlert("【清除冗余空白】\n\n建议直接选中需要清理的行或列，按键盘 Delete 清除，或在 AI 助手中输入：“帮我检查并清理本表中的空行空列”。");
+    } catch (e) {}
+  };
+
+  window.OnActionPromptFinance = function () {
+    const prompt = "请分析当前打开的财务/业务数据表格，从核心营收、同比环比、毛利率以及异常波动点进行深度专业洞察，并指出潜在的经营风险与优化建议。";
+    copyTextToClipboard(prompt);
+    showNativeAlert("【已复制财务分析提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
+  };
+
+  window.OnActionPromptFormula = function () {
+    const prompt = "请帮我检查当前表格中计算公式的逻辑与引用范围，指出潜在的 #N/A 或循环引用错误，并给出最简洁优雅的修复公式建议。";
+    copyTextToClipboard(prompt);
+    showNativeAlert("【已复制公式排错提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
+  };
+
+  window.OnActionPromptCleaning = function () {
+    const prompt = "请帮我清洗当前表格数据：规范日期与手机号格式，剔除前后不可见空格，识别并标记重复项与缺失值。";
+    copyTextToClipboard(prompt);
+    showNativeAlert("【已复制数据清洗提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
+  };
+
+  window.OnActionPromptSummary = function () {
+    const prompt = "请快速提炼当前文档/表格的核心关键数据与结论，按照高管汇报要点梳理出 3 条核心要点与下一步行动建议。";
+    copyTextToClipboard(prompt);
+    showNativeAlert("【已复制提炼摘要提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
+  };
+
+  window.OnActionShowGuide = function () {
+    showNativeAlert("【Office Agent (AI) 快速使用指南】\n\n1. 确保 Office Agent Bridge 桌面客户端处于「正常运行」状态；\n2. 在桌面端「AI 助手授权中心」一键绑定您的常用客户端（豆包 / Kimi / Claude / WorkBuddy 等）；\n3. 在 AI 客户端中直接对话即可实时读取、分析并修改当前打开的表格与文档！\n4. 任何时候均可点击上方【撤销 AI 修改】秒级恢复数据。");
+  };
+
+  // ---------------------------------------------------------------------------
+  // dispatch.js — RPC 报文解析与方法分发（handleIncomingMessage）
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
   async function handleIncomingMessage(raw) {
     let packet;
     try {
@@ -940,125 +1282,11 @@
     }
   }
 
-  function sendRpcResponse(id, result, error) {
-    sendPacket({
-      type: "rpc_response",
-      id: id,
-      result: result,
-      error: error
-    });
-  }
-
-  // 1. 获取工作区总览 (支持 Word、PPT、Excel 智能自适应)
-  function getWorkspaceSummary(app, workbookName) {
-    const hostType = detectHostComponent();
-
-    // 1. 如果处于 Word (文字) 环境
-    if (hostType === "word") {
-      try {
-        const doc = getWordDocument(app);
-        return {
-          hostType: "word",
-          hasOpenDocument: Boolean(doc),
-          hasOpenWorkbook: false,
-          documentName: doc ? doc.Name : "未命名文档",
-          fullName: doc ? (doc.FullName || doc.Name) : "",
-          paragraphCount: doc && doc.Paragraphs ? doc.Paragraphs.Count : 0,
-          tableCount: doc && doc.Tables ? doc.Tables.Count : 0,
-          wordCount: doc && doc.Words ? doc.Words.Count : 0,
-          message: doc ? `当前已打开 Word 文档: ${doc.Name}` : "当前没有打开的 Word 文档"
-        };
-      } catch (e) {
-        return { hostType: "word", hasOpenDocument: false, hasOpenWorkbook: false, message: e.message || "当前没有打开的 Word 文档" };
-      }
-    }
-
-    // 2. 如果处于 PPT (演示) 环境
-    if (hostType === "ppt") {
-      try {
-        const pres = getPptPresentation(app);
-        return {
-          hostType: "ppt",
-          hasOpenPresentation: Boolean(pres),
-          hasOpenWorkbook: false,
-          presentationName: pres ? pres.Name : "未命名演示文稿",
-          fullName: pres ? (pres.FullName || pres.Name) : "",
-          slideCount: pres && pres.Slides ? pres.Slides.Count : 0,
-          message: pres ? `当前已打开 PPT 演示文稿: ${pres.Name}` : "当前没有打开的 PPT 演示文稿"
-        };
-      } catch (e) {
-        return { hostType: "ppt", hasOpenPresentation: false, hasOpenWorkbook: false, message: e.message || "当前没有打开的 PPT 演示文稿" };
-      }
-    }
-
-    // 3. 默认处于 Excel (表格) 环境
-    try {
-      const wb = getWorkbook(app, workbookName);
-      if (!wb) {
-        return {
-          hostType: "excel",
-          hasOpenWorkbook: false,
-          message: "当前没有打开的 Excel 表格"
-        };
-      }
-
-      const openWorkbooks = [];
-      try {
-        const wbCount = app.Workbooks.Count;
-        for (let i = 1; i <= wbCount; i++) {
-          const w = app.Workbooks.Item(i);
-          openWorkbooks.push({
-            name: w.Name,
-            fullName: w.FullName || w.Name,
-            isActive: app.ActiveWorkbook ? app.ActiveWorkbook.Name === w.Name : false
-          });
-        }
-      } catch (e) {}
-
-      const sheets = [];
-      const count = wb.Worksheets.Count;
-      for (let i = 1; i <= count; i++) {
-        const sheet = wb.Worksheets.Item(i);
-        sheets.push({
-          index: i,
-          name: sheet.Name,
-          visible: sheet.Visible === -1
-        });
-      }
-
-      const activeSheet = wb.ActiveSheet;
-      let selectionInfo = null;
-      try {
-        const sel = app.Selection;
-        if (sel && sel.Address) {
-          selectionInfo = {
-            address: sel.Address(),
-            rowCount: sel.Rows.Count,
-            columnCount: sel.Columns.Count
-          };
-        }
-      } catch (e) {}
-
-      return {
-        hostType: "excel",
-        hasOpenWorkbook: true,
-        workbookName: wb.Name,
-        fullName: wb.FullName || wb.Name,
-        openWorkbooks: openWorkbooks,
-        activeSheetName: activeSheet ? activeSheet.Name : "",
-        sheetCount: count,
-        sheets: sheets,
-        selection: selectionInfo
-      };
-    } catch (e) {
-      return {
-        hostType: "excel",
-        hasOpenWorkbook: false,
-        message: e.message || "当前没有打开的 Excel 表格"
-      };
-    }
-  }
-
+  // ---------------------------------------------------------------------------
+  // excel.js — WPS 表格（Excel/ET）全部 RPC 实现
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
   // 2. 提取原表设计语言 (Design Token)
   function getStyleToken(app, params) {
     const { sheetName, sampleAddress = "A3", workbookName } = params || {};
@@ -2786,6 +3014,11 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // word.js — WPS 文字（Word/WPS）全部 RPC 实现
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
   // ==========================================
   // Word (文字) 模块 工业级全套核心操作实现
   // ==========================================
@@ -3692,6 +3925,84 @@
     };
   }
 
+  function wordCapturePreview(app, params) {
+    const { documentName } = params || {};
+    const doc = getWordDocument(app, documentName);
+    const tempPdfPath = params.outputPath;
+    if (!tempPdfPath) throw new Error("缺少 Bridge 指定的预览输出路径");
+    try {
+      // wdExportFormatPDF = 17
+      doc.ExportAsFixedFormat(tempPdfPath, 17);
+      return {
+        success: true,
+        documentName: doc.Name,
+        pdfPath: tempPdfPath,
+        hasPdf: true,
+        message: `已成功导出 Word 文档页面快照 PDF: ${tempPdfPath}`
+      };
+    } catch (e) {
+      log(`Word 页面导出异常: ${e.message}`);
+      return {
+        success: false,
+        documentName: doc.Name,
+        error: e.message
+      };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ppt-layout.js — PPT 布局几何/字号/容量计算（纯函数，不调用任何宿主 API）
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进。
+  // 例外：文件末尾的 @build-strip 导出块只为 Node 单元测试直接 import 使用，
+  //      构建拼接时由 scripts/build-wps-addon.mjs 整段移除，不会进入 addon-core.js。
+  // ---------------------------------------------------------------------------
+
+  // Office geometry and font sizes are points (72 pt = 1 inch).
+  // 只读 pres.PageSetup，可传入普通对象（{ PageSetup: { SlideWidth, SlideHeight } }），
+  // 因此本函数可在无宿主环境下直接单元测试。
+  function pptPageSize(pres) {
+    const width = Number(pres.PageSetup.SlideWidth);
+    const height = Number(pres.PageSetup.SlideHeight);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error("无法读取有效的 PPT 页面尺寸，停止布局；请检查 PageSetup");
+    }
+    return { pageWidth: width, pageHeight: height, unit: "pt" };
+  }
+
+  // 设计基准 720x405 (pt) 到真实页面尺寸的缩放系数；算法与拆分前 fitGeneratedPptShapes 内联写法一致。
+  function pptScaleForPage(page) {
+    const sx = page.pageWidth / 720, sy = page.pageHeight / 405;
+    return { sx: sx, sy: sy, scale: Math.min(sx, sy) };
+  }
+
+  // 文本视觉宽度：全角 1、半角 0.6；与拆分前 linesAt 内的换算一致。
+  function pptCountTextUnits(text) {
+    return Array.from(text).reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 1 : 0.6), 0);
+  }
+
+  // 指定字号下的预估行数：显式换行逐段累加，每段按内宽向上取整（最少 1 行）。
+  function pptEstimateLines(text, size, innerWidth) {
+    return text.split(/\r\n|\r|\n/).reduce((sum, line) => {
+      const units = pptCountTextUnits(line);
+      return sum + Math.max(1, Math.ceil(units * size / innerWidth));
+    }, 0);
+  }
+
+  // 在 [minimum, preferred] 内按 scale 步长下调字号，直到估算高度不再溢出（或触底）。
+  function pptFitFontSize(text, preferred, minimum, scale, innerWidth, innerHeight) {
+    let size = preferred;
+    while (size > minimum && pptEstimateLines(text, size, innerWidth) * size * 1.25 > innerHeight) {
+      size = Math.max(minimum, size - scale);
+    }
+    return size;
+  }
+
+  // ---------------------------------------------------------------------------
+  // ppt.js — PPT 宿主写入与 RPC 实现
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
   // ==========================================
   // PowerPoint (演示) 模块 7 大核心操作实现
   // ==========================================
@@ -3704,6 +4015,30 @@
     const g = parseInt(clean.substring(2, 4), 16);
     const b = parseInt(clean.substring(4, 6), 16);
     return (b << 16) | (g << 8) | r;
+  }
+
+  // Adapt only newly generated shapes; existing slide content stays untouched.
+  // 几何/字号/容量计算全部委托给 ppt-layout.js 的纯函数，本函数只读写宿主对象。
+  function fitGeneratedPptShapes(slide, firstIndex, page, warnings) {
+    const ratio = pptScaleForPage(page);
+    const sx = ratio.sx, sy = ratio.sy, scale = ratio.scale;
+    for (let i = firstIndex; i <= slide.Shapes.Count; i++) {
+      const shape = slide.Shapes.Item(i);
+      shape.Left *= sx; shape.Top *= sy;
+      shape.Width *= sx; shape.Height *= sy;
+      if (!shape.HasTextFrame || !shape.TextFrame.HasText) continue;
+      const frame = shape.TextFrame, range = frame.TextRange;
+      frame.AutoSize = 0;
+      frame.WordWrap = true;
+      const preferred = Number(range.Font.Size) * scale;
+      const minimum = Math.min(preferred, 12 * scale);
+      const innerW = Math.max(1, shape.Width - Number(frame.MarginLeft || 0) - Number(frame.MarginRight || 0));
+      const innerH = Math.max(1, shape.Height - Number(frame.MarginTop || 0) - Number(frame.MarginBottom || 0));
+      const text = String(range.Text || "");
+      const size = pptFitFontSize(text, preferred, minimum, scale, innerW, innerH);
+      range.Font.Size = size;
+      if (pptEstimateLines(text, size, innerW) * size * 1.25 > innerH) warnings.push({ shapeId: shape.Id, reason: "文字可能溢出，请缩短内容或扩大文本框并检查预览" });
+    }
   }
 
   function addSlideHeader(slide, title, themeColor) {
@@ -3723,11 +4058,13 @@
 
   function renderPptCards(slide, cards, colCount, themeColor, customTop, customH) {
     const cols = Math.max(1, Math.min(Number(colCount) || 3, 4));
-    const count = Math.min(cards.length, cols);
+    if (cards.length > cols) throw new Error("卡片数量超过分栏数，请拆分为多页，避免内容被截断");
+    const count = cards.length;
     const totalW = 620;
     const startX = 50;
-    const startY = Number(customTop) || 100;
-    const cardH = Number(customH) || 260;
+    const startY = customTop === undefined ? 100 : Number(customTop);
+    const cardH = customH === undefined ? 260 : Number(customH);
+    if (!Number.isFinite(startY) || !Number.isFinite(cardH) || startY < 0 || cardH <= 0 || startY + cardH > 405) throw new Error("卡片位置或高度超出页面");
     const gap = 16;
     const cardW = (totalW - (cols - 1) * gap) / cols;
 
@@ -3935,6 +4272,7 @@
     return {
       presentationName: pres.Name,
       fullName: pres.FullName || pres.Name,
+      ...pptPageSize(pres),
       slideCount: count,
       activeSlideIndex: activeIdx,
       slides
@@ -3949,6 +4287,9 @@
     const pres = getPptPresentation(app, presentationName);
     const baseColor = themeColor || (themePreset === "tech_purple" ? "#4B38B3" : "#0F4C81");
     const createdIndices = [];
+    const page = pptPageSize(pres);
+    const warnings = [];
+    // Design coordinates are mapped to the actual page before returning.
     const pageWidth = 720;
     const pageHeight = 405;
 
@@ -4013,6 +4354,8 @@
         }
       }
 
+      fitGeneratedPptShapes(slide, 1, page, warnings);
+
       if (spec.notes) {
         try {
           if (slide.NotesPage && slide.NotesPage.Shapes) {
@@ -4027,6 +4370,9 @@
 
     return {
       success: true,
+      ...page,
+      layoutWarnings: warnings,
+      visualVerificationRequired: true,
       presentationName: pres.Name,
       createdSlidesCount: slides.length,
       createdSlideIndices: createdIndices,
@@ -4085,11 +4431,20 @@
     const slide = pres.Slides.Item(idx);
     const cols = columnCount || (cards.length === 2 ? 2 : (cards.length === 4 ? 4 : 3));
 
-    renderPptCards(slide, cards, cols, "#0F4C81", topY, cardHeight);
+    const page = pptPageSize(pres);
+    const warnings = [];
+    const firstIndex = slide.Shapes.Count + 1;
+    renderPptCards(slide, cards, cols, "#0F4C81",
+      topY === undefined ? undefined : Number(topY) * 405 / page.pageHeight,
+      cardHeight === undefined ? undefined : Number(cardHeight) * 405 / page.pageHeight);
+    fitGeneratedPptShapes(slide, firstIndex, page, warnings);
     return {
       success: true,
       presentationName: pres.Name,
       slideIndex: idx,
+      ...page,
+      layoutWarnings: warnings,
+      visualVerificationRequired: true,
       columns: cols,
       cardsCount: cards.length,
       message: `已在第 ${idx} 页成功排版 ${cards.length} 张现代化商业信息卡片`
@@ -4102,10 +4457,11 @@
     const idx = Number(slideIndex) || (pres.Slides.Count > 0 ? 1 : 1);
     const slide = pres.Slides.Item(idx);
 
-    const l = left !== undefined ? Number(left) : 60;
-    const t = top !== undefined ? Number(top) : 90;
-    const w = width !== undefined ? Number(width) : 600;
-    const h = height !== undefined ? Number(height) : 280;
+    const page = pptPageSize(pres);
+    const l = left !== undefined ? Number(left) : page.pageWidth / 12;
+    const t = top !== undefined ? Number(top) : page.pageHeight * 90 / 405;
+    const w = width !== undefined ? Number(width) : page.pageWidth * 600 / 720;
+    const h = height !== undefined ? Number(height) : page.pageHeight * 280 / 405;
 
     renderPptChart(slide, { chartType: chartType || "column", title, categories, series }, l, t, w, h);
     return {
@@ -4182,6 +4538,7 @@
           rotation: shp.Rotation || 0,
           zOrderPosition: shp.ZOrderPosition || s,
           hasText,
+          fontSize: hasText ? Number(shp.TextFrame.TextRange.Font.Size) : undefined,
           text: textContent ? (textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent) : undefined,
           hasTable,
           table: tableMeta || undefined,
@@ -4196,6 +4553,7 @@
       success: true,
       presentationName: pres.Name,
       slideIndex: idx,
+      ...pptPageSize(pres),
       shapeCount: count,
       shapes,
       message: `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
@@ -4287,7 +4645,7 @@
           const alignMap = { left: 1, center: 2, right: 3, justify: 4 };
           tr.ParagraphFormat.Alignment = alignMap[alignment] || 1;
         }
-        return { success: true, shapeId: tb.Id, message: "已成功添加文本框" };
+        return { success: true, shapeId: tb.Id, left: tb.Left, top: tb.Top, width: tb.Width, height: tb.Height, fontSize: Number(tr.Font.Size), unit: "pt", message: "已成功添加文本框" };
       }
 
       case "add_shape": {
@@ -4309,7 +4667,7 @@
         if (lineColor) {
           shp.Line.ForeColor.RGB = hexToPptColor(lineColor);
         }
-        return { success: true, shapeId: shp.Id, message: "已成功添加形状" };
+        return { success: true, shapeId: shp.Id, left: shp.Left, top: shp.Top, width: shp.Width, height: shp.Height, unit: "pt", message: "已成功添加形状" };
       }
 
       case "update_shape": {
@@ -4859,230 +5217,11 @@
     }
   }
 
-  function wordCapturePreview(app, params) {
-    const { documentName } = params || {};
-    const doc = getWordDocument(app, documentName);
-    const tempPdfPath = params.outputPath;
-    if (!tempPdfPath) throw new Error("缺少 Bridge 指定的预览输出路径");
-    try {
-      // wdExportFormatPDF = 17
-      doc.ExportAsFixedFormat(tempPdfPath, 17);
-      return {
-        success: true,
-        documentName: doc.Name,
-        pdfPath: tempPdfPath,
-        hasPdf: true,
-        message: `已成功导出 Word 文档页面快照 PDF: ${tempPdfPath}`
-      };
-    } catch (e) {
-      log(`Word 页面导出异常: ${e.message}`);
-      return {
-        success: false,
-        documentName: doc.Name,
-        error: e.message
-      };
-    }
-  }
-
-  window.OnActionUndoAiAction = async function () {
-    try {
-      if (detectHostComponent() !== "excel") throw new Error("审计撤销仅覆盖表格单元格的值与公式。");
-      const summary = getWorkspaceSummary(getApp());
-      if (!summary.workbookName) throw new Error("请先打开目标工作簿。");
-      const call = async (name, args) => {
-        const response = await fetch("http://127.0.0.1:" + (config.port || 19890) + "/api/v1/tool/call", {
-          method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.token },
-          body: JSON.stringify({ name: name, arguments: args, clientName: "WPS Ribbon", sessionId: "wps-ribbon" })
-        });
-        const result = await response.json();
-        if (!response.ok || result.success === false) throw new Error(result.error || "Bridge 请求失败");
-        return result.data;
-      };
-      const records = await call("wps_get_audit_history", { workbookName: summary.workbookName, sheetName: summary.activeSheetName, status: "applied", limit: 20 });
-      const record = records.find(item => !item.host || item.host === "wps");
-      if (!record) { showNativeAlert("当前工作表没有可撤销的单元格修改记录。"); return; }
-      if (!confirm("撤销此修改？\n" + record.description + "\n" + record.workbookName + " / " + record.sheetName + " / " + record.address + "\n有后续修改时会拒绝覆盖。")) return;
-      await call("wps_rollback", { auditId: record.id });
-      showNativeAlert("已恢复记录中的单元格值与公式。");
-    } catch (error) { showNativeAlert("撤销未完成：" + error.message); }
-  };
-
-  function copyTextToClipboard(text) {
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch (e) {}
-    try {
-      if (typeof document !== "undefined") {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textArea);
-        return true;
-      }
-    } catch (e) {}
-    return false;
-  }
-
-  window.OnActionOpenDesktopApp = function () {
-    try {
-      showNativeAlert("【Office Agent Bridge 控制中心】\n\n请在屏幕顶部菜单栏或程序坞中切换至「Office Agent Bridge」桌面管理窗口。\n\n您可以在管理中心中配置 AI 助手（豆包、Kimi、Claude、WorkBuddy 等）、查看单元格修改快照以及进行系统诊断。");
-    } catch (e) {
-      showNativeAlert("打开控制中心提示: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnActionShowAuditHistory = async function () {
-    try {
-      if (detectHostComponent() !== "excel") {
-        showNativeAlert("修改历史清单功能目前主要面向表格（Excel/WPS表格）单元格变更。");
-        return;
-      }
-      const summary = getWorkspaceSummary(getApp());
-      if (!summary.workbookName) throw new Error("请先打开目标工作簿。");
-      const response = await fetch("http://127.0.0.1:" + (config.port || 19890) + "/api/v1/tool/call", {
-        method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.token },
-        body: JSON.stringify({ name: "wps_get_audit_history", arguments: { workbookName: summary.workbookName, limit: 10 }, clientName: "WPS Ribbon", sessionId: "wps-ribbon" })
-      });
-      const result = await response.json();
-      const records = result?.data || [];
-      if (!records.length) {
-        showNativeAlert("【安全时光机 · 历史清单】\n\n当前工作簿尚未产生 AI 修改记录。\n当 AI 智能体执行表格写入时，系统将自动记录前后快照。");
-        return;
-      }
-      let msg = `【安全时光机 · 最近 ${records.length} 条修改快照】\n\n`;
-      records.forEach((r, idx) => {
-        const time = r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "刚刚";
-        const statusText = r.status === "rolled_back" ? "[已撤销]" : "[有效]";
-        msg += `${idx + 1}. [${time}] ${statusText} ${r.sheetName || "Sheet1"}!${r.address || "区域"}\n   说明: ${r.description || "单元格写入"}\n`;
-      });
-      msg += "\n如需撤销最近修改，可直接点击功能区【撤销 AI 修改】。";
-      showNativeAlert(msg);
-    } catch (e) {
-      showNativeAlert("获取修改历史异常: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnActionToggleSheetLock = function () {
-    try {
-      const app = getApp();
-      if (!app) throw new Error("未检测到活动办公应用");
-      const host = detectHostComponent();
-      if (host === "excel") {
-        const sheet = app.ActiveSheet;
-        if (!sheet) throw new Error("未检测到活动工作表");
-        if (sheet.ProtectContents) {
-          sheet.Unprotect();
-          showNativeAlert("【工作表安全锁已解除】\n\n当前工作表已允许编辑与 AI 智能体写入。");
-        } else {
-          sheet.Protect();
-          showNativeAlert("【工作表已锁定保护】\n\n已开启工作表防误改保护！AI 智能体尝试写入时将受到安全防护拒绝。");
-        }
-      } else {
-        showNativeAlert("锁定保护功能目前优先适配表格工作表。");
-      }
-    } catch (e) {
-      showNativeAlert("锁定操作异常: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnActionAutoFitFormat = function () {
-    try {
-      const app = getApp();
-      if (!app) throw new Error("未检测到活动办公应用");
-      const host = detectHostComponent();
-      if (host === "excel") {
-        const sheet = app.ActiveSheet;
-        if (!sheet) throw new Error("未检测到活动工作表");
-        if (sheet.UsedRange && sheet.UsedRange.Columns) {
-          sheet.UsedRange.Columns.AutoFit();
-          showNativeAlert("【自适应排版完成】\n\n已自动根据内容长度优化并自适应整张工作表的所有列宽！");
-        } else {
-          showNativeAlert("当前工作表没有可用数据区域。");
-        }
-      } else {
-        showNativeAlert("自适应排版功能优先适配表格（Excel）排版。");
-      }
-    } catch (e) {
-      showNativeAlert("自适应排版失败: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnActionCopyAsMarkdown = function () {
-    try {
-      const app = getApp();
-      if (!app) throw new Error("未检测到活动办公应用");
-      const host = detectHostComponent();
-      if (host === "excel") {
-        const sel = app.Selection;
-        if (!sel) throw new Error("请先用鼠标框选需要复制的单元格区域。");
-        const rowCount = sel.Rows.Count;
-        const colCount = sel.Columns.Count;
-        if (rowCount === 0 || colCount === 0) throw new Error("选区为空");
-        
-        let md = "";
-        for (let r = 1; r <= rowCount; r++) {
-          let rowCells = [];
-          for (let c = 1; c <= colCount; c++) {
-            const cell = sel.Cells.Item(r, c);
-            const val = cell.Text || cell.Value2 || "";
-            rowCells.push(String(val).replace(/\|/g, "\\|").replace(/\n/g, " "));
-          }
-          md += "| " + rowCells.join(" | ") + " |\n";
-          if (r === 1) {
-            md += "| " + rowCells.map(() => "---").join(" | ") + " |\n";
-          }
-        }
-        copyTextToClipboard(md);
-        showNativeAlert(`【选区已复制为 Markdown】\n\n已成功将 ${rowCount} 行 × ${colCount} 列数据格式化为 Markdown 表格并写入剪贴板！\n可直接在任意 AI 助手（豆包、Kimi、ChatGPT 等）对话框中按 Ctrl+V / Cmd+V 粘贴提问。`);
-      } else {
-        showNativeAlert("复制为 Markdown 功能目前主要面向表格数据选区。");
-      }
-    } catch (e) {
-      showNativeAlert("复制选区失败: " + (e.message || String(e)));
-    }
-  };
-
-  window.OnActionClearEmptyRows = function () {
-    try {
-      showNativeAlert("【清除冗余空白】\n\n建议直接选中需要清理的行或列，按键盘 Delete 清除，或在 AI 助手中输入：“帮我检查并清理本表中的空行空列”。");
-    } catch (e) {}
-  };
-
-  window.OnActionPromptFinance = function () {
-    const prompt = "请分析当前打开的财务/业务数据表格，从核心营收、同比环比、毛利率以及异常波动点进行深度专业洞察，并指出潜在的经营风险与优化建议。";
-    copyTextToClipboard(prompt);
-    showNativeAlert("【已复制财务分析提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
-  };
-
-  window.OnActionPromptFormula = function () {
-    const prompt = "请帮我检查当前表格中计算公式的逻辑与引用范围，指出潜在的 #N/A 或循环引用错误，并给出最简洁优雅的修复公式建议。";
-    copyTextToClipboard(prompt);
-    showNativeAlert("【已复制公式排错提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
-  };
-
-  window.OnActionPromptCleaning = function () {
-    const prompt = "请帮我清洗当前表格数据：规范日期与手机号格式，剔除前后不可见空格，识别并标记重复项与缺失值。";
-    copyTextToClipboard(prompt);
-    showNativeAlert("【已复制数据清洗提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
-  };
-
-  window.OnActionPromptSummary = function () {
-    const prompt = "请快速提炼当前文档/表格的核心关键数据与结论，按照高管汇报要点梳理出 3 条核心要点与下一步行动建议。";
-    copyTextToClipboard(prompt);
-    showNativeAlert("【已复制提炼摘要提示词】\n\n「" + prompt + "」\n\n提示词已复制到剪贴板，可直接粘贴发送给您的 AI 助手！");
-  };
-
-  window.OnActionShowGuide = function () {
-    showNativeAlert("【Office Agent (AI) 快速使用指南】\n\n1. 确保 Office Agent Bridge 桌面客户端处于「正常运行」状态；\n2. 在桌面端「AI 助手授权中心」一键绑定您的常用客户端（豆包 / Kimi / Claude / WorkBuddy 等）；\n3. 在 AI 客户端中直接对话即可实时读取、分析并修改当前打开的表格与文档！\n4. 任何时候均可点击上方【撤销 AI 修改】秒级恢复数据。");
-  };
-
+  // ---------------------------------------------------------------------------
+  // bootstrap.js — 加载项启动引导：初次连接、5 秒注册心跳、DOM 就绪后重连
+  // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
+  // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
+  // ---------------------------------------------------------------------------
   try {
     initWebSocket();
   } catch (e) {}
@@ -5106,4 +5245,3 @@
     });
   }
 })();
-
