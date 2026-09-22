@@ -115,10 +115,12 @@ test('能力声明与宿主实现缺口同源且一致', () => {
   const expected = EXCEL_METHODS.filter(m => !toolNames.has(`wps_${m}`) || !toolNames.has(`excel_${m}`));
   assert.deepEqual([...declared].sort(), [...expected].sort(), 'declaredNotCallable 与路由表差集不一致');
 
-  // 宿主实现缺口：wps 缺 update_chart，microsoft 无缺口；且与契约层同源
+  // 宿主实现缺口：WPS 侧剩 export_shape_image（CAP-21 补上 update_chart 后换用它作样例）；
+  // 断言与契约层 HOST_IMPLEMENTATION_GAPS 同源
   assert.deepEqual(caps.hosts.wps.excel.unimplementedOnHost, [...contracts.HOST_IMPLEMENTATION_GAPS.wps]);
   assert.deepEqual(caps.hosts.microsoft.excel.unimplementedOnHost, [...contracts.HOST_IMPLEMENTATION_GAPS.microsoft]);
-  assert.equal(caps.hosts.wps.excel.implemented.includes('update_chart'), false, 'WPS 未实现的方法不得计入 implemented');
+  assert.equal(caps.hosts.wps.excel.implemented.includes('export_shape_image'), false, 'WPS 未实现的方法不得计入 implemented');
+  assert.equal(caps.hosts.wps.excel.implemented.includes('update_chart'), true, 'CAP-21 后 WPS 已实现 update_chart');
   assert.equal(caps.hosts.microsoft.excel.implemented.includes('update_chart'), true, 'Microsoft 有实现，必须计入');
 });
 

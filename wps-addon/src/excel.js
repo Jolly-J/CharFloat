@@ -2164,6 +2164,87 @@
     } catch (e) {}
   }
 
+  // ── CAP-21 图表更新（wps_update_chart）
+  //
+  // 此前 `wps_update_chart` 只在路由表里声明，WPS 加载项**没有 RPC 分支**，
+  // 调用会被明确拒绝（宿主未实现）。真机确认宿主 API 可用：
+  // `shape.Chart.ChartTitle.Text` 可读可写、`ChartType` 可改、系列可读。
+  /** 就地更新已有图表：标题、图表类型、图例、数据标签。写后逐项读回核对。 */
+  function updateChart(app, params) {
+    const { sheetName, workbookName, chartName, chartIndex, title, chartType, hasLegend, showDataLabels } = params || {};
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    try { sheet.Activate(); } catch (e) {}
+
+    // 定位图表形状（HasChart 为真）
+    let target = null;
+    const charts = [];
+    const shapes = sheet.Shapes;
+    for (let i = 1; i <= shapes.Count; i++) {
+      const sh = shapes.Item(i);
+      let isChart = false;
+      try { isChart = Boolean(sh.HasChart); } catch (e) {}
+      if (!isChart) continue;
+      charts.push(sh);
+    }
+    if (!charts.length) throw new Error(`工作表 [${sheet.Name}] 上没有图表`);
+    if (chartName || chartIndex !== undefined) {
+      if (chartIndex !== undefined) {
+        const idx = Number(chartIndex);
+        if (idx < 1 || idx > charts.length) throw new Error(`图表序号 ${idx} 越界（共 ${charts.length} 个）`);
+        target = charts[idx - 1];
+      } else {
+        for (const sh of charts) { try { if (String(sh.Name) === String(chartName)) { target = sh; break; } } catch (e) {} }
+        if (!target) throw new Error(`找不到名为 "${chartName}" 的图表。现有图表：${charts.map(s => { try { return String(s.Name); } catch (e) { return "?"; } }).join(" / ")}`);
+      }
+    } else if (charts.length === 1) {
+      target = charts[0];
+    } else {
+      throw new Error(`工作表上有 ${charts.length} 个图表，请用 chartName 或 chartIndex 指定。现有：${charts.map(s => { try { return String(s.Name); } catch (e) { return "?"; } }).join(" / ")}`);
+    }
+
+    const ch = target.Chart;
+    const warnings = [];
+    const applied = {};
+
+    if (title !== undefined) {
+      try { ch.HasTitle = true; ch.ChartTitle.Text = String(title); applied.title = String(title); }
+      catch (e) { warnings.push(`设置标题失败: ${e.message}`); }
+    }
+    if (chartType !== undefined) {
+      // 常用 xlChartType：柱状簇状=51 / 折线=4 / 饼图=5 / 条形簇状=57 / 散点=75 / 面积=1
+      const TYPES = { column: 51, column_clustered: 51, bar: 57, bar_clustered: 57, line: 4, pie: 5, scatter: 75, area: 1 };
+      const code = typeof chartType === "number" ? chartType : TYPES[String(chartType).toLowerCase()];
+      if (code === undefined) { warnings.push(`不认识的 chartType: ${chartType}`); }
+      else { try { ch.ChartType = code; applied.chartType = code; } catch (e) { warnings.push(`设置图表类型失败: ${e.message}`); } }
+    }
+    if (hasLegend !== undefined) {
+      try { ch.HasLegend = Boolean(hasLegend); applied.hasLegend = Boolean(hasLegend); } catch (e) { warnings.push(`设置图例失败: ${e.message}`); }
+    }
+    if (showDataLabels !== undefined) {
+      try { ch.ApplyDataLabels(showDataLabels ? 2 : 0); applied.showDataLabels = Boolean(showDataLabels); } catch (e) {
+        try { ch.SeriesCollection(1).ApplyDataLabels(); applied.showDataLabels = true; } catch (e2) { warnings.push(`设置数据标签失败: ${e2.message}`); }
+      }
+    }
+
+    // 读回核对
+    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+    const actual = {
+      name: g(() => String(target.Name), null),
+      chartType: g(() => Number(ch.ChartType), null),
+      title: g(() => String(ch.ChartTitle.Text), null),
+      hasTitle: g(() => Boolean(ch.HasTitle), null),
+      hasLegend: g(() => Boolean(ch.HasLegend), null),
+      seriesCount: g(() => Number(ch.SeriesCollection().Count), null)
+    };
+    if (title !== undefined && actual.title !== String(title)) warnings.push(`标题读回为「${actual.title}」，与请求不一致`);
+
+    return {
+      success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name,
+      chartName: actual.name, applied, chart: actual, warnings,
+      message: `已更新图表「${actual.name}」${Object.keys(applied).length} 项${warnings.length ? `（${warnings.length} 条告警）` : ""}`
+    };
+  }
+
   // ── CAP-15~20 第二类：表格常用能力（区域复制 / 超链接 / 命名区域 / 文档属性 / 结构化表格 / 图片）
   //
   // 依据真机探测（WPS 12.1.28496）确认可用：

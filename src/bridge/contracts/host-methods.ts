@@ -38,9 +38,8 @@ export const EXCEL_METHODS = [
  */
 export const HOST_IMPLEMENTATION_GAPS: Record<HostName, readonly string[]> = {
   // CAP-07 后 WPS 表格侧已实现 add_shape/list_shapes/update_shape/group_shapes/
-  // ungroup_shapes/set_shape_zorder（实测分组在 WPS 侧可用，Office.js 侧反而未打通）；
-  // 仍缺 export_shape_image 与 MS 独有的 get_active_shape。
-  wps: ['update_chart', 'export_shape_image'],
+  // ungroup_shapes/set_shape_zorder/update_chart（CAP-21 已补 WPS 侧实现）；
+  wps: ['export_shape_image'],
   // get_style_token 是 WPS 宿主独有的"读原表设计语言"能力，Office.js 的 dispatchExcelTool 无此分支；
   // 声明在此，使 excel_get_style_token(host=microsoft) 的失败被正确归类为"宿主未实现"而非未知工具。
   // format_text_segment 同为 WPS 独有（Office.js 无字符级富文本入口）

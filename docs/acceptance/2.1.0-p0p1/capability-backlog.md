@@ -45,9 +45,9 @@
 | **CAP-18** | **文档属性**（Title/Subject/Author/Keywords 等 8 字段 + 自定义属性） | WPS 宿主支持 | 文档可证 | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：写入 Title/Author/自定义属性后读回核对；8 个内置字段 + 任意自定义） |
 | **CAP-19** | **结构化表格 Table**（创建/更新/样式/汇总行/resize） | WPS 有 ListObject（文档可证）；Office.js 有 `tables` | 文档可证 | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：建表后读回名称/范围/行列数/列名；delete 仅删对象保留数据） |
 | **CAP-20** | **Excel 图片与形状管理**（插入图片、列出/移动/删除形状） | 宿主支持 | 源码可证（WPS 表格侧为零） | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：插入图片读回几何并 list；**注意图片路径必须在 WPS 沙箱可读范围内**，/tmp 读不到） |
-| **CAP-21** | **图表更新（`update_chart`）** | WPS 加载项缺该 RPC 分支（已知缺口） | 源码可证 | WPS 侧 | 唯一被声明的宿主缺口 | 待排期 |
+| **CAP-21** | **图表更新（`update_chart`）** | WPS 加载项缺该 RPC 分支（已知缺口） | 源码可证 | WPS 侧 | 唯一被声明的宿主缺口 | ✅ 已完成已验证（真机：改标题后读回；宿主 API 一直可用，缺的是 WPS 侧 RPC 分支，已补） |
 | **CAP-22** | **图表图片导出（`export_chart_image`）** | Office.js `chart.getImage()`；WPS 只有整表截图 | 源码可证 | WPS 侧补齐 | 单图导出 | 待排期 |
-| **CAP-23** | **工作表保护 / 标签色** | MS 侧有 `protect`/`tabColor`；WPS **未实现且 schema 不含** | 源码可证 | 两侧 | 双向不通 | 待排期 |
+| **CAP-23** | **工作表保护 / 标签色** | MS 侧有 `protect`/`tabColor`；WPS **未实现且 schema 不含** | 源码可证 | 两侧 | 双向不通 | ✅ 已完成已验证（写入 tab_color/protect 走 wps_manage_sheet，读回走 CAP-34 的 read；真机验过 保护=true 标签色=#0F9D58） |
 | **CAP-24** | **Word 关键词加粗（按 `searchQueries`）** | **宿主已实现**，schema 未暴露 | 源码可证 | 只差工具定义 | 零成本 | 待排期 |
 
 ## B 类：可验证性补强（能写不能读 → AI 无法自检）

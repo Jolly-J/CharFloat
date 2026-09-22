@@ -238,8 +238,9 @@ test('DP4：声明了但目标宿主未实现的操作，在调用宿主之前�
   // host=wps（wps_* 兼容名固定指向 WPS）
   // 关键：此刻没有任何加载项连接。若检查发生在宿主调用之后，错误会是 unavailable；
   // 得到 rejected 说明确实在调用宿主之前就拒绝了。
+  // 样例用 export_shape_image：CAP-21 补上 update_chart 后，它是 WPS 侧仍在缺口表里的方法。
   const wpsError = await requestContext.run({ sessionId: 'dp4-wps', host: 'wps' }, () =>
-    executeCatalogTool('wps_update_chart', { workbookName: 'x.xlsx', chartName: 'Chart 1', title: '新标题' }, '测试')
+    executeCatalogTool('wps_export_shape_image', { workbookName: 'x.xlsx', sheetName: 'S1', shapeName: 'Shape 1' }, '测试')
       .then(() => null, (e: unknown) => e as BridgeError));
 
   assert.ok(wpsError instanceof BridgeError, '应抛出已分类错误');
@@ -252,7 +253,7 @@ test('DP4：声明了但目标宿主未实现的操作，在调用宿主之前�
   const caps: any = capabilities();
   // 2026-09-22：CAP-07 之后 WPS 表格侧已实现形状增删改查/分组/层级，
   // 仍缺的是形状导图（export_shape_image）与 MS 独有的 get_active_shape。
-  assert.deepEqual(caps.hosts.wps.excel.unimplementedOnHost, ['update_chart', 'export_shape_image']);
+  assert.deepEqual(caps.hosts.wps.excel.unimplementedOnHost, ['export_shape_image']);
 
   // Microsoft 侧有实现，不得被这条前置检查误伤：未连接时仍是 unavailable（说明走到了宿主调用）
   const msError = await requestContext.run({ sessionId: 'dp4-ms', host: 'microsoft' }, () =>
