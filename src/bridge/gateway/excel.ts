@@ -907,3 +907,44 @@ export const setSheetView: Handler = async (ctx) => {
       showGridlines: args?.showGridlines, showHeadings: args?.showHeadings, zoom: args?.zoom
     });
 };
+
+// ── CAP-15~20 第二类常用能力
+export const copyRange: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("copy_range", { sheetName: args?.sheetName, workbookName: args?.workbookName,
+    sourceRange: args?.sourceRange, destRange: args?.destRange, destSheetName: args?.destSheetName,
+    copyType: args?.copyType, transpose: args?.transpose });
+};
+
+export const manageHyperlink: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("manage_hyperlink", { sheetName: args?.sheetName, workbookName: args?.workbookName,
+    action: args?.action, address: args?.address, url: args?.url, displayText: args?.displayText,
+    tooltip: args?.tooltip, targetAddress: args?.targetAddress });
+};
+
+export const manageNamedRange: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("manage_named_range", { workbookName: args?.workbookName, action: args?.action,
+    name: args?.name, refersTo: args?.refersTo, comment: args?.comment });
+};
+
+export const manageDocumentProperties: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("manage_document_properties", { workbookName: args?.workbookName, action: args?.action,
+    properties: args?.properties });
+};
+
+export const manageTable: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("manage_table", { sheetName: args?.sheetName, workbookName: args?.workbookName,
+    action: args?.action, tableName: args?.tableName, address: args?.address, styleName: args?.styleName,
+    newName: args?.newName, hasHeaders: args?.hasHeaders, totalsRow: args?.totalsRow });
+};
+
+export const managePictures: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+  return await callOffice("manage_pictures", { sheetName: args?.sheetName, workbookName: args?.workbookName,
+    action: args?.action, filePath: args?.filePath, pictureName: args?.pictureName, pictureIndex: args?.pictureIndex,
+    left: args?.left, top: args?.top, width: args?.width, height: args?.height });
+};
