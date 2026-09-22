@@ -488,6 +488,7 @@ export const updateChart: Handler = async (ctx) => {
       fontName: args?.fontName,
       legendPosition: args?.legendPosition,
       dataLabelColorMatchesSeries: args?.dataLabelColorMatchesSeries,
+      position: args?.position,
       cellRange: args?.cellRange || args?.position?.cellRange,
       startCell: args?.startCell || args?.position?.startCell || args?.leftCell || args?.position?.leftCell,
       endCell: args?.endCell || args?.position?.endCell,
