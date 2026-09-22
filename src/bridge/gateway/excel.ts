@@ -343,6 +343,7 @@ export const addConditionalFormatting: Handler = async (ctx) => {
     if (!addr) throw new Error("缺少必要参数: address (例如 'E5:E20')");
     const bColor = args?.barColor || args?.color || args?.fillColor;
     const result = await callOffice("add_conditional_formatting", {
+      action: args?.action,
       sheetName: args?.sheetName,
       address: addr,
       workbookName: args?.workbookName,
@@ -376,6 +377,7 @@ export const addConditionalFormatting: Handler = async (ctx) => {
 export const freezePanes: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     const result = await callOffice("freeze_panes", {
+      action: args?.action,
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       freezeRowIndex: args?.freezeRowIndex ?? args?.row ?? args?.rows,
@@ -519,9 +521,10 @@ export const deleteChart: Handler = async (ctx) => {
 
 export const createPivotTable: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    if (!args?.sourceRange) throw new Error("缺少必要参数: sourceRange (例如 '明细!A1:K5422')");
+    if (args?.action !== "read" && !args?.sourceRange) throw new Error("缺少必要参数: sourceRange (例如 '明细!A1:K5422')");
     if (!args?.destCell) throw new Error("缺少必要参数: destCell (例如 'B4')");
     const result = await callOffice("create_pivot_table", {
+      action: args?.action,
       workbookName: args?.workbookName,
       sourceSheetName: args?.sourceSheetName,
       sourceRange: args?.sourceRange,
@@ -542,8 +545,9 @@ export const createPivotTable: Handler = async (ctx) => {
 
 export const setFilterAndSort: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    if (!args?.range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
+    if (args?.action !== "read" && !args?.range) throw new Error("缺少必要参数: range (例如 'A4:E20')");
     const result = await callOffice("set_filter_and_sort", {
+      action: args?.action,
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       range: args?.range,
@@ -562,6 +566,7 @@ export const setDataValidation: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.address) throw new Error("缺少必要参数: address (例如 'E5:E20')");
     const result = await callOffice("set_data_validation", {
+      action: args?.action,
       sheetName: args?.sheetName,
       workbookName: args?.workbookName,
       address: args?.address,
