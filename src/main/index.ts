@@ -8,6 +8,7 @@ import { FULL_DISK_ACCESS_URL, appToAuthorize } from './permissions.js';
 import { openPermissionWindow, closePermissionWindow, startAppDrag, getPermissionIssue, loadAppIcon } from './permission-window.js';
 import { InstallerEngine } from './installer-engine.js';
 import { AddonInstaller, OfficeAddonInstaller } from './addon-installer.js';
+import { ensureAddonUpToDate } from './addon-autoupgrade.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.WPS_BRIDGE_RESOURCES ||= app.getAppPath();
 const root = app.getAppPath();
@@ -17,6 +18,8 @@ InstallerEngine.runtimeEntry = cliPath;
 let window: BrowserWindow | null = null, tray: Tray | null = null;
 let timer: NodeJS.Timeout | undefined;
 let notice = '';
+// 最近一次加载项自动升级的结果（供界面展示）
+let addonUpgradeResult: Awaited<ReturnType<typeof ensureAddonUpToDate>> | null = null;
 const prefsPath = path.join(runtimeHome(), 'desktop.json');
 let prefs: any = {};
 try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
@@ -59,6 +62,15 @@ function setupIpc() {
   ipcMain.handle('get-audit-record', (_e, id: string) => serviceRequest('/api/v1/tool/call', { name: 'wps_get_audit_record', arguments: { auditId: id } }).then(r => r.data));
   ipcMain.handle('rollback-record', (_e, id: string) => serviceRequest('/api/v1/tool/call', { name: 'wps_rollback', arguments: { auditId: id }, sessionId: 'desktop' }).then(r => r.data));
   ipcMain.handle('check-addon-status', () => AddonInstaller.checkStatus());
+  // 已部署加载项 vs 客户端包内构建的构建指纹比对（"版本号相同 ≠ 构建相同"）
+  ipcMain.handle('check-addon-freshness', () => AddonInstaller.checkBuildFreshness());
+  ipcMain.handle('get-addon-upgrade-result', () => addonUpgradeResult);
+  // 需要时手动触发一次"检测 → 重新部署 → 触发重载"，与启动时的自动流程同一条路径
+  ipcMain.handle('ensure-addon-uptodate', async (_e, opts?: { force?: boolean }) => {
+    appendServiceLog('IPC', `收到加载项升级请求 (force=${Boolean(opts?.force)})`);
+    addonUpgradeResult = await ensureAddonUpToDate({ force: Boolean(opts?.force) });
+    return addonUpgradeResult;
+  });
   // 安装器只做**纯识别**（不依赖 electron）；"该授权哪个 App"在这里补上，保证 installer 可在普通 Node 测试里加载
   let lastPermissionRetry: (() => Promise<any>) | null = null;
   const withPermissionTarget = (r: any) => {
@@ -122,7 +134,15 @@ else {
     tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 Office Agent Bridge', click: createWindow }, { label: '停止服务', click: () => { void serviceRequest('/api/v1/service/stop', {}).catch(e => { notice = e.message; }); } }, { type: 'separator' }, { label: '退出管理窗口（后台继续运行）', click: () => app.quit() }]));
     tray.on('click', createWindow);
     if (!process.argv.includes('--background')) createWindow();
-    ensureService(cliPath).catch(e => { notice = e.message; });
+    // 启动即对齐：客户端包内的加载项若比 WPS 里部署的新，自动重新部署并触发重载。
+    // 串行在 ensureService 之后——重载要靠桥接把 reload 送到加载项。
+    ensureService(cliPath)
+      .then(() => ensureAddonUpToDate())
+      .then(r => {
+        addonUpgradeResult = r;
+        appendServiceLog('AutoUpgrade', r.message);
+      })
+      .catch(e => { notice = e.message; });
     timer = setInterval(async () => { if (window && !window.isDestroyed()) window.webContents.send('status-changed', await state()); }, 2000);
     app.on('activate', createWindow);
   });

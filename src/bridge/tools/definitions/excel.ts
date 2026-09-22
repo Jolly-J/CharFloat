@@ -487,7 +487,9 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             shapeName: { type: "string", description: "按稳定 Shape 名称精确定位图表" },
             chartIndex: { type: "number", description: "按图表序号定位，从 1 开始，不受图片等非图表 Shape 影响" },
             chartTitle: { type: "string", description: "按图表标题关键词筛选" },
-            detail: { type: "boolean", description: "是否读取系列与坐标轴详情，默认 false" }
+            detail: { type: "boolean", description: "是否读取系列与坐标轴详情，默认 false" },
+            shapeSelfTest: { type: "boolean", description: "诊断用：在 Office.js 任务窗格内跑一遍矢量形状能力自检并返回逐项结果（返回体含 addon.version 与 capabilities，可用于确认窗格是否已换到最新代码）" },
+            selfTestKeep: { type: "boolean", description: "诊断用：把自检明细留在 _cap08_shapetest 工作表里供读回" }
           },
           required: [],
           additionalProperties: false
@@ -993,6 +995,108 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             sheetName: { type: "string", description: "scope='sheet' 时要导出的工作表名" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_add_shape",
+        description: "在表格上画**矢量形状**：几何形状（矩形/椭圆等）、文本框、直线连接符。返回体带**读回的真实几何与样式**（位置/尺寸/旋转/填充/线条），并在宿主没接受某个属性时写进 warnings——不做假成功。宿主差异（已实测）：矩形与文本框可用；**直线在本机 Microsoft Excel 上报「当前对象不允许此操作」**；SVG 需要 ExcelApi 1.9+ 的 `addSvg`，本机无此方法。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        parameters: {
+          type: "object",
+          properties: {
+            kind: { type: "string", enum: ["geometric", "textBox", "line", "connector"], description: "形状种类，默认 geometric" },
+            shapeType: { type: "string", description: "kind=geometric 时的形状名（如 rectangle / ellipse / triangle / pentagon / arrow）" },
+            text: { type: "string", description: "kind=textBox 时的文本内容；几何形状也可带文本" },
+            left: { type: "number", description: "左边缘（磅）" },
+            top: { type: "number", description: "上边缘（磅）" },
+            width: { type: "number", description: "宽度（磅）" },
+            height: { type: "number", description: "高度（磅）" },
+            rotation: { type: "number", description: "旋转角度（度）" },
+            x1: { type: "number", description: "kind=line 起点 x" },
+            y1: { type: "number", description: "kind=line 起点 y" },
+            x2: { type: "number", description: "kind=line 终点 x" },
+            y2: { type: "number", description: "kind=line 终点 y" },
+            fillColor: { type: "string", description: "填充色，如 '#2F6FEB'；也可用 fill 别名" },
+            lineColor: { type: "string", description: "线条色" },
+            lineWeight: { type: "number", description: "线条粗细（磅）" },
+            name: { type: "string", description: "给形状起稳定名字，便于后续按名定位" },
+            sheetName: { type: "string", description: "工作表名称" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_group_shapes",
+        description: "把若干形状**组合**成一个组（按 shapeNames 指定）。⚠️ **本机 Microsoft Excel 尚未打通**：宿主 API（addGroup）本身可用（任务窗格内置自检在新建且激活的表上能组合成功），但经本工具对已存在的表调用会报「当前对象不允许此操作」，已试过先激活目标表与单独 sync 均无效，**根因未定位**——请把失败当作真实失败，不要重试绕过。WPS 表格侧未实现该能力。",
+        parameters: {
+          type: "object",
+          properties: {
+            shapeNames: { type: "array", description: "要组合的形状名列表（用 list_shapes 或 add_shape 返回的 name）" },
+            groupName: { type: "string", description: "组合后的名字，便于后续定位" },
+            sheetName: { type: "string", description: "工作表名称" }
+          },
+          required: ["shapeNames"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_ungroup_shapes",
+        description: "**解散分组**：把组内成员释放回工作表。⚠️ 依赖组合成功，而组合在本机经工具路径未打通（见 wps_group_shapes），因此本工具当前通常拿到「参数无效或缺少」——先确认组确实存在再调用。WPS 表格侧未实现该能力。",
+        parameters: {
+          type: "object",
+          properties: {
+            shapeName: { type: "string", description: "要解散的组合名（组本身的名字）" },
+            shapeId: { type: "string", description: "或用形状 id 定位" },
+            sheetName: { type: "string", description: "工作表名称" }
+          },
+          required: [],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_set_shape_zorder",
+        description: "调整形状的**层级**（bringToFront 置顶 / sendToBack 置底）。返回调整后所有形状的 zOrder 序列，可核对是否真的换了层。实测本机可用。",
+        parameters: {
+          type: "object",
+          properties: {
+            shapeName: { type: "string", description: "目标形状名" },
+            shapeId: { type: "string", description: "或用形状 id 定位" },
+            zOrder: { type: "string", enum: ["bringToFront", "sendToBack", "bringForward", "sendBackward"], description: "层级调整方式" },
+            sheetName: { type: "string", description: "工作表名称" }
+          },
+          required: ["zOrder"],
+          additionalProperties: false
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "wps_export_shape_image",
+        description: "把单个形状**导出为图片**（返回 base64）。做单图交付或把形状当图片复用时使用。实测本机可用。",
+        parameters: {
+          type: "object",
+          properties: {
+            shapeName: { type: "string", description: "要导出的形状名" },
+            shapeId: { type: "string", description: "或用形状 id 定位" },
+            format: { type: "string", enum: ["png", "jpeg", "gif", "bmp", "svg"], description: "图片格式，默认 png" },
+            scale: { type: "number", description: "缩放倍数，默认 1" },
+            sheetName: { type: "string", description: "工作表名称" }
+          },
+          required: [],
           additionalProperties: false
         }
       }

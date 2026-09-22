@@ -250,7 +250,10 @@ test('DP4：声明了但目标宿主未实现的操作，在调用宿主之前�
 
   // 同一能力声明与行为一致
   const caps: any = capabilities();
-  assert.deepEqual(caps.hosts.wps.excel.unimplementedOnHost, ['update_chart']);
+  // 2026-09-22：WPS 表格侧的矢量形状能力（CAP-08）只在 Office.js 侧实现，
+  // 因此这几个方法同样是「声明了但 WPS 未实现」，与 update_chart 一起列出。
+  assert.deepEqual(caps.hosts.wps.excel.unimplementedOnHost,
+    ['update_chart', 'add_shape', 'group_shapes', 'ungroup_shapes', 'set_shape_zorder', 'export_shape_image']);
 
   // Microsoft 侧有实现，不得被这条前置检查误伤：未连接时仍是 unavailable（说明走到了宿主调用）
   const msError = await requestContext.run({ sessionId: 'dp4-ms', host: 'microsoft' }, () =>

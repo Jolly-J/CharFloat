@@ -415,7 +415,13 @@ export class WpsBridgeServer {
       ws.send(JSON.stringify({
         id: 'hot-reload-' + Date.now(),
         method: 'run_script',
-        params: { code: 'window.location.reload(true);' }
+        params: {
+          // 用**改 URL**的方式强制重新拉取，而不是 `location.reload(true)`。
+          // 实测（Excel for Mac，WKWebView）：`reload(true)` 的 forceGet 参数是已废弃写法，
+          // 在 WKWebView 里不生效——信号发出、返回成功，但窗格里的代码不变。
+          // 改 URL 必然产生新的资源地址，缓存无从命中（与 WPS 加载项 index.html 加版本查询串同一原理）。
+          code: `(function(){try{var u=new URL(window.location.href);u.searchParams.set('v',String(Date.now()));window.location.replace(u.toString());return 'reloading:'+u.searchParams.get('v');}catch(e){window.location.reload();return 'fallback';}})();`
+        }
       }));
       return json({ success: true, message: '已向 Excel 发送热重载信号' });
     }

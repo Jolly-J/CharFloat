@@ -5,9 +5,13 @@
   // ==========================================
 
   function getTargetSheet(context, sheetName) {
-    if (sheetName) {
-      return context.workbook.worksheets.getItem(sheetName);
-    }
-    return context.workbook.worksheets.getActiveWorksheet();
+    // 顺手把 `name` 排进加载队列：调用方普遍会把 `sheet.name` 写进返回体，
+    // 而 Office.js 读未 load 的属性会直接抛「属性"name"不可用」。
+    // 在这里统一 load 一次，避免每个处理器各写一遍（真机实测踩到过：形状工具全部报该错）。
+    const sheet = sheetName
+      ? context.workbook.worksheets.getItem(sheetName)
+      : context.workbook.worksheets.getActiveWorksheet();
+    sheet.load("name");
+    return sheet;
   }
 
