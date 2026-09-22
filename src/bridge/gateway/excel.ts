@@ -844,7 +844,8 @@ export const addShape: Handler = async (ctx) => {
       left: args?.left, top: args?.top, width: args?.width, height: args?.height, rotation: args?.rotation,
       x1: args?.x1, y1: args?.y1, x2: args?.x2, y2: args?.y2,
       fillColor: args?.fillColor, fill: args?.fill, lineColor: args?.lineColor, lineWeight: args?.lineWeight,
-      fontName: args?.fontName, fontSize: args?.fontSize, bold: args?.bold, italic: args?.italic, wordArtPreset: args?.wordArtPreset,
+      fontName: args?.fontName, fontSize: args?.fontSize, bold: args?.bold, italic: args?.italic, wordArtPreset: args?.wordArtPreset, fontColor: args?.fontColor,
+      textAlign: args?.textAlign, textVAlign: args?.textVAlign, marginLeft: args?.marginLeft, marginRight: args?.marginRight,
       name: args?.name
     });
 };

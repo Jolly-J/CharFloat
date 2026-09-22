@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: b36fa6d2dc35a81669b4cbcbf78a73a033def7d74b7ee53983c43818681e9c2e
+// ADDON_BUILD_FINGERPRINT: 855ba73e5fb4d0b2a94a14b18f167112fbc422c327badc96d360dc1819890fe5
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "b36fa6d2dc35a81669b4cbcbf78a73a033def7d74b7ee53983c43818681e9c2e";
+  var ADDON_BUILD_FINGERPRINT = "855ba73e5fb4d0b2a94a14b18f167112fbc422c327badc96d360dc1819890fe5";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -2659,6 +2659,20 @@
     throw new Error(`不认识的形状类型 "${raw}"。可用：${Object.keys(AUTO_SHAPE_TYPES).join(" / ")}`);
   }
 
+  /**
+   * 判断某个十六进制底色偏亮还是偏暗，用于给形状文字选黑字还是白字。
+   *
+   * 为什么需要：WPS 给**自选图形默认白字**。如果调用方填了白底又不指定字色，
+   * 就会得到"白字白底"——文字完全看不见，而且没有任何报错（真机踩到过：
+   * 流程框全部隐形）。这里按底色亮度自动选，调用方显式给 fontColor 时以调用方为准。
+   */
+  function isLightFill(hex) {
+    const rgb = hexToExcelColor(hex);
+    if (rgb === null || rgb === undefined) return null;   // 无底色 → 交给宿主默认
+    const r = rgb & 0xff, g = (rgb >> 8) & 0xff, b = (rgb >> 16) & 0xff;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150;
+  }
+
   /** 单元格地址取值：宿主方法是原生实现，**必须保留接收者**直接调用（摘出来会丢 this）。 */
   function shapeAddressOf(cell) {
     try { return String(cell.Address()); } catch (e) {
@@ -2722,7 +2736,8 @@
     const { sheetName, workbookName, kind = "geometric", shapeType, text, name,
             left = 0, top = 0, width = 160, height = 80, rotation,
             x1, y1, x2, y2, fillColor, lineColor, lineWeight,
-            wordArtPreset, fontName, fontSize, bold, italic } = params || {};
+            wordArtPreset, fontName, fontSize, bold, italic, fontColor,
+            textAlign, textVAlign, marginLeft, marginRight, marginTop, marginBottom } = params || {};
     const sheet = getWorksheet(app, sheetName, workbookName);
     const shapes = sheet.Shapes;
     const warnings = [];
@@ -2739,6 +2754,10 @@
       );
     } else if (k === "textbox" || k === "text") {
       shape = shapes.AddTextbox(1, Number(left), Number(top), Number(width), Number(height));
+      // 文本框默认**不画边框、不填底色**——否则页面上每段文字都套一个框。
+      // 调用方显式传 fillColor/lineColor 时才打开对应可见性（见下方）。
+      try { shape.Line.Visible = 0; } catch (e) {}
+      try { shape.Fill.Visible = 0; } catch (e) {}
     } else if (k === "wordart" || k === "texteffect") {
       // 艺术字：WPS 相对 Office.js 的独有能力
       const preset = Number.isFinite(Number(wordArtPreset)) ? Number(wordArtPreset) : 0;
@@ -2758,22 +2777,62 @@
     if (fillColor) {
       const rgb = hexToExcelColor(fillColor);
       if (rgb === null) warnings.push(`fillColor 无法解析: ${fillColor}`);
-      else { try { shape.Fill.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置填充失败: ${e.message}`); } }
+      else { try { shape.Fill.Visible = -1; shape.Fill.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置填充失败: ${e.message}`); } }
     }
     if (lineColor) {
       const rgb = hexToExcelColor(lineColor);
       if (rgb === null) warnings.push(`lineColor 无法解析: ${lineColor}`);
-      else { try { shape.Line.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置线条色失败: ${e.message}`); } }
+      else { try { shape.Line.Visible = -1; shape.Line.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置线条色失败: ${e.message}`); } }
     }
     if (Number.isFinite(Number(lineWeight))) {
       try { shape.Line.Weight = Number(lineWeight); } catch (e) { warnings.push(`设置线宽失败: ${e.message}`); }
     }
-    // 文字：几何形状/文本框都能写字（艺术字的文字在创建时给）
+    // 文字：几何形状/文本框都能写字（艺术字的文字在创建时给）。
+    // 字号/加粗/斜体/字体/字色对**所有形状类型**生效——原来只对艺术字生效，
+    // 于是"画个文本框并给它 22pt 加粗"这类最常见需求被静默忽略。
     if (k !== "wordart" && k !== "texteffect" && text !== undefined && text !== null && String(text) !== "") {
-      try { shape.TextFrame.Characters().Text = String(text); } catch (e) { warnings.push(`写入文字失败: ${e.message}`); }
+      try {
+        const chars = shape.TextFrame.Characters();
+        chars.Text = String(text);
+        if (Number.isFinite(Number(fontSize))) chars.Font.Size = Number(fontSize);
+        if (bold !== undefined) chars.Font.Bold = bold ? -1 : 0;
+        if (italic !== undefined) chars.Font.Italic = italic ? -1 : 0;
+        if (fontName) { chars.Font.Name = String(fontName); }
+        if (fontColor) {
+          const fc = hexToExcelColor(fontColor);
+          if (fc !== null) chars.Font.Color = fc;
+        } else {
+          // 未指定字色：按填充色亮度选黑/白，避免"白字白底"隐形
+          const light = isLightFill(fillColor);
+          if (light === true) chars.Font.Color = hexToExcelColor("#333333");
+          else if (light === false) chars.Font.Color = hexToExcelColor("#FFFFFF");
+        }
+        // 对齐：文本框默认左对齐/顶对齐，自选图形默认居中/垂直居中。
+        // 原来完全不设——于是"流程框里的字顶在框顶"、"卡片里的字挤在左上角"。
+        const tf = shape.TextFrame;
+        try {
+          if (textAlign === "center") tf.TextRange.ParagraphFormat.Alignment = 2;
+          else if (textAlign === "right") tf.TextRange.ParagraphFormat.Alignment = 3;
+          else if (textAlign === "left") tf.TextRange.ParagraphFormat.Alignment = 1;
+          else if (k !== "textbox" && k !== "text") tf.TextRange.ParagraphFormat.Alignment = 2;
+        } catch (e) {}
+        try {
+          if (textVAlign === "top") tf.VerticalAnchor = 1;
+          else if (textVAlign === "bottom") tf.VerticalAnchor = 3;
+          else if (textVAlign === "middle") tf.VerticalAnchor = 2;
+          else if (k !== "textbox" && k !== "text") tf.VerticalAnchor = 2;   // 自选图形默认垂直居中
+        } catch (e) {}
+        for (const [key, val] of Object.entries({ MarginLeft: marginLeft, MarginRight: marginRight, MarginTop: marginTop, MarginBottom: marginBottom })) {
+          if (Number.isFinite(Number(val))) { try { tf[key] = Number(val); } catch (e) {} }
+        }
+      } catch (e) { warnings.push(`写入文字失败: ${e.message}`); }
     }
 
     const actual = readShape(shape, sheet);
+    try {
+      actual.textAlign = (() => { const a = Number(shape.TextFrame.TextRange.ParagraphFormat.Alignment); return a === 1 ? "left" : a === 2 ? "center" : a === 3 ? "right" : null; })();
+      actual.textVAlign = (() => { const v = Number(shape.TextFrame.VerticalAnchor); return v === 1 ? "top" : v === 2 ? "middle" : v === 3 ? "bottom" : null; })();
+    } catch (e) {}
     // 核对请求与读回：不一致就如实告警（不抛错，因为部分属性宿主可能合法地做了归一）
     const requested = { kind: k, left: Number(left), top: Number(top), width: Number(width), height: Number(height) };
     if (k === "geometric" || k === "autoshape") {
@@ -2851,12 +2910,12 @@
     if (fillColor) {
       const rgb = hexToExcelColor(fillColor);
       if (rgb === null) warnings.push(`fillColor 无法解析: ${fillColor}`);
-      else { try { shape.Fill.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置填充失败: ${e.message}`); } }
+      else { try { shape.Fill.Visible = -1; shape.Fill.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置填充失败: ${e.message}`); } }
     }
     if (lineColor) {
       const rgb = hexToExcelColor(lineColor);
       if (rgb === null) warnings.push(`lineColor 无法解析: ${lineColor}`);
-      else { try { shape.Line.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置线条色失败: ${e.message}`); } }
+      else { try { shape.Line.Visible = -1; shape.Line.ForeColor.RGB = rgb; } catch (e) { warnings.push(`设置线条色失败: ${e.message}`); } }
     }
     if (Number.isFinite(Number(lineWeight))) {
       try { shape.Line.Weight = Number(lineWeight); } catch (e) { warnings.push(`设置线宽失败: ${e.message}`); }
@@ -8510,21 +8569,46 @@
         const tbl = shp.Table;
         const hColor = headerFillColor || "#0072C6";
 
-        for (let r = 1; r <= tbl.Rows.Count; r++) {
-          for (let c = 1; c <= tbl.Columns.Count; c++) {
-            const cell = tbl.Cell(r, c);
-            if (r === 1) {
-              cell.Shape.Fill.Solid();
-              cell.Shape.Fill.ForeColor.RGB = hexToPptColor(hColor);
-              if (cell.Shape.HasTextFrame && cell.Shape.TextFrame.HasText) {
-                cell.Shape.TextFrame.TextRange.Font.Bold = true;
-                cell.Shape.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#FFFFFF");
-              }
-            } else {
-              cell.Shape.Fill.Solid();
-              cell.Shape.Fill.ForeColor.RGB = hexToPptColor("#FFFFFF");
-            }
+        // 指定了 row/column 就**只刷那一格**；都没给才整表重刷（保持原有行为）。
+        // 原实现无条件遍历整表，`row`/`column` 被静默忽略——于是"给某一格上色"永远做不到
+        // （调用方以为设置成功了，实际被整表重刷覆盖）。
+        const onlyRow = Number.isFinite(Number(row)) ? Number(row) : null;
+        const onlyCol = Number.isFinite(Number(column)) ? Number(column) : null;
+
+        const paintCell = (r, c, isHeader) => {
+          const cell = tbl.Cell(r, c);
+          cell.Shape.Fill.Solid();
+          if (fillColor) {
+            cell.Shape.Fill.ForeColor.RGB = hexToPptColor(fillColor);
+          } else {
+            cell.Shape.Fill.ForeColor.RGB = hexToPptColor(isHeader ? hColor : "#FFFFFF");
           }
+          if (cell.Shape.HasTextFrame && cell.Shape.TextFrame.HasText) {
+            const tr = cell.Shape.TextFrame.TextRange;
+            if (isHeader && !fillColor) {
+              tr.Font.Bold = true;
+              tr.Font.Color.RGB = hexToPptColor("#FFFFFF");
+            }
+            if (fontColor) tr.Font.Color.RGB = hexToPptColor(fontColor);
+            if (fontBold !== undefined) tr.Font.Bold = Boolean(fontBold);
+            if (Number.isFinite(Number(fontSize))) tr.Font.Size = Number(fontSize);
+          }
+        };
+
+        if (onlyRow !== null || onlyCol !== null) {
+          const rStart = onlyRow !== null ? onlyRow : 1;
+          const rEnd = onlyRow !== null ? onlyRow : tbl.Rows.Count;
+          const cStart = onlyCol !== null ? onlyCol : 1;
+          const cEnd = onlyCol !== null ? onlyCol : tbl.Columns.Count;
+          if (rStart < 1 || rStart > tbl.Rows.Count || rEnd > tbl.Rows.Count) {
+            throw new Error(`行号超出范围：表格共 ${tbl.Rows.Count} 行`);
+          }
+          if (cStart < 1 || cStart > tbl.Columns.Count || cEnd > tbl.Columns.Count) {
+            throw new Error(`列号超出范围：表格共 ${tbl.Columns.Count} 列`);
+          }
+          for (let r = rStart; r <= rEnd; r++) for (let c = cStart; c <= cEnd; c++) paintCell(r, c, r === 1);
+        } else {
+          for (let r = 1; r <= tbl.Rows.Count; r++) for (let c = 1; c <= tbl.Columns.Count; c++) paintCell(r, c, r === 1);
         }
 
         applyCellBorders(tbl, borderColor || "#333333");
