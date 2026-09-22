@@ -2432,20 +2432,37 @@
   }
 
   /** 一次批次里把形状的全部可读属性挂上 load（读回口径只在这里维护一份）。 */
+  /**
+   * 按形状类型加载属性。
+   *
+   * ⚠️ **必须分两阶段**：`type` 本身也要 load 才读得到。
+   * 一阶段写法（先 `shape.load("...type...")` 再立刻 `String(shape.type)` 判断）拿到的是
+   * **undefined**，于是 `isLine`/`isGroup` 恒为 false，照样对 Line/Group load `fill`/`textFrame`
+   * → `context.sync()` 抛「当前对象不允许此操作」。
+   * 这正是「直线建不出来」「分组建不出来」看起来像宿主限制的原因**（真机复核：对象其实建成了）。
+   *
+   * 注意：`try/catch` 挡不住这个错——Office.js 的 load() 是延迟的，失败发生在 sync() 时。
+   *
+   * 调用方约定：调用本函数后需自行 `await context.sync()`；如需按类型决定加载项，
+   * 请用 `loadShapeDetailTyped(context, shape)`（它会自己 sync 一次）。
+   */
   function loadShapeDetail(shape) {
-    // ⚠️ 不能无条件 load `fill` / `textFrame`：
-    // **Line（连接符）没有 fill；Group（组合）既没有 fill 也没有 textFrame**。
-    // 对它们 load 这些属性会让整个 `context.sync()` 抛错——
-    // 于是「直线建不出来」「分组建不出来」看起来像宿主限制，
-    // 其实是**读回把它带崩了**（真机复核：addLine / addGroup 都真的建成了）。
-    //
-    // 注意 `try/catch` **挡不住**这个错：Office.js 的 load() 是延迟的，
-    // 失败发生在 sync() 时而不是 load() 调用点。所以必须**按形状类型**决定 load 什么。
     shape.load("name,id,type,left,top,width,height,rotation,zOrderPosition,visible");
-    let typeName = "";
-    try { typeName = String(shape.type); } catch (e) {}
+    shape.load("lineFormat/color,lineFormat/weight,lineFormat/visible");
+    return shape;
+  }
+
+  /**
+   * 分两阶段加载：先只 load `type` 并 sync，拿到真实类型后再补 load 其余属性。
+   * 对 Line 不 load `fill`，对 Group 不 load `fill`/`textFrame`——它们没有这些属性。
+   */
+  async function loadShapeDetailTyped(context, shape) {
+    shape.load("type");
+    await context.sync();                 // 第一阶段：只为了让 type 可用
+    const typeName = (() => { try { return String(shape.type); } catch (e) { return ""; } })();
     const isLine = /Line/i.test(typeName);
     const isGroup = /Group/i.test(typeName);
+    shape.load("name,id,left,top,width,height,rotation,zOrderPosition,visible");
     if (!isLine && !isGroup) shape.load("fill/type,fill/foregroundColor,fill/transparency");
     shape.load("lineFormat/color,lineFormat/weight,lineFormat/visible");
     if (!isGroup) {
@@ -2453,6 +2470,7 @@
       shape.load("textFrame/textRange/font/bold,textFrame/textRange/font/size,textFrame/textRange/font/color");
       shape.load("textFrame/horizontalAlignment,textFrame/verticalAlignment");
     }
+    await context.sync();                 // 第二阶段：补属性
     return shape;
   }
 
@@ -2565,7 +2583,7 @@
       if (lineHex) { shape.lineFormat.color = lineHex; requested.lineColor = lineHex; }
       if (params.lineWeight !== undefined && params.lineWeight !== null) { shape.lineFormat.weight = params.lineWeight; requested.lineWeight = params.lineWeight; }
 
-      loadShapeDetail(shape);
+      await loadShapeDetailTyped(context, shape);
       await context.sync();
       const actual = shapeToJson(shape);
       const mismatches = verifyAgainstRequest(actual, requested);
@@ -2592,7 +2610,7 @@
       if (params.height) shape.height = params.height;
       if (params.name || params.shapeName) shape.name = params.name || params.shapeName;
 
-      loadShapeDetail(shape);
+      await loadShapeDetailTyped(context, shape);
       await context.sync();
       return { success: true, sheetName: sheet.name, shape: shapeToJson(shape), verified: true };
     });
@@ -2647,7 +2665,7 @@
       }
 
       const shape = resolveShape(sheet, params);
-      loadShapeDetail(shape);
+      await loadShapeDetailTyped(context, shape);
       await context.sync();
       const beforeJson = shapeToJson(shape);
 
@@ -2686,7 +2704,7 @@
         };
       }
 
-      loadShapeDetail(shape);
+      await loadShapeDetailTyped(context, shape);
       await context.sync();
       const after = shapeToJson(shape);
       const mismatches = verifyAgainstRequest(after, requested);
@@ -2718,7 +2736,7 @@
       const ids = proxies.map(p => p.id);
       const group = sheet.shapes.addGroup(ids);
       if (params.groupName || params.name) group.name = params.groupName || params.name;
-      loadShapeDetail(group);
+      await loadShapeDetailTyped(context, group);
       await context.sync();
 
       const groupJson = shapeToJson(group);
@@ -2823,7 +2841,7 @@
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
       const shape = sheet.shapes.getActiveShape();
-      loadShapeDetail(shape);
+      await loadShapeDetailTyped(context, shape);
       await context.sync();
       return { success: true, sheetName: sheet.name, shape: shapeToJson(shape) };
     });
@@ -2928,7 +2946,7 @@
       sh.lineFormat.weight = 2;
       sh.rotation = 15;
       sh.textFrame.textRange.text = "CAP-08";
-      loadShapeDetail(sh);
+      await loadShapeDetailTyped(context, sh);
       await context.sync();
       return shapeToJson(sh);
     }));
@@ -2940,7 +2958,7 @@
       sh.name = "cap08_line";
       sh.lineFormat.color = "#E4572E";
       sh.lineFormat.weight = 3;
-      loadShapeDetail(sh);
+      await loadShapeDetailTyped(context, sh);
       await context.sync();
       return shapeToJson(sh);
     }));
@@ -2953,7 +2971,7 @@
       if (!b64) throw new Error("当前环境没有 btoa，无法把 SVG 转 base64");
       const sh = sheet.shapes.addSvg(b64);
       sh.name = "cap08_svg";
-      loadShapeDetail(sh);
+      await loadShapeDetailTyped(context, sh);
       await context.sync();
       return shapeToJson(sh);
     }));
@@ -2966,7 +2984,7 @@
       sh.left = 20; sh.top = 140; sh.width = 200; sh.height = 50;
       sh.textFrame.textRange.font.bold = true;
       sh.textFrame.textRange.font.size = 14;
-      loadShapeDetail(sh);
+      await loadShapeDetailTyped(context, sh);
       await context.sync();
       return shapeToJson(sh);
     }));
