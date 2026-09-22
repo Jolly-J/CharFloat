@@ -13,9 +13,6 @@
     }
 
     const id = message.id;
-    DIAG.rpcSeen = (DIAG.rpcSeen || 0) + 1;
-    DIAG.lastMethod = String(message.method || "");
-    DIAG.seen[DIAG.lastMethod] = (DIAG.seen[DIAG.lastMethod] || 0) + 1;
     if (!id) return;
 
     const rawMethod = String(message.method || "");
@@ -189,13 +186,30 @@
       case "update_pivot_table":
         return await handleUpdatePivotTable(params);
 
-      // 10. 形状与图片
+      // 10. 形状与图片（CAP-08：MS 侧矢量绘图）
       case "insert_image":
         return await handleInsertImage(params);
       case "list_shapes":
         return await handleListShapes(params);
       case "update_shape":
         return await handleUpdateShape(params);
+      case "add_shape":
+      case "add_geometric_shape":
+        return await handleAddShape(params);
+      case "group_shapes":
+        return await handleGroupShapes(params);
+      case "ungroup_shapes":
+        return await handleUngroupShapes(params);
+      case "set_shape_zorder":
+      case "set_z_order":
+        return await handleSetShapeZOrder(params);
+      case "get_active_shape":
+        return await handleGetActiveShape(params);
+      case "export_shape_image":
+        return await handleExportShapeImage(params);
+      case "shape_self_test":
+      case "probe_shape_api":
+        return await handleShapeSelfTest(params);
 
       // 11. 审阅与批注
       // 危险别名修复（问题台账 ISS-92）：`handleManageComments` 的 action 默认是 "add"，
@@ -215,6 +229,21 @@
       case "run_script":
       case "execute_script":
         return await handleRunScript(params);
+      // 热重载：与 WPS 加载项的同名分支对齐（`wps_reload_addon` 走的就是 reload）。
+      // 这里不再用 `window.location.reload(true)`：forceGet 参数已废弃，WKWebView 不保证重新拉取
+      // 子资源。改写 URL query 再跳转，保证 taskpane.html / taskpane.js 真的重新请求。
+      case "reload":
+      case "reload_addon": {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set("_reload", String(Date.now()));
+          setTimeout(() => window.location.replace(url.toString()), 50);
+          return { success: true, reloading: true, target: url.toString() };
+        } catch (e) {
+          setTimeout(() => window.location.reload(), 50);
+          return { success: true, reloading: true, fallback: "location.reload()" };
+        }
+      }
 
       default:
         throw new Error(`Office.js 暂未映射该工具：${method}`);

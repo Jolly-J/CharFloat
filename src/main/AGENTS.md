@@ -5,6 +5,7 @@
 - [index.ts](index.ts)：窗口、托盘、IPC 与服务控制。
 - [installer-engine.ts](installer-engine.ts)：客户端检测及 MCP/skill 安装。
 - [addon-installer.ts](addon-installer.ts)：办公加载项部署；写入失败时返回结构化 `permissionIssue` 而非裸错误。
+- [addon-autoupgrade.ts](addon-autoupgrade.ts)：启动时对齐加载项构建——比对**构建指纹**（版本号在多次构建间不变，不可作依据），不一致则重新部署并触发加载项重载，免重启 WPS。
 - [permissions.ts](permissions.ts)：macOS 完全磁盘访问权限引导（设置深链、当前运行模式该授权的 App 路径）。
 - [permission-detect.ts](permission-detect.ts)：权限错误的**纯识别逻辑**，不依赖 electron，可单元测试。
 - [permission-window.ts](permission-window.ts)：权限引导的**置顶浮窗**（复用 `index.html#permission-guide`，含 App 图标拖拽 `startDrag`）。
@@ -36,6 +37,12 @@ Electron 拖拽文件出窗口用 `mousedown` + `ipcRenderer.invoke` → **拖�
 给新窗口设 `transparent: true` 又叠加 `titleBarStyle: 'hiddenInset'` → **点"重新部署/修复"后整个应用 SIGTRAP 闪退**，终端报 `bootstrap_look_up …MachPortRendezvousServer.1: Permission denied (1100)` / `No rendezvous client, terminating process` → 透明窗在新渲染进程里走特殊合成路径，与自定义标题栏组合会让该进程连不上主进程的 Mach rendezvous 服务，属**不可捕获的原生 abort**（try/catch 无效） → 浮窗只用保守选项：不设 `transparent`、不设 `titleBarStyle`、给普通 `backgroundColor`，靠 `alwaysOnTop` + `setAlwaysOnTop(true,'floating')` 保持置顶 → 见 `permission-window.ts` 的注释；此类改动**必须在真实桌面点一次**，不能只看构建。
 
 dev 与打包版的授权对象不同 → 引导里显示错 App，用户拖了也没用 → `npm run dev` 跑的是 `node_modules/electron/dist/Electron.app`，打包版是 `Office Agent Bridge.app`，FDA 按 App 授权、两者互不相通；且 TCC 按代码签名记忆，重签后可能需重新授权 → 引导按 `app.isPackaged` 显示当前该授权的那个，并提示重启应用 → `appToAuthorize()`。
+
+只比 `manifest.xml` 的版本号判断"加载项是否需要升级" → **版本号 2.1.0 在多次构建之间不变**，"版本号相同"完全不能说明"跑的是同一份构建" → 装了旧构建也会被判成最新，AI 拿到的一直是旧代码 → 比**构建指纹**（产物头部注入的 `ADDON_BUILD_FINGERPRINT`） → `checkBuildFreshness()`；回归见 [addon-freshness.test.ts](../../tests/addon-freshness.test.ts)。
+
+升级加载项后不触发重载 → 磁盘是新的、WPS 进程里跑的还是旧 JS（ISS-59），用户以为修好了 → 部署完调桥接的 `wps_reload_addon`；且该工单必须**逐个组件**发送（只发一次实测只送达一个组件，word/ppt 仍是旧构建） → 配合部署时写入 `index.html` 的 `<script src="./addon-core.js?v=<指纹>">`，重载才会真正取到新文件（否则 WPS 只重跑缓存） → `ensureAddonUpToDate()`。
+
+部署失败仍去重载 → 重载只会再次加载旧文件，制造"已修复"的假象 → 安装器返回 `success: false` 时**不触发重载**并如实报告 → 同上测试的"部署失败时不触发重载"用例。
 
 ## 同步维护
 

@@ -46,6 +46,14 @@
   }
 
   async function handleGetCharts(params) {
+    // CAP-08 通道：用已注册的 get_charts 作为"形状能力自检"的触发口。
+    // 本机 MCP 工具面里没有任何入口能把任意 Office.js 代码送进任务窗格，
+    // 形状方法在桥接路由表登记完成前也调不到；这个开关让**现有工具**就能取到真机读数。
+    // 只在显式传 shapeSelfTest 时才跑，正常读图表的行为不变。
+    if (params && params.shapeSelfTest === true) {
+      const selfTest = await handleShapeSelfTest({ sheetName: params.selfTestSheetName, keep: params.selfTestKeep === true });
+      return { success: selfTest.success, sheetName: selfTest.sheetName, count: 0, totalCount: 0, filtered: false, selector: null, charts: [], shapeSelfTest: selfTest, addon: { version: ADDON_VERSION, capabilities: ADDON_CAPABILITIES } };
+    }
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params.sheetName);
       const isDetail = !!params.detail;
@@ -127,7 +135,11 @@
         totalCount: all.length,
         filtered: hasSelector,
         selector: hasSelector ? selector : null,
-        charts: result
+        charts: result,
+        // 部署探针（CAP-08）：让调用方一眼看出窗格里跑的是哪份代码与哪几条形状分支。
+        // 桥接层 get_charts 的响应转换是"先铺开宿主原始响应再覆盖统一字段"（ISS-99），
+        // 因此这个字段能原样到达调用方，不会被白名单丢掉。
+        addon: { version: ADDON_VERSION, capabilities: ADDON_CAPABILITIES }
       };
     });
   }

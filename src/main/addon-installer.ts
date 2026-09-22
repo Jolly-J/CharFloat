@@ -117,6 +117,80 @@ export class AddonInstaller {
   }
   static getAddonDirectory() { return this.getAllAddonDirectories()[0] || null; }
   static getSourceAddonPath() { return resourcePath('wps-addon'); }
+
+  /**
+   * 读取加载项产物头部注入的构建指纹。
+   *
+   * 为什么需要它：`manifest.xml` 的版本号（2.1.0）在多次构建之间**不变**，
+   * 所以"版本号相同"完全不能说明"跑的是同一份构建"。指纹每次构建都变，
+   * 才是判断"已部署的是不是包内这一份"的可靠依据。
+   */
+  static readAddonFingerprint(file: string | null): string | null {
+    if (!file) return null;
+    try {
+      const fd = fs.openSync(file, 'r');
+      try {
+        const buf = Buffer.alloc(4096);
+        const read = fs.readSync(fd, buf, 0, buf.length, 0);
+        const m = buf.toString('utf8', 0, read).match(/ADDON_BUILD_FINGERPRINT:\s*([0-9a-f]{16,64})/);
+        return m ? m[1] : null;
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 比对"客户端包内的加载项构建"与"已部署到 WPS 的构建"。
+   *
+   * 判定口径（任一即视为需要升级）：
+   *   - 没装（找不到部署副本，或副本里读不到指纹）；
+   *   - 已部署指纹 ≠ 包内指纹（包更新了但没重新部署，或部署后被改过）。
+   * 读不到包内指纹时返回 `stale: null`（判不了），**不猜测**。
+   */
+  static checkBuildFreshness() {
+    const bundledPath = path.join(this.getSourceAddonPath(), 'addon-core.js');
+    const bundled = this.readAddonFingerprint(fs.existsSync(bundledPath) ? bundledPath : null);
+    const deployed = this.getAllAddonDirectories()
+      .map(dir => {
+        const file = path.join(dir, 'wps-bridge', 'addon-core.js');
+        return { dir, file, exists: fs.existsSync(file), fingerprint: this.readAddonFingerprint(fs.existsSync(file) ? file : null) };
+      })
+      .filter(d => d.exists);
+
+    if (bundled === null) {
+      return {
+        bundledFingerprint: null,
+        bundledPath,
+        deployed,
+        stale: null as boolean | null,
+        reason: '读不到客户端包内的构建指纹（产物缺失或未注入），无法判断是否需要升级'
+      };
+    }
+    if (deployed.length === 0) {
+      return {
+        bundledFingerprint: bundled,
+        bundledPath,
+        deployed,
+        stale: true as boolean | null,
+        reason: '未找到已部署的加载项副本，需要安装'
+      };
+    }
+    const mismatched = deployed.filter(d => d.fingerprint !== bundled);
+    return {
+      bundledFingerprint: bundled,
+      bundledPath,
+      deployed,
+      stale: mismatched.length > 0,
+      mismatchedCount: mismatched.length,
+      reason: mismatched.length > 0
+        ? `已部署的加载项与客户端包内的构建不一致（${mismatched.length}/${deployed.length} 个副本）：包内 ${bundled.slice(0, 12)}…，部署 ${(mismatched[0].fingerprint || '未知').slice(0, 12)}…`
+        : '已部署的加载项与客户端包内的构建一致'
+    };
+  }
+
   static checkStatus() {
     const dirs = this.getAllAddonDirectories();
     let installedVersion = '';
@@ -139,7 +213,11 @@ export class AddonInstaller {
     const installed = details.some(d => d.installed);
     const current = installed && (installedVersion === VERSION || details.some(d => d.installed && d.current));
     const hasBlocked = details.some(d => d.blocked);
-    const needsUpgrade = !installed || !current;
+    // 版本号相同**不代表构建相同**（2.1.0 之间会反复重建）：还要比构建指纹，
+    // 否则"装了旧构建但版本号一致"会被判成最新，AI 拿到的一直是旧代码。
+    const buildFreshness = this.checkBuildFreshness();
+    const buildStale = buildFreshness.stale === true;
+    const needsUpgrade = !installed || !current || buildStale;
     return {
       installed,
       current,
@@ -147,6 +225,7 @@ export class AddonInstaller {
       installedVersion: installedVersion || (installed ? '未知' : '未安装'),
       needsUpgrade,
       hasBlocked,
+      buildFreshness,
       platform: process.platform,
       targetPath: dirs.join(' | '),
       details,
@@ -155,8 +234,10 @@ export class AddonInstaller {
         : hasBlocked
           ? '检测到加载项被 WPS 阻断，请点击【一键修复 / 升级加载项】解除阻断'
           : needsUpgrade
-            ? `检测到加载项需要更新（当前: ${installedVersion || '未知'}，最新: ${VERSION}）`
-            : `加载项已是最新版本 (v${VERSION})`
+            ? buildStale
+              ? `检测到加载项构建不是包内这一份（版本号同为 ${VERSION} 但构建指纹不同），需要重新部署`
+              : `检测到加载项需要更新（当前: ${installedVersion || '未知'}，最新: ${VERSION}）`
+            : `加载项已是最新版本 (v${VERSION}，构建指纹一致)`
     };
   }
   static install(options: { cleanBlocked?: boolean } = { cleanBlocked: true }) {

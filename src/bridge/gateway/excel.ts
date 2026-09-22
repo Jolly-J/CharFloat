@@ -463,7 +463,10 @@ export const getCharts: Handler = async (ctx) => {
       shapeName: args?.shapeName,
       chartIndex: args?.chartIndex,
       chartTitle: args?.chartTitle,
-      detail: args?.detail ?? false
+      detail: args?.detail ?? false,
+      // CAP-08 诊断入口：让 Office.js 任务窗格跑一遍形状能力自检，用于确认窗格是否已换到最新代码
+      shapeSelfTest: args?.shapeSelfTest ?? false,
+      selfTestKeep: args?.selfTestKeep ?? false
     });
 };
 
@@ -830,4 +833,38 @@ export const exportSheetPdf: Handler = async (ctx) => {
     const size = statSync(outputPath).size;
     if (size === 0) throw new Error(`导出 PDF 落盘但为空文件：${outputPath}`);
     return { ...res, outputPath, verifiedOnDisk: true, fileSizeBytes: size, message: `已导出 PDF 并确认落盘（${size} 字节）：${outputPath}` };
+};
+
+/** CAP-08 MS 侧矢量形状。宿主差异（本机实测）：矩形/文本框/分组/层级/导图可用；
+ *  直线报「当前对象不允许此操作」，SVG 与 getActiveShape 在本机 Excel 无对应 API。 */
+export const addShape: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("add_shape", {
+      sheetName: args?.sheetName, kind: args?.kind, shapeType: args?.shapeType, text: args?.text,
+      left: args?.left, top: args?.top, width: args?.width, height: args?.height, rotation: args?.rotation,
+      x1: args?.x1, y1: args?.y1, x2: args?.x2, y2: args?.y2,
+      fillColor: args?.fillColor, fill: args?.fill, lineColor: args?.lineColor, lineWeight: args?.lineWeight,
+      name: args?.name
+    });
+};
+
+export const groupShapes: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("group_shapes", { sheetName: args?.sheetName, shapeNames: args?.shapeNames, groupName: args?.groupName });
+};
+
+export const ungroupShapes: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("ungroup_shapes", { sheetName: args?.sheetName, shapeName: args?.shapeName, shapeId: args?.shapeId });
+};
+
+export const setShapeZOrder: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    if (!args?.zOrder) throw new Error("缺少必要参数: zOrder (bringToFront | sendToBack | bringForward | sendBackward)");
+    return await callOffice("set_shape_zorder", { sheetName: args?.sheetName, shapeName: args?.shapeName, shapeId: args?.shapeId, zOrder: args?.zOrder });
+};
+
+export const exportShapeImage: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("export_shape_image", { sheetName: args?.sheetName, shapeName: args?.shapeName, shapeId: args?.shapeId, format: args?.format, scale: args?.scale });
 };

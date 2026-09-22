@@ -45,7 +45,30 @@ export const inspectApi: Handler = async (ctx) => {
 
 export const reloadAddon: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    return await callOffice("reload", {});
+    // 必须**逐个组件**发送 reload。
+    // 原实现只发一次 `callOffice("reload", {})`，实测只送达一个组件（excel 换成了新构建，
+    // word/ppt 仍是旧构建）——"部署后免重启生效"要做全，就不能只重载其中一个。
+    const requested = args?.component ? [String(args.component)] : ["excel", "word", "ppt"];
+    const results: any[] = [];
+    for (const component of requested) {
+      try {
+        const r = await callOffice("reload", { component });
+        results.push({ component, reloaded: true, result: r });
+      } catch (e: any) {
+        // 该组件没打开/未连接属正常情况，如实记录但不让整批失败
+        results.push({ component, reloaded: false, error: e?.message ?? String(e) });
+      }
+    }
+    const okCount = results.filter(r => r.reloaded).length;
+    return {
+      success: okCount > 0,
+      reloadedComponents: results.filter(r => r.reloaded).map(r => r.component),
+      results,
+      message: okCount > 0
+        ? `已触发 ${okCount} 个组件重新加载加载项（${results.filter(r => r.reloaded).map(r => r.component).join(" / ")}）；` +
+          `因 index.html 的 <script src> 带构建指纹，重载会真正取到新构建。`
+        : `没有组件接受重载请求：${results.map(r => `${r.component}(${r.error})`).join("；")}`
+    };
 };
 
 export const evalCode: Handler = async (ctx) => {
