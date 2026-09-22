@@ -53,6 +53,9 @@
         case "export_sheet_pdf":
           result = exportSheetPdf(app, params);
           break;
+        case "update_chart":
+          result = updateChart(app, params);
+          break;
         case "copy_range":
           result = copyRange(app, params);
           break;
