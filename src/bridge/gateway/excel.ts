@@ -1014,3 +1014,13 @@ export const createWorkbook: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
   return await callOffice("create_workbook", { savePath: args?.savePath, sheetName: args?.sheetName });
 };
+
+/** CAP-14 自定义视图 + 切片器清单（富值本机不支持，如实拒绝）。 */
+export const manageWorkbookViews: Handler = async (ctx) => {
+  const { args, callOffice } = ctx;
+  return await callOffice("manage_workbook_views", {
+    workbookName: args?.workbookName,
+    action: args?.action,
+    viewName: args?.viewName
+  });
+};
