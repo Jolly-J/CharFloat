@@ -28,7 +28,7 @@ export function createMcpServer(
 ) {
   const { prompt } = options;
   const sessionId = crypto.randomUUID();
-  const server = new Server({ name: 'wps-bridge-mcp', version: VERSION }, { capabilities: { tools: {}, prompts: {}, resources: {} }, instructions: INSTRUCTIONS });
+  const server = new Server({ name: 'office-agent-bridge', version: VERSION }, { capabilities: { tools: {}, prompts: {}, resources: {} }, instructions: INSTRUCTIONS });
   /**
    * 审计归属用的客户端名（ISS-49）。
    *

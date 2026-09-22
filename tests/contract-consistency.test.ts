@@ -253,6 +253,22 @@ test('CAP-51：COM 回退白名单与 excel.ps1 实际分支同源（不是整�
     'COM 缺口清单必须由实际实现集派生，不能是第二份手写清单');
 });
 
+test('MCP tools/list 只发规范字段——内部字段不得随响应外发', async () => {
+  // 真机现象：WorkBuddy 连接器里服务连上了（绿点）却**显示不出工具清单**，而同界面工具少的 MCP 正常。
+  // 根因：`getTools()` 的返回对象带内部字段 `toolClass`，而 tool-registry 里用
+  // `as McpToolDescriptor[]` **强制转换把多余字段藏了起来**，于是非标准字段随响应外发。
+  const { createLocalToolService } = await import('../src/bridge/tool-registry.js');
+  const tools = await createLocalToolService().list();
+  const ALLOWED = new Set(['name', 'title', 'description', 'inputSchema', 'outputSchema', 'annotations', '_meta']);
+  const seen = new Set<string>();
+  for (const tool of tools as any[]) for (const k of Object.keys(tool)) seen.add(k);
+  const extra = [...seen].filter(k => !ALLOWED.has(k));
+  assert.deepEqual(extra, [], `tools/list 里出现非规范字段（会被严格客户端拒绝）：${extra.join(', ')}`);
+  // 反空跑：清单本身必须非空，且内部对象**仍然带着** toolClass（证明我们只是没外发，不是把它删了）
+  assert.ok(tools.length > 100, `工具数异常偏少：${tools.length}`);
+  const { assembleTools } = await import('../src/bridge/tools/index.js');
+  assert.ok((assembleTools() as any[]).some(x => x.toolClass), '内部对象应仍保留 toolClass 供分类使用');
+});
 test('审计归属：clientName 真正落到审计记录', async () => {
   const original = bridgeServer.callWps;
   (bridgeServer as any).callWps = async (method: string) => ({
