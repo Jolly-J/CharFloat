@@ -25,7 +25,8 @@
         sheetCount: sheets.items.length,
         sheets: sheets.items.map(s => ({ name: s.name, visibility: s.visibility, position: s.position })),
         namedItemCount: names.items.length,
-        namedItems: names.items.map(n => n.name)
+        namedItems: names.items.map(n => n.name),
+        diag: DIAG
       };
     });
   }
