@@ -177,7 +177,11 @@ test('契约层标识与既有兼容导出同源', async () => {
 
 test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   const c = await import('../src/bridge/contracts/host-methods.js');
-  assert.equal(c.EXCEL_METHODS.length, 30, '宿主方法路由表不得在搬迁中增减');
+  // 2026-09-22 由 30 改 31：新增 get_style_token（读原表设计语言），它是**真实存在的宿主方法**——
+  // wps-addon/src/dispatch.js 有 `get_style_token` RPC 分支、网关有 getStyleToken 处理器，
+  // 此前只因没有 schema 而成为"实现了但未注册"的死分支（ISS-95）。
+  // 本护栏的用意是"搬迁过程中不得顺手增减"，**有意扩展能力时按此格式写明理由再改**，不是禁止增长。
+  assert.equal(c.EXCEL_METHODS.length, 31, '宿主方法路由表不得在搬迁中增减（有意扩展需在此写明理由）');
   assert.equal(c.isReadOnlyTool('excel_read_range'), true);
   assert.equal(c.isReadOnlyTool('wps_inspect_api'), false, '表达式探测不是只读');
   assert.equal(c.isReplaySafeMethod('read_range'), true);
@@ -186,5 +190,7 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   assert.equal(c.bareName('wps_read_range'), 'read_range');
   assert.equal(c.bareName('excel_read_range'), 'read_range');
   assert.equal(c.bareName('read_range'), 'read_range');
-  assert.deepEqual(c.HOST_IMPLEMENTATION_GAPS, { wps: ['update_chart'], microsoft: [] });
+  // 2026-09-22：microsoft 侧新增 get_style_token（WPS 独有能力的对侧缺口，声明后失败被归类为
+  // "宿主未实现"而不是未知工具）。同样是有意扩展。
+  assert.deepEqual(c.HOST_IMPLEMENTATION_GAPS, { wps: ['update_chart'], microsoft: ['get_style_token'] });
 });

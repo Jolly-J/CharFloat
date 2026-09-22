@@ -41,6 +41,8 @@ export function toolClassOf(name: string): ToolClass {
   if (name === 'wps_get_locked_status' || /^(wps|office)_(lock|unlock)_/.test(name)) return 'lock';
   // 原生脚本与 API 反射：可跨组件，不属单表格工具
   if (name === 'wps_execute_script' || name === 'wps_inspect_api') return 'script';
+  // 加载项生命周期：让刚部署的构建免重启 WPS 生效，属平台操作而非表格工具
+  if (name === 'wps_reload_addon') return 'script';
   if (name.startsWith('wps_word_')) return 'word';
   if (name.startsWith('wps_ppt_')) return 'ppt';
   if (name.startsWith('office_')) return 'microsoft';
