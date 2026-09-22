@@ -1,7 +1,0 @@
-{
-  "rpc_ok": true,
-  "rpc_roundtrip_ms": 93,
-  "file_exists_at_rpc_return": true,
-  "file_appeared_ms_after_return": 0,
-  "file_size": 84466
-}

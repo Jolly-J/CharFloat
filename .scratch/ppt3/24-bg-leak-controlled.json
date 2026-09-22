@@ -1,5 +1,0 @@
-create: {"success": true, "data": {"success": true, "executionTimeMs": 107, "returnValue": "{\"name\":\"bgtest.pptx\",\"slides\":2,\"w\":960,\"h\":540}", "logs": [], "message": "WPS 原生图灵脚本执行完毕（耗时 107ms）"}}
-set_bg: {"success": true, "data": {"success": true, "presentationName": "bgtest.pptx", "slideIndex": 1, "backgroundColor": "#FF0000", "message": "已将第 1 页背景设为 #FF0000"}}
-export: {"success": true, "data": {"success": true, "executionTimeMs": 8, "returnValue": "ok", "logs": [], "message": "WPS 原生图灵脚本执行完毕（耗时 8ms）"}}
-  slide 1 中心色 = (255, 0, 0)
-  slide 2 中心色 = (255, 0, 0)

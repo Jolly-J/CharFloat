@@ -1,3 +1,0 @@
-{"component":"ppt","presentationName":"测试演示文稿.pptx",
- "code":"const path='/Users/jolin/Downloads/e2e-钙钛矿产业现状与展望.pptx';\nconst before=app.Presentations.Count;\nconst np=app.Presentations.Add();\nnp.SaveAs(path);\nreturn {beforeCount:before,afterCount:app.Presentations.Count,name:np.Name,fullName:np.FullName,slides:np.Slides.Count,pageW:np.PageSetup.SlideWidth,pageH:np.PageSetup.SlideHeight};"
-}

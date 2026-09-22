@@ -18,9 +18,12 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_workspace_summary",
-        description: ctx.activeWbHint
-          ? `【当前WPS已在线打开工作簿: ${ctx.activeWbHint}】获取当前在 WPS 中打开的 Excel 工作簿概览、已打开的全部文件列表、包含的工作表列表与当前鼠标光标选区坐标。当前已打开 [${ctx.activeWbHint}]，严禁在磁盘搜索文件！`
-          : "获取当前在 WPS 中打开的 Excel 工作簿概览、已打开的全部文件列表、包含的工作表列表与当前鼠标光标选区坐标。严禁在磁盘搜索文件！",
+        description: (ctx.activeWbHint
+          ? `【当前WPS已在线打开工作簿: ${ctx.activeWbHint}】`
+          : "") +
+          "获取在 WPS 中打开的 Excel 工作簿概览、已打开文件清单(openWorkbooks)、工作表列表与选区坐标。" +
+          (ctx.activeWbHint ? `当前已打开 [${ctx.activeWbHint}]。` : "") +
+          "严禁在磁盘搜索文件！hasOpenWorkbook=false 只表示未解析到目标工作簿（锁目标可能已关闭），不代表没有工作簿打开——判断“打开了哪些文件”请读 openWorkbooks。选型：wps_* 只走 WPS 表格（不传 host）；同名 excel_* 是跨宿主统一入口，必传 host='wps'|'microsoft'。目标已在 WPS 中打开时二者等价，选一个调用即可、不要重复调用；目标在 Microsoft Excel 时必须用 excel_*。",
         parameters: {
           type: "object",
           properties: {
@@ -35,7 +38,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_sheet_outline",
-        description: "按需获取指定工作表的数据边界(UsedRange)与前3行表头样本，类似查看代码大纲，不耗多余Token",
+        description: "按需获取指定工作表的数据边界(UsedRange)与前 3 行表头样本，用于在读取整表前判断结构与数据量。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -51,7 +54,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_create_sheet",
-        description: "在指定工作簿中独立新建工作表并自动激活呈现",
+        description: "在指定工作簿中新建工作表并激活。新建后需 wps_save_workbook 才会落盘。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -67,7 +70,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_delete_sheet",
-        description: "从指定工作簿中安全删除不需要的工作表",
+        description: "删除指定工作表：破坏性且不可回滚，删除前先确认表名。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -83,7 +86,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_read_range",
-        description: "切片读取指定区域(如 A1:C10)的单元格值与公式",
+        description: "切片读取指定区域(如 A1:C10)的单元格值与公式。只读，不修改工作簿。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -102,7 +105,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_range_styles",
-        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。",
+        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -126,7 +129,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_search_cells",
-        description: "在表格中快速搜索包含指定文本或公式的单元格坐标",
+        description: "按单元格的显示值与**公式文本**搜索包含指定关键字的单元格坐标（命中项用 matchedIn 标明是 value 还是 formula）。可选 address 限定检索范围，不传则搜整表已用区域。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -144,7 +147,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_patch_cells",
-        description: "直接在当前打开的 WPS 表格中原地修改数值或公式，自动抓取快照并实时呈现在用户屏幕上",
+        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -154,12 +157,12 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             values: {
               type: "array",
               items: { type: "array", items: {} },
-              description: "二维数组数值"
+              description: "二维数值矩阵（按行给出，形状必须与 address 一致）；清空某格传 null"
             },
             formulas: {
               type: "array",
               items: { type: "array", items: { type: "string" } },
-              description: "二维数组公式，例如 [['=A2*1.1']]"
+              description: "二维公式矩阵，例如 [['=A2*1.1']]；空项 ''/null 表示该单元格不改公式（同批 values 写入的值保留），不会清空单元格"
             },
             reason: { type: "string", description: "本次修改的意图描述，用于留痕审计" }
           },
@@ -172,7 +175,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_format_cells",
-        description: "专业级单元格格式与商业排版美化引擎。支持设置文字字体、字号、加粗、文字色、底纹背景色、水平垂直对齐、行高、数字格式、边框以及单元格合并/取消合并。建议遵循麦肯锡商业报表规范排版。",
+        description: "设置单元格字体、字号、加粗、文字色、底色、对齐、行高、数字格式、边框与合并/取消合并，写入后可用 wps_get_range_styles 读回。注意：borders 传 'none' 或 false 当前不会去除边框（只接受颜色值或 true 画细边框）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -189,16 +192,16 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             verticalAlignment: {
               type: "string",
               enum: ["center", "top", "bottom"],
-              description: "垂直对齐方式，默认 'center' (垂直居中，美学效果最佳)"
+              description: "垂直对齐方式: 'center'(垂直居中，默认), 'top'(顶端对齐), 'bottom'(底端对齐)"
             },
             fontSize: { type: "number", description: "字体大小磅值（例如：大标题设 15-18，副标题设 9-10，表格列头设 10-11，正文数据设 9.5-10）" },
             bold: { type: "boolean", description: "是否加粗文字。大标题、表头、小计合计行建议设为 true；正文数据建议设为 false" },
             fontColor: { type: "string", description: "文字十六进制颜色（例如：标准深灰黑 '#0F172A'，纯白 '#FFFFFF' 配合深色表头，辅助说明淡灰 '#64748B'）" },
             backgroundColor: { type: "string", description: "背景底纹十六进制颜色（例如：商务深蓝表头 '#0F172A'，斑马纹浅灰 '#F8FAFC'，合计行淡灰 '#F1F5F9'，异常警示浅红 '#FEE2E2'）" },
-            numberFormat: { type: "string", description: "Excel 数字格式规范代码。例如：千分符整数 '#,##0'，百分比保留两位 '0.00%'，短日期 'yyyy-mm-dd' 或 'm/d'，金额 '¥#,##0.00'。严禁让日期显示为 46249 这类五位数字序列号！" },
-            rowHeight: { type: "number", description: "行高磅值。建议：大标题 34-38pt，副标题 20-22pt，表头 26-28pt，普通数据行 20-24pt。严禁设 100pt 以上产生大空白框！" },
+            numberFormat: { type: "string", description: "Excel 数字格式规范代码。例如：千分符整数 '#,##0'，百分比保留两位 '0.00%'，短日期 'yyyy-mm-dd' 或 'm/d'，金额 '¥#,##0.00'。不要留下 46249 这类五位序列号显示。" },
+            rowHeight: { type: "number", description: "行高磅值。建议：大标题 34-38pt，副标题 20-22pt，表头 26-28pt，普通数据行 20-24pt；不要超过 100pt，会产生大空白框。" },
             wrapText: { type: "boolean", description: "文本较长时是否自动换行。结论建议区、长表头建议设为 true 配合自适应展开" },
-            borders: { type: ["string", "boolean"], description: "边框十六进制颜色（如 '#CBD5E1' 极细浅灰边框）或 true（默认浅灰细边框）。若传 'none' 或 false 则去除边框" }
+            borders: { type: ["string", "boolean"], description: "边框：十六进制颜色（如 '#CBD5E1'）或 true（默认浅灰细边框）。当前实现跳过 'none'/false，传它们不会去除已有边框。" }
           },
           required: ["address"],
           additionalProperties: false
@@ -209,7 +212,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_add_conditional_formatting",
-        description: "为指定单元格区域添加智能条件格式。支持阈值告警高亮（如良率低于90%自动标红）、单元格内嵌微型数据条进度显示、双色/三色热力图色阶。",
+        description: "为指定区域添加条件格式：阈值高亮(cell_value)、单元格内数据条(data_bar)、双色热力色阶(color_scale)。写入后需用 wps_execute_script 探测 FormatConditions 读回（本工具族暂无条件格式读回工具）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -244,7 +247,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_freeze_panes",
-        description: "锁定并冻结工作表窗口窗格，使表头在大数据量向下或向右滚动时始终吸顶悬浮可见，极大提升交互可读性。",
+        description: "冻结工作表窗格，使表头在下滚/右滚时保持可见。freezeRowIndex、freezeColumnIndex、unfreeze 至少传一项，否则本调用不产生任何变化；行列用的是同一套-1 约定（freezeRowIndex=5 冻结前 4 行）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -263,7 +266,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_modify_rows_columns",
-        description: "对表格的整行或整列执行插入、删除、隐藏或显示操作。适用于在数据块之间插入呼吸空白行、或者隐藏用于中间计算的辅助列。",
+        description: "对整行或整列执行插入、删除、隐藏、取消隐藏。与 wps_manage_rows_and_columns 的区别：本工具不支持设置行高/列宽(set_size)，参数集也不含 size；需要 set_size 请用 wps_manage_rows_and_columns。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -297,13 +300,13 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_auto_fit_columns",
-        description: "自动调整指定列或全表列宽，防止中文字符被右边框遮挡或显示为'...'省略号",
+        description: "自动调整列宽，避免中文被右边框遮挡或显示为'...'。传 columnRules 时按规则逐列处理（含 minWidth/maxWidth 与超宽换行）；不传 columnRules 时按整表已用区域逐列自适应并返回实际列宽。address 当前被 WPS 宿主忽略，自适应范围不受它约束。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
             sheetName: { type: "string", description: "工作表名称" },
             workbookName: { type: "string", description: ctx.wbDesc },
-            address: { type: "string", description: "需要自适应调整的单元格或列区域（例如 'A1:E5' 或 'A:E'），不传则自适应全表已用区域" },
+            address: { type: "string", description: "（兼容参数，当前 WPS 实现忽略）需要自适应调整的单元格或列区域，例如 'A1:E5'；实际范围由 columnRules 或整表已用区域决定" },
             columnRules: {
               type: "array",
               items: {
@@ -328,15 +331,15 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_capture_sheet_preview",
-        description: "高保真捕获工作表或指定单元格区域的渲染截图（返回 Base64 图像），用于多模态视觉模型自检排版效果、检查文字是否截断、是否有过多空白框等",
+        description: "捕获工作表或指定区域的渲染截图，用于视觉自检。参数优先级：address 优先于别名 range，都不传取整表已用区域；chartName（别名 name）在 WPS 宿主被忽略，仍按区域截图。返回 {success, workbookName, sheetName, address, imageBase64, imageMimeType, imageSizeBytes}；截图失败时可能只有 message 而没有 imageBase64，用前先确认该字段存在。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
             sheetName: { type: "string", description: "工作表名称" },
-            address: { type: "string", description: "需要截图的单元格区域（如 'B2:M22'），不填则默认截取全部已用区域" },
-            range: { type: "string", description: "address 的同义别名（如 'B2:M22'）" },
-            chartName: { type: "string", description: "需要单独捕获截图的原生图表名称（如 'Chart 1'），不填则自动捕获首个图表或工作表区域" },
-            name: { type: "string", description: "图表名称同义别名" },
+            address: { type: "string", description: "要截图的单元格区域（如 'B2:M22'）；与 range 同时传入时以本参数为准，都不传则截取已用区域" },
+            range: { type: "string", description: "address 的同义别名（如 'B2:M22'），address 优先" },
+            chartName: { type: "string", description: "图表名称（如 'Chart 1'）；当前 WPS 宿主忽略该参数，Microsoft 宿主可用" },
+            name: { type: "string", description: "chartName 的同义别名" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
           required: [],
@@ -348,83 +351,83 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_add_chart",
-        description: "在当前工作表中创建与数据源动态绑定的原生矢量图表（折线图、簇状柱状图、条形图、饼图、圆环图、柏拉图）。支持指定标题、图例、数据标签以及通过单元格左上角坐标精准排版。",
+        description: "创建绑定数据源的原生矢量图表。dataRange（别名 sourceAddress）与 dataRanges 必传其一，都不传宿主直接报错。WPS 宿主只认 position.leftCell 与 position.width/height：顶层 left/top/width/height 与 cellRange/startCell/endCell 被忽略，不传 position 时图表落在默认 360/40、多图会重叠。seriesColors 对单系列是逐点染色（会得到彩虹柱），单系列请只传一个颜色。chartType 枚举外的值直接报错；建图后用 wps_get_charts(detail=true) 读回 ChartType 与位置核对。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
             dataRange: {
               type: "string",
-              description: "图表绑定的连续数据源单元格区域（包含行列标题）。例如: 'A4:E19' 或 'B2:C10'。与 dataRanges 选其一传入。"
+              description: "图表绑定的连续数据源单元格区域（含行列标题），例如 'A4:E19'。与 dataRanges 选其一（两处都传时以 dataRange 为准）。"
             },
             sourceAddress: {
               type: "string",
-              description: "图表绑定的连续数据源单元格区域别名（同 dataRange）。例如: 'B1:D4'"
+              description: "dataRange 的同义别名，例如 'B1:D4'"
             },
             dataRanges: {
               type: "array",
               items: { type: "string" },
-              description: "【非连续区域支持】图表绑定的多段非连续单元格区域列表。例如: ['B4:B10', 'E4:E10'] 分别代表日期列与指标列，无需制作辅助列即可直接跨列建图！"
+              description: "多段非连续数据源区域列表，例如 ['B4:B10', 'E4:E10']；不传 dataRange 时生效"
             },
             replaceExisting: {
               type: "boolean",
-              description: "是否自动清除该锚点位置上已存在的旧图表（默认 true）。能彻底避免因重复建图导致废图堆叠或报错冲突。"
+              description: "是否先清除锚点 position.leftCell 附近（±25px）的旧图表，默认 true；不传 position 时不清理"
             },
             chartType: {
               type: "string",
               enum: ["line", "column", "column_clustered", "bar", "bar_clustered", "pie", "doughnut", "pareto", "area", "scatter"],
-              description: "图表类型: 'line'(折线图), 'column'/'column_clustered'(簇状柱状图), 'bar'/'bar_clustered'(条形图), 'pie'(饼图), 'doughnut'(圆环图), 'pareto'(柏拉图), 'area'(面积图), 'scatter'(散点图)"
+              description: "图表类型（必传其一的数据源之外的唯一必选项，不传默认 column_clustered）: 'line'(折线图), 'column'/'column_clustered'(簇状柱状图), 'bar'/'bar_clustered'(条形图), 'pie'(饼图), 'doughnut'(圆环图), 'pareto'(柏拉图), 'area'(面积图), 'scatter'(散点图)。枚举外的值会报错，不会静默降级。"
             },
-            left: { type: "number", description: "图表距离工作表左侧像素距离" },
-            top: { type: "number", description: "图表距离工作表顶部像素距离" },
-            width: { type: "number", description: "图表像素宽度，默认 480 像素" },
-            height: { type: "number", description: "图表像素高度，默认 280 像素" },
+            left: { type: "number", description: "图表距工作表左侧像素距离；当前 WPS 宿主忽略本参数，请改用 position.leftCell" },
+            top: { type: "number", description: "图表距工作表顶部像素距离；当前 WPS 宿主忽略本参数，请改用 position.leftCell" },
+            width: { type: "number", description: "图表像素宽度，默认 480；当前 WPS 宿主忽略本参数，请改用 position.width" },
+            height: { type: "number", description: "图表像素高度，默认 280；当前 WPS 宿主忽略本参数，请改用 position.height" },
             title: {
               type: "string",
-              description: "图表主标题文本。例如: '2026年8月综合良率推移分析'，不传则使用系统默认标题"
+              description: "图表主标题文本，例如 '2026年8月综合良率推移分析'"
             },
             position: {
               type: "object",
               properties: {
                 leftCell: {
                   type: "string",
-                  description: "图表左上角锚定的单元格坐标。例如: 'G4'，用于让图表与左侧数据表格并列整齐排版，避免遮挡数据"
+                  description: "图表左上角锚定的单元格坐标，例如 'G4'；WPS 宿主按该单元格的 Left/Top 像素定位"
                 },
-                width: { type: "number", description: "图表像素宽度，默认 480 像素" },
-                height: { type: "number", description: "图表像素高度，默认 280 像素" }
+                width: { type: "number", description: "图表像素宽度，默认 480" },
+                height: { type: "number", description: "图表像素高度，默认 280" }
               },
               required: ["leftCell"],
-              description: "图表在工作表中的空间放置坐标与长宽尺寸"
+              description: "图表放置位置（WPS 宿主唯一生效的定位参数）。不传时落在 360/40，多图会叠在一起。"
             },
             hasLegend: {
               type: "boolean",
-              description: "是否显示图例，默认为 true。单系列数据（如单一缺陷占比）可设为 false 提高清爽度"
+              description: "是否显示图例，默认 true；单系列数据可设 false"
             },
             hasDataLabels: {
               type: "boolean",
-              description: "是否在图表各节点/柱状柱顶端直接标注具体数值，默认为 false"
+              description: "是否在数据点/柱顶标注数值，默认 false"
             },
             smoothLine: {
               type: "boolean",
-              description: "【视觉升级】是否启用平滑曲线（仅针对折线图）。例如: smoothLine: true 可将生硬折角转为优雅现代的贝塞尔圆弧曲线，极大提升高管看板审美体验。"
+              description: "折线图是否启用平滑曲线，默认 false"
             },
             seriesColors: {
               type: "array",
               items: { type: "string" },
-              description: "【色彩系统】按顺序指定各数据系列的十六进制颜色数组。例如: ['#3B82F6', '#10B981', '#F59E0B'] 分别作为第1主系列(如投产量深蓝)、第2系列(如合格量绿色)底色，杜绝系统随机五颜六色。"
+              description: "按顺序指定各数据系列的十六进制颜色。注意：宿主对单系列图表会把数组当作逐点颜色，传多个颜色会得到彩虹柱——单系列请只传一个或不传。"
             },
             yAxis: {
               type: "object",
               properties: {
                 min: {
                   type: "number",
-                  description: "数值轴下限最小值。例如良率在 90%~98% 之间波动时，必须传入 min: 0.85，打破 Excel 默认从 0 开始将数据压在顶部的严重可视化缺陷！"
+                  description: "数值轴下限，例如良率在 90%~98% 之间波动时传 0.85，避免默认从 0 起把差异压平"
                 },
-                max: { type: "number", description: "数值轴上限最大值。例如良率上限设为 max: 1.0" },
-                step: { type: "number", description: "数值轴主刻度步长。例如 step: 0.05 (以 5% 为一档横向网格线)" },
-                numberFormat: { type: "string", description: "坐标轴刻度数字显示格式。例如: '0.0%' 或 '0%' 或 '#,##0'" },
-                title: { type: "string", description: "坐标轴标题。例如: '综合良率 (%)'" }
+                max: { type: "number", description: "数值轴上限，例如 1.0" },
+                step: { type: "number", description: "数值轴主刻度步长，例如 0.05" },
+                numberFormat: { type: "string", description: "坐标轴刻度数字格式，例如 '0.0%'、'0%'、'#,##0'" },
+                title: { type: "string", description: "坐标轴标题，例如 '综合良率 (%)'" }
               },
-              description: "【核心刻度控制】数值 Y 轴范围与显示格式控制。对于良率、温度等高位指标，必须配置 min 放大波动趋势。"
+              description: "数值 Y 轴范围与显示格式"
             },
             seriesSettings: {
               type: "array",
@@ -441,15 +444,15 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             },
             cellRange: {
               type: "string",
-              description: "【刚性单元格吸附】图表锚定的单元格范围。例如: 'I8:P20'。由 Office 渲染引擎底层直接将图表咬死在该区域内，实现 100% 完美的行级对齐与等高排版，杜绝像素漂移！"
+              description: "（当前 WPS 宿主忽略）期望图表锚定的单元格范围，例如 'I8:P20'。请改用 position.leftCell + position.width/height。"
             },
             startCell: {
               type: "string",
-              description: "图表左上角锚定单元格。例如: 'I8'"
+              description: "（当前 WPS 宿主忽略）图表左上角锚定单元格，例如 'I8'；请改用 position.leftCell"
             },
             endCell: {
               type: "string",
-              description: "图表右下角锚定单元格。例如: 'P20'"
+              description: "（当前 WPS 宿主忽略）图表右下角锚定单元格，例如 'P20'"
             },
             sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
             workbookName: { type: "string", description: ctx.wbDesc }
@@ -463,7 +466,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_get_charts",
-        description: "读取工作表中的原生图表。默认返回紧凑列表；指定 shapeName/chartIndex/chartTitle 并设置 detail=true 可读取系列与坐标轴详情。",
+        description: "读取工作表中的原生图表。默认返回紧凑列表；指定 shapeName/chartIndex/chartTitle 并设置 detail=true 可读取系列与坐标轴详情。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -483,18 +486,18 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_update_chart",
-        description: "更新工作表中已有图表的位置、标题或图例。支持传入 cellRange（如 'I8:P20'）实现实机单元格刚性重定位吸附。",
+        description: "更新已有图表的位置、标题或图例。宿主限制：WPS 未实现该操作，调用会在执行前被拒绝且不改动文档；WPS 上请用 wps_execute_script 改 chart 对象，或改用 host=microsoft。定位必传其一：chartName、name、shapeName；只传 title/legendPosition 不会命中任何图表。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）；WPS 宿主上该操作会被告知未实现。",
         parameters: {
           type: "object",
           properties: {
             sheetName: { type: "string", description: "目标工作表名称" },
             workbookName: { type: "string", description: ctx.wbDesc },
-            chartName: { type: "string", description: "图表名称或 ID（如 Chart 1）" },
-            name: { type: "string", description: "图表名称别名" },
-            shapeName: { type: "string", description: "图表 Shape 名称" },
+            chartName: { type: "string", description: "图表名称或 ID（如 {GUID} 或 Chart 1），选其一作为定位参数" },
+            name: { type: "string", description: "chartName 的同义别名" },
+            shapeName: { type: "string", description: "图表 Shape 名称（取自 wps_get_charts），推荐用它精确定位" },
             title: { type: "string", description: "更新后的图表标题" },
-            legendPosition: { type: "string", enum: ["Top", "Bottom", "Left", "Right", "Corner"], description: "图例位置" },
-            cellRange: { type: "string", description: "更新图表吸附的单元格范围，例如 'I8:P20'" },
+            legendPosition: { type: "string", enum: ["Top", "Bottom", "Left", "Right", "Corner"], description: "图例位置: 'Top'(上), 'Bottom'(下), 'Left'(左), 'Right'(右), 'Corner'(右上角)" },
+            cellRange: { type: "string", description: "期望图表吸附的单元格范围，例如 'I8:P20'" },
             startCell: { type: "string", description: "图表起始单元格" },
             endCell: { type: "string", description: "图表结束单元格" },
             left: { type: "number", description: "左侧像素" },
@@ -511,18 +514,18 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_delete_chart",
-        description: "从工作表中安全删除指定的原生图表或一键清空全部图表。彻底解决旧图表无法清除、留下空白残缺边框的痛点。",
+        description: "删除工作表中的原生图表。必传其一用于定位：shapeName（推荐）、chartName/name、chartTitle、chartIndex、leftCell；或用 clearAll: true 显式清空全部图表。leftCell 是像素邻近匹配（±30px）：命中多于一张时本工具会拒绝执行并列出候选，一张都没命中也会报错，不会静默返回成功。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
             sheetName: { type: "string", description: "目标工作表名称，不传则默认为当前活动工作表" },
-            chartName: { type: "string", description: "需要删除的图表名称或 ID（如 {GUID} 或 Chart 1）" },
-            name: { type: "string", description: "图表名称同义别名" },
-            shapeName: { type: "string", description: "需要删除的图表稳定 Shape 名称，推荐使用 wps_get_charts 返回值" },
-            chartTitle: { type: "string", description: "需要删除的图表标题关键词匹配。例如: '8月投产与良率推移趋势'" },
-            leftCell: { type: "string", description: "图表左上角锚定的单元格坐标。例如: 'M57' 或 'I4'，用于精准删除特定位置的废图或空图表" },
-            chartIndex: { type: "number", description: "图表序号（从 1 开始）" },
-            clearAll: { type: "boolean", description: "是否清空当前工作表中的所有图表，默认为 false" },
+            chartName: { type: "string", description: "图表名称或 ID（如 {GUID} 或 Chart 1）" },
+            name: { type: "string", description: "chartName 的同义别名" },
+            shapeName: { type: "string", description: "图表稳定 Shape 名称，推荐使用 wps_get_charts 返回值" },
+            chartTitle: { type: "string", description: "按图表标题关键词匹配" },
+            leftCell: { type: "string", description: "图表左上角锚点单元格，例如 'M57'。按像素邻近（±30px）匹配，命中多张时拒绝执行——不要用它删叠放的图表。" },
+            chartIndex: { type: "number", description: "图表序号（从 1 开始，只数图表、不数图片）" },
+            clearAll: { type: "boolean", description: "显式确认清空当前工作表的全部图表，默认 false；这是破坏性操作，仅在确实要全删时传 true" },
             workbookName: { type: "string", description: ctx.wbDesc }
           },
           required: [],
@@ -534,7 +537,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_create_pivot_table",
-        description: "直接针对数千行原始明细数据，一键聚合生成多维交叉数据透视表。无需手工编写复杂的 SUMIFS/COUNTIFS 公式即可完成快速交叉分析。",
+        description: "根据明细数据区域生成数据透视表。要求：sourceRange 必须含表头且与 destCell 一起必传；destSheetName 指定的表必须已存在（不存在时先 wps_create_sheet），否则直接报错；建表后如显示为空，需在宿主中刷新透视表。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -592,7 +595,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_set_filter_and_sort",
-        description: "为数据表格启用/关闭自动筛选下拉三角漏斗，并按指定列执行单列或多列升降序排列。大幅提升终端用户的查阅与交互体验。",
+        description: "为表格启用/关闭自动筛选，并按指定列排序。sortRules 的 colIndex 是**区域内相对列号**（1=区域第 1 列）。排序后会读回校验，未真正生效即报错（返回 sortApplied.attempts）。筛选范围不受 range 严格约束：宿主会扩展到相邻数据块，返回体 appliedFilterRange 是实际范围，与传入不一致时给出 warnings，需要严格范围请用空行隔离数据块。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -632,7 +635,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_set_data_validation",
-        description: "为指定单元格区域设置数据有效性验证（如下拉选择菜单、数值区间限制）。防止人为录入错误，并可配置选中时的提示气泡与输入非法报错弹窗。",
+        description: "为指定区域设置数据有效性（下拉列表或数值区间），可配选中提示与非法输入报错。写入后需用 wps_execute_script 探测 Validation 读回（本工具族暂无数据有效性读回工具）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -653,7 +656,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             operator: {
               type: "string",
               enum: ["between", "greater_than", "less_than", "equal"],
-              description: "当 validationType='number_range' 时的比较条件，默认为 'between'"
+              description: "当 validationType='number_range' 时的比较条件: 'between'(介于 minVal 与 maxVal，默认), 'greater_than'(大于 minVal), 'less_than'(小于 maxVal), 'equal'(等于 minVal)"
             },
             minVal: { type: "number", description: "数值范围下限。例如: 0 或 1" },
             maxVal: { type: "number", description: "数值范围上限。例如: 100" },
@@ -673,7 +676,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_manage_sheet",
-        description: "工作表综合管理引擎。支持对工作表进行重命名、左右移动调整标签顺序、设置底部标签颜色高亮（如将重要汇总表标红）以及锁定/解锁工作表保护。",
+        description: "工作表管理：重命名、调整标签顺序、设置标签颜色、锁定/解锁工作表保护。sheetName 与 action 均必传。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）；但 move/tab_color/protect/unprotect 四个 action 在 Microsoft 宿主尚未实现。",
         parameters: {
           type: "object",
           properties: {
@@ -713,7 +716,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_manage_rows_and_columns",
-        description: "在工作表中批量插入、删除、隐藏、取消隐藏整行或整列，或精准设置行高/列宽。例如在表头下方插入汇总空白行、折叠隐藏明细列等。",
+        description: "批量插入、删除、隐藏、取消隐藏整行或整列，或设置行高/列宽(action='set_size')。与 wps_modify_rows_columns 的区别：本工具多 set_size 与 size 参数。targetType、action、index 必传。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -725,10 +728,11 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             action: {
               type: "string",
               enum: ["insert", "delete", "hide", "unhide", "set_size"],
-              description: "执行操作: 'insert'(插入), 'delete'(删除), 'hide'(隐藏), 'unhide'(取消隐藏), 'set_size'(设置行高或列宽)"
+              description: "执行操作: 'insert'(插入), 'delete'(删除，破坏性), 'hide'(隐藏), 'unhide'(取消隐藏), 'set_size'(设置行高或列宽，需 size)"
             },
             index: {
-              description: "起始行号（数字，如 5 表示第5行）或列标识（数字 2 或字母 'B' 表示第B列）"
+              type: ["number", "string"],
+              description: "起始行号（数字，如 5）或列标识（数字 2 或字母 'B' 表示第 B 列）"
             },
             count: {
               type: "number",
@@ -750,7 +754,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_manage_cell_comments",
-        description: "单元格原生批注与审阅备注管理引擎。支持为单元格添加、读取、删除或清空黄色气泡批注。非常适合 AI 作为质检/财务审核员在异常单元格留下审核依据与批注。",
+        description: "单元格批注管理：添加/更新、读取、删除指定批注，或清空全表批注。action 必传；'add' 需 address + text。注意：宿主批注作者恒为当前 WPS 用户，author 只作为签名拼入正文，不会写入作者字段。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -769,7 +773,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             },
             author: {
               type: "string",
-              description: "批注作者签名，默认为 'AI 智能审核'"
+              description: "批注签名：会以 '作者:\\n正文' 的形式拼进批注内容。宿主批注的真实作者恒为当前 WPS 用户，不要指望本参数改变作者字段。"
             },
             sheetName: { type: "string", description: "工作表名称，不传则默认为当前活动工作表" },
             workbookName: { type: "string", description: ctx.wbDesc }
@@ -783,12 +787,13 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_find_and_replace",
-        description: "工作表全局高速查找与精准定位替换。支持在海量数据中瞬间检索出所有包含特定错误码（如 #VALUE!、#N/A）、特定状态（如 '待复测'、'未通过'）或关键词的单元格坐标列表，并支持一键批量替换。",
+        description: "在工作表中查找并可选批量替换。searchQuery 必传；同时匹配单元格显示值与**公式文本**（results[].matchedIn 标明命中在哪一侧；命中公式时写回公式位）。返回的 results[].row/col 是相对 searchRange 的偏移量，不是工作表绝对行列号。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
             searchQuery: {
-              description: "要查找的目标关键词、数值或错误标识。例如: '#VALUE!'、'待复测'、0"
+              type: ["string", "number"],
+              description: "要查找的关键词、数值或错误标识，例如 '#VALUE!'、'待复测'、0"
             },
             replaceText: {
               type: "string",
@@ -822,7 +827,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_duplicate_sheet",
-        description: "工作表完整克隆与模板复制。将现有工作表（100% 完整保留所有复杂三线表样式、公式、条件格式与图表）克隆复制出一张新表。常用于基于《月度模板》一键派生《9月报表》。",
+        description: "克隆现有工作表（保留样式、公式、条件格式与图表）生成一张新表；源表名与新表名必传。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -850,7 +855,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_save_workbook",
-        description: "保存当前打开的工作簿（支持 WPS 表格与 Microsoft Excel），避免改动仅停留在内存中未落盘。",
+        description: "保存当前打开的工作簿。保存是**工作簿级**操作：会把该工作簿当前内存状态整体落盘，包含其他会话尚未完成的中间结果。参数集只有 workbookName（不接受 sheetName，传了会报“未知参数”）；不传时按锁定目标/活动工作簿保存。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
