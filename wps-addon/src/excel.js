@@ -3503,6 +3503,22 @@
       if (appliedFilterRange && appliedFilterRange !== targetRange.Address()) {
         warnings.push(`筛选实际覆盖 ${appliedFilterRange}，与传入的 ${range} 不一致：宿主会把筛选扩展到相邻数据块。若需精确范围，请在目标区与其它数据之间留一个空行。`);
       }
+      // **读回核对**：写入"不报错"≠"真的生效"。
+      // 真机踩到：目标区域若已是**结构化表格**（ListObject），它自带筛选器，
+      // 此时 `Range.AutoFilter()` 不生效、`sheet.AutoFilterMode` 仍为 false，
+      // 但工具此前返回 success —— 调用方会以为筛选已开。
+      if (enableAutoFilter && !appliedFilterRange) {
+        let tableNames = [];
+        try {
+          const los = sheet.ListObjects;
+          for (let i = 1; i <= Number(los.Count); i++) { try { tableNames.push(String(los.Item(i).Name)); } catch (e) {} }
+        } catch (e) {}
+        if (tableNames.length) {
+          warnings.push(`筛选**未生效**：工作表上存在结构化表格 ${tableNames.join(" / ")}，它自带筛选器，表级 AutoFilter 不会另外打开。请直接在表格上操作，或先把表格转为普通区域。`);
+        } else {
+          warnings.push("筛选**未生效**：调用后 sheet.AutoFilterMode 仍为 false，请人工确认。");
+        }
+      }
     }
 
     // 数据排序：旧式 Range.Sort(...) 在本机 WPS 上会静默 no-op（问题台账 ISS-38），
