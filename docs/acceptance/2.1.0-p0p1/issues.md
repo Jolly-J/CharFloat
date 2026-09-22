@@ -140,6 +140,7 @@
 | ISS-108 | **本轮修复引入的回归**：`format_cells` 的 `rowHeight` 分支误写 `targetRange`（该函数里叫 `range`）→ 抛 `ReferenceError`。**`npm test` 未覆盖该路径，只有真机调用才暴露** | **高** | **已修待验** | 宿主实现（真机自查） |
 | ISS-109 | `patch_cells` 的 `formulas` 矩阵 schema 只允许 `string`，而宿主把 `null` 也当"空项跳过" → 说明承诺的空项写法有一半走不通（`null` 被 validateArgs 拦下） | 中 | **已修待验**（schema 放行 null） | 工具定义 |
 | ISS-110 | **构建指纹心跳丢失**：`register` 有两处（`connection.js` 首发 + `bootstrap.js` 每 5 秒心跳），只改了前者 → 桥接收到的始终是心跳报文，`buildFingerprint` 恒为 null | 中高 | **已修待验** | 宿主实现 |
+| ISS-111 | **Word 页面预览恒不落盘**：宿主返回 `hasPdf:true` + `pdfPath`，但磁盘上没有文件。根因＝桥接把预览输出到 `~/.wps-bridge/previews/`，而 **WPS 是沙箱应用写不进去**（实测：该目录/`os.tmpdir()`/`~/Downloads` 子目录 均 ❌，只有 WPS 容器 tmp ✅） | **高** | **已修已验证** | 桥接预览路径 + 落盘校验 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。

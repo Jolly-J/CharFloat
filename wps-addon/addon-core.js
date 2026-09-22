@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: f048b016101dc304d9dba8327f01558cd88b7c013df9f9dc5e941b0d67927f63
+// ADDON_BUILD_FINGERPRINT: 1d2c2070c148206e64ecec7bf0cb3654b4e8a54da5ef3ae856ba89523bfec0fe
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "f048b016101dc304d9dba8327f01558cd88b7c013df9f9dc5e941b0d67927f63";
+  var ADDON_BUILD_FINGERPRINT = "1d2c2070c148206e64ecec7bf0cb3654b4e8a54da5ef3ae856ba89523bfec0fe";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -5666,12 +5666,14 @@
         const slide = pres.Slides.Item(idx);
         const total = pres.Slides.Count;
 
-        // 读回背景色的辅助：不同宿主返回的 RGB 可能是 number 也可能是其它形态，统一成 "R,G,B"
+        // 读回背景色的辅助：宿主返回的 RGB 是整数，统一成 "R,G,B"。
+        // 注意 Office/WPS 的 RGB 整数约定是 **r + g*256 + b*65536**（红在低字节），
+        // 与 hexToPptColor 的编码方向一致；解码若按相反方向会把红蓝显示反（真机实测踩到）。
         const readRgb = (target) => {
           try {
             const rgb = Number(target.Background.Fill.ForeColor.RGB);
             if (!Number.isFinite(rgb)) return null;
-            const b = rgb & 0xff, g = (rgb >> 8) & 0xff, r = (rgb >> 16) & 0xff;
+            const r = rgb & 0xff, g = (rgb >> 8) & 0xff, b = (rgb >> 16) & 0xff;
             return r + "," + g + "," + b;
           } catch (e) { return null; }
         };
