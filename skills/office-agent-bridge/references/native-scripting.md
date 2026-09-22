@@ -57,11 +57,30 @@ AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针�
 | `range.Sort(...)` 旧式排序 | 本机 WPS **静默 no-op** | 用 `sheet.Sort.SortFields.Clear()/Add()/SetRange()/Header/Apply()`，并读回校验（[ISS-38](../../../docs/acceptance/2.1.0-p0p1/issues.md)） |
 | `Cell.Formula("=SUM(ABOVE)")` / `AutoSum()` | **不生效**，返回 `null`、单元格文本不变（[03-word.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md) §3.1） | 脚本里算出结果写静态文本；不要因为"没抛异常"就判定成功 |
 | `ExportAsFixedFormat(path, 17)` | 不抛异常也**不落盘**（Word 侧实测） | 交付/预览不要依赖它；用带落盘校验的保存工具 |
-| `for (const k in v) v[k]` 全量反射 | **会让 WPS 进程崩溃**（[ISS-89](../../../docs/acceptance/2.1.0-p0p1/issues.md)：3 份崩溃报告、2 份栈逐帧一致） | 一次只探一个真正要用的属性；具体危险成员清单尚未产出 |
+| `for (const k in v) v[k]` 全量反射 | **会让 WPS 进程崩溃**（[ISS-89](../../../docs/acceptance/2.1.0-p0p1/issues.md)：3 份崩溃报告、2 份栈逐帧一致：`kso → etcore → etapi → jsetapi → ksojscore`） | **不要自己写反射循环**，用 `wps_inspect_api`（默认只列名字、不求值）；危险成员清单见下节 |
+
+### 反射的危险成员清单（ISS-89 取证结果）
+
+**取证方法**：崩溃前的探测数据已落盘，比对"清单里的表达式"与"实际探到的"——**第 5 条 `wb.Worksheets.Item("Data").Cells` 是崩溃点**（前 4 条 `wb` / `Worksheet` / `Range` 成功，之后全部变成"加载项未连接"）。
+
+**机理**：列成员名（`Object.getOwnPropertyNames`）是安全的；**对成员求值（`obj[name]`）才是扎进宿主原生层的动作**。
+
+| 分级 | 成员 | 说明 |
+|---|---|---|
+| **已证实危险** | `Cells`、`Rows`、`Columns`、`UsedRange`、`EntireRow`、`EntireColumn` | 整表/整列/整行范围，求值会构造覆盖整表的原生对象 → 进程崩溃 |
+| **保守跳过** | `Comment`、`CommentThreaded`、`Comments`、`CommentsThreaded`、`Sort`、`SortFields`、`AutoFilter`、`Filters`、`FormatConditions`、`Validation`、`Names`、`QueryTables`、`Connections`、`ChartObjects`、`PivotCaches`、`PivotTables`、`ListObjects`、`Styles`、`CommandBars`、`CurrentRegion`、`Precedents`、`Dependents`、`SpecialCells` | 触达宿主内部集合的原生 getter；未做崩溃取证，但属最易出问题的一类 |
+
+**`wps_inspect_api` 的护栏**（已实现）：
+
+- **默认 `evaluate: false`**：只列名字，连 `typeof` 都不取（取 `typeof` 同样会触发一次属性访问）
+- `evaluate: true` 时按上表跳过危险成员，并在 `skipped` 里逐条说明原因
+- `maxMembers`（默认 150）限制求值数量，超出部分记入 `skipped`
+
+**需要上表里的能力时**：不要反射它，**直接调用封装好的工具**——例如 `get_sheet_outline` 的 `sheetState` 已能读回保护/筛选/条件格式，`get_range_styles` 的 `validation` 能读回数据有效性。
 
 另有两条与 API 无关、但同样会静默失真的行为：
 
-- **返回值嵌套超过两层就丢属性**（[ISS-56](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：`[{a:{b:{c:1}}}]` 这类三层结构里内层属性全变 `undefined` 且不报错。**返回扁平的字符串/数字数组**，或自己把深层结构 `JSON.stringify` 成字符串再返回。
+- **返回值嵌套过深会丢属性**（[ISS-56](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：原实现 `depth > 2` 直接 `String(val)`，三层以上属性静默变 `undefined`。**已修为**：上限放宽到 6 层，超限节点写成显式占位符并返回 `truncated: true` 与 `truncatedPaths`（不再静默丢数据）。稳妥做法仍是**返回扁平的字符串/数字数组**，或自己 `JSON.stringify` 成字符串再返回。
 - **脚本成功 ≠ 写入生效**：Bridge 的包装层可能返回 `success`。调用方必须同时检查 `returnValue` 里的读回值和 `failed`/`pendingCount`，本文档末尾给了约定结构。
 
 ## Excel：可编辑矢量绘图

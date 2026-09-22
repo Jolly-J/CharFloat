@@ -34,11 +34,13 @@ export function scriptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_inspect_api",
-        description: "在运行时反射探测指定 WPS 对象的成员、属性值与方法列表（只反射方法名，不返回枚举常量表）。表达式会被真实求值：一次只探一个表达式，不要探测未防御的原生 getter（如 Comment、SortFields、AutoFilter.Filters），已知会令 WPS 进程崩溃；反射不等于无副作用，表达式本身也能改文档。",
+        description: "在运行时反射探测指定 WPS 对象的成员名。**默认只列名字、不对成员求值**——这是刻意的安全设计：逐成员求值会触发宿主原生 getter，实测会让 WPS 进程崩溃（3 份崩溃报告，崩溃点定位在整表 `Worksheet.Cells` 一类表达式）。表达式本身仍会被真实求值，所以**一次只探一个表达式**，且不要探测未防御的原生 getter；反射不等于无副作用，表达式也能改文档。需要成员类型/取值时传 evaluate:true，此时会跳过已证实危险的成员（Cells/Rows/Columns/UsedRange/EntireRow/EntireColumn）与保守跳过的高危原生 getter，并在 skipped 里说明原因。",
         parameters: {
           type: "object",
           properties: {
             expression: { type: "string", description: "要反射探测的表达式，如 'app', 'pres', 'pres.Slides.Item(1)', 'doc', 'wb'" },
+            evaluate: { type: "boolean", description: "是否对成员求值以获取类型/取值。默认 false（只列名字，最安全）；true 会跳过危险成员并在 skipped 中说明" },
+            maxMembers: { type: "number", description: "求值模式下的成员数量上限，默认 150；超出部分记入 skipped" },
             workbookName: { type: "string", description: "精确目标工作簿名" },
             documentName: { type: "string", description: "精确目标 Word 文档名" },
             presentationName: { type: "string", description: "精确目标 PPT 文稿名" },

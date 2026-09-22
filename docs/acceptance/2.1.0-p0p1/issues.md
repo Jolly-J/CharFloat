@@ -118,7 +118,7 @@
 | ISS-85 | **PPT 无保存工具**（`wps_ppt_save_presentation` → 未知工具） | 中高 | **已修已验证** | 工具能力缺口 |
 | ISS-86 | `capture_slide_preview` 吞掉 addon 原始返回、且不允许传 `outputPath` | 中 | **已修已验证** | 宿主实现 |
 | ISS-87 | **`set_background` 会串改全部页**（受控复现：设第 1 页后第 2 页也变红） | **高** | **已修已验证** | 宿主实现 |
-| ISS-89 | 深度属性反射会让 **WPS 进程崩溃**（3 次崩溃报告，2 次栈指向 jsetapi→etcore） | **高** | 待修 | 宿主 API 安全性 + 工具护栏 |
+| ISS-89 | 深度属性反射会让 **WPS 进程崩溃**（3 次崩溃报告，2 次栈指向 jsetapi→etcore） | **高** | **已修待验**（护栏已实现：默认不求值 + 危险成员分级跳过 + maxMembers 上限） | 宿主 API 安全性 + 工具护栏 |
 | ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | **已修已验证** | 可观测性 |
 | ISS-91 | 读操作被别名到写函数（`list_conditional_formats` → 新增条件格式）；**但该 RPC 无工具暴露，不可达，属潜在风险** | **中（潜在）** | **已修·静态验证** | Office.js 路由 |
 | ISS-92 | 批注 `action: "clear_all"` 静默成功（宿主不支持该 action）；`list_comments` 别名到默认 add | **高** | **已修已验证**（MS 实机） | Office.js 路由 + 处理函数 |
