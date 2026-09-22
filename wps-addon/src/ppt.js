@@ -1403,21 +1403,46 @@
         const tbl = shp.Table;
         const hColor = headerFillColor || "#0072C6";
 
-        for (let r = 1; r <= tbl.Rows.Count; r++) {
-          for (let c = 1; c <= tbl.Columns.Count; c++) {
-            const cell = tbl.Cell(r, c);
-            if (r === 1) {
-              cell.Shape.Fill.Solid();
-              cell.Shape.Fill.ForeColor.RGB = hexToPptColor(hColor);
-              if (cell.Shape.HasTextFrame && cell.Shape.TextFrame.HasText) {
-                cell.Shape.TextFrame.TextRange.Font.Bold = true;
-                cell.Shape.TextFrame.TextRange.Font.Color.RGB = hexToPptColor("#FFFFFF");
-              }
-            } else {
-              cell.Shape.Fill.Solid();
-              cell.Shape.Fill.ForeColor.RGB = hexToPptColor("#FFFFFF");
-            }
+        // 指定了 row/column 就**只刷那一格**；都没给才整表重刷（保持原有行为）。
+        // 原实现无条件遍历整表，`row`/`column` 被静默忽略——于是"给某一格上色"永远做不到
+        // （调用方以为设置成功了，实际被整表重刷覆盖）。
+        const onlyRow = Number.isFinite(Number(row)) ? Number(row) : null;
+        const onlyCol = Number.isFinite(Number(column)) ? Number(column) : null;
+
+        const paintCell = (r, c, isHeader) => {
+          const cell = tbl.Cell(r, c);
+          cell.Shape.Fill.Solid();
+          if (fillColor) {
+            cell.Shape.Fill.ForeColor.RGB = hexToPptColor(fillColor);
+          } else {
+            cell.Shape.Fill.ForeColor.RGB = hexToPptColor(isHeader ? hColor : "#FFFFFF");
           }
+          if (cell.Shape.HasTextFrame && cell.Shape.TextFrame.HasText) {
+            const tr = cell.Shape.TextFrame.TextRange;
+            if (isHeader && !fillColor) {
+              tr.Font.Bold = true;
+              tr.Font.Color.RGB = hexToPptColor("#FFFFFF");
+            }
+            if (fontColor) tr.Font.Color.RGB = hexToPptColor(fontColor);
+            if (fontBold !== undefined) tr.Font.Bold = Boolean(fontBold);
+            if (Number.isFinite(Number(fontSize))) tr.Font.Size = Number(fontSize);
+          }
+        };
+
+        if (onlyRow !== null || onlyCol !== null) {
+          const rStart = onlyRow !== null ? onlyRow : 1;
+          const rEnd = onlyRow !== null ? onlyRow : tbl.Rows.Count;
+          const cStart = onlyCol !== null ? onlyCol : 1;
+          const cEnd = onlyCol !== null ? onlyCol : tbl.Columns.Count;
+          if (rStart < 1 || rStart > tbl.Rows.Count || rEnd > tbl.Rows.Count) {
+            throw new Error(`行号超出范围：表格共 ${tbl.Rows.Count} 行`);
+          }
+          if (cStart < 1 || cStart > tbl.Columns.Count || cEnd > tbl.Columns.Count) {
+            throw new Error(`列号超出范围：表格共 ${tbl.Columns.Count} 列`);
+          }
+          for (let r = rStart; r <= rEnd; r++) for (let c = cStart; c <= cEnd; c++) paintCell(r, c, r === 1);
+        } else {
+          for (let r = 1; r <= tbl.Rows.Count; r++) for (let c = 1; c <= tbl.Columns.Count; c++) paintCell(r, c, r === 1);
         }
 
         applyCellBorders(tbl, borderColor || "#333333");
