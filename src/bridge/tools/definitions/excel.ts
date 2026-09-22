@@ -506,13 +506,16 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
         parameters: {
           type: "object",
           properties: {
+            chartIndex: { type: "number", description: "或用图表序号定位（从 1 开始）；多个图表时与 chartName 二选一" },
+            chartType: { type: "string", description: "改图表类型：column / bar / line / pie / scatter / area，或直接传 xlChartType 整数" },
+            hasLegend: { type: "boolean", description: "是否显示图例" },
+            showDataLabels: { type: "boolean", description: "是否在数据点/柱顶显示数值标签" },
             sheetName: { type: "string", description: "目标工作表名称" },
             workbookName: { type: "string", description: ctx.wbDesc },
             chartName: { type: "string", description: "图表名称或 ID（如 {GUID} 或 Chart 1），选其一作为定位参数" },
             name: { type: "string", description: "chartName 的同义别名" },
             shapeName: { type: "string", description: "图表 Shape 名称（取自 wps_get_charts），推荐用它精确定位" },
             title: { type: "string", description: "更新后的图表标题" },
-            legendPosition: { type: "string", enum: ["Top", "Bottom", "Left", "Right", "Corner"], description: "图例位置: 'Top'(上), 'Bottom'(下), 'Left'(左), 'Right'(右), 'Corner'(右上角)" },
             cellRange: { type: "string", description: "期望图表吸附的单元格范围，例如 'I8:P20'" },
             startCell: { type: "string", description: "图表起始单元格" },
             endCell: { type: "string", description: "图表结束单元格" },

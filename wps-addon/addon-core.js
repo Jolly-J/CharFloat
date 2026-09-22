@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 1b4c16d1dacf6925c6c462770b4a5efbc6be366fefb8d791a40053847258b9db
+// ADDON_BUILD_FINGERPRINT: e58733976a801a1923a0ac084f1d005b02ac81d3bb3bcb8020b444129bc0643c
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "1b4c16d1dacf6925c6c462770b4a5efbc6be366fefb8d791a40053847258b9db";
+  var ADDON_BUILD_FINGERPRINT = "e58733976a801a1923a0ac084f1d005b02ac81d3bb3bcb8020b444129bc0643c";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -3806,8 +3806,31 @@
       try { ch.HasLegend = Boolean(hasLegend); applied.hasLegend = Boolean(hasLegend); } catch (e) { warnings.push(`设置图例失败: ${e.message}`); }
     }
     if (showDataLabels !== undefined) {
-      try { ch.ApplyDataLabels(showDataLabels ? 2 : 0); applied.showDataLabels = Boolean(showDataLabels); } catch (e) {
-        try { ch.SeriesCollection(1).ApplyDataLabels(); applied.showDataLabels = true; } catch (e2) { warnings.push(`设置数据标签失败: ${e2.message}`); }
+      // ⚠️ 不能用 `chart.ApplyDataLabels(0)` 关标签：真机实测它**关不掉**，
+      // 但调用不报错——于是工具返回 success 而图表上标签仍在，属"假成功"。
+      // 改为**逐个系列设置 HasDataLabels**，再读回核对，报**真实状态**而不是请求值。
+      const want = Boolean(showDataLabels);
+      let touched = 0;
+      try {
+        const sc = ch.SeriesCollection();
+        const n = Number(sc.Count);
+        for (let i = 1; i <= n; i++) { try { sc.Item(i).HasDataLabels = want; touched++; } catch (e) {} }
+      } catch (e) { warnings.push(`设置数据标签失败: ${e.message}`); }
+      if (!touched) {
+        try { ch.ApplyDataLabels(want ? 2 : 0); touched = 1; } catch (e) { warnings.push(`设置数据标签失败: ${e.message}`); }
+      }
+      // 读回每个系列的真实状态
+      const states = [];
+      try {
+        const sc = ch.SeriesCollection();
+        for (let i = 1; i <= Number(sc.Count); i++) { try { states.push(Boolean(sc.Item(i).HasDataLabels)); } catch (e) {} }
+      } catch (e) {}
+      const actualAll = states.length ? states.every(Boolean) : null;
+      const actualNone = states.length ? states.every(v => !v) : null;
+      applied.showDataLabels = want;
+      applied.dataLabelsActually = want ? actualAll : actualNone;
+      if (states.length && (want ? !actualAll : !actualNone)) {
+        warnings.push(`数据标签**未按请求生效**：请求 ${want}，各系列实际为 [${states.join(", ")}]`);
       }
     }
 
@@ -3819,7 +3842,15 @@
       title: g(() => String(ch.ChartTitle.Text), null),
       hasTitle: g(() => Boolean(ch.HasTitle), null),
       hasLegend: g(() => Boolean(ch.HasLegend), null),
-      seriesCount: g(() => Number(ch.SeriesCollection().Count), null)
+      seriesCount: g(() => Number(ch.SeriesCollection().Count), null),
+      // 数据标签的真实状态（逐系列读），让"写没写进去"可核对
+      dataLabels: (() => {
+        try {
+          const sc = ch.SeriesCollection(); const out = [];
+          for (let i = 1; i <= Number(sc.Count); i++) { try { out.push(Boolean(sc.Item(i).HasDataLabels)); } catch (e) {} }
+          return out.length ? (out.every(Boolean) ? true : out.every(v => !v) ? false : out) : null;
+        } catch (e) { return null; }
+      })()
     };
     if (title !== undefined && actual.title !== String(title)) warnings.push(`标题读回为「${actual.title}」，与请求不一致`);
 
