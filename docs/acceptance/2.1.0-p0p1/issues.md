@@ -96,7 +96,7 @@
 | ISS-63 | 透视表：建表瞬间是空骨架须手动 `Refresh`；`destSheetName` 必须已存在；`RecordCount` 恒为 1 | 中 | **已修已验证** | 宿主实现 + 说明 |
 | ISS-64 | 条件格式无图标集/公式规则参数入口，也无读取/清除工具 | 中 | **部分完成**（读回已补；图标集/公式规则**入口**未加，属能力补强 CAP-06） | 工具能力缺口 |
 | ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 台账已补记录；**说明文案待工具说明批次** | 工具说明 |
-| ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | **已修待验**（根因已定位：方法摘出丢 this） | 宿主实现 |
+| ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | **已修已验证** | 宿主实现 |
 | ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | **部分完成**（本轮未复现；已加写入后逐行读回长度兜底，说明如实标注"未复现"） | 宿主实现 |
 | ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修已验证** | 宿主实现 |
 | ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修已验证** | 宿主实现 |
@@ -141,7 +141,7 @@
 | ISS-109 | `patch_cells` 的 `formulas` 矩阵 schema 只允许 `string`，而宿主把 `null` 也当"空项跳过" → 说明承诺的空项写法有一半走不通（`null` 被 validateArgs 拦下） | 中 | **已修已验证** | 工具定义 |
 | ISS-110 | **构建指纹心跳丢失**：`register` 有两处（`connection.js` 首发 + `bootstrap.js` 每 5 秒心跳），只改了前者 → 桥接收到的始终是心跳报文，`buildFingerprint` 恒为 null | 中高 | **已修已验证** | 宿主实现 |
 | ISS-111 | **Word 页面预览恒不落盘**：宿主返回 `hasPdf:true` + `pdfPath`，但磁盘上没有文件。根因＝桥接把预览输出到 `~/.wps-bridge/previews/`，而 **WPS 是沙箱应用写不进去**（实测：该目录/`os.tmpdir()`/`~/Downloads` 子目录 均 ❌，只有 WPS 容器 tmp ✅） | **高** | **已修已验证** | 桥接预览路径 + 落盘校验 |
-| ISS-112 | **宿主方法被"摘出来"调用导致 this 丢失**：`const f = cell.Address; f()` 抛 "Address called on null or undefined"，被 catch 吞掉后表现为**地址为空**（成功消息变成"已在单元格  添加批注"）。这是 ISS-66 的真正根因，前一版修复（把取地址提前）方向对但没解决 this 问题 | 中 | **已修待部署** | 宿主实现（真机定位） |
+| ISS-112 | **宿主方法被"摘出来"调用导致 this 丢失**：`const f = cell.Address; f()` 抛 "Address called on null or undefined"，被 catch 吞掉后表现为**地址为空**（成功消息变成"已在单元格  添加批注"）。这是 ISS-66 的真正根因，前一版修复（把取地址提前）方向对但没解决 this 问题 | 中 | **已修已验证** | 宿主实现（真机定位） |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。
