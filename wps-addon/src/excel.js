@@ -554,6 +554,8 @@
 
   // 10. 高级格式与排版引擎 (美学升级)
   function formatCells(app, params) {
+    // 本次调用的告警（原先函数内没有这个变量，我加读回核对时漏了声明 → ReferenceError）
+    const warnings = [];
     const {
       sheetName,
       address,
@@ -684,6 +686,7 @@
     }
 
     return {
+      warnings,
       success: true,
       address: range.Address(),
       appliedStyles: params
@@ -815,6 +818,8 @@
 
   // 10.1 条件格式与数据条/色阶
   function addConditionalFormatting(app, params) {
+    // 本次调用的告警（原先函数内没有这个变量，我加读回核对时漏了声明 → ReferenceError）
+    const warnings = [];
     // CAP-30 条件格式读回：此前只有"加"没有"读"，AI 无法回答
     // "这块区域现在挂了哪些规则"，改完也只能靠人看。
     // 覆盖单元格值 / 公式 / 色阶 / 数据条 / Top10 / 图标集 / 重复值 / 唯一值 / 文本 / 空值。
@@ -1027,8 +1032,11 @@
       // （excel-tester H-1：活动单元格=A1 时，给 M1:M5 加的规则变成 =ISNUMBER(SEARCH("特价",Y1))）。
       let fx;
       try {
-        // 把活动单元格移到区域左上角，公式相对引用才以它为基准
-        range.Cells(1, 1).Select();
+        // 把活动单元格移到区域左上角，公式相对引用才以它为基准。
+        // ⚠️ 不能用 `range.Cells(1,1)`：WPS JSA 的 **Range/Worksheet 都没有 Cells() 方法**
+        // （真机踩到：抛错被吞掉，公式照样被平移）。改用**地址字符串**取左上角。
+        const tl = String(address).split(":")[0].replace(/\$/g, "");
+        sheet.Range(tl).Select();
       } catch (e) {
         warnings.push(`无法把活动单元格移到规则区域左上角（${e.message}），公式相对引用可能被平移`);
       }
