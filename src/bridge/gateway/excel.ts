@@ -671,7 +671,8 @@ export const manageCellComments: Handler = async (ctx) => {
       address: args?.address,
       action: args?.action,
       text: args?.text,
-      author: args?.author
+      author: args?.author,
+      resolved: args?.resolved
     });
     // 读批注不是写操作，不登记留痕。
     if (args.action === "read") return result;
