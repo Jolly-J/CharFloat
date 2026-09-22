@@ -46,9 +46,9 @@
 | **CAP-19** | **结构化表格 Table**（创建/更新/样式/汇总行/resize） | WPS 有 ListObject（文档可证）；Office.js 有 `tables` | 文档可证 | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：建表后读回名称/范围/行列数/列名；delete 仅删对象保留数据） |
 | **CAP-20** | **Excel 图片与形状管理**（插入图片、列出/移动/删除形状） | 宿主支持 | 源码可证（WPS 表格侧为零） | WPS 侧补齐 | 同上 | ✅ 已完成已验证（真机：插入图片读回几何并 list；**注意图片路径必须在 WPS 沙箱可读范围内**，/tmp 读不到） |
 | **CAP-21** | **图表更新（`update_chart`）** | WPS 加载项缺该 RPC 分支（已知缺口） | 源码可证 | WPS 侧 | 唯一被声明的宿主缺口 | ✅ 已完成已验证（真机：改标题后读回；宿主 API 一直可用，缺的是 WPS 侧 RPC 分支，已补） |
-| **CAP-22** | **图表图片导出（`export_chart_image`）** | Office.js `chart.getImage()`；WPS 只有整表截图 | 源码可证 | WPS 侧补齐 | 单图导出 | 待排期 |
+| **CAP-22** | **图表图片导出（`export_chart_image`）** | Office.js `chart.getImage()`；WPS 只有整表截图 | 源码可证 | WPS 侧补齐 | 单图导出 | ⬜ 待排期（**探测已完成，可直接实现**：真机确认 `Chart.Export(路径, "PNG")` 可用且**能落盘**——实测导出 8040 字节 PNG。注意路径必须落在 WPS 可写目录内） |
 | **CAP-23** | **工作表保护 / 标签色** | MS 侧有 `protect`/`tabColor`；WPS **未实现且 schema 不含** | 源码可证 | 两侧 | 双向不通 | ✅ 已完成已验证（写入 tab_color/protect 走 wps_manage_sheet，读回走 CAP-34 的 read；真机验过 保护=true 标签色=#0F9D58） |
-| **CAP-24** | **Word 关键词加粗（按 `searchQueries`）** | **宿主已实现**，schema 未暴露 | 源码可证 | 只差工具定义 | 零成本 | 待排期 |
+| **CAP-24** | **Word 关键词加粗（按 `searchQueries`）** | **宿主已实现**，schema 未暴露 | 源码可证 | 只差工具定义 | 零成本 | ⬜ 待排期（Word 按 searchQueries 加粗，走 Range.Find + Font.Bold） |
 
 ## B 类：可验证性补强（能写不能读 → AI 无法自检）
 
@@ -68,7 +68,7 @@
 
 | 编号 | 工具 | 说明 | 状态 |
 |---|---|---|---|
-| **CAP-40** | `clear_range` | 清空区域。现在只能写 `null` 矩阵，极易残留 | 本轮在做（ISS-45） |
+| **CAP-40** | `clear_range` | 清空区域。现在只能写 `null` 矩阵，极易残留 | ⬜ 待排期（**探测已完成，可直接实现**：真机确认 `Range.Clear` / `ClearContents` / `ClearFormats` 均为 function，调用可用） |
 | **CAP-41** | `get_style_token` | 读原表设计语言（主题/样式令牌） | 本轮在做（ISS-45） |
 | **CAP-42** | `word_capture_preview` | Word 页面预览。**实现后 Word 才有视觉验收通路** | 本轮在做（ISS-71/95） |
 
