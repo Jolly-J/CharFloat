@@ -137,6 +137,9 @@
 | ISS-105 | 网关 `ppt.ts:154` 用 `res?.error \|\| "PPT 未生成预览"` **覆盖掉宿主真实错误** | 中高 | **已修待验** | 响应转换 |
 | ISS-106 | 网关 `ppt.ts` 的 manageSlides **未转发 `filePath`/`format`**，schema 里的字段到不了宿主 | 中 | **已修待验** | 参数转发 |
 | ISS-107 | `wps_reload_addon` **不能加载新构建**：宿主实现是 `window.location.reload()`，只重跑已缓存的 JS，不重新读盘（实测部署后调用，`ADDON_BUILD_FINGERPRINT` 仍 `undefined`） | 中高 | **已修**（说明改为如实告知：必须彻底退出 WPS 再打开） | 宿主实现 + 说明 |
+| ISS-108 | **本轮修复引入的回归**：`format_cells` 的 `rowHeight` 分支误写 `targetRange`（该函数里叫 `range`）→ 抛 `ReferenceError`。**`npm test` 未覆盖该路径，只有真机调用才暴露** | **高** | **已修待验** | 宿主实现（真机自查） |
+| ISS-109 | `patch_cells` 的 `formulas` 矩阵 schema 只允许 `string`，而宿主把 `null` 也当"空项跳过" → 说明承诺的空项写法有一半走不通（`null` 被 validateArgs 拦下） | 中 | **已修待验**（schema 放行 null） | 工具定义 |
+| ISS-110 | **构建指纹心跳丢失**：`register` 有两处（`connection.js` 首发 + `bootstrap.js` 每 5 秒心跳），只改了前者 → 桥接收到的始终是心跳报文，`buildFingerprint` 恒为 null | 中高 | **已修待验** | 宿主实现 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。

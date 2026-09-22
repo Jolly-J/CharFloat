@@ -591,8 +591,10 @@
     if (rowHeight) {
       // 本机 WPS 上给跨多行的 `range.RowHeight` 赋值会被静默忽略（问题台账 ISS-22）。
       // 改为逐行写 Rows.Item(n).RowHeight，并读回校验。
-      const firstRow = targetRange.Row;
-      const rowTotal = targetRange.Rows.Count;
+      // 注意：本函数的区域变量名是 `range`（不是 targetRange）——写成 targetRange 会抛
+      // ReferenceError，而 npm test 未覆盖该路径，只会在真机调用时暴露。
+      const firstRow = range.Row;
+      const rowTotal = range.Rows.Count;
       for (let i = 0; i < rowTotal; i++) {
         sheet.Rows.Item(firstRow + i).RowHeight = Number(rowHeight);
       }

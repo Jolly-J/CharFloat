@@ -161,8 +161,8 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             },
             formulas: {
               type: "array",
-              items: { type: "array", items: { type: "string" } },
-              description: "二维公式矩阵，例如 [['=A2*1.1']]；空项 ''/null 表示该单元格不改公式（同批 values 写入的值保留），不会清空单元格"
+              items: { type: "array", items: { type: ["string", "null"] } },
+              description: "二维公式矩阵，例如 [['=A2*1.1']]；空项 '' 或 null 表示该单元格不改公式（同批 values 写入的值保留），不会清空单元格"
             },
             reason: { type: "string", description: "本次修改的意图描述，用于留痕审计" }
           },
