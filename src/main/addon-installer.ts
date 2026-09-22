@@ -215,6 +215,31 @@ export class AddonInstaller {
             }
           }
           atomicWrite(path.join(dest, 'bridge-config.js'), `window.WPS_BRIDGE_CONFIG = ${JSON.stringify({ port: runtimePort(), token, version: VERSION })};\n`);
+
+          // 让"重新加载加载项"能真正吃到新构建。
+          //
+          // WPS 会缓存 addon-core.js，只调 window.location.reload() 只是**重跑缓存里的旧 JS**
+          // （实测：部署后调用 reload，运行中的加载项仍没有新增的构建指纹变量）。
+          // 这里给 <script src> 附上构建指纹查询串：每次构建 URL 都不同 → reload 必然重新取文件，
+          // 于是"部署 + 重新连接"即可生效，不必彻底退出并重开 WPS。
+          const addonEntry = path.join(dest, 'addon-core.js');
+          const indexPath = path.join(dest, 'index.html');
+          if (fs.existsSync(addonEntry) && fs.existsSync(indexPath)) {
+            try {
+              const head = fs.readFileSync(addonEntry, 'utf8').slice(0, 4096);
+              const fp = head.match(/ADDON_BUILD_FINGERPRINT:\s*([0-9a-f]{16,64})/);
+              if (fp) {
+                const html = fs.readFileSync(indexPath, 'utf8');
+                const patched = html.replace(
+                  /src="\.\/addon-core\.js(\?v=[0-9a-f]+)?"/g,
+                  `src="./addon-core.js?v=${fp[1].slice(0, 16)}"`
+                );
+                if (patched !== html) fs.writeFileSync(indexPath, patched, 'utf8');
+              }
+            } catch (e) {
+              appendServiceLog('AddonInstaller', `缓存失效改写失败（不影响部署）: ${(e as Error).message}`);
+            }
+          }
         }
       }
       for (const index of indexes) {

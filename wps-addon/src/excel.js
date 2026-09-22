@@ -1019,6 +1019,179 @@
     };
   }
 
+  // 10.25 打印与分页设置（CAP-01）
+  /**
+   * 读写工作表的打印设置：打印区域、打印标题行列、纸张、方向、页边距、页眉页脚、
+   * 网格线/居中/缩放，以及手动分页符。
+   *
+   * 依据：真机探测确认 `PageSetup` 上这些属性都存在（PrintArea / PrintTitleRows / Orientation /
+   * PaperSize / Zoom / CenterHorizontally / PrintGridlines / 各边距 / CenterHeader / LeftFooter /
+   * FitToPagesWide），`HPageBreaks` / `VPageBreaks` 也可用。
+   * 此前 AI 做不出"可直接打印装订"的报表。
+   *
+   * `action: "read"` 只读回当前设置；默认 `"apply"` 先写后**逐项读回核对**。
+   */
+  function configurePrintLayout(app, params) {
+    const {
+      sheetName, workbookName, action = "apply",
+      printArea, printTitleRows, printTitleColumns,
+      orientation, paperSize, zoom, fitToPagesWide, fitToPagesTall,
+      centerHorizontally, centerVertically, printGridlines,
+      leftMargin, rightMargin, topMargin, bottomMargin, headerMargin, footerMargin,
+      centerHeader, leftHeader, rightHeader, centerFooter, leftFooter, rightFooter,
+      clearPrintArea, addHorizontalPageBreak, addVerticalPageBreak, clearPageBreaks
+    } = params || {};
+
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const ps = sheet.PageSetup;
+
+    // VBA 常量：方向 xlPortrait=1 / xlLandscape=2；纸张 xlPaperLetter=1 / xlPaperA4=9 / xlPaperA3=8 …
+    const ORIENT = { portrait: 1, landscape: 2 };
+    const PAPER = { letter: 1, a4: 9, a3: 8, legal: 5, b5: 13 };
+    const applied = {};
+    const warnings = [];
+
+    if (action !== "read") {
+      if (clearPrintArea) {
+        ps.PrintArea = "";
+        ps.PrintTitleRows = "";
+        ps.PrintTitleColumns = "";
+        applied.clearedPrintArea = true;
+      }
+      if (printArea !== undefined) { ps.PrintArea = printArea === null ? "" : String(printArea); applied.printArea = String(printArea); }
+      if (printTitleRows !== undefined) { ps.PrintTitleRows = printTitleRows === null ? "" : String(printTitleRows); applied.printTitleRows = String(printTitleRows); }
+      if (printTitleColumns !== undefined) { ps.PrintTitleColumns = printTitleColumns === null ? "" : String(printTitleColumns); applied.printTitleColumns = String(printTitleColumns); }
+      if (orientation !== undefined) {
+        const code = typeof orientation === "number" ? orientation : ORIENT[String(orientation).toLowerCase()];
+        if (code === undefined) throw new Error(`不支持的 orientation: ${orientation}（可用 portrait / landscape，或 1 / 2）`);
+        ps.Orientation = code;
+        applied.orientation = code;
+      }
+      if (paperSize !== undefined) {
+        const code = typeof paperSize === "number" ? paperSize : PAPER[String(paperSize).toLowerCase()];
+        if (code === undefined) throw new Error(`不支持的 paperSize: ${paperSize}（可用 a4 / a3 / letter / legal / b5，或 VBA 常量）`);
+        ps.PaperSize = code;
+        applied.paperSize = code;
+      }
+      if (zoom !== undefined) { ps.Zoom = Number(zoom); applied.zoom = Number(zoom); }
+      if (fitToPagesWide !== undefined) { ps.FitToPagesWide = Number(fitToPagesWide); applied.fitToPagesWide = Number(fitToPagesWide); }
+      if (fitToPagesTall !== undefined) { ps.FitToPagesTall = Number(fitToPagesTall); applied.fitToPagesTall = Number(fitToPagesTall); }
+      if (centerHorizontally !== undefined) { ps.CenterHorizontally = Boolean(centerHorizontally); applied.centerHorizontally = Boolean(centerHorizontally); }
+      if (centerVertically !== undefined) { ps.CenterVertically = Boolean(centerVertically); applied.centerVertically = Boolean(centerVertically); }
+      if (printGridlines !== undefined) { ps.PrintGridlines = Boolean(printGridlines); applied.printGridlines = Boolean(printGridlines); }
+      for (const [key, value] of Object.entries({ leftMargin, rightMargin, topMargin, bottomMargin, headerMargin, footerMargin })) {
+        if (value === undefined) continue;
+        ps[key.charAt(0).toUpperCase() + key.slice(1)] = Number(value);
+        applied[key] = Number(value);
+      }
+      for (const [key, value] of Object.entries({ centerHeader, leftHeader, rightHeader, centerFooter, leftFooter, rightFooter })) {
+        if (value === undefined) continue;
+        ps[key.charAt(0).toUpperCase() + key.slice(1)] = String(value);
+        applied[key] = String(value);
+      }
+
+      if (clearPageBreaks) {
+        try { sheet.ResetAllPageBreaks(); applied.clearedPageBreaks = true; } catch (e) { warnings.push(`清除分页符失败: ${e.message}`); }
+      }
+      if (Number.isFinite(Number(addHorizontalPageBreak))) {
+        try { sheet.HPageBreaks.Add(sheet.Rows.Item(Number(addHorizontalPageBreak))); } catch (e) { warnings.push(`添加水平分页符失败: ${e.message}`); }
+      }
+      if (addVerticalPageBreak !== undefined) {
+        if (!Number.isFinite(Number(addVerticalPageBreak))) {
+          throw new Error(`addVerticalPageBreak 需传列号（数字），收到 ${JSON.stringify(addVerticalPageBreak)}；列字母请先换算成序号`);
+        }
+        try { sheet.VPageBreaks.Add(sheet.Columns.Item(Number(addVerticalPageBreak))); } catch (e) { warnings.push(`添加垂直分页符失败: ${e.message}`); }
+      }
+    }
+
+    // 读回：打印设置最怕"设了但没生效"
+    const safe = (fn) => { try { const v = fn(); return v === undefined ? null : v; } catch (e) { return null; } };
+    const settings = {
+      printArea: safe(() => String(ps.PrintArea || "")),
+      printTitleRows: safe(() => String(ps.PrintTitleRows || "")),
+      printTitleColumns: safe(() => String(ps.PrintTitleColumns || "")),
+      orientation: safe(() => Number(ps.Orientation)),
+      paperSize: safe(() => Number(ps.PaperSize)),
+      zoom: safe(() => Number(ps.Zoom)),
+      fitToPagesWide: safe(() => Number(ps.FitToPagesWide)),
+      fitToPagesTall: safe(() => Number(ps.FitToPagesTall)),
+      centerHorizontally: safe(() => Boolean(ps.CenterHorizontally)),
+      centerVertically: safe(() => Boolean(ps.CenterVertically)),
+      printGridlines: safe(() => Boolean(ps.PrintGridlines)),
+      margins: {
+        left: safe(() => Number(ps.LeftMargin)), right: safe(() => Number(ps.RightMargin)),
+        top: safe(() => Number(ps.TopMargin)), bottom: safe(() => Number(ps.BottomMargin)),
+        header: safe(() => Number(ps.HeaderMargin)), footer: safe(() => Number(ps.FooterMargin))
+      },
+      headers: {
+        center: safe(() => String(ps.CenterHeader || "")), left: safe(() => String(ps.LeftHeader || "")),
+        right: safe(() => String(ps.RightHeader || ""))
+      },
+      footers: {
+        center: safe(() => String(ps.CenterFooter || "")), left: safe(() => String(ps.LeftFooter || "")),
+        right: safe(() => String(ps.RightFooter || ""))
+      },
+      pageBreaks: {
+        horizontal: safe(() => Number(sheet.HPageBreaks.Count)),
+        vertical: safe(() => Number(sheet.VPageBreaks.Count))
+      }
+    };
+    settings.orientationName = settings.orientation === 1 ? "portrait" : settings.orientation === 2 ? "landscape" : null;
+
+    // 打印区域写后核对（最容易"设了却没生效"的一项）
+    if (action !== "read" && printArea !== undefined && printArea !== null && String(printArea) !== "") {
+      const norm = (s) => String(s || "").toLowerCase().replace(/\$/g, "");
+      if (norm(printArea) !== norm(settings.printArea)) {
+        throw new Error(`打印区域设置未生效：请求 "${printArea}"，读回 "${settings.printArea}"`);
+      }
+    }
+
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      action,
+      applied,
+      settings,
+      warnings,
+      message: action === "read"
+        ? `已读回 [${sheet.Name}] 的打印设置（打印区域 ${settings.printArea || "未设置"}，${settings.orientationName || "方向未知"}）`
+        : `已应用并读回核对 [${sheet.Name}] 的打印设置`
+    };
+  }
+
+  // 10.26 导出工作表/工作簿为 PDF（CAP-02）
+  /**
+   * 用宿主的 `ExportAsFixedFormat` 导出 PDF（xlTypePDF = 0）。
+   *
+   * **加载项没有文件系统访问，无法确认落盘**——本函数只负责发起导出并回传路径与耗时，
+   * **落盘校验由桥接侧完成**（与 Word 预览同一套机制）。输出目录必须是宿主可写位置，
+   * 见 `src/bridge/runtime.ts` 的 `previewDir()`：WPS 是沙箱应用，`~/.wps-bridge` 之类写不进去。
+   */
+  function exportSheetPdf(app, params) {
+    const { sheetName, workbookName, outputPath, scope = "workbook", quality = "standard" } = params || {};
+    if (!outputPath) throw new Error("缺少必要参数: outputPath（由桥接指定的输出路径）");
+    // Quality: xlQualityStandard = 0 / xlQualityMinimum = 1
+    const qualityCode = String(quality).toLowerCase() === "minimum" ? 1 : 0;
+    const target = scope === "sheet" ? getWorksheet(app, sheetName, workbookName) : getWorkbook(app, workbookName);
+
+    const startedAt = Date.now();
+    try {
+      // ExportAsFixedFormat(Type, Filename, Quality, IncludeDocProperties, IgnorePrintAreas, From, To, OpenAfterPublish)
+      target.ExportAsFixedFormat(0, String(outputPath), qualityCode, true, false, undefined, undefined, false);
+    } catch (e) {
+      return { success: false, outputPath: String(outputPath), scope, hostError: e.message, message: `导出 PDF 失败：${e.message}` };
+    }
+    return {
+      success: true,
+      outputPath: String(outputPath),
+      scope,
+      elapsedMs: Date.now() - startedAt,
+      hostCannotVerify: true,
+      message: `宿主已接受导出请求（${scope === "sheet" ? "工作表 " + (sheetName || "活动表") : "整个工作簿"} → ${outputPath}）；文件是否真的写出由桥接侧校验`
+    };
+  }
+
   // 10.3 整行整列增删、隐藏与高度宽度控制
   function modifyRowsColumns(app, params) {
     const { sheetName, workbookName, targetType, action, index, count = 1, size } = params || {};

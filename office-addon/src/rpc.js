@@ -13,6 +13,9 @@
     }
 
     const id = message.id;
+    DIAG.rpcSeen = (DIAG.rpcSeen || 0) + 1;
+    DIAG.lastMethod = String(message.method || "");
+    DIAG.seen[DIAG.lastMethod] = (DIAG.seen[DIAG.lastMethod] || 0) + 1;
     if (!id) return;
 
     const rawMethod = String(message.method || "");

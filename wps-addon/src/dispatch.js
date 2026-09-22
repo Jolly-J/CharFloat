@@ -47,6 +47,12 @@
         case "get_style_token":
           result = getStyleToken(app, params);
           break;
+        case "configure_print_layout":
+          result = configurePrintLayout(app, params);
+          break;
+        case "export_sheet_pdf":
+          result = exportSheetPdf(app, params);
+          break;
         case "format_text_segment":
           result = formatTextSegment(app, params);
           break;
