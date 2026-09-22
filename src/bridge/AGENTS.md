@@ -74,6 +74,12 @@ Office.js 写入在“宿主已执行之后”才失败（超时、断连、宿�
 
 响应转换用白名单重建对象 → 宿主新增的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied` / `kind` / `renderedBy` 等“如实提示”被静默丢掉，调用方以为参数都生效了 → 白名单只对新实现友好，宿主演进即失效 → 响应分支先铺开宿主原始响应再覆盖统一字段（`{...raw, ...}`），并在宿主已自行过滤/截断时不要重复处理 → 同上 ISS-99。
 
+把"执行前拒绝"一律当作可换通道重放 → 参数安全护栏被绕过：空搜索串的查找替换在桥接层被判为破坏性并抛错，但这次 `rejected`（`executed === 'no'`）仍被 `fallbackToNative` 转交 Windows 原生 COM，而 `excel.ps1` 对空查询用 `IndexOf('')`（恒真）＋空正则逐格替换，把整片内容改坏（护栏亲手把请求送到没有护栏的通道） → 回退判定只区分了"是否已执行"，没区分**拒绝的性质**（能力缺口 vs 参数安全） → 安全护栏用独立类型（`normalizer.ts` 的 `UnsafeParamError` / `errors.ts` 的 `BridgeErrorOptions.unsafe`）标记，`routeOfficeFailure` 见 `unsafe` 直接拒绝回退；能力缺口仍保留 COM 接管（如"Office.js 只开筛选按钮"） → [故障注入测试](../../tests/failure-routing.test.ts) 的「CAP-50：参数安全护栏（空搜索串）不得换通道重放」断言 win32 下 Office.js 与 COM **各 0 次调用**；决策表用例见同文件。
+
+COM 回退白名单用手写缺口清单 + 路由表做减法 → 路由表从 30 涨到 50 后，减法结果 48 项里有 20 项在 `resources/office/excel.ps1` 里根本没有分支，白名单再次过度声明（回退后只抛 `Unsupported Excel method`） → 手写清单一过期就没人提醒，而"路由表 ≠ 宿主实际覆盖"是常态 → 白名单与缺口清单**都由实际实现集派生**（`contracts/host-methods.ts` 的 `COM_IMPLEMENTED_METHODS`，28/50） → [契约一致性测试](../../tests/contract-consistency.test.ts) 的「CAP-51：COM 回退白名单与 excel.ps1 实际分支同源」**解析脚本真实分支**再比对（含防解析器失效的空跑断言）。
+
+残留目标锁（宿主重启后锁指向已不存在的文档）直接报"未找到目标文档" → 本会话后续所有带锁工具持续失败，报错不指向"该重新锁目标"，使用者以为工具坏了（ISS-126） → 锁存在桥接进程内存里，宿主重启只换了文档集合，没有失效信号 → 失败时按两条同时成立的判据自动清理并改写提示：①报错匹配"目标名字在宿主里不存在"（三通道措辞见 `gateway/lock.ts` 的 `TARGET_NOT_FOUND_PATTERNS`）②该目标是**由会话锁注入**而非调用方显式传入（显式传错名字时不动用户的锁）；同时保留原失败的 `kind/executed` → [故障注入测试](../../tests/failure-routing.test.ts) 的「ISS-126」三场景（自动清理 / 不误删 / 不误清）。
+
 ## 同步维护
 
 文件入口、职责、调用关系或验证方式变化时同步更新本页；新增已证实的重复问题时补充原因、处理方式及证据。其余遵循根目录协作规范。

@@ -281,7 +281,7 @@ return { count: D.Sections.Count,
 ```
 
 **已证实**：横向节读回 `orientation=1, pageWidth=841.9, pageHeight=595.3`，纵向节仍是 `0` / `595.3×841.9`；**没断开链接时节 1 会被连带改**，所以要同时读回两节的页眉来断言隔离成立。
-**另注**：`wps_word_page_layout_and_watermark` 的页眉/页脚/水印**只作用于第 1 节**且不提示（[ISS-72](../../../docs/acceptance/2.1.0-p0p1/issues.md)），多节文档的其余节必须自己用上面的脚本处理。
+**另注**：`wps_word_page_layout_and_watermark` 的页眉/页脚**逐节写入文档全部节**（返回 `appliedSections`，每节写了什么一目了然；[ISS-72](../../../docs/acceptance/2.1.0-p0p1/issues.md) 已修，不要沿用"只作用于第 1 节"的旧说法）；**水印写入（`watermarkText`）已在源码层禁用**——传非空值会**直接报错且不修改文档**，因为在当前宿主上写水印会让 WPS 主进程崩溃（[ISS-125](../../../docs/acceptance/2.1.0-p0p1/issues.md)）。需要水印请在 WPS 内「插入 → 水印」手动添加，或走 Windows/COM 通道的 `Section.Headers.Shapes`；`action="read"` 仍可读回现有页眉页脚与水印状况。
 
 ### 书签与交叉引用域
 

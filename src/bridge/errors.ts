@@ -33,6 +33,17 @@ export interface BridgeErrorOptions {
   method?: string;
   executed?: ExecutedState;
   cause?: unknown;
+  /**
+   * 参数安全护栏（CAP-50）：拒绝原因不是"当前通道不支持"，而是"这组参数会让**任何**通道
+   * 做出破坏性动作"（例：空搜索串的批量替换、空串检索）。
+   *
+   * 为什么要单独标记：`routeOfficeFailure` 允许把"执行前拒绝"转交 Windows 原生 COM 通道重放，
+   * 因为多数拒绝属于**能力缺口**（Office.js 没实现，COM 有独立实现，例如多级排序、只有筛选按钮）。
+   * 安全护栏不属此列——原生脚本没有等价护栏，重放等于绕过护栏：
+   * `excel.ps1` 的 find_and_replace 对空查询走 `IndexOf('')`（恒真）并按空正则逐格替换，
+   * 会把请求里"已判定为破坏性"的动作原样执行一遍。
+   */
+  unsafe?: boolean;
 }
 
 const NOT_EXECUTED: ReadonlySet<BridgeErrorKind> = new Set<BridgeErrorKind>(['unavailable', 'rejected']);
@@ -42,6 +53,8 @@ export class BridgeError extends Error {
   readonly channel: BridgeChannel;
   readonly method?: string;
   readonly executed: ExecutedState;
+  /** 见 {@link BridgeErrorOptions.unsafe}：参数安全护栏，禁止换通道重放。 */
+  readonly unsafe: boolean;
 
   constructor(kind: BridgeErrorKind, message: string, options: BridgeErrorOptions) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
@@ -49,13 +62,14 @@ export class BridgeError extends Error {
     this.kind = kind;
     this.channel = options.channel;
     this.method = options.method;
+    this.unsafe = options.unsafe === true;
     // 保守默认：只有 unavailable / rejected 才允许断言"未执行"，其余一律按可能已执行处理。
     this.executed = options.executed ?? (NOT_EXECUTED.has(kind) ? 'no' : 'unknown');
   }
 
   /** 结构化描述，供日志与响应使用；不包含宿主返回的文档内容。 */
   toJSON() {
-    return { name: this.name, kind: this.kind, channel: this.channel, method: this.method, executed: this.executed, message: this.message };
+    return { name: this.name, kind: this.kind, channel: this.channel, method: this.method, executed: this.executed, unsafe: this.unsafe, message: this.message };
   }
 }
 
@@ -104,6 +118,22 @@ export type OfficeFailureRoute = { action: 'fallback' } | { action: 'reject'; er
  */
 export function routeOfficeFailure(method: string, failure: BridgeError, routing: OfficeFailureRouting): OfficeFailureRoute {
   if (routing.platform !== 'win32') return { action: 'reject', error: failure };
+  if (failure.unsafe) {
+    // CAP-50：参数安全护栏的拒绝**不得**换通道。原生脚本没有等价校验，重放会把
+    // "已判定为破坏性"的动作在另一个通道原样执行（空搜索串 → 全区域替换）。
+    // 这条必须排在"不在支持列表内"之前：否则会把安全拒绝说成"COM 不支持该方法"，指向错误的自救方向。
+    return {
+      action: 'reject',
+      error: new BridgeError(
+        failure.kind,
+        `${failure.message}｜已阻止改用 Windows 原生 COM 通道重放：本次拒绝是**参数安全护栏**（不是当前通道能力不足），` +
+        `原生脚本没有等价校验，重放会做出同样的破坏性动作（如空搜索串命中全区域并逐格替换）。请修正参数后重试。`,
+        // 保留原"是否已执行"：安全护栏默认是执行前拒绝（executed='no'），
+        // 但若调用方给出了更保守的判定，不得在此改写成"未执行"（那会诱发重试）。
+        { channel: failure.channel, method, executed: failure.executed, unsafe: true }
+      )
+    };
+  }
   if (!routing.supportedMethods.includes(method)) {
     // 替代通道不支持该方法：只补充"为什么没回退"，不改写前一通道的错误种类与"是否已执行"。
     // 尤其不能把 unknown（可能已执行）写成 no（确认未执行）——那会让调用方错误地重放。

@@ -262,3 +262,101 @@ test('DP4：声明了但目标宿主未实现的操作，在调用宿主之前�
   assert.ok(msError instanceof BridgeError);
   assert.equal(msError!.kind, 'unavailable', 'Microsoft 侧不得被误判为未实现，应表现为加载项未连接');
 });
+
+test('CAP-50：参数安全护栏（空搜索串）不得换通道重放，能力缺口仍可回退', async () => {
+  // 破坏链：schema 允许 searchQuery=''（空串通过 JSON-schema）→ 桥接在调用宿主前判为破坏性并阻断。
+  // 如果这次"执行前拒绝"被当成普通拒绝而转交 Windows 原生 COM，excel.ps1 的 find_and_replace
+  // 会用 `IndexOf('')` 命中整片区域、并按空正则逐格替换 —— 绕过护栏，把真实数据改坏。
+  const unsafe = new BridgeError('rejected', '已阻断不安全的参数组合（空搜索串的查找替换）', {
+    channel: 'microsoft-officejs', method: 'find_and_replace', executed: 'no', unsafe: true
+  });
+  const route = routeOfficeFailure('find_and_replace', unsafe, ROUTING);
+  assert.equal(route.action, 'reject', 'find_and_replace 在 COM 白名单里，但安全护栏拒绝不得回退');
+  if (route.action === 'reject') {
+    assert.equal(route.error.kind, 'rejected');
+    assert.equal(route.error.executed, 'no');
+    assert.equal(route.error.unsafe, true, '安全护栏标记必须保留，否则日志与后续判定会看不出来');
+    assert.match(route.error.message, /参数安全护栏/);
+    assert.match(route.error.message, /空搜索串/);
+  }
+  // 反向：同方法的普通"执行前拒绝"（能力/入参类）仍可回退，不因收紧而损失正常回退能力
+  assert.equal(routeOfficeFailure('find_and_replace', failure('rejected', 'find_and_replace'), ROUTING).action, 'fallback');
+
+  // 真实调用路径：空搜索串的查找替换在 win32 语义下既不碰 Office.js 宿主，也不碰原生 COM
+  let addonCalls = 0;
+  let nativeCalls = 0;
+  const error = await withWin32Stubs({
+    addon: async () => { addonCalls += 1; return { success: true }; },
+    native: async () => { nativeCalls += 1; return { success: true }; }
+  }, async () => {
+    try {
+      await requestContext.run({ sessionId: 'cap50-empty-search', host: 'microsoft' }, () =>
+        callOffice('find_and_replace', { searchQuery: '', replaceText: 'X', workbookName: 'cap50.xlsx' }));
+      return null;
+    } catch (e) { return e as BridgeError; }
+  });
+  assert.ok(error, '必须抛出错误而不是静默成功');
+  assert.equal(error!.kind, 'rejected', '属于执行前拒绝');
+  assert.equal(error!.executed, 'no');
+  assert.equal(addonCalls, 0, '不得把已判定为破坏性的请求交给 Office.js 宿主');
+  assert.equal(nativeCalls, 0, '关键断言：不得转手 Windows 原生 COM（那边没有等价护栏）');
+
+  // 能力缺口类的执行前拒绝仍应保留原生通道接管能力（COM 的 set_filter_and_sort 支持"只开筛选按钮"）
+  let nativeFallbacks = 0;
+  const fallback = await withWin32Stubs({
+    addon: async () => { throw new Error('能力缺口应在参数转换阶段被拒绝，不应走到宿主'); },
+    native: async () => { nativeFallbacks += 1; return { success: true, via: 'native' }; }
+  }, () => requestContext.run({ sessionId: 'cap50-capability-gap', host: 'microsoft' }, () =>
+    callOffice('set_filter_and_sort', { range: 'A1:E20', enableAutoFilter: true })));
+  assert.equal(nativeFallbacks, 1, 'Office.js 无法只开筛选按钮，应仍由 COM 接管（COM 脚本支持该参数）');
+  assert.deepEqual(fallback, { success: true, via: 'native' });
+});
+
+test('ISS-126：残留目标锁失效时自动清理并给出可操作的重新锁定提示', async () => {
+  const { executeCatalogTool } = await import('../src/bridge/catalog.js');
+  const { TargetLockStore } = await import('../src/bridge/gateway.js');
+  const original = bridgeServer.callWps;
+  const sessionId = 'iss126-stale-lock';
+  const stale = () => new BridgeError(
+    'failed',
+    '未在 WPS 中找到目标 Word 文档 [agent-word.docx]。当前已打开: 测试文字文稿.docx',
+    { channel: 'wps-addon', method: 'word_read_document' }
+  );
+  (bridgeServer as any).callWps = async () => { throw stale(); };
+  try {
+    // 场景一：目标由**会话锁注入**（宿主重启后锁指向已不存在的文档）
+    await requestContext.run({ sessionId, host: 'wps' }, () => TargetLockStore.lock('word', 'agent-word.docx'));
+    const error = await requestContext.run({ sessionId, host: 'wps' }, () =>
+      executeCatalogTool('wps_word_read_document', {}, '测试').then(() => null, (e: unknown) => e as Error));
+    assert.ok(error, '锁目标不存在时必须失败，不得静默返回空文档');
+    assert.match(error!.message, /未在 WPS 中找到目标 Word 文档/, '必须保留宿主原始错误（含当前已打开列表）');
+    assert.match(error!.message, /目标锁已失效并自动解除/, '必须点明是残留锁而不是工具坏了');
+    assert.match(error!.message, /wps_lock_target_document/, '必须给出重新锁定的可操作指引');
+    assert.match(error!.message, /wps_get_locked_status/, '必须给出查询当前打开的文档的入口');
+    assert.equal((error as any).kind, 'failed', '保留原失败分类，调用方仍能判断能否重试');
+
+    const locks = await requestContext.run({ sessionId, host: 'wps' }, () => TargetLockStore.getLocks());
+    assert.deepEqual(locks, {}, '失效锁必须被自动清除，否则后续不带目标的调用继续被它带偏');
+
+    // 场景二：调用方**显式传名**失败时不得动会话锁（不能把用户刚设好的锁误删）
+    await requestContext.run({ sessionId, host: 'wps' }, () => TargetLockStore.lock('word', 'good.docx'));
+    const explicit = await requestContext.run({ sessionId, host: 'wps' }, () =>
+      executeCatalogTool('wps_word_read_document', { documentName: 'typo.docx' }, '测试').then(() => null, (e: unknown) => e as Error));
+    assert.ok(explicit);
+    assert.doesNotMatch(explicit!.message, /目标锁已失效并自动解除/, '显式传名失败不得改写成锁失效');
+    const still = await requestContext.run({ sessionId, host: 'wps' }, () => TargetLockStore.getLocks());
+    assert.deepEqual(still, { word: 'good.docx' }, '显式传错名字不得清掉会话锁');
+
+    // 场景三：与目标无关的失败不得触发清理（例如样式/参数错误）
+    (bridgeServer as any).callWps = async () => { throw new BridgeError('failed', '段落下标超出范围', { channel: 'wps-addon', method: 'word_read_document' }); };
+    const other = await requestContext.run({ sessionId, host: 'wps' }, () =>
+      executeCatalogTool('wps_word_read_document', {}, '测试').then(() => null, (e: unknown) => e as Error));
+    assert.ok(other);
+    assert.doesNotMatch(other!.message, /目标锁已失效并自动解除/);
+    const kept = await requestContext.run({ sessionId, host: 'wps' }, () => TargetLockStore.getLocks());
+    assert.deepEqual(kept, { word: 'good.docx' }, '只有"目标不存在"才清理锁，其他失败不得误清');
+  } finally {
+    (bridgeServer as any).callWps = original;
+    await requestContext.run({ sessionId, host: 'wps' }, () => TargetLockStore.unlock());
+  }
+});

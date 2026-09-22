@@ -216,18 +216,26 @@ export class UniversalGateway {
     // 强隔离目标文档锁定注入：若已锁定文档且未显式指定（或指定为空），自动强制绑定锁定的文档
     let locks: { word?: string; excel?: string; ppt?: string };
     let targetSource: 'request' | 'session-lock' | 'none' | undefined;
+    // ISS-126：记录"目标是从**会话锁**注入的、不是调用方显式传的"。只有这种目标在宿主里查不到时
+    // 才能断定是残留锁（宿主重启/文档已关闭）；调用方显式传的名字查不到时不动用户的锁。
+    const injectedLockTargets: lock.InjectedLockTarget[] = [];
     if (name.startsWith("wps_ppt_") || name.startsWith("ppt_")) {
+      const explicitTarget = typeof args?.presentationName === 'string' && args.presentationName.trim() !== '';
       locks = { ppt: TargetLockStore.resolve("ppt", args?.presentationName) };
       args.presentationName = locks.ppt;
+      if (!explicitTarget && locks.ppt) injectedLockTargets.push({ component: "ppt", target: locks.ppt });
     } else if (name.startsWith("wps_word_") || name.startsWith("word_")) {
+      const explicitTarget = typeof args?.documentName === 'string' && args.documentName.trim() !== '';
       locks = { word: TargetLockStore.resolve("word", args?.documentName) };
       args.documentName = locks.word;
+      if (!explicitTarget && locks.word) injectedLockTargets.push({ component: "word", target: locks.word });
     } else if (name.startsWith("wps_") && !name.includes("ppt") && !name.includes("word") && !name.includes("lock") && !name.includes("rollback")) {
       // 记录目标来源：调用方显式传的 workbookName 优先，否则回落到本会话锁（ISS-02 / ISS-77）。
       const explicit = typeof args?.workbookName === 'string' && args.workbookName.trim() !== '';
       locks = { excel: TargetLockStore.resolve("excel", args?.workbookName) };
       args.workbookName = locks.excel;
       targetSource = explicit ? 'request' : locks.excel ? 'session-lock' : 'none';
+      if (!explicit && locks.excel) injectedLockTargets.push({ component: "excel", target: locks.excel });
     } else {
       locks = TargetLockStore.getLocks();
     }
@@ -235,12 +243,21 @@ export class UniversalGateway {
     const handler = HANDLERS[name];
     if (!handler) throw new Error(`未知的 WPS 工具名称: ${name}`);
 
-    const result = await handler({
-      name, args, clientName, locks, targetSource, ignoredParams: meta.ignoredParams,
-      callOffice, auditStore, MsOfficeDriver, TargetLockStore,
-      bridgeServer, requestContext, currentHost, currentSession, previewPath,
-      extractClipboardImageBase64: UniversalGateway.extractClipboardImageBase64,
-    } satisfies GatewayContext);
+    let result: any;
+    try {
+      result = await handler({
+        name, args, clientName, locks, targetSource, ignoredParams: meta.ignoredParams,
+        callOffice, auditStore, MsOfficeDriver, TargetLockStore,
+        bridgeServer, requestContext, currentHost, currentSession, previewPath,
+        extractClipboardImageBase64: UniversalGateway.extractClipboardImageBase64,
+      } satisfies GatewayContext);
+    } catch (error) {
+      // ISS-126：宿主重启后残留的目标锁指向已不存在的文档 → 本会话后续所有带锁工具都失败在
+      // "未找到目标文档"，而报错不指向"该重新锁目标"。确认是"注入的锁目标不存在"时，
+      // 自动解除失效锁并改写为可操作提示；其余失败原样抛出（不改用户的锁、不改错误语义）。
+      const reconciled = lock.reconcileStaleTargetLock(error, injectedLockTargets, component => TargetLockStore.unlock(component));
+      throw reconciled ?? error;
+    }
 
     // 只在成功之后登记：失败的操作没有改变文档，不应影响后续回滚判定。
     recordIdentityChangingOperation(name, args);

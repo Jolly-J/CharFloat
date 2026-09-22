@@ -60,3 +60,25 @@ test('normalizeOfficeRequest routes save_workbook to save', () => {
   const res = normalizeOfficeResponse('wps_save_workbook', { success: true });
   assert.equal(res.success, true);
 });
+
+test('CAP-50：Microsoft 通道的 set_data_validation(action="read") 判为不安全的参数组合', async () => {
+  const { isUnsafeParamError } = await import('../src/bridge/office/normalizer.js');
+  // Office.js 的 handleSetDataValidation 与 excel.ps1 的 set_data_validation 都没有 action 分支：
+  // 继续下发会把一次"读"变成"写"（COM 侧还会先清掉既有校验）。必须判为 unsafe → 禁止换通道重放。
+  let caught: unknown = null;
+  try { normalizeOfficeRequest('excel_set_data_validation', { action: 'read', address: 'E5:E20' }); }
+  catch (error) { caught = error; }
+  assert.ok(caught, 'action=read 必须报错而不是被当成写入下发');
+  assert.equal(isUnsafeParamError(caught), true, '必须标记为参数安全护栏（否则 Windows 上会被转手给 COM）');
+  assert.match((caught as Error).message, /host=wps|wps_set_data_validation/, '必须给出可用的替代路径');
+
+  // 写入路径不受影响
+  const req = normalizeOfficeRequest('excel_set_data_validation', { address: 'E5:E20', validationType: 'list', listItems: ['已通过'] });
+  assert.equal(req.method, 'set_data_validation');
+
+  // 空搜索串同样判为不安全（find_and_replace 在 COM 白名单内，不能换通道重放）
+  let searchErr: unknown = null;
+  try { normalizeOfficeRequest('excel_find_and_replace', { searchQuery: '', replaceText: 'X' }); }
+  catch (error) { searchErr = error; }
+  assert.equal(isUnsafeParamError(searchErr), true);
+});

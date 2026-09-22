@@ -109,7 +109,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_write_content",
-        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式，并可在开头、结尾、指定段落后、光标处或书签所在段落之后插入。location='bookmark' 时书签必须存在，否则**直接报错拒绝**（不会静默落到文末）；写入后返回 insertedParagraphs 与实际落点，并核对读回长度，宿主吞字符时逐条报错而不是返回 success。",
+        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式，并可在开头、结尾、指定段落后、光标处或书签所在段落之后插入。location='bookmark' 时书签必须存在，否则**直接报错拒绝**（不会静默落到文末）；写入后返回 insertedParagraphs（含实际落点 start/end 与 readBackMatches）与实际落点，并**逐字核对**读回内容（不只比长度，等长改写同样报错），宿主吞改字符时逐条报错而不是返回 success。",
         parameters: {
           type: "object",
           properties: {
@@ -156,7 +156,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_format_document",
-        description: "Word 文档排版：按预设或自定义参数设置指定范围的字体、字号、加粗、缩进与行间距。target 默认 'all'（整篇），只作用于段落级格式；既不传 preset 也不传任何自定义参数时不会产生实际变化。",
+        description: "Word 文档排版：按预设或自定义参数设置指定范围的字体、字号、加粗、缩进与行间距。target 默认 'all'（整篇），只作用于段落级格式；既不传 preset 也不传任何自定义参数时不会产生实际变化。**关键词加粗**：传 searchQuery/searchQueries 时进入关键词通路，在正文与表格里逐个关键词查找匹配文本并套用 fontName/fontSizePt/bold/italic（margins/preset 仍先生效），返回 formattedMatches（按区间去重的命中处数）、verifiedMatches（逐处读回确认生效的处数）、queryStats（逐词命中/确认/跳过）与 warnings；一处都没命中会如实说明且不改文档，命中范围与关键词长度明显不符时**跳过不赋格式**并告警（避免误把整段/整篇加粗）。",
         parameters: {
           type: "object",
           properties: {
@@ -164,6 +164,8 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             target: { type: "string", enum: ["all", "paragraph", "range", "selection"], description: "格式化目标范围: 'all'(全文，默认), 'paragraph'(单个段落), 'range'(段落范围), 'selection'(当前选区)" },
             paragraphIndex: { type: "integer", description: "当 target 为 'paragraph' 时的段落索引号" },
             paragraphRange: { type: "array", items: { type: "integer" }, description: "当 target 为 'range' 时的段落范围 [start, end]" },
+            searchQuery: { type: "string", description: "单个关键词：在正文与表格中查找匹配文本并套用 fontName/fontSizePt/bold/italic（Word 关键词加粗）。与 searchQueries 二选一；同时传时以 searchQueries 为准。传了关键词就不走 target 通路" },
+            searchQueries: { type: "array", items: { type: "string" }, description: "批量关键词（推荐）：逐个查找并套用排版，命中处数按区间去重，返回 queryStats 逐词统计。空串与纯空白会被忽略；全部为空会直接报错且不改文档" },
             preset: {
               type: "string",
               enum: ["gov_standard", "business_modern", "academic", "custom"],
@@ -288,7 +290,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_page_layout_and_watermark",
-        description: "Word 页面版式与水印设置：页眉页脚文本（支持奇偶页不同、首页不同）、页码域格式与倾斜半透明文字水印。页眉/页脚/页码**遍历文档全部节**逐节写入，返回 appliedSections 说明每节实际写了什么，失败项收进 warnings。水印：宿主 WPS for Mac 无法把形状放进页眉层（Headers.Shapes 的写入会静默落到正文层），因此水印仍是正文层浮动图形、只在第 1 页渲染，不是“每页可见”；跨页水印需在 Word 内手动插入（插入 → 水印）或改用 Windows/COM 通道，详情见返回的 warnings。传 pageNumberFormat 时会**覆盖**同一次调用里 footerText 写的页脚内容。三项至少传一项，否则直接报错。",
+        description: "Word 页面版式设置：页眉页脚文本（支持奇偶页不同、首页不同）、页码域格式。页眉/页脚/页码**遍历文档全部节**逐节写入，返回 appliedSections 说明每节实际写了什么，失败项收进 warnings。**水印写入（watermarkText）已在源码层禁用**：当前宿主（WPS for Mac 12.0/12.1.28496）写水印会让 WPS 主进程 SIGSEGV 崩溃（已核实为 wpsapi 无限递归，Word/PPT/Excel 三组件会同时掉线、可能带走用户未保存的数据），因此传 watermarkText 会**直接报错且不对文档做任何修改**（页眉/页脚/页码也不会写）；替代路径见错误文案：WPS 内手动「插入 → 水印」，或走 Windows/COM 通道。action='read' 不受影响，仍可读回现有页眉页脚与水印现状。传 pageNumberFormat 时会**覆盖**同一次调用里 footerText 写的页脚内容。除 watermarkText 外至少传一项，否则直接报错。",
         parameters: {
           type: "object",
           properties: {
@@ -297,8 +299,8 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             headerText: { type: "string", description: "页眉文本内容（覆盖各节原有页眉文本，会清掉页眉里已有的域）" },
             footerText: { type: "string", description: "页脚文本内容；同时传 pageNumberFormat 时会被页码域覆盖" },
             pageNumberFormat: { type: "string", enum: ["dash", "simple", "page_of_pages"], description: "页脚页码格式: 'simple'(仅页码，用真 PAGE 域实现，**当前宿主唯一可用的取值**), 'dash'(形如 - 1 -), 'page_of_pages'(形如 1 / 5)。后两者在 WPS for Mac 上写入会被宿主静默丢弃（页脚只支持纯页码域），工具会逐节返回 applied:false 与中文原因，不会静默降级成纯页码。" },
-            watermarkText: { type: "string", description: "倾斜背景文字水印，例如 '内部机密 严禁外传'；落在正文层、只渲染第 1 页（见工具说明）" },
-            watermarkColor: { type: "string", description: "水印文字颜色十六进制，默认 '#C0C0C0'" },
+            watermarkText: { type: "string", description: "⛔ 已禁用：传非空值会**直接报错且不修改文档**——在当前宿主上写水印会导致 WPS 主进程 SIGSEGV 崩溃（wpsapi 无限递归，三组件同时掉线、可能丢数据）。替代路径见错误文案（WPS 内手动插入水印 / Windows COM 通道）" },
+            watermarkColor: { type: "string", description: "水印文字颜色（已失效：水印写入本体 watermarkText 已禁用以避免宿主崩溃，传了只会得到一条「已忽略」告警）" },
             differentFirstPage: { type: "boolean", description: "是否首页不同页眉页脚（文档级设置，不写首页页眉内容）" },
             differentOddEvenPages: { type: "boolean", description: "是否奇偶页不同页眉页脚（文档级设置，只写奇数页页眉/页脚条目）" }
           },

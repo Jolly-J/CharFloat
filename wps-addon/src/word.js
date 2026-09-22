@@ -622,6 +622,14 @@
     }
   }
 
+  // 写入/读回共用的归一化：宿主会在段末补段落标记，表格单元格补 \x07 单元格标记，
+  // 换行符在不同路径下可能被换成 \r/\n/\v/\f，这些都不算"吞改内容"。
+  // ⚠️ 控制符必须写 `\x07`，**不能写 `\a`**：JS 正则里 `\a` 是恒等转义，等于字母 a，
+  //    写成 `/[\r\a]/g` 会把文本里所有小写 a 删掉。ISS-67 的假报警就是这么来的（见 wordWriteContent 注释）。
+  function wordNormalizeWrittenText(s) {
+    return String(s === undefined || s === null ? "" : s).replace(/[\r\n\v\f\x07]/g, "");
+  }
+
   function wordWriteContent(app, params) {
     const { documentName, location, targetBookmark, paragraphIndex, type, content, formatting } = params || {};
     const doc = getWordDocument(app, documentName);
@@ -653,27 +661,37 @@
     }
 
     const meta = { insertedParagraphs: [], bookmarkPreserved: undefined };
-    const writtenRanges = [];
     for (const raw of nonEmpty) {
       const text = String(raw);
-      // 先查宿主是否吞字符：旧构建曾在 Paragraphs.Add(targetRange) + Range.Text 路径上吞掉小写字母，
-      // 所以写入后按长度读回一次，长度不符就明确报错，而不是返回 success 让调用方踩坑（ISS-67）。
       const range = wordWriteOneLine(doc, wordApp, loc, targetBookmark, paragraphIndex, text, meta);
       wordApplyLineFormat(doc, range, type, formatting);
-      writtenRanges.push(range);
+
+      // 写入后逐字核对读回内容（不只比长度：等长改写同样是静默改坏用户内容）。
+      // 说明：这一层是"宿主真的吞改字符"的兜底。ISS-67（2026-09-22 报的"吞掉所有小写字母 a"）
+      // 事后用原始会话取证复核为**假报警**——当时的验证探针自己写了 `.replace(/[\r\a]/g, "")`，
+      // 而 JS 正则里 `\a` 是恒等转义、等于字母 a（C/PCRE/.NET 里才是 BEL 0x07，本项目内部一律写 `\x07`），
+      // 于是探针先把读回文本里的 a 全删掉再比对，必然得出"少了 a"的结论；同一探针的原始输出里
+      // `Paragraphs.Add()+Range.Text` 其实返回空串，却被写成"完整保留"。因此这里**没有**改写入路径。
+      let readBack = null;
       try {
-        const readBack = (range.Text || "").replace(/[\r\n\x07]/g, "");
-        if (readBack.length !== text.length) {
+        readBack = wordNormalizeWrittenText(range.Text);
+      } catch (e) {
+        // 读回失败（宿主偶发）不算吞字符，不阻断写入，如实标注未核对
+      }
+      if (readBack !== null) {
+        const expected = wordNormalizeWrittenText(text);
+        if (readBack !== expected) {
           throw new Error(
-            `写入后读回长度不一致：写入 ${text.length} 个字符，读回 ${readBack.length} 个。` +
-            `疑似宿主在 Range 文本赋值时吞字符；请勿重试覆盖，先读回核对，或改用 wps_execute_script 的 Range.InsertAfter。`
+            `写入后逐字校验失败：写入 ${JSON.stringify(text.slice(0, 60))}（${text.length} 字符），` +
+            `读回 ${JSON.stringify(String(readBack).slice(0, 60))}（${readBack.length} 字符）。` +
+            `第 ${meta.insertedParagraphs.length + 1} 行内容与预期不一致，**不要直接重试覆盖**：先读回该段落核对。` +
+            `提示：若宿主做了排版类自动替换（如直引号转弯引号），也会被这里拦下，请按读回内容判断。`
           );
         }
-      } catch (e) {
-        if (/疑似宿主在 Range 文本赋值时吞字符/.test(e.message)) throw e;
       }
       meta.insertedParagraphs.push({
         textLength: text.length,
+        readBackMatches: readBack === null ? null : true,
         start: range.Start,
         end: range.End,
         style: (() => { try { return range.Style ? range.Style.NameLocal : undefined; } catch (e) { return undefined; } })()
@@ -735,18 +753,35 @@
       if (spaceAfterPt !== undefined) para.Format.SpaceAfter = Number(spaceAfterPt);
     }
 
-    // 1. 基于搜索词强力加粗/排版 (支持正文与全量表格穿透)
-    const queries = Array.isArray(searchQueries) ? searchQueries : (searchQuery ? [searchQuery] : []);
-    if (queries.length > 0) {
+    // 1. 基于搜索词强力加粗/排版（CAP-24：Word 关键词加粗，正文 + 全量表格穿透）
+    //    宿主侧这条通路一直可用，此前缺的只是工具 schema 里的 searchQuery/searchQueries（schema 已补）。
+    //    这里补三件此前没有的东西：① 查找循环上限（原来 while(f.Execute()) 无上限，宿主不推进就是死循环→WPS 卡死）；
+    //    ② 逐处读回校验，避免"报了多少处、其实一处没生效"的假成功；③ 命中范围异常时**不赋格式**（防止误把整篇加粗）。
+    const rawQueries = Array.isArray(searchQueries) ? searchQueries : (searchQuery ? [searchQuery] : []);
+    if (rawQueries.length > 0) {
+      const queries = rawQueries
+        .map(q => String(q === undefined || q === null ? "" : q))
+        .filter(q => q.trim() !== "");
+      if (queries.length === 0) {
+        throw new Error("searchQueries / searchQuery 里没有非空关键词（纯空白也按空处理），未对文档做任何修改");
+      }
+      const warnings = [];
       const ranges = [doc.Content];
       if (doc.Tables) {
         for (let t = 1; t <= doc.Tables.Count; t++) {
           try { ranges.push(doc.Tables.Item(t).Range); } catch (te) {}
         }
       }
+      const queryStats = [];
+      // 表格范围嵌在 doc.Content 里，同一个命中会被查两遍；按命中区间去重，计数才是"处数"而不是"次数"
       let formattedCount = 0;
+      let verifiedCount = 0;
       for (const q of queries) {
-        if (!q) continue;
+        const seen = Object.create(null);
+        let matched = 0;
+        let verified = 0;
+        let skippedUnexpected = 0;
+        let truncated = false;
         for (const rng of ranges) {
           try {
             const f = rng.Find;
@@ -757,26 +792,62 @@
             f.MatchWildcards = false;
             f.Forward = true;
             f.Wrap = 0; // wdFindStop
-            while (f.Execute()) {
-              formattedCount++;
-              if (bold !== undefined) f.Parent.Font.Bold = Boolean(bold);
-              if (italic !== undefined) f.Parent.Font.Italic = Boolean(italic);
-              if (fontSizePt !== undefined) f.Parent.Font.Size = Number(fontSizePt);
+            let guard = 0;
+            while (f.Execute() && guard++ < 5000) {
+              const hit = f.Parent; // 宿主命中后会把 Range 收缩到命中文本上（与 wordFindAndReplace 同一约定）
+              let hitLen = null;
+              try { hitLen = String(hit.Text === undefined || hit.Text === null ? "" : hit.Text).length; } catch (e) { hitLen = null; }
+              // 长度差 > 2 说明这个"命中"范围远大于关键词（多半是宿主没有收缩 Range）。
+              // 此时**绝不能赋格式**：那会把整个范围（极端情况是整篇）加粗，宁可跳过并告警。
+              if (hitLen !== null && Math.abs(hitLen - q.length) > 2) { skippedUnexpected++; continue; }
+              const key = `${hit.Start}:${hit.End}`;
+              if (seen[key]) continue;
+              seen[key] = true;
+              matched++;
+              if (bold !== undefined) hit.Font.Bold = Boolean(bold);
+              if (italic !== undefined) hit.Font.Italic = Boolean(italic);
+              if (fontSizePt !== undefined) hit.Font.Size = Number(fontSizePt);
               if (fontName) {
-                f.Parent.Font.NameFarEast = fontName;
-                f.Parent.Font.NameAscii = fontName;
+                hit.Font.NameFarEast = fontName;
+                hit.Font.NameAscii = fontName;
+              }
+              if (bold !== undefined) {
+                try { if (Boolean(hit.Font.Bold) === Boolean(bold)) verified++; } catch (e) {}
+              } else {
+                verified++; // 没请求加粗时没有可读回的属性，按"已应用"计
               }
             }
-          } catch (fe) {}
+            if (guard >= 5000) truncated = true;
+          } catch (fe) {
+            warnings.push(`关键词「${q}」查找过程出错：${fe.message}`);
+          }
         }
+        if (truncated) warnings.push(`关键词「${q}」命中达到 5000 次上限已停止，可能只处理了前 5000 处`);
+        if (skippedUnexpected > 0) {
+          warnings.push(`关键词「${q}」有 ${skippedUnexpected} 处返回的范围与关键词长度不符（疑似宿主未把 Range 收缩到命中处），已跳过、未赋格式`);
+        }
+        formattedCount += matched;
+        verifiedCount += verified;
+        queryStats.push({ query: q, matches: matched, verified: verified, skippedUnexpected: skippedUnexpected || undefined });
       }
+      const notFound = formattedCount === 0;
+      if (notFound) warnings.push(`关键词 ${queries.map(x => `「${x}」`).join("、")} 一处都没命中，未修改文档`);
       return {
         success: true,
         documentName: doc.Name,
         target: "search_matches",
         queries,
         formattedMatches: formattedCount,
-        message: `已成功为 ${queries.length} 个关键词匹配项 (${formattedCount} 处) 应用排版`
+        verifiedMatches: verifiedCount,
+        matched: !notFound,
+        queryStats: queryStats,
+        warnings: warnings.length ? warnings : undefined,
+        message: notFound
+          ? `未在 [${doc.Name}] 中找到这些关键词：${queries.map(x => `「${x}」`).join("、")}，未应用任何排版`
+          : `已为 ${queries.length} 个关键词的 ${formattedCount} 处匹配应用排版` +
+            (verifiedCount < formattedCount
+              ? `（逐处读回只确认了 ${verifiedCount} 处，其余请复核）`
+              : `（已逐处读回确认 ${verifiedCount} 处）`)
       };
     }
 
@@ -1199,77 +1270,40 @@
     }
   }
 
-  // 水印：优先尝试"页眉层"（跨页可见），失败则回退正文层并给出告警。
-  //
-  // 已实测的宿主事实（WPS for Mac 12.0 / 12.1.28496）：
-  //   - `section.Headers.Item(1).Shapes.AddTextEffect(...)` **会静默把形状加到正文层**：
-  //     调用后 `header.Shapes.Count` 恒为 0、`doc.Shapes.Count` +1（同一形状对象）；
-  //   - `header.Range.ShapeRange.AddTextEffect` 是 undefined（"is not a function"）；
-  //   - `Range.InsertXML`（VML `<w:pict>`）对页眉 story 无效，页眉 XML 长度不变；
-  //   - `doc.Shapes.AddTextEffect` 落正文层：正文层浮动图形**只在第 1 页渲染**，不是"每页可见"。
-  // 因此这里如实返回 placement，并把"跨页水印需另想办法"写进 warnings。
-  function wordAddWatermarkToSection(doc, section, text, colorHex, pageSetup, warnings, sectionIndex) {
-    const fontSize = 54;
-    const shapeColor = hexToExcelColor(colorHex || "#C0C0C0") || 0xc0c0c0;
-    let shape = null;
-    let placement = "body";
-
-    // 路径 1：页眉层
-    try {
-      const header = section.Headers.Item(1);
-      header.Shapes.AddTextEffect(0, text, "Microsoft YaHei", fontSize, false, false, 0, 0);
-      let headerCount = 0;
-      try { headerCount = header.Shapes.Count; } catch (e) {}
-      if (headerCount > 0) {
-        placement = "header";
-        try { shape = header.Shapes.Item(headerCount); } catch (e) {}
-      }
-    } catch (e) {
-      warnings.push(`第 ${sectionIndex} 节页眉层水印写入失败：${e.message}`);
-    }
-
-    // 路径 2：正文层（页眉层不可用时的回退；宿主会把页眉 Shapes 的写入落到这里）
-    if (!shape) {
-      try {
-        shape = doc.Shapes.AddTextEffect(0, text, "Microsoft YaHei", fontSize, false, false, 0, 0);
-        placement = "body";
-      } catch (e) {
-        warnings.push(`第 ${sectionIndex} 节水印创建失败：${e.message}`);
-        return { ok: false, error: e.message };
-      }
-    }
-
-    let geometry = null;
-    try {
-      shape.Rotation = -315;
-      try { shape.Fill.Transparency = 0.85; } catch (e) {}
-      try { shape.Fill.ForeColor.RGB = shapeColor; } catch (e) {}
-      try { shape.Line.Visible = false; } catch (e) {}
-      try { shape.WrapFormat.Type = 3; } catch (e) {}
-      // 居中：先把版式设为"相对页面"，再按页面尺寸居中（属性名在 WPS 上为 Range.ParagraphFormat 同族对象）
-      const pw = pageSetup.pageWidth, ph = pageSetup.pageHeight;
-      const w = Number(shape.Width) || 0, h = Number(shape.Height) || 0;
-      shape.Left = Math.round(((pw - w) / 2) * 100) / 100;
-      shape.Top = Math.round(((ph - h) / 2) * 100) / 100;
-      geometry = { left: shape.Left, top: shape.Top, width: shape.Width, height: shape.Height, rotation: shape.Rotation };
-    } catch (e) {
-      warnings.push(`第 ${sectionIndex} 节水印属性设置部分失败：${e.message}`);
-    }
-
-    return {
-      ok: true,
-      sectionIndex: sectionIndex,
-      placement: placement,
-      shapeName: (() => { try { return shape.Name; } catch (e) { return undefined; } })(),
-      geometry: geometry
-    };
-  }
+  // ⛔ 水印写入已在源码层**禁用**（ISS-125）。原实现（wordAddWatermarkToSection）走
+  //    `header.Shapes.AddTextEffect(...)` / `doc.Shapes.AddTextEffect(...)`，真机上会让
+  //    WPS 主进程 SIGSEGV 崩溃：崩溃报告 ~/Library/Logs/DiagnosticReports/wpsoffice-2026-09-22-204903.ips
+  //    由 Lead 独立核实为 EXC_BAD_ACCESS/SIGSEGV，故障线程栈 `wpsapi +3272704` **连续重复 6 帧**（无限递归），
+  //    调用链 ksojscore → jswpsapi → wpsapi，即本工具的 JS API 调用触发；同一天另外 5 次 wpsoffice 崩溃签名都不同。
+  //    Word/PPT/Excel 三组件会一起掉线（code 1001），未保存的用户数据一起丢——代价远高于缺这个功能。
+  //    因此这里不再保留任何可被调用的水印写入路径，参数直接在 wordPageLayoutAndWatermark 里拒绝。
+  //    解除禁用前必须：宿主换版本 → 在**独立测试文档**上单独验证 AddTextEffect 不再崩溃 → 才能恢复实现。
+  //    另注：即便不崩，原实现也只把水印落在正文层（`Headers.Shapes` 的写入被宿主静默落到正文层），
+  //    只在第 1 页渲染，本来就不是"每页可见"；跨页水印应走 WPS 内手动插入或 Windows/COM 通道。
 
   function wordPageLayoutAndWatermark(app, params) {
     const { documentName, headerText, footerText, pageNumberFormat, differentFirstPage, differentOddEvenPages, watermarkText, watermarkColor } = params || {};
     const doc = getWordDocument(app, documentName);
     const warnings = [];
     const sectionCount = doc.Sections.Count;
+
+    // ⛔ ISS-125：水印写入**在源码层硬拒绝**，且必须发生在任何宿主写操作之前——
+    // 这样"传了 watermarkText"的调用不会留下半成品（页眉/页脚/页码一律不写）。
+    // 原因见上面的证据块：AddTextEffect 会让 WPS 主进程 SIGSEGV（wpsapi 无限递归），
+    // 崩溃会带走用户未保存的数据，风险远高于"少一个功能"。
+    const watermarkRequested = watermarkText !== undefined && watermarkText !== null && String(watermarkText) !== "";
+    if (watermarkRequested) {
+      throw new Error(
+        "watermarkText 已禁用：在当前宿主（WPS for Mac 12.0 / 12.1.28496）写水印会让 **WPS 主进程崩溃**（SIGSEGV，" +
+        "崩溃报告已核实为 wpsapi 无限递归，Word/PPT/Excel 会同时掉线），可能让用户丢掉未保存的数据。" +
+        "本次调用**未修改文档**（页眉/页脚/页码也没写）。" +
+        "替代路径：① 在 WPS 内「插入 → 水印」手动加；② 程序化水印走 Windows/COM 通道的 Section.Headers.Shapes；" +
+        "③ 若确认宿主版本已修复，先在一份独立测试文档上单独验证 AddTextEffect 不再崩溃，再从源码解除禁用。"
+      );
+    }
+    if (watermarkColor !== undefined) {
+      warnings.push("watermarkColor 已忽略：水印写入本体（watermarkText）因会导致宿主崩溃而被禁用。");
+    }
 
     // CAP-35 页眉页脚与水印读回：此前只能写不能读，AI 无法确认
     // "现在页眉里是什么""有没有水印"，也无法在改写前先看现状。
@@ -1321,9 +1355,9 @@
       };
     }
 
-    if (headerText === undefined && footerText === undefined && pageNumberFormat === undefined && watermarkText === undefined &&
+    if (headerText === undefined && footerText === undefined && pageNumberFormat === undefined && !watermarkRequested &&
         differentFirstPage === undefined && differentOddEvenPages === undefined) {
-      throw new Error("headerText / footerText / pageNumberFormat / watermarkText / differentFirstPage / differentOddEvenPages 至少传一项，否则本调用不产生任何变化");
+      throw new Error("headerText / footerText / pageNumberFormat / differentFirstPage / differentOddEvenPages 至少传一项，否则本调用不产生任何变化（watermarkText 已因宿主崩溃风险禁用）");
     }
 
     // 文档级选项
@@ -1365,31 +1399,12 @@
         }
       }
       if (watermarkText) {
-        const ps = (() => {
-          try {
-            return { pageWidth: Number(doc.PageSetup.PageWidth) || 0, pageHeight: Number(doc.PageSetup.PageHeight) || 0 };
-          } catch (e) { return { pageWidth: 0, pageHeight: 0 }; }
-        })();
-        const wm = wordAddWatermarkToSection(doc, section, String(watermarkText), watermarkColor, ps, warnings, i);
-        if (wm.ok) entry.watermark = wm;
+        // 不可达：watermarkRequested 已经在函数开头抛错。保留这条显式分支是为了让"有人绕过守卫"
+        // 时立刻暴露，而不是沉默地什么都不做。
+        throw new Error("内部错误：水印写入路径已禁用，不应到达这里（ISS-125）。");
       }
 
       appliedSections.push(entry);
-    }
-
-    if (watermarkText && sectionCount > 1) {
-      warnings.push(
-        `水印已按 ${sectionCount} 个节分别写入，但宿主 WPS for Mac 无法把形状放进页眉层` +
-        `（Headers.Shapes 的写入会静默落到正文层），因此水印仍是**正文层浮动图形**：` +
-        `实测只在第 1 页渲染，不是"每页可见"。跨页水印需在 Word 内手动插入（插入 → 水印），` +
-        `或由调用方在 Windows/COM 通道用 Section.Headers.Shapes 处理。`
-      );
-    } else if (watermarkText) {
-      warnings.push(
-        `水印落在正文层（宿主 WPS for Mac 的 Headers.Shapes 写入会静默落到正文层）：` +
-        `正文层浮动图形只在第 1 页渲染，不是"每页可见"。跨页水印需在 Word 内手动插入（插入 → 水印），` +
-        `或改用 Windows/COM 通道。`
-      );
     }
 
     return {
@@ -1400,14 +1415,13 @@
       header: headerText,
       footer: footerText,
       pageNumberFormat: pageNumberFormat || undefined,
-      watermark: watermarkText || undefined,
+      watermark: undefined,
       warnings: warnings,
       message:
         `已更新 [${doc.Name}] 页面版式：${sectionCount} 个节` +
         (headerText !== undefined ? "，页眉" : "") +
         (footerText !== undefined ? "，页脚" : "") +
         (pageNumberFormat !== undefined ? `，页码(${pageNumberFormat})` : "") +
-        (watermarkText ? "，水印" : "") +
         (warnings.length ? `；有 ${warnings.length} 条告警，请逐条查看 warnings` : "")
     };
   }
