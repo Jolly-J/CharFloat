@@ -2056,13 +2056,46 @@
     const newSheet = wb.ActiveSheet;
     newSheet.Name = newSheetName;
 
+    // M-3：`position` 原先被**完全忽略**（只落在源表之后），但工具照样报成功。
+    // 支持 end / before / after（before|after 需配 targetSheetName），并按请求重排。
+    const pos = String(position || "after").toLowerCase();
+    let positionApplied = "after";
+    const warnings = [];
+    try {
+      if (pos === "end") {
+        newSheet.Move(undefined, wb.Worksheets.Item(wb.Worksheets.Count));
+        positionApplied = "end";
+      } else if (pos === "before" || pos === "after") {
+        const targetName = (params && (params.targetSheetName || params.relativeTo)) || sourceSheetName;
+        const anchor = wb.Worksheets.Item(String(targetName));
+        if (pos === "before") newSheet.Move(anchor);
+        else newSheet.Move(undefined, anchor);
+        positionApplied = `${pos}:${targetName}`;
+      } else {
+        warnings.push(`不认识的 position: ${position}（可用 end / before / after），已按 after 处理`);
+      }
+    } catch (e) {
+      warnings.push(`按 position=${position} 重排失败: ${e.message}（新表已创建，位置可能不是请求的位置）`);
+    }
+    // 读回真实位置核对
+    let actualIndex = null;
+    try { actualIndex = Number(newSheet.Index); } catch (e) {}
+    const totalSheets = wb.Worksheets.Count;
+    if (pos === "end" && actualIndex !== null && actualIndex !== totalSheets) {
+      warnings.push(`position='end' 未生效：新表在第 ${actualIndex} 位，共 ${totalSheets} 张`);
+    }
+
     return {
-      success: true,
+      success: warnings.length === 0,
       workbookName: wb.Name,
       sourceSheetName: srcSheet.Name,
       newSheetName: newSheet.Name,
-      totalSheets: wb.Worksheets.Count,
-      message: `已成功将工作表 [${sourceSheetName}] 完整克隆为 [${newSheetName}]（包含所有格式、公式与图表）`
+      positionRequested: pos,
+      positionApplied,
+      actualIndex,
+      totalSheets,
+      warnings,
+      message: `已将工作表 [${sourceSheetName}] 克隆为 [${newSheetName}]（位置 ${positionApplied}，第 ${actualIndex} 位 / 共 ${totalSheets} 张）`
     };
   }
 
@@ -2646,15 +2679,20 @@
 
     // action = add
     if (!address) throw new Error("add 需要 address（锚点单元格）");
-    if (!url) throw new Error("add 需要 url");
+    // L-5：只传 targetAddress（文档内跳转，如 'Sheet2!A1'）也是合法用法，
+    // 原先强制要求 url → 单独传 targetAddress 直接被拒，与 schema 暴露的参数不符。
+    if (!url && !targetAddress) throw new Error("add 需要 url（外部链接）或 targetAddress（文档内跳转）");
     const anchor = sheet.Range(address);
+    const linkAddr = String(url || "");
+    const subAddr = String(targetAddress || "");
+    const disp = String(displayText || url || targetAddress || "链接");
     // Hyperlinks.Add(Anchor, Address, SubAddress, ScreenTip, TextToDisplay)
-    sheet.Hyperlinks.Add(anchor, String(url), String(targetAddress || ""), String(tooltip || ""), String(displayText || url));
+    sheet.Hyperlinks.Add(anchor, linkAddr, subAddr, String(tooltip || ""), disp);
     // 读回核对
     let ok = false, readText = null;
     try { const h = anchor.Hyperlinks.Item(1); ok = true; readText = String(h.TextToDisplay); } catch (e) {}
     return {
-      success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, address, url,
+      success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, address, url: linkAddr, targetAddress: subAddr,
       verified: ok, readBackText: readText,
       warnings: ok ? [] : ["写入后未能从锚点读到超链接，请人工确认"],
       message: `已在 [${sheet.Name}] ${address} 添加超链接 → ${url}`

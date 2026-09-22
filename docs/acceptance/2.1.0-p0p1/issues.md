@@ -154,6 +154,8 @@
 | ISS-126 | **宿主重启后残留目标锁，导致 Word 工具集体解析不到文档**。真机（崩溃重启后）：`bridge_get_capabilities` 报「未在 WPS 中找到目标 Word 文档 [agent-word.docx]，当前已打开: 测试文字文稿.docx」——残留锁指向一个**已经不存在的文档**；此时**不传 documentName 的 Word 工具全部拿到 `doc = null`**，报错信息也没指向"该重新锁目标"，使用者会以为工具坏了。绕法：`wps_unlock_target_document` 清残留锁、或每次显式传名。**由 word-ppt-tester 在崩溃恢复过程中发现** | 中 | **待修**（宿主机重启后应校验目标锁有效性，失效即自动清理并提示） | 桥接实现 |
 | ISS-127 | **`wps_word_read_document` 的 `scope="paragraphs"` 与工具描述不符**：描述说返回"仅连续段落文本数组"，实测返回的是 `paragraphDetails` + `previewText`，**没有 `paragraphs` 数组**。调用方按描述取 `paragraphs` 会拿到 undefined。待复核 `maxParagraphs` 是否一并失效。**由 word-ppt-tester 发现** | 中 | **待修** | 契约与实现不符 |
 | ISS-128 | **越界错误的呈现不统一**：`wps_word_format_document` 传 `paragraphIndex=999`（越界）报内部错误 `Cannot read properties of null (reading 'Range')`；而同类越界在 `write_content` 里是**中文可读报错**。错误信息不统一会让使用者分不清"我传错了"还是"工具有 bug" | 低 | **待修** | 错误处理 |
+| ISS-129 | **`check:params` 的 `KNOWN_EXCEPTIONS` 声明了却从未被使用**——登记例外也不生效，等于这个逃生口是假的。已修复：problems 循环里真正过滤。**由本轮修复 readOnly 例外时发现** | 中 | **已修** | 检查脚本自身 |
+| ISS-130 | **`manage_named_range` 的两条宿主限制已证实并写进工具描述**：① `comment` **宿主不存储**（写后读回恒为空）——现在如实给 warnings 而不是静默忽略；② **名字不能看起来像单元格地址**（如 `fz1` 会被宿主拒绝）。 | 低 | **已修（如实告知）** | WPS 宿主 |
 | ISS-121 | **能力验证脚本的断言太弱**：只断言"调用成功"，没断言"结果对"。图表建出来是空的（跨表数据源无效）却判定为通过，是靠截图肉眼才发现。已在脚本里补"系列数 > 0"这类结果断言 | 中 | **已修**（补结果断言） | 验证方法 |
 | ISS-114 | MS 侧形状自检**存在级联依赖**：后续检查引用前面创建的 `cap08_line`/`cap08_svg`，一旦前面失败就报「请求的资源不存在」，把「分组/删除不支持」误报成结论（修正为各项独立后，真实结果是 10/13 而非 5/12） | 中高 | **已修**（每项自查前置形状） | 测试设计 |
 | ISS-115 | Office.js 的 `getTargetSheet` 从不 `load("name")`，而返回体普遍写 `sheet.name` → 读未 load 的属性直接抛「属性 name 不可用」，**形状工具全套因此全挂** | 中高 | **已修**（共享助手统一 load） | Office.js 宿主实现 |

@@ -191,6 +191,13 @@ const GLOBAL_SCOPE_TOOLS = new Set(["wps_execute_script", "wps_eval_code", "wps_
 function recordIdentityChangingOperation(name: string, args: any) {
   const reason = IDENTITY_CHANGING_TOOLS[name];
   if (!reason) return;
+  // M-9：脚本工具原先**无条件**登记为"未快照操作"，于是"写 → 用脚本读回核对 → 回滚"
+  // 这个标准自检流程会被自己的读回动作挡住——不是回滚坏了，是守卫把手电筒也算成了脚印。
+  //
+  // 处置：调用方可以显式声明 `readOnly: true`（声明该脚本只读），此时不登记。
+  // **这是调用方的声明，不是系统的保证**——声明了却真去写，回滚安全性由声明方负责。
+  // 工具描述里已把这一点写明；真正写入的脚本不要声明 readOnly。
+  if (args?.readOnly === true) return;
   const workbookName = GLOBAL_SCOPE_TOOLS.has(name) ? undefined : args?.workbookName;
   auditStore.markUntrackedMutation(workbookName, `${name}：${reason}`);
 }

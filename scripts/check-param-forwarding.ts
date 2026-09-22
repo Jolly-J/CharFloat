@@ -35,7 +35,12 @@ const GATEWAY_FACADE = path.join(ROOT, 'src/bridge/gateway.ts');
 const GLOBAL_PARAMS = new Set(['host']);
 
 /** 已知例外：schema 里有、但确实不由处理器转发（写明原因，不要为了过检查而删条目）。 */
-const KNOWN_EXCEPTIONS: Record<string, string> = {};
+const KNOWN_EXCEPTIONS: Record<string, string> = {
+  // 键格式：`工具名.参数名`。值是**为什么故意不转发**（必须写清楚，否则以后没人敢删）。
+  'wps_execute_script.readOnly':
+    '该参数由**网关层**消费（gateway.ts 的 recordIdentityChangingOperation 读它来决定要不要把本次调用' +
+    '登记为「未快照操作」），不需要转发给宿主加载项。宿主根本不关心这个标志。',
+};
 
 interface ToolDef { tool: string; params: string[] }
 
@@ -192,6 +197,9 @@ function main() {
     if (!resolved) { unresolved++; continue; }
     checked++;
     for (const param of findUnreadParams(def.params, resolved.body)) {
+      // 例外必须显式登记并写明原因，否则一律算问题（KNOWN_EXCEPTIONS 原先只声明未使用，
+      // 等于这个逃生口是假的——真去登记也不生效）。
+      if (KNOWN_EXCEPTIONS[`${def.tool}.${param}`]) continue;
       problems.push({ tool: def.tool, param, handler: resolved.label });
     }
   }

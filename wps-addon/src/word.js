@@ -377,6 +377,7 @@
     } catch (e) {}
 
     let previewText = "";
+    let paragraphs = null;
     const paragraphDetails = [];
     if (scope === "full" || scope === "paragraphs" || !scope) {
       try {
@@ -415,6 +416,10 @@
           }
         }
         previewText = snippets.join("\n");
+        // ISS-127：工具描述说 scope='paragraphs' 返回「连续段落文本数组」，
+        // 但实际只给了 previewText + paragraphDetails，调用方按描述取 `paragraphs` 会拿到 undefined。
+        // 这里补上描述承诺的数组（纯文本、按段落顺序）。
+        paragraphs = snippets.map(s => s.replace(/^\[P\d+\]\s*/, ""));
       } catch (e) {}
     }
 
@@ -484,6 +489,7 @@
       tables: tablesSummary,
       paragraphDetails: includeFormatting ? paragraphDetails : undefined,
       previewText: scope === "outline" || extra ? undefined : previewText,
+      paragraphs: paragraphs || undefined,
       selectionText: selectionText || undefined,
       ...readBack
     };
@@ -776,6 +782,12 @@
 
     if (target === "paragraph" || paragraphIndex) {
       const pIdx = Number(paragraphIndex || 1);
+      // ISS-128：越界时原先直接抛宿主内部错误 `Cannot read properties of null (reading 'Range')`，
+      // 与 write_content 里的中文可读报错不一致，使用者分不清"我传错了"还是"工具有 bug"。
+      const totalP = (() => { try { return Number(doc.Paragraphs.Count); } catch (e) { return null; } })();
+      if (!(pIdx >= 1) || (totalP !== null && pIdx > totalP)) {
+        throw new Error(`paragraphIndex=${paragraphIndex} 越界：文档共 ${totalP === null ? "未知" : totalP} 个段落（有效范围 1..${totalP === null ? "?" : totalP}）`);
+      }
       const p = doc.Paragraphs.Item(pIdx);
       applyFormatToPara(p);
       return {
