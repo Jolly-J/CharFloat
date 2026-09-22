@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 201805c045dd8467a721186a6f374a66bbadafe28ff15f47e6f546926964ea30
+// ADDON_BUILD_FINGERPRINT: 42fcfeca8d83858e4e51b1f8cff8147e68eae67d5f19f5653be9bcbba6748c93
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "201805c045dd8467a721186a6f374a66bbadafe28ff15f47e6f546926964ea30";
+  var ADDON_BUILD_FINGERPRINT = "42fcfeca8d83858e4e51b1f8cff8147e68eae67d5f19f5653be9bcbba6748c93";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -7199,6 +7199,21 @@ case "ppt_read_presentation":
           return { success: false, workbookName: wb.Name, oldName, newName, actualName: actual, warnings: [`改名未生效：请求 "${newName}"，宿主读回 "${actual}"`], message: `工作表改名未生效` };
         }
         return { success: true, workbookName: wb.Name, oldName, newName, actualName: actual, warnings: [], message: `工作表 [${oldName}] 已重命名为 [${newName}]` };
+      }
+      case "activate": {
+        // shape 相关操作**依赖工作表处于激活状态**（分组代码里已有 sheet.activate()，
+        // 真机实测非活动表会报「当前对象不允许此操作」）。此前没有对外暴露的动作，
+        // 使用者想先激活再操作却做不到。
+        const wasActive = (() => { try { return wb.ActiveSheet.Name === sheet.Name; } catch (e) { return null; } })();
+        sheet.Activate();
+        const nowActive = (() => { try { return String(wb.ActiveSheet.Name); } catch (e) { return null; } })();
+        const ok = nowActive === String(sheet.Name);
+        return {
+          success: ok, workbookName: wb.Name, action: "activate",
+          sheetName: String(sheet.Name), wasActive, activeSheet: nowActive,
+          warnings: ok ? [] : [`激活未生效：请求 ${sheet.Name}，宿主当前活动表为 ${nowActive}`],
+          message: ok ? `已激活工作表 [${sheet.Name}]` : `工作表 [${sheet.Name}] 激活未生效`
+        };
       }
       case "move": {
         if (!targetIndex) throw new Error("move 操作必须提供 targetIndex (1-indexed)");

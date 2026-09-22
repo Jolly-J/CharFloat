@@ -718,7 +718,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             },
             action: {
               type: "string",
-              enum: ["rename", "move", "tab_color", "protect", "unprotect", "read"],
+              enum: ["rename", "move", "activate", "tab_color", "protect", "unprotect", "read"],
               description: "执行的管理操作: 'rename'(重命名), 'move'(调整位置顺序), 'tab_color'(设置工作表标签底色), 'protect'(锁定保护工作表), 'unprotect'(解除锁定保护)"
             },
             newName: {
