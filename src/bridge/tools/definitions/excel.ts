@@ -796,8 +796,12 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
             },
             action: {
               type: "string",
-              enum: ["add", "read", "delete", "clear_all"],
-              description: "操作类型: 'add'(添加/更新批注), 'read'(读取指定区域的全部批注), 'delete'(删除指定单元格批注), 'clear_all'(清空全表所有批注)"
+              enum: ["add", "read", "delete", "clear_all", "thread", "reply", "read_threads", "resolve"],
+              description: "操作类型: 'add'(添加/更新传统批注), 'read'(读取指定区域的全部批注), 'delete'(删除指定单元格批注), 'clear_all'(清空全表所有批注), **'thread'(新建线程批注，已有则追加为回复)**, **'reply'(在线程批注下回复)**, **'read_threads'(读回全部线程批注及其回复)**, **'resolve'(标记已解决/重新打开——⚠️ 本机宿主不支持修改，会如实返回 actual 与提示)**"
+            },
+            resolved: {
+              type: "boolean",
+              description: "resolve 动作：true 标记已解决 / false 重新打开（本机宿主不支持，会如实告知而不假装成功）"
             },
             text: {
               type: "string",

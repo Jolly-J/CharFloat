@@ -36,7 +36,7 @@
 | **CAP-09** | **PPT 页面尺寸与母版/版式控制、批量导出** | MS `SlideMaster`/`SlideLayout`（**无页面尺寸、无导出**）；WPS 有 `PageSetup` | 文档可证 | 两侧 | 没法把 4:3 改 16:9、没法套公司母版、没法批量导图 | ✅ 已完成已验证（真机：11 个版式可列；preset 4:3→720x540、16:9→960x540；方向切换；非法 preset 被拒） |
 | **CAP-10** | **数据验证读回与违规定位** | MS `getInvalidCells`；WPS 读 `Validation` 属性 | 文档可证 / 推测 | 两侧 | AI 写完下拉/范围校验，**无法自检哪些值越界** | ✅ 已完成（WPS 侧： 列出违规单元格与期望；**Microsoft 侧未实现**，描述已写明宿主差异） |
 | **CAP-11** | **事件驱动的"变更感知"**：用户刚改了哪个单元格、保存前拦一手 | WPS 45+ Application 事件 + `wps.ApiEvent`；Office.js 仅 3 个事件 | 文档可证 | WPS 侧 | AI 只能盲写，无法基于用户刚做的修改做增量协作 | 待排期 |
-| **CAP-12** | **Excel 线程化批注完整语义**：回复、@提及、标记已解决 | Office.js `Comment` | 文档可证 | Office.js 侧 | AI 只能"贴一条"，不能参与讨论 | 待排期 |
+| **CAP-12** | **Excel 线程化批注完整语义**：回复、@提及、标记已解决 | Office.js `Comment` | 文档可证 | Office.js 侧 | AI 只能"贴一条"，不能参与讨论 | ❌ **宿主做不到**（真机探明）：WPS 的线程批注 API **存在但功能是空壳** —— `AddCommentThreaded` 返回对象却**不存正文**（读回 Text=null、回复文本恒为 "default"）、`Replies.Add` 不是函数、`AddReply` 返回对象但 **Count 恒为 1 不增**、`Resolved` 写不进去（读回仍 false）。**处置**：工具已按"如实报失败"实现（不因没抛异常就报成功），并在返回里指引改用传统批注 `action=add`（传统批注真机可用）。读回 `read_threads` 可用但拿到的是宿主默认值，意义有限 |
 | **CAP-13** | **数据透视表字段编排与刷新** | Office.js `PivotTable` 可加行/列/数据字段；WPS `PivotFields` | 文档可证 | 两侧 | MS 侧"建透视表"目前只能建空壳 | ✅ 已完成已验证（真机：把已有透视表从「行=月份」重排为**行=区域 / 列=月份 / 值=金额**，宿主读回 `["月份/2","区域/1","值/2"]` 完全吻合；支持 clearFields 清旧布局、refresh 刷新、字段不存在时写 warnings） |
 | **CAP-14** | **Excel 切片器 / 工作表视图 / 链接数据类型（富值）** | MS 支持；WPS **未查证** | 文档可证 / 未查证 | Office.js 侧 | 交互式仪表盘、"从数据源自动带出公司/股票信息" | 待排期 |
 | **CAP-15** | **区域复制（`copy_range`）** | 宿主支持 | 源码可证（我方未实现） | WPS 侧补齐 | MS 有、WPS 没有 | ✅ 已完成已验证（真机：复制到目标并读回；支持 all/values/formats/formulas 与转置） |

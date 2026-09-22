@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 5c35a35c151794e6410687baa22c4079f1ca4a4241a62b08a15c12b81af13989
+// ADDON_BUILD_FINGERPRINT: 68d1c5c379ca01f40a9a0219db365b9d532781c0b95c918900e10f9ec75bbd2a
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "5c35a35c151794e6410687baa22c4079f1ca4a4241a62b08a15c12b81af13989";
+  var ADDON_BUILD_FINGERPRINT = "68d1c5c379ca01f40a9a0219db365b9d532781c0b95c918900e10f9ec75bbd2a";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -4375,8 +4375,132 @@ case "ppt_read_presentation":
         action: "clear_all",
         message: `已清空工作表 [${sheet.Name}] 中的所有批注`
       };
+    // ── CAP-12 线程化批注（真机探测结论）
+    //   宿主支持：`AddCommentThreaded(文本)` 建线程、**`thread.AddReply(文本)` 回复**、
+    //            `thread.Replies.Item(i).Text()` 读回复。
+    //   ⚠️ 宿主**不支持**：`Replies.Add`（不是函数，回复要走 AddReply）、
+    //            **`Resolved` 写不进去**（赋值后读回仍是 false）——按"如实告知"处理，不假装已解决。
+    } else if (action === "thread" || action === "reply" || action === "read_threads" || action === "resolve") {
+      const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };
+      // ⚠️ WPS JSA 的 Range/Worksheet **都没有 `Cells()` 方法**（本仓库已踩过三次：
+      // 截图范围、图表锚点、这里）。一律用**地址字符串**取单元格。
+      const colName = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+      const cellAt = (baseAddr, r, c) => {
+        const first = String(baseAddr).split(":")[0].replace(/\$/g, "");
+        const mm = first.match(/^([A-Za-z]+)(\d+)$/);
+        if (!mm) return sheet.Range(first);
+        const col0 = mm[1].toUpperCase().split("").reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0);
+        const row0 = Number(mm[2]);
+        return sheet.Range(`${colName(col0 + c - 1)}${row0 + r - 1}`);
+      };
+      const readThread = (cell) => {
+        const th = g(() => cell.CommentThreaded, null);
+        if (!th) return null;
+        const replies = [];
+        try {
+          const rp = th.Replies;
+          for (let i = 1; i <= Number(rp.Count); i++) {
+            const it = rp.Item(i);
+            replies.push({ author: g(() => String(it.AuthorName), null), text: g(() => String(it.Text()), "") });
+          }
+        } catch (e) {}
+        return {
+          address: addressOf(cell),
+          text: (() => { try { const rt = th.Text; return typeof rt === "function" ? String(rt()) : String(rt); } catch (e) { return null; } })(),
+          author: g(() => String(th.AuthorName), null),
+          resolved: g(() => Boolean(th.Resolved), null),
+          replyCount: replies.length,
+          replies
+        };
+      };
+
+      if (action === "read_threads") {
+        const threads = [];
+        const used = targetRange;
+        const base = String(g(() => used.Address(), address));
+        const maxR = Math.min(Number(g(() => used.Rows.Count, 1)), 500), maxC = Math.min(Number(g(() => used.Columns.Count, 1)), 50);
+        for (let r = 1; r <= maxR; r++) {
+          for (let cc = 1; cc <= maxC; cc++) {
+            const one = readThread(cellAt(base, r, cc));
+            if (one) threads.push(one);
+          }
+        }
+        return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, count: threads.length, threads,
+          warnings: [], message: `工作表 [${sheet.Name}] 共 ${threads.length} 条线程批注` };
+      }
+
+      if (action === "thread") {
+        if (!text) throw new Error("thread 操作必须提供 text（批注内容）");
+        const cell = cellAt(String(g(() => targetRange.Address(), address)), 1, 1);
+        const addr = addressOf(cell);
+        // 已有线程则改为追加回复，避免宿主覆盖掉原有讨论
+        const existing = g(() => cell.CommentThreaded, null);
+        if (existing) {
+          try { existing.AddReply(String(text)); }
+          catch (e) { throw new Error(`该单元格已有线程批注，追加回复失败：${e.message}`); }
+          const back = readThread(cell);
+          return { success: true, workbookName: sheet.Parent.Name, sheetName: sheet.Name, action: "reply",
+            address: addr, thread: back, warnings: [], message: `单元格 ${addr} 已有线程批注，已追加为回复` };
+        }
+        const th = cell.AddCommentThreaded(String(text));
+        if (author) { try { th.AuthorName = String(author); } catch (e) {} }
+        const back = readThread(cell);
+        const warnings = [];
+        if (!back) warnings.push("创建后读不回线程批注，宿主可能未真正写入");
+        // ⚠️ 真机实测（WPS 12.1.28496）：`AddCommentThreaded` **返回对象但不真的存内容**——
+        // 读回 Text 是 null、回复文本固定为 "default"、Replies.Count 恒为 1、
+        // `AddReply` 返回对象但条数不增、`Resolved` 写不进去。
+        // 也就是**API 存在但功能是空壳**。这里必须**如实报失败**，不能因为"没抛异常"就报成功。
+        if (back && back.text !== null && String(back.text) !== String(text)) {
+          warnings.push(`宿主未保存批注正文：写入 ${JSON.stringify(String(text))}，读回 ${JSON.stringify(back.text)}`);
+        }
+        if (back && (back.text === null || back.text === undefined)) {
+          warnings.push("宿主未保存批注正文（读回为 null）——本机 WPS 的线程批注 API 存在但不真正存储内容，请改用传统批注 action='add'");
+        }
+        return { success: !!back && warnings.length === 0, workbookName: sheet.Parent.Name, sheetName: sheet.Name, action: "thread",
+          address: addr, thread: back, warnings,
+          message: warnings.length
+            ? `线程批注在单元格 ${addr} **未能真正写入**：${warnings[0]}`
+            : `已在单元格 ${addr} 创建线程批注` };
+      }
+
+      if (action === "reply") {
+        if (!text) throw new Error("reply 操作必须提供 text（回复内容）");
+        const cell = cellAt(String(g(() => targetRange.Address(), address)), 1, 1);
+        const addr = addressOf(cell);
+        const th = g(() => cell.CommentThreaded, null);
+        if (!th) throw new Error(`单元格 ${addr} 没有线程批注，无法回复；先用 action='thread' 创建`);
+        const before = readThread(cell)?.replyCount ?? null;
+        try { th.AddReply(String(text)); }
+        catch (e) { throw new Error(`回复失败：${e.message}（真机上回复要走 thread.AddReply）`); }
+        const back = readThread(cell);
+        const after = back?.replyCount ?? null;
+        const warnings = [];
+        if (before !== null && after !== null && after <= before) warnings.push(`回复后条数未增加（${before} → ${after}），请人工确认`);
+        return { success: warnings.length === 0, workbookName: sheet.Parent.Name, sheetName: sheet.Name, action: "reply",
+          address: addr, replyCountBefore: before, thread: back, warnings,
+          message: `已在单元格 ${addr} 的线程批注下回复（${before} → ${after}）` };
+      }
+
+      // action === "resolve"：宿主不支持写 Resolved，**如实告知**而不是假装成功
+      const cell = cellAt(String(g(() => targetRange.Address(), address)), 1, 1);
+      const addr = addressOf(cell);
+      const th = g(() => cell.CommentThreaded, null);
+      if (!th) throw new Error(`单元格 ${addr} 没有线程批注`);
+      const want = params && params.resolved !== undefined ? Boolean(params.resolved) : true;
+      let actual = null;
+      try { th.Resolved = want; } catch (e) {}
+      actual = g(() => Boolean(th.Resolved), null);
+      const ok = actual === want;
+      return {
+        success: ok, workbookName: sheet.Parent.Name, sheetName: sheet.Name, action: "resolve",
+        address: addr, requested: want, actual, warnings: ok ? [] : ["宿主读回与请求不一致"],
+        message: ok
+          ? `单元格 ${addr} 的线程批注已${want ? "标记解决" : "重新打开"}`
+          : `本机宿主**不支持**修改线程批注的解决状态（请求 ${want}，读回 ${actual}）——请人工在 WPS 里操作`
+      };
     }
-    throw new Error(`未知的批注操作 action: ${action} (支持 'add' | 'read' | 'delete' | 'clear_all')`);
+    throw new Error(`未知的批注操作 action: ${action} (支持 'add' | 'read' | 'delete' | 'clear_all' | 'thread' | 'reply' | 'read_threads' | 'resolve')`);
   }
 
   // 10.5 全局查找与定位替换
