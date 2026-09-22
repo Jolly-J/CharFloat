@@ -15,12 +15,12 @@ export function lockToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_lock_target_document",
-        description: "【强隔离文档锁定器】将 Agent 强制锁定在指定的目标文档/工作簿/演示文稿上。一旦锁定，所有后续操作将严格只针对被锁定文件，用户在电脑上切换窗口绝不漂移！",
+        description: "锁定 WPS 目标文档：锁定后不带目标名称的调用都指向该文件，避免用户切换窗口造成漂移。一次只锁一个组件；要换目标需先解锁或重新锁定。",
         parameters: {
           type: "object",
           properties: {
-            component: { type: "string", enum: ["word", "excel", "ppt"], description: "目标应用组件类型 ('word', 'excel', 'ppt')" },
-            targetName: { type: "string", description: "目标文档名称或文件路径，如 '副本极电光能半年度方针复盘-26.8.20.pptx'" }
+            component: { type: "string", enum: ["word", "excel", "ppt"], description: "目标组件类型: 'word'|'excel'|'ppt'" },
+            targetName: { type: "string", description: "目标文档名称或文件路径，需与已打开文件列表中的名称一致，如 '副本极电光能半年度方针复盘-26.8.20.pptx'" }
           },
           required: ["component", "targetName"],
           additionalProperties: false
@@ -31,11 +31,11 @@ export function lockToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_unlock_target_document",
-        description: "解除文档锁定状态。解除后可重新自由寻址或切换目标文档。",
+        description: "解除 WPS 文档锁定状态。解除后无目标名称的调用不再有确定目标，后续操作需显式传工作簿/文档名称。",
         parameters: {
           type: "object",
           properties: {
-            component: { type: "string", enum: ["word", "excel", "ppt"], description: "要解锁的组件，不传则解锁全部" }
+            component: { type: "string", enum: ["word", "excel", "ppt"], description: "要解锁的组件: 'word'|'excel'|'ppt'；不传则解锁全部" }
           },
           required: [],
           additionalProperties: false
@@ -46,7 +46,7 @@ export function lockToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_get_locked_status",
-        description: "查询当前 Word、Excel、PPT 各组件的目标文档锁定状态及已打开的文件列表。",
+        description: "查询当前 Word、Excel、PPT 各组件的目标锁定状态。注意：锁定记录只说明锁指向哪个文件，不代表该文件仍在打开；需要“当前实际打开了哪些文件”时用 wps_get_workspace_summary。",
         parameters: {
           type: "object",
           properties: {},

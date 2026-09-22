@@ -82,7 +82,7 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 | 图表类型 | `Shapes.AddChart2(-1, Type, ...)` | `51` 簇状柱 / `57` 簇状条 / `4` 折线 / `-4120` 环形 / `-4169` 散点 | **实测**（`p5/mcp-sweep/README.md` 成品读回：条形 57 / 折线 4 / 环形 -4120 / 散点 -4169 / 柱状 51） |
 | 散点必须走脚本 | `AddChart2(201, -4169, ...)` | `201` = xlXYScatter | **实测**（[ISS-17](../../../docs/acceptance/2.1.0-p0p1/issues.md)：工具侧 `scatter` 会被降级成 51） |
 
-> `PlacedChartType` 与 `AddChart2` 的用法见 [native-scripting.md](native-scripting.md) §差异清单：**`SetSourceData` 默认按行取系列，必须显式 `PlotBy=2`**。
+> `AddChart2` + `SetSourceData` 的用法见 [native-scripting.md](native-scripting.md) §差异清单：**`SetSourceData` 默认按行取系列，必须显式 `PlotBy=2`**。
 
 ### 1.5 Shapes 形状类型
 

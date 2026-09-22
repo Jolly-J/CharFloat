@@ -16,7 +16,7 @@ WPS 使用 `wps_execute_script`，明确传 component 和精确 workbookName/doc
 | WPS 文字 / Word | **`doc`** | `wb`、`pres` 为 `null` |
 | WPS 演示 / PPT | **`pres`** | `wb`、`doc` 为 `null` |
 
-`wps` 是宿主注入的宿主全局（本机实测为 `undefined`），**不要依赖它**。
+`wps` 是宿主注入的宿主全局（本机实测为 `undefined`；实现里只以 `typeof wps !== "undefined"` 的形式探测 `wps.EtApplication` / `wps.alert` 等成员）。**不要依赖它**，用 `app`、`wb`、`doc`、`pres` 就够了。
 
 > **已证实（[ISS-52](../../../docs/acceptance/2.1.0-p0p1/issues.md)）**：本文档旧版称 `doc`"已自动绑定"。真实宿主下 Excel 场景 `doc` 是 `null`，`doc.Worksheets` 直接抛 `原生脚本执行异常: Cannot read properties of null (reading 'Worksheets')`。**Excel 一律用 `wb`**。
 
@@ -48,7 +48,7 @@ AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针�
 
 | VBA / 常见写法 | WPS JS API 实际 | 正确做法 |
 |---|---|---|
-| `TextFrame.TextRange`（形状/文本框取文本） | **`undefined`**；继续 `.Font` 会抛 `Cannot read properties of undefined (reading 'Font')`，整个脚本中断 | Excel Shapes 用 `TextFrame.Characters()`；PPT 用 `TextFrame.TextRange`（PPT 侧实测可用） |
+| `TextFrame.TextRange`（形状/文本框取文本） | **`undefined`**；继续 `.Font` 会抛 `Cannot read properties of undefined (reading 'Font')`，整个脚本中断（表格形状实测） | 表格 Shapes 用 `TextFrame.Characters()`；PPT 文本框实测可用 `TextFrame.TextRange`（见本仓库实现）；Word 侧未实测 |
 | `ParagraphFormat`（形状文本框段落格式） | **不存在**（反射为空成员表） | 用存在的那条路径并先只读探测；不要照抄 VBA |
 | `ws.Cells(r, c)` | **不是函数**：`ws.Cells is not a function` | 用字符串地址 `ws.Range("A1")`，或 `ws.Range("A1").Offset(r, c)` |
 | `AddChart2` + `SetSourceData` | **默认按行取系列**（一行一个系列），图表与预期不符 | 显式传 `PlotBy = 2`（按列），或逐个赋 `Series.Values` / `Series.XValues` |
@@ -92,7 +92,7 @@ return { name: shape.Name, left: shape.Left, top: shape.Top,
 
 `AddShape` 首参是形状类型枚举（矩形 `= 1`），见 [枚举速查表](enumeration.md)。`TextFrame.Characters()` 是 Excel 侧已验证的取文本路径，**没有 `TextFrame.TextRange`**。
 
-连接线、自由曲线可继续探测 `AddConnector`、`BuildFreeform` 等宿主 API（**未实测**）。**分组（`Range(...).Group`）不要用于构图**（见上表 ISS-14）。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
+连接线、自由曲线可继续探测 `AddConnector`、`BuildFreeform` 等宿主 API（**未实测**；本项目实现里从未调用过 `AddConnector`，见 [07-tool-gap.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/07-tool-gap.md)）。**分组（`Range(...).Group`）不要用于构图**（见上表 ISS-14）。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
 
 ## Excel：画布换算与多元素构图范例
 
@@ -113,7 +113,6 @@ w(cols) = cols * 48        h(rows) = rows * 16
 ```js
 const sheet = wb.Worksheets.Item(params.sheetName);
 const area = sheet.Range(params.canvas);            // 例："A1:U42"
-const first = sheet.Range(params.canvas.split(':')[0]);
 const colW = Number(sheet.Columns.Item(1).Width);   // 默认 48pt
 const rowH = Number(sheet.Rows.Item(1).Height);     // 默认 16pt
 return { left: area.Left, top: area.Top, width: area.Width, height: area.Height, colW, rowH };
@@ -216,7 +215,7 @@ p.Style = doc.Styles.Item(params.styleName);
 return { styleName: p.Style.NameLocal, outlineLevel: Number(p.OutlineLevel) };
 ```
 
-**已证实**：套上自定义样式后 `p.Range.Font.Name` 可能读回基样式（如 `宋体`）的字体，而 `p.Style.NameLocal` 已是自定义样式名——**"样式名生效"和"直接格式读回"是两套口径**，判生效要读 `Style.NameLocal`；套「标题 3」时 `OutlineLevel` 会同步，可用它确认真的进了大纲。
+**已证实**：套上自定义样式后 `p.Range.Font.Name` 可能读回基样式（如 `宋体`）的字体，而 `p.Style.NameLocal` 已是自定义样式名——**"样式名生效"和"直接格式读回"是两套口径**，判生效要读 `Style.NameLocal`；套「标题 3」时 `OutlineLevel` 会同步，可用它确认真的进了大纲。样式属性读回口径同上例：`LineSpacingRule=4`（固定值）、`LineSpacing=20`、`FirstLineIndent=21`、段后 `6`，逐项读回即可断言。
 
 ### 分节 + 横向页 + 独立的页眉页脚
 

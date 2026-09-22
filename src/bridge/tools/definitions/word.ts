@@ -95,7 +95,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
           type: "object",
           properties: {
             documentName: { type: "string", description: "文档名称，例如 '关于召开年度总结大会的通知.docx'，不传则默认当前活动文档" },
-            scope: { type: "string", enum: ["outline", "full", "selection", "paragraphs", "tables"], description: "读取范围: 'outline'(仅标题大纲), 'full'(全文预览与大纲), 'selection'(当前选区)" },
+            scope: { type: "string", enum: ["outline", "full", "selection", "paragraphs", "tables"], description: "读取范围: 'outline'(仅标题大纲), 'full'(全文预览与大纲，默认), 'selection'(当前选区), 'paragraphs'(仅连续段落文本数组), 'tables'(仅表格结构与预览)" },
             maxParagraphs: { type: "integer", description: "最多返回的段落数量，默认 200" },
             includeFormatting: { type: "boolean", description: "是否提取段落级排版元数据（是否加粗、字号、字体名等），默认 true" },
             includeTables: { type: "boolean", description: "是否返回文档内全部表格的尺寸与前三行预览，默认 true" }
@@ -109,19 +109,20 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_write_content",
-        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式、断开加粗继承，并可在开头、结尾、指定段落后或光标处插入。",
+        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式、断开加粗继承，并可在开头、结尾、指定段落后或光标处插入。写入后须读回核对：'bookmark' 定位在部分宿主版本未落到书签处，不要只凭 success 判断。",
         parameters: {
           type: "object",
           properties: {
             documentName: { type: "string", description: "目标文档名称，不传则默认当前文档" },
             content: {
-              description: "要写入的内容（单行字符串或多行字符串数组）",
-              oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
+              type: ["string", "array"],
+              items: { type: "string" },
+              description: "要写入的内容：单个字符串，或多行字符串数组（每个元素一段）"
             },
             type: {
               type: "string",
               enum: ["paragraph", "heading1", "heading2", "heading3", "bullet_list", "quote", "code_block"],
-              description: "内容段落类型: 'paragraph'(普通正文), 'heading1'(一级标题), 'heading2'(二级标题), 'heading3'(三级标题), 'bullet_list'(项目符号列表), 'quote'(引用块)"
+              description: "内容段落类型: 'paragraph'(普通正文), 'heading1'/'heading2'/'heading3'(一/二/三级标题), 'bullet_list'(项目符号列表), 'quote'(引用块), 'code_block'(代码块，等宽字体)"
             },
             location: {
               type: "string",
@@ -166,7 +167,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             preset: {
               type: "string",
               enum: ["gov_standard", "business_modern", "academic", "custom"],
-              description: "排版预设: 'gov_standard'(国家标准公文规范：仿宋三号+28磅行距+首行缩进2字符+公文页边距), 'business_modern'(现代商务精美排版), 'custom'(自定义设置)"
+              description: "排版预设: 'gov_standard'(国家标准公文规范：仿宋三号+28磅行距+首行缩进2字符+公文字体分级), 'business_modern'(现代商务排版：微软雅黑/Segoe UI+段后间距), 'academic'(当前未实现独立规则，等同 'custom'：只应用下面显式传入的自定义参数), 'custom'(只用自定义参数)"
             },
             fontName: { type: "string", description: "自定义字体名称，如 '仿宋_GB2312' 或 '微软雅黑'" },
             fontSizePt: { type: "number", description: "自定义字号(磅值)，如 16(三号) 或 12" },
@@ -184,7 +185,8 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
                 bottomMm: { type: "number", description: "下边距(毫米)" },
                 leftMm: { type: "number", description: "左边距(毫米)" },
                 rightMm: { type: "number", description: "右边距(毫米)" }
-              }
+              },
+              description: "页面边距(毫米)，整篇生效；单位是毫米不是磅，不传则沿用文档原设置"
             }
           },
           required: [],
@@ -228,29 +230,29 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             tableIndex: { type: "integer", description: "目标表格索引序号(1-based)，默认 1" },
             rows: { type: "integer", description: "行数（插入时使用）" },
             columns: { type: "integer", description: "列数（插入时使用）" },
-            data: { type: "array", items: { type: "array" }, description: "填充到表格的二维数据矩阵" },
-            stylePreset: { type: "string", enum: ["mckinsey_three_line", "clean_minimal", "none"], description: "样式预设: 'mckinsey_three_line'(麦肯锡三线表，顶底粗线+表头细线+无内部竖线，默认)" },
+            data: { type: "array", items: { type: "array" }, description: "填充到表格的二维数据矩阵，行列数不足时按 write_matrix 规则动态扩容" },
+            stylePreset: { type: "string", enum: ["mckinsey_three_line", "clean_minimal", "none"], description: "样式预设: 'mckinsey_three_line'(麦肯锡三线表，顶底粗线+表头细线+无内部竖线，默认), 'clean_minimal'(当前未实现独立样式，等同 'none'), 'none'(不套用预设样式)" },
             repeatHeader: { type: "boolean", description: "跨页时是否自动重复表头首行，默认 true" },
-            cellRow: { type: "integer", description: "单元格行号(1-based)" },
-            cellColumn: { type: "integer", description: "单元格列号(1-based)" },
+            cellRow: { type: "integer", description: "单元格行号(1-based)，action='format_cell' 时使用" },
+            cellColumn: { type: "integer", description: "单元格列号(1-based)，action='format_cell' 时使用" },
             cellFormat: {
               type: "object",
               properties: {
-                bold: { type: "boolean" },
-                fontSizePt: { type: "number" },
-                fontName: { type: "string" },
+                bold: { type: "boolean", description: "该单元格是否加粗" },
+                fontSizePt: { type: "number", description: "该单元格字号(磅值)" },
+                fontName: { type: "string", description: "该单元格字体名，如 '仿宋_GB2312'" },
                 backgroundColor: { type: "string", description: "十六进制底色，例如 '#F1F5F9'" }
               },
               description: "单元格排版参数"
             },
-            rowIndex: { type: "integer", description: "删除或操作的行号" },
+            rowIndex: { type: "integer", description: "删除或操作的行号(1-based)" },
             mergeRange: {
               type: "object",
               properties: {
-                startRow: { type: "integer" },
-                startCol: { type: "integer" },
-                endRow: { type: "integer" },
-                endCol: { type: "integer" }
+                startRow: { type: "integer", description: "合并起始行(1-based)" },
+                startCol: { type: "integer", description: "合并起始列(1-based)" },
+                endRow: { type: "integer", description: "合并结束行(1-based，含)" },
+                endCol: { type: "integer", description: "合并结束列(1-based，含)" }
               },
               description: "合并单元格范围"
             }
@@ -272,9 +274,9 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             action: {
               type: "string",
               enum: ["enable_track_changes", "disable_track_changes", "accept_all_revisions", "reject_all_revisions", "add_comment", "list_comments"],
-              description: "审阅动作"
+              description: "审阅动作: 'enable_track_changes'/'disable_track_changes'(开启/关闭修订记录), 'accept_all_revisions'/'reject_all_revisions'(接受/拒绝全部修订，不可撤销), 'add_comment'(插入批注), 'list_comments'(读取批注列表)"
             },
-            commentText: { type: "string", description: "添加批注时的批注内容" },
+            commentText: { type: "string", description: "添加批注时的批注内容，action='add_comment' 时必传" },
             author: { type: "string", description: "批注作者名称" }
           },
           required: ["action"],
@@ -321,9 +323,9 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
               type: "object",
               properties: {
                 bold: { type: "boolean", description: "替换后文本是否加粗（明确设为 false 避免继承前文加粗）" },
-                italic: { type: "boolean" },
-                fontSizePt: { type: "number" },
-                fontName: { type: "string" }
+                italic: { type: "boolean", description: "替换后文本是否斜体" },
+                fontSizePt: { type: "number", description: "替换后文本字号(磅值)" },
+                fontName: { type: "string", description: "替换后文本字体名" }
               },
               description: "指定替换后新文字的格式"
             }

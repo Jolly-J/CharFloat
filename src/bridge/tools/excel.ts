@@ -23,12 +23,19 @@ export function unifiedExcelTools(existing: GatewayTool[]): ToolDefinition[] {
     .map(tool => ({
       ...tool,
       name: tool.name.replace(/^wps_/, 'excel_'),
-      description: `${tool.description} 统一表格入口；host 必填。Windows Microsoft Excel 尚待实机验收。`,
+      // 说明后缀只保留真正必要的两项信息，避免 27×N 的样板挤占有效信息（ISS-36）。
+      // 原来写的是"Windows Microsoft Excel 尚待实机验收"，**只提 Windows**，读者会推断 macOS 已验证（ISS-33）；
+      // 验收状态改挂到必填的 host 参数上，那里每个调用方必然读到。
+      description: `${tool.description} 统一表格入口；host 必填。`,
       inputSchema: {
         ...tool.inputSchema,
         properties: {
           ...tool.inputSchema.properties,
-          host: { type: 'string', enum: ['wps', 'microsoft'], description: '明确选择 WPS 表格或 Microsoft Excel' }
+          host: {
+            type: 'string',
+            enum: ['wps', 'microsoft'],
+            description: '明确选择 WPS 表格或 Microsoft Excel；Microsoft 通道在 macOS 与 Windows 均尚未实机验收'
+          }
         },
         required: [...(tool.inputSchema.required || []), 'host']
       }

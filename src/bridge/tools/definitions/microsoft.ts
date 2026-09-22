@@ -15,7 +15,7 @@ export function microsoftToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "office_get_status",
-        description: "【Microsoft Office 全局状态探测器】探测当前电脑（macOS / Windows）上 Microsoft Word、Excel、PowerPoint 运行进程与打开的文档列表，完全免配置插件。",
+        description: "探测本机（macOS / Windows）Microsoft Word、Excel、PowerPoint 的运行进程与已打开文档列表，不需要安装加载项。返回进程与文档清单，用于在调用前确认目标确实打开。",
         parameters: {
           type: "object",
           properties: {},
@@ -28,12 +28,12 @@ export function microsoftToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "office_lock_target",
-        description: "【Microsoft Office 目标文档锁定器】将 Agent 强隔离锁定在指定的 Microsoft Office 文档上，避免用户切窗口导致的意外漂移。",
+        description: "锁定 Microsoft Office 目标文档：锁定后不带目标名称的调用都指向该文件，避免用户切换窗口造成漂移。一次只锁一个组件（word/excel/ppt）。",
         parameters: {
           type: "object",
           properties: {
-            component: { type: "string", enum: ["word", "excel", "ppt"], description: "组件类型" },
-            targetName: { type: "string", description: "目标文档名称" }
+            component: { type: "string", enum: ["word", "excel", "ppt"], description: "组件类型: 'word'|'excel'|'ppt'" },
+            targetName: { type: "string", description: "目标文档名称（可含路径），必须与 office_get_status 返回的名称一致" }
           },
           required: ["component", "targetName"],
           additionalProperties: false
@@ -48,7 +48,7 @@ export function microsoftToolDefinitions(): GatewayToolDefinition[] {
         parameters: {
           type: "object",
           properties: {
-            component: { type: "string", enum: ["word", "excel", "ppt"] }
+            component: { type: "string", enum: ["word", "excel", "ppt"], description: "要解锁的组件: 'word'|'excel'|'ppt'；不传则解锁全部组件" }
           },
           required: [],
           additionalProperties: false
@@ -59,12 +59,12 @@ export function microsoftToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "office_execute_script",
-        description: "【Microsoft Office 原生脚本引擎】直接向 Microsoft Word、Excel、PowerPoint 运行实例执行原生自动化代码（macOS 下为 JXA/AppleScript，Windows 下为 PowerShell COM 自动化），实现 100% 任意操作无死角！",
+        description: "直接向 Microsoft Word、Excel、PowerPoint 运行实例执行原生自动化代码：macOS 下为 JXA/AppleScript，Windows 下为 PowerShell COM。结构化工具未覆盖的 Microsoft 侧操作走本工具（Office.js 通道未连接时的 Excel、以及 Word/PPT 的全部操作）。脚本自行定位目标文档；执行后先读回验证再继续，本工具不判断结果是否符合预期。该通道在 macOS 与 Windows 均尚未实机验收。",
         parameters: {
           type: "object",
           properties: {
-            component: { type: "string", enum: ["word", "excel", "ppt"], description: "目标组件类型" },
-            script: { type: "string", description: "要执行的原生脚本代码" },
+            component: { type: "string", enum: ["word", "excel", "ppt"], description: "目标组件类型: 'word'|'excel'|'ppt'" },
+            script: { type: "string", description: "要执行的原生脚本代码。macOS 传 JXA/AppleScript，Windows 传 PowerShell，两平台语法不可混用。" },
             targetName: { type: "string", description: "目标文档名称（可选，若已锁定则自动复用）" },
             params: { type: "object", description: "传递给脚本的结构化数据" }
           },
@@ -77,7 +77,7 @@ export function microsoftToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "office_capture_slide_preview",
-        description: "【Microsoft PowerPoint 高清快照】直接从 Microsoft PowerPoint 导出指定幻灯片的矢量渲染快照，用于高保真自检比对。",
+        description: "从 Microsoft PowerPoint 导出指定幻灯片的渲染快照，返回 imageBase64 与 imagePath，用于视觉自检比对。该通道在 macOS 与 Windows 均尚未实机验收。",
         parameters: {
           type: "object",
           properties: {

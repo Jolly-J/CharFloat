@@ -15,11 +15,11 @@ export function auditDefinitionTools(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_rollback",
-        description: "根据留痕记录 ID 一键撤销修改，原地恢复表格",
+        description: "按 auditId 回滚一次 patch_cells 写入的值与公式。覆盖边界：只有值与公式；样式、条件格式、图表、行列/工作表结构变更、Word/PPT 操作、脚本执行都不在快照内，无法用本工具撤销。回滚前会比对目标区域当前内容，存在后续修改时拒绝覆盖。参数只接受 auditId（传 host、sheetName 等会报‘未知参数’）。",
         parameters: {
           type: "object",
           properties: {
-            auditId: { type: "string", description: "留痕审计 ID" }
+            auditId: { type: "string", description: "审计记录 ID，取自 patch_cells 返回体的 auditId，或审计历史查询（view='ids'）" }
           },
           required: ["auditId"],
           additionalProperties: false
