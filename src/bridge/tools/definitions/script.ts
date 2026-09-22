@@ -53,7 +53,7 @@ export function scriptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_reload_addon",
-        description: "让当前 WPS 重新加载桥接加载项，使**刚部署的新构建立即生效**，无需退出并重启 WPS。改了加载项代码并完成部署后调用它；调用成功不代表新代码已生效，随后用 bridge_get_capabilities 或 bridge_diagnose 读回构建指纹核对。无参数。",
+        description: "让加载项**重新初始化自身**（宿主执行 window.location.reload，会触发一次断开重连）。实测：**不会重新读取磁盘上的新构建**——WPS 会复用已缓存的 JS，因此部署新版本后调它仍然跑旧代码。要真正加载新构建必须**彻底退出 WPS（Cmd+Q / 任务管理器结束进程）再打开**，只关窗口不够。调用后用 bridge_get_capabilities 或 bridge_diagnose 读回运行中的构建指纹（components.*.buildFingerprint）核对，指纹为 null 即说明仍是旧构建。无参数。",
         parameters: {
           type: "object",
           properties: {},

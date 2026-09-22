@@ -136,6 +136,7 @@
 | ISS-104 | WPS 的 `Headers.Item(1).Shapes.AddTextEffect` **静默把形状加到正文层**（header.Shapes.Count 恒 0）→ 跨页页眉水印**在 WPS 上无法实现**（宿主限制，已如实告警） | 中 | 不修（宿主不支持，已记录） | 宿主限制 |
 | ISS-105 | 网关 `ppt.ts:154` 用 `res?.error \|\| "PPT 未生成预览"` **覆盖掉宿主真实错误** | 中高 | **已修待验** | 响应转换 |
 | ISS-106 | 网关 `ppt.ts` 的 manageSlides **未转发 `filePath`/`format`**，schema 里的字段到不了宿主 | 中 | **已修待验** | 参数转发 |
+| ISS-107 | `wps_reload_addon` **不能加载新构建**：宿主实现是 `window.location.reload()`，只重跑已缓存的 JS，不重新读盘（实测部署后调用，`ADDON_BUILD_FINGERPRINT` 仍 `undefined`） | 中高 | **已修**（说明改为如实告知：必须彻底退出 WPS 再打开） | 宿主实现 + 说明 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。
