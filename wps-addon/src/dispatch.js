@@ -47,6 +47,9 @@
         case "get_style_token":
           result = getStyleToken(app, params);
           break;
+        case "format_text_segment":
+          result = formatTextSegment(app, params);
+          break;
         case "create_sheet":
           result = createWorksheet(app, params);
           break;

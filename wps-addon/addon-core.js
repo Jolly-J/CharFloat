@@ -1,7 +1,7 @@
 // 本文件由 scripts/build-wps-addon.mjs 生成，请勿手改；改动请改 wps-addon/src/**
-// ADDON_BUILD_FINGERPRINT: 0650daee1519e62b59f617a89fcc8576655f33001963f5b3342bae004b5cea53
+// ADDON_BUILD_FINGERPRINT: 6259bb2cabf147a533c4643b9d373399f71fc9f743cf5c393e42876a5f9d4a1d
 (function () {
-  var ADDON_BUILD_FINGERPRINT = "0650daee1519e62b59f617a89fcc8576655f33001963f5b3342bae004b5cea53";
+  var ADDON_BUILD_FINGERPRINT = "6259bb2cabf147a533c4643b9d373399f71fc9f743cf5c393e42876a5f9d4a1d";
   // ---------------------------------------------------------------------------
   // shared.js — 配置常量与运行态变量、日志/状态 UI/原生弹窗、宿主组件探测与文档定位、颜色换算、工作区摘要
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
@@ -894,6 +894,9 @@
           break;
         case "get_style_token":
           result = getStyleToken(app, params);
+          break;
+        case "format_text_segment":
+          result = formatTextSegment(app, params);
           break;
         case "create_sheet":
           result = createWorksheet(app, params);
@@ -2061,6 +2064,129 @@
     };
   }
 
+  // 10.05 单元格内**局部**格式（富文本）—— CAP-03
+  /**
+   * 只给单元格里的一段文字加格式（如"一句话里只把某段加粗/变红/改字号"）。
+   *
+   * 依据：WPS 宿主有 `Range.Characters(Start, Length)`（真机探测确认：返回对象且 `Count` 可用）。
+   * 在此之前 AI 只能整格统一格式，做不到局部强调——这是"精细操控文档"最典型的诉求之一。
+   *
+   * 定位方式二选一：`find`（按文本找第 occurrence 处）或 `start`（1 基起点）+ `length`。
+   * 写完逐项读回核对，任何一项没落上都报错，不做静默降级。
+   */
+  function formatTextSegment(app, params) {
+    const {
+      sheetName, workbookName, address,
+      find, occurrence = 1, start, length,
+      bold, italic, underline, fontColor, fontSize, fontName
+    } = params || {};
+    if (!address) throw new Error("缺少必要参数: address (如 'A1')");
+
+    const sheet = getWorksheet(app, sheetName, workbookName);
+    const range = sheet.Range(address);
+
+    let text = "";
+    try { text = range.Value2 === null || range.Value2 === undefined ? "" : String(range.Value2); } catch (e) {}
+    if (!text) throw new Error(`单元格 ${range.Address ? range.Address() : address} 没有文本内容，无法做局部格式`);
+
+    let begin = null;
+    let segLen;
+    if (find !== undefined && find !== null && String(find) !== "") {
+      const query = String(find);
+      const want = Math.max(1, Number(occurrence) || 1);
+      let from = 0, hit = 0, idx = -1;
+      for (;;) {
+        idx = text.indexOf(query, from);
+        if (idx < 0) break;
+        hit++;
+        if (hit === want) break;
+        from = idx + 1;
+      }
+      if (idx < 0) {
+        throw new Error(
+          `在 ${address} 中找不到第 ${want} 处 "${query}"（共找到 ${hit} 处，单元格文本长度 ${text.length}）。` +
+          `当前文本前 60 字：${text.slice(0, 60)}`
+        );
+      }
+      begin = idx + 1; // Characters 是 1 基
+      segLen = query.length;
+    } else {
+      if (!Number.isFinite(Number(start))) {
+        throw new Error("需要提供 find（按文本定位）或 start（1 基起始位置，配合 length 使用）");
+      }
+      begin = Number(start);
+      if (Number.isFinite(Number(length))) segLen = Number(length);
+    }
+
+    const chars = segLen === undefined ? range.Characters(begin) : range.Characters(begin, segLen);
+    if (!chars) throw new Error(`无法定位字符片段（start=${begin}, length=${segLen}）：宿主未返回对象`);
+
+    const requested = {};
+    // VBA/WPS 的布尔格式用 -1/0（msoTrue/msoFalse）；传 JS 布尔在部分宿主上会被忽略
+    if (bold !== undefined) { chars.Font.Bold = bold ? -1 : 0; requested.bold = Boolean(bold); }
+    if (italic !== undefined) { chars.Font.Italic = italic ? -1 : 0; requested.italic = Boolean(italic); }
+    if (underline !== undefined) { chars.Font.Underline = underline ? 2 : -4142; requested.underline = Boolean(underline); }
+    if (fontSize !== undefined) { chars.Font.Size = Number(fontSize); requested.fontSize = Number(fontSize); }
+    if (fontName) { chars.Font.Name = String(fontName); requested.fontName = String(fontName); }
+    if (fontColor) {
+      const bgr = hexToExcelColor(fontColor);
+      if (bgr === null) throw new Error(`fontColor 无法解析: ${fontColor}（应为 #RRGGBB）`);
+      chars.Font.Color = bgr;
+      requested.fontColor = String(fontColor).toUpperCase();
+    }
+
+    // 读回核对：局部格式最怕"看着像生效了"
+    const readBack = {};
+    const mismatches = [];
+    const num = (v) => (typeof v === "boolean" ? (v ? -1 : 0) : Number(v));
+    try { readBack.segmentText = chars.Text === undefined ? null : String(chars.Text); } catch (e) { readBack.segmentText = null; }
+    if (requested.bold !== undefined) {
+      readBack.bold = num(safeRead(() => chars.Font.Bold, null)) !== 0;
+      if (readBack.bold !== requested.bold) mismatches.push(`bold 请求 ${requested.bold} 读回 ${readBack.bold}`);
+    }
+    if (requested.italic !== undefined) {
+      readBack.italic = num(safeRead(() => chars.Font.Italic, null)) !== 0;
+      if (readBack.italic !== requested.italic) mismatches.push(`italic 请求 ${requested.italic} 读回 ${readBack.italic}`);
+    }
+    if (requested.fontSize !== undefined) {
+      readBack.fontSize = Number(safeRead(() => chars.Font.Size, null));
+      if (Math.abs(readBack.fontSize - requested.fontSize) > 0.26) mismatches.push(`fontSize 请求 ${requested.fontSize} 读回 ${readBack.fontSize}`);
+    }
+    if (requested.fontName !== undefined) {
+      readBack.fontName = safeRead(() => chars.Font.Name, null);
+      if (String(readBack.fontName) !== requested.fontName) mismatches.push(`fontName 请求 ${requested.fontName} 读回 ${readBack.fontName}`);
+    }
+    if (requested.fontColor !== undefined) {
+      readBack.fontColor = excelColorToHex(safeRead(() => chars.Font.Color, null));
+      if (String(readBack.fontColor).toUpperCase() !== requested.fontColor) mismatches.push(`fontColor 请求 ${requested.fontColor} 读回 ${readBack.fontColor}`);
+    }
+    if (requested.underline !== undefined) {
+      readBack.underline = num(safeRead(() => chars.Font.Underline, null)) !== -4142;
+      if (readBack.underline !== requested.underline) mismatches.push(`underline 请求 ${requested.underline} 读回 ${readBack.underline}`);
+    }
+
+    if (mismatches.length > 0) {
+      throw new Error(
+        `局部格式未完全生效：${mismatches.join("；")}。` +
+        `该单元格文本为 "${text.slice(0, 60)}"，片段起点 ${begin}、长度 ${segLen === undefined ? "至末尾" : segLen}。`
+      );
+    }
+
+    return {
+      success: true,
+      workbookName: sheet.Parent.Name,
+      sheetName: sheet.Name,
+      address: range.Address ? range.Address() : address,
+      cellText: text.slice(0, 120),
+      segmentStart: begin,
+      segmentLength: segLen === undefined ? text.length - begin + 1 : segLen,
+      segmentText: readBack.segmentText,
+      requested,
+      readBack,
+      message: `已将 [${sheet.Name}] ${address} 的第 ${begin} 个字符起 ${segLen === undefined ? "到末尾" : segLen + " 个字符"}「${readBack.segmentText ?? ""}」设置为指定格式，并读回核对通过`
+    };
+  }
+
   // 10.1 条件格式与数据条/色阶
   function addConditionalFormatting(app, params) {
     const {
@@ -2076,7 +2202,14 @@
       barColor,
       colorScaleMin,
       colorScaleMax,
-      clearExisting = false
+      clearExisting = false,
+      // CAP-06 新增：图标集 / Top-N / 重复值 / 公式 / 文字包含
+      iconSet,
+      iconThresholds,
+      topBottom,
+      topRank,
+      topPercent,
+      containsText
     } = params || {};
 
     if (!address) throw new Error("缺少 address 参数");
@@ -2122,9 +2255,114 @@
         const c2 = hexToExcelColor(colorScaleMax);
         if (c2 !== null) cs.ColorScaleCriteria.Item(2).FormatColor.Color = c2;
       }
+    } else if (ruleType === "icon_set") {
+      // CAP-06：红黄绿灯这类"业务信号"是最常见的报表诉求。
+      // 真机探测：宿主有 AddIconSetCondition（AddTextString 不存在，文字规则走公式规则）。
+      const ICON_SET_CODES = {
+        "3_arrows": 1, "3_arrows_gray": 2, "3_flags": 3,
+        "3_traffic_lights": 4, "3_traffic_lights_rimmed": 5,
+        "3_signs": 6, "3_symbols": 7, "3_symbols_circled": 8,
+        "4_arrows": 9, "4_arrows_gray": 10, "4_red_to_black": 11,
+        "4_ratings": 12, "4_traffic_lights": 13,
+        "5_arrows": 14, "5_arrows_gray": 15, "5_quarters": 16,
+        "5_ratings": 17, "5_boxes": 18
+      };
+      const iconSetName = iconSet || "3_traffic_lights";
+      const code = ICON_SET_CODES[iconSetName];
+      if (code === undefined) {
+        throw new Error(`不支持的 iconSet: ${iconSetName}（可用: ${Object.keys(ICON_SET_CODES).join(" / ")}）`);
+      }
+      const icons = range.FormatConditions.AddIconSetCondition();
+      icons.IconSet = app.IconSets ? app.IconSets.Item(code) : code;
+      // 阈值：不给就用宿主默认；给了就逐档设置（最多 5 档）
+      if (Array.isArray(iconThresholds) && iconThresholds.length > 0) {
+        for (let i = 0; i < Math.min(iconThresholds.length, 5); i++) {
+          const spec = iconThresholds[i];
+          const crit = icons.IconCriteria.Item(i + 2); // 第 1 档是"最低值"，从第 2 档开始可设阈值
+          if (spec && typeof spec === "object") {
+            if (spec.type !== undefined) crit.Type = Number(spec.type);
+            if (spec.operator !== undefined) crit.Operator = Number(spec.operator);
+            if (spec.value !== undefined) crit.Value = spec.value;
+          } else if (spec !== undefined && spec !== null) {
+            crit.Value = spec;
+          }
+        }
+      }
+      if (backgroundColor) {
+        const bgc = hexToExcelColor(backgroundColor);
+        if (bgc !== null) icons.Interior.Color = bgc;
+      }
+    } else if (ruleType === "top10") {
+      // CAP-06：Top/Bottom N 或百分比
+      const top = range.FormatConditions.AddTop10();
+      if (topBottom !== undefined) top.TopBottom = Number(topBottom);   // 1=xlTop 2=xlBottom
+      if (topRank !== undefined) top.Rank = Number(topRank);
+      if (topPercent !== undefined) top.Percent = topPercent ? -1 : 0;
+      if (backgroundColor) {
+        const bgc = hexToExcelColor(backgroundColor);
+        if (bgc !== null) top.Interior.Color = bgc;
+      }
+      if (fontColor) {
+        const fgc = hexToExcelColor(fontColor);
+        if (fgc !== null) top.Font.Color = fgc;
+      }
+    } else if (ruleType === "duplicate_values" || ruleType === "unique_values") {
+      // CAP-06：重复值/唯一值高亮（对账、查重最常用）
+      const dv = range.FormatConditions.AddUniqueValues();
+      dv.DupeUnique = ruleType === "duplicate_values" ? 1 : 2; // 1=xlDuplicate 2=xlUnique
+      if (backgroundColor) {
+        const bgc = hexToExcelColor(backgroundColor);
+        if (bgc !== null) dv.Interior.Color = bgc;
+      }
+      if (fontColor) {
+        const fgc = hexToExcelColor(fontColor);
+        if (fgc !== null) dv.Font.Color = fgc;
+      }
+    } else if (ruleType === "formula" || ruleType === "text_contains") {
+      // CAP-06：公式规则（xlExpression=2）。文字包含没有独立宿主方法（真机确认 AddTextString 不存在），
+      // 用标准的 SEARCH 公式实现——这也是业务上更通用的做法。
+      let expr = formula1;
+      if (ruleType === "text_contains") {
+        if (!containsText) throw new Error("text_contains 规则必须提供 containsText");
+        const anchor = String(address).split(":")[0];
+        expr = `=ISNUMBER(SEARCH("${String(containsText).replace(/"/g, '""')}",${anchor}))`;
+      }
+      if (!expr) throw new Error("formula 规则必须提供 formula1（如 '=A1>100'）");
+      const fx = range.FormatConditions.Add(2, 0, String(expr)); // 2=xlExpression, 0=xlNone
+      if (backgroundColor) {
+        const bgc = hexToExcelColor(backgroundColor);
+        if (bgc !== null) fx.Interior.Color = bgc;
+      }
+      if (fontColor) {
+        const fgc = hexToExcelColor(fontColor);
+        if (fgc !== null) fx.Font.Color = fgc;
+      }
+    } else if (ruleType === "clear") {
+      range.FormatConditions.Delete();
     } else {
-      throw new Error(`未知的条件格式类型: ${ruleType} (支持 cell_value, data_bar, color_scale)`);
+      throw new Error(
+        `未知的条件格式类型: ${ruleType}（支持 cell_value, data_bar, color_scale, icon_set, ` +
+        `top10, duplicate_values, unique_values, formula, text_contains, clear）`
+      );
     }
+
+    // 读回核对：条件格式是"只写不读"的重灾区，写完必须能确认到底加了几条
+    let appliedCount = null;
+    const conditions = [];
+    try {
+      const fc = range.FormatConditions;
+      appliedCount = Number(fc.Count);
+      for (let i = 1; i <= Math.min(appliedCount, 20); i++) {
+        const rule = fc.Item(i);
+        conditions.push({
+          index: i,
+          type: Number(safeRead(() => rule.Type, null)),
+          enabled: safeRead(() => Boolean(rule.Enabled), null),
+          priority: safeRead(() => Number(rule.Priority), null),
+          formula1: safeRead(() => (rule.Formula1 === undefined ? null : String(rule.Formula1)), null)
+        });
+      }
+    } catch (e) {}
 
     return {
       success: true,
@@ -2132,7 +2370,9 @@
       sheetName: sheet.Name,
       address: range.Address(),
       ruleType: ruleType,
-      message: `已成功在 ${range.Address()} 应用 ${ruleType} 条件格式`
+      appliedConditionCount: appliedCount,
+      conditions,
+      message: `已成功在 ${range.Address()} 应用 ${ruleType} 条件格式${appliedCount === null ? "" : `（该区域现有 ${appliedCount} 条规则）`}`
     };
   }
 

@@ -173,6 +173,34 @@ export const getStyleToken: Handler = async (ctx) => {
     });
 };
 
+/** CAP-03 单元格内局部格式（富文本）。字段必须逐个转发——漏一个就等于该参数静默无效。 */
+export const formatTextSegment: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    if (!args?.address) throw new Error("缺少必要参数: address");
+    if (args?.find === undefined && args?.start === undefined) {
+      throw new Error("需要提供 find（按文本定位，可配 occurrence）或 start（1 基起始位置，可配 length）");
+    }
+    if (args?.bold === undefined && args?.italic === undefined && args?.underline === undefined &&
+        args?.fontColor === undefined && args?.fontSize === undefined && args?.fontName === undefined) {
+      throw new Error("至少要给出一项格式：bold / italic / underline / fontColor / fontSize / fontName");
+    }
+    return await callOffice("format_text_segment", {
+      sheetName: args?.sheetName,
+      workbookName: args?.workbookName,
+      address: args?.address,
+      find: args?.find,
+      occurrence: args?.occurrence,
+      start: args?.start,
+      length: args?.length,
+      bold: args?.bold,
+      italic: args?.italic,
+      underline: args?.underline,
+      fontColor: args?.fontColor,
+      fontSize: args?.fontSize,
+      fontName: args?.fontName
+    });
+};
+
 export const clearRange: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     if (!args?.address) throw new Error("缺少必要参数: address");
@@ -328,7 +356,14 @@ export const addConditionalFormatting: Handler = async (ctx) => {
       color: bColor,
       colorScaleMin: args?.colorScaleMin,
       colorScaleMax: args?.colorScaleMax,
-      clearExisting: args?.clearExisting
+      clearExisting: args?.clearExisting,
+      // CAP-06：图标集 / Top-N / 重复值 / 公式 / 文字包含的参数必须逐个转发
+      iconSet: args?.iconSet,
+      iconThresholds: args?.iconThresholds,
+      topBottom: args?.topBottom,
+      topRank: args?.topRank,
+      topPercent: args?.topPercent,
+      containsText: args?.containsText
     });
     const record = recordWrite(ctx, {
       actionType: "conditional_format",
