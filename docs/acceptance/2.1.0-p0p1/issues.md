@@ -32,8 +32,8 @@
 | 编号 | 标题 | 严重度 | 状态 | 归属 |
 |---|---|---|---|---|
 | ISS-01 | `excel_patch_cells` 混用 `values`+`formulas` 会静默清空数据 | **高** | **已修已验证** | 宿主实现 + 工具说明 |
-| ISS-02 | `wps_get_workspace_summary` 的 `hasOpenWorkbook` 与真实打开状态不符 | **高** | 待修 | 目标锁语义 + 工具说明 |
-| ISS-03 | 参数约定不一致：多数 excel 工具要 `host`/`sheetName`，个别不要 | 中 | 待修 | 工具契约 |
+| ISS-02 | `wps_get_workspace_summary` 的 `hasOpenWorkbook` 与真实打开状态不符 | **高** | **已修待验**（桥接侧，静态验证） | 目标锁语义 + 工具说明 |
+| ISS-03 | 参数约定不一致：多数 excel 工具要 `host`/`sheetName`，个别不要 | 中 | **已修待验**（桥接侧，静态验证） | 工具契约 |
 | ISS-04 | 已交付包内 `taskpane.html` 仍显示"42 项能力已就绪" | 中 | 源码已修、**包未重打** | 发布物 |
 | ISS-05 | 能力文案检查漏掉加载项页面（扫描范围 + 模式双重漏网） | 中 | 已修已验证 | 检查脚本 |
 | ISS-06 | P3.2/P3.3 加载项等价性证据（acorn 多重集、diff、20 条 RPC 序列）无留档 | 中 | **已修已验证**（三项重跑，数字全部对上） | 验收证据 |
@@ -74,21 +74,21 @@
 | ISS-41 | `freeze_panes` 的 `freezeColumnIndex` 错位 | **高** | **结论存疑，待实测** | 宿主实现 |
 | ISS-42 |  `format_cells` 的 `merge` 失败被吞仍返回 success；`borders:'none'` 文档说可去边框但实现跳过 | 中 | **已修已验证**（merge 部分） | 宿主实现 + 说明 |
 | ISS-43 | `manage_cell_comments` 的 `author` 参数不生效 | 低中 | **已修待验** | 宿主实现 |
-| ISS-44 | 条件格式 / 数据验证 / 冻结窗格**没有读回工具**，只能靠脚本探测 | 中 | 待修 | 工具能力缺口 |
+| ISS-44 | 条件格式 / 数据验证 / 冻结窗格**没有读回工具**，只能靠脚本探测 | 中 | **部分完成**（Word/PPT 已做，表格侧待做） | 工具能力缺口 |
 | ISS-45 | `clear_range` 属 `declaredNotCallable`，清空只能写 `null` 矩阵，极易残留 | 中 | 待修 | 工具能力缺口 |
-| ISS-46 | 回滚的"后续修改"判定基于**内容相等**，重建的同内容数据会被旧 `auditId` **清空**（真实数据破坏） | **高** | 待修 | 回滚判定逻辑 |
+| ISS-46 | 回滚的"后续修改"判定基于**内容相等**，重建的同内容数据会被旧 `auditId` **清空**（真实数据破坏） | **高** | **已修待验**（桥接侧，静态验证） | 回滚判定逻辑 |
 | ISS-47 |  回滚文案未说明范围，被误读为"整表还原"（**原判"样式未恢复=缺陷"经复核不成立**，见下） | 中 | **已修已验证** | 回滚文案 |
-| ISS-48 | 格式/条件格式/冻结/行列/图表类工具**不返回 auditId**，完全不可回滚且说明未写 | 中高 | 待修 | 审计覆盖 |
-| ISS-49 | 两个不同的 MCP 客户端在审计里都记成 `MCP Agent`，**无法区分归属** | 中高 | 待修 | 审计归属 |
-| ISS-50 | 后台未运行时错误不可操作（`fetch failed` / 原始 urlopen 错误，不给服务名/端口/恢复方式） | 中 | 待修 | 错误文案 |
-| ISS-51 | HTTP `/mcp` 会话硬上限 64 且**无空闲过期**，累积后 429，需手动 DELETE 释放 | 中 | 待修 | 会话生命周期 |
+| ISS-48 | 格式/条件格式/冻结/行列/图表类工具**不返回 auditId**，完全不可回滚且说明未写 | 中高 | **已修待验**（桥接侧，静态验证） | 审计覆盖 |
+| ISS-49 | 两个不同的 MCP 客户端在审计里都记成 `MCP Agent`，**无法区分归属** | 中高 | **已修待验**（桥接侧，静态验证） | 审计归属 |
+| ISS-50 | 后台未运行时错误不可操作（`fetch failed` / 原始 urlopen 错误，不给服务名/端口/恢复方式） | 中 | **已修待验**（桥接侧，静态验证） | 错误文案 |
+| ISS-51 | HTTP `/mcp` 会话硬上限 64 且**无空闲过期**，累积后 429，需手动 DELETE 释放 | 中 | **已修待验**（桥接侧，静态验证） | 会话生命周期 |
 | ISS-52 | `SKILL.md` 称脚本里 `doc`"已自动绑定"，实测 Excel 场景 `doc` 为 `null`，须用 `wb` | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-53 | `generate_deck` 标题页背景**超框 33%**（1280×720 / 960×540），根因待干净实验 | 中高 | **现象确认，根因待定** | 宿主实现 |
 | ISS-54 |  `generate_deck` 的 `content` 布局缺 `bulletPoints` 时**静默只出标题**，无警告 | 中高 | **已修已验证** | 宿主实现 |
-| ISS-55 | `generate_deck` 坐标基准与说明不符，调用方被迫自己再换算一次 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-55 | `generate_deck` 坐标基准与说明不符，调用方被迫自己再换算一次 | 中 | **已修已验证**（文档类） | 宿主实现 + 说明 |
 | ISS-56 | `wps_execute_script` 返回值**嵌套超过两层就丢属性**（变 undefined 且不报错） | 中 | 待修 | 脚本返回值序列化 |
-| ISS-57 | `wps_word_page_layout_and_watermark` 不接 `pageNumberFormat`（422），页码只能退回脚本插域 | 中高 | 待修 | 宿主实现 + 说明 |
-| ISS-58 | 专用水印只落在**正文层第 1 页**，跨页水印需自行改页眉层 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-57 | `wps_word_page_layout_and_watermark` 不接 `pageNumberFormat`（422），页码只能退回脚本插域 | 中高 | **已修待验** | 宿主实现 + 说明 |
+| ISS-58 | 专用水印只落在**正文层第 1 页**，跨页水印需自行改页眉层 | 中 | **不修**（WPS 宿主不支持跨页页眉水印，已如实告警） | 宿主实现 + 说明 |
 | ISS-59 | **磁盘上是新构建、WPS 进程里跑的是旧构建**：部署后不重载，且没有任何指纹能判断"运行中的是哪一版" | **高（方法学）** | 待修 | 部署流程 + 版本可观测性 |
 | ISS-60 | 行隐藏 `hide` 返回 success 但没生效（`Range("5:6").Hidden=true` 静默 no-op） | **高** | **已修已验证** | 宿主实现 |
 | ISS-61 | 批注 `author` 无效：宿主 `Comment.Author` 恒为 jolin，返回体里的 author 是**入参回显冒充读回** | 中 | **已修待验** | 宿主实现 |
@@ -103,39 +103,39 @@
 | ISS-70 | `write_content` 的 `location:"bookmark"` 没插到书签处，还污染了另一个书签范围 | 中 | **已修待验** | 宿主实现 |
 | ISS-71 | `wps_word_capture_preview` **已实现但未注册**（调用报"未知工具"），Word 视觉验收有缺口 | 中 | **部分完成**（skill 文档已如实说明不可用；工具注册待做） | 死分支（DP3 实例） |
 | ISS-72 | `page_layout_and_watermark` 的 header/footer/watermark **只作用于第 1 节**且不提示 | 中 | **已修待验** | 宿主实现 + 说明 |
-| ISS-73 | Word 侧无样式/书签/内容控件/交叉引用/分节/行列尺寸/文档属性工具，全需脚本 | 中 | 待修 | 工具能力缺口 |
+| ISS-73 | Word 侧无样式/书签/内容控件/交叉引用/分节/行列尺寸/文档属性工具，全需脚本 | 中 | **部分完成**（读回已加，工具化待做） | 工具能力缺口 |
 | ISS-74 | `native-scripting.md` 只有 Excel/PPT 示例，Word 表格/分节/样式零示例 | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-75 | `generate_deck` **原生图表数据写不进去**：`ser.Values=` 不生效也不抛错，图表显示宿主默认值，却返回 success | **高** | **已修待验** | 宿主实现 |
-| ISS-76 | `wps_ppt_capture_slide_preview` 恒 422"PPT 未生成预览"，但同一 API 用脚本可成功 → **真实错误被兜底文案替换** | 中高 | 待修 | 宿主实现 |
-| ISS-77 | **目标锁语义不一致**：宿主 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测 | **高** | 待修 | 架构不一致（解释 ISS-02） |
-| ISS-78 | PPT 无「新建/保存」工具；追加型工具**不幂等**且说明未写 | 中 | 待修 | 工具能力缺口 + 说明 |
+| ISS-76 | `wps_ppt_capture_slide_preview` 恒 422"PPT 未生成预览"，但同一 API 用脚本可成功 → **真实错误被兜底文案替换** | 中高 | **已修待验** | 宿主实现 |
+| ISS-77 | **目标锁语义不一致**：宿主 `lockedTargets` 是加载项**进程级全局**，网关 `TargetLockStore` 是 `sessionId:host` 级 → 不传目标时行为不可预测 | **高** | **已修待验**（桥接侧，静态验证） | 架构不一致（解释 ISS-02） |
+| ISS-78 | PPT 无「新建/保存」工具；追加型工具**不幂等**且说明未写 | 中 | **已修待验** | 工具能力缺口 + 说明 |
 | ISS-79 | 越界页码报宿主内部 JS 错误（`Cannot read properties of null (reading 'Delete')`），缺中文上下文 | 低 | **已修待验** | 错误文案 |
 | ISS-80 | `insert_native_chart` **100% 失败**且文案误导：`AddChart/AddChart2/AddOLEObject` 都是 function 但返回 `null`、不建形状，报的却是"数据配置未完成" | **高** | **已修待验** | 宿主实现 |
 | ISS-81 | `generate_deck` 的 chart 布局同样失败，且**已插入的页不回滚**，留半成品 | 中高 | **已修待验** | 宿主实现 |
 | ISS-82 | `layoutIndex` 实为 **ppLayout 枚举**而非版式序号，越界（12）不报错 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-83 | `manage_table` 的 enum 里有 `set_table_data`，**宿主没有该操作** → 报"未知的表格操作" | 中 | **已修已验证**（契约快照已复核） | 契约漂移 |
 | ISS-84 | `set_table_data` 的 `data` 含数字就报 `arguments.data[1][2]: 类型不正确` | 中 | **已修已验证**（契约快照已复核） | 工具契约 |
-| ISS-85 | **PPT 无保存工具**（`wps_ppt_save_presentation` → 未知工具） | 中高 | 待修 | 工具能力缺口 |
-| ISS-86 | `capture_slide_preview` 吞掉 addon 原始返回、且不允许传 `outputPath` | 中 | 待修 | 宿主实现 |
+| ISS-85 | **PPT 无保存工具**（`wps_ppt_save_presentation` → 未知工具） | 中高 | **已修待验** | 工具能力缺口 |
+| ISS-86 | `capture_slide_preview` 吞掉 addon 原始返回、且不允许传 `outputPath` | 中 | **已修待验** | 宿主实现 |
 | ISS-87 | **`set_background` 会串改全部页**（受控复现：设第 1 页后第 2 页也变红） | **高** | **已修待验** | 宿主实现 |
 | ISS-89 | 深度属性反射会让 **WPS 进程崩溃**（3 次崩溃报告，2 次栈指向 jsetapi→etcore） | **高** | 待修 | 宿主 API 安全性 + 工具护栏 |
-| ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | 待修 | 可观测性 |
+| ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | **已修待验**（桥接侧，静态验证） | 可观测性 |
 | ISS-91 | 读操作被别名到写函数（`list_conditional_formats` → 新增条件格式）；**但该 RPC 无工具暴露，不可达，属潜在风险** | **中（潜在）** | **已修·静态验证** | Office.js 路由 |
 | ISS-92 | 批注 `action: "clear_all"` 静默成功（宿主不支持该 action）；`list_comments` 别名到默认 add | **高** | **已修已验证**（MS 实机） | Office.js 路由 + 处理函数 |
 | ISS-93 | `normalizer.ts` 只适配 14 个方法，**12 个 `excel_*` 在 host=microsoft 参数错位**；21 个 Word/PPT 工具在该宿主是死路 | **高** | **已修已验证**（MS 实机 10/10） | 跨宿主适配 |
 | ISS-94 | **C 类·只写不读共 7 项**：条件格式、冻结窗格、数据有效性、筛选状态、工作表保护/标签色、Word 页眉页脚/水印、透视表 | 中高 | 待修 | 工具能力缺口 |
 | ISS-95 | **B 类·宿主能做但没暴露**：清空区域 / 读原表设计语言 / Word 页面预览（**3 条零成本死分支**）＋超链接、命名区域、文档属性、区域复制、图片形状、结构化表格 | 中高 | 待修 | 工具能力缺口 |
 | ISS-96 | Office.js 的 `capture_sheet_preview` 是**伪渲染**：无图表时用 Canvas 按 `cellW=110/rowH=28` 硬编码合成假图 → **AI 视觉自检会得出与真实文件不符的结论** | **高** | **已修已验证**（MS 实机） | 证据可信度 |
-| ISS-97 | adapter 把整张 `EXCEL_METHODS`(30) 当 COM 回退白名单，而 COM 实际只覆盖 28/30 → **白名单过度声明** | 中高 | 待修 | 回退策略 |
+| ISS-97 | adapter 把整张 `EXCEL_METHODS`(30) 当 COM 回退白名单，而 COM 实际只覆盖 28/30 → **白名单过度声明** | 中高 | **已修待验**（桥接侧，静态验证） | 回退策略 |
 | ISS-98 | `excel_find_and_replace`（host=microsoft）字段名错位 → `text=""` → 每个非空单元格都命中并 `replaceAll("")`，**可能破坏内容** | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | 跨宿主契约 |
-| ISS-99 | **响应转换丢字段**：`office/normalizer.ts` 的白名单把加载项新返回的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied`（capture 的 `kind`/`renderedBy`）丢掉 → "哪些参数没生效"的如实提示到不了调用方 | 中高 | 待修 | 响应转换 |
+| ISS-99 | **响应转换丢字段**：`office/normalizer.ts` 的白名单把加载项新返回的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied`（capture 的 `kind`/`renderedBy`）丢掉 → "哪些参数没生效"的如实提示到不了调用方 | 中高 | **已修待验**（桥接侧，静态验证） | 响应转换 |
 | ISS-100 | MS 侧行列插入"**执行成功却返回失败**"（裸读未 load 的 `sheet.name`） | 中 | 已修（MS 侧） | 宿主实现 |
 | ISS-101 | MS 侧 ISS-96 的报错被"属性 name 不可用"盖掉（`load` 排在 `sync` 之后） | 中 | 已修（MS 侧） | 宿主实现 |
 | ISS-102 | MS 侧 `dataRanges` **多段实际只生效 1 段**（`setData` 是替换不是追加） | 中 | 已修（改为只取首段 + 如实 warnings） | 宿主实现 |
 | ISS-103 | `Range.Format` 在本机 WPS **不存在**（undefined）→ `write_content` 的 alignment / 行距 / 缩进**一直在静默失败** | **高** | 已修（改用 `Range.ParagraphFormat`） | 宿主实现 |
 | ISS-104 | WPS 的 `Headers.Item(1).Shapes.AddTextEffect` **静默把形状加到正文层**（header.Shapes.Count 恒 0）→ 跨页页眉水印**在 WPS 上无法实现**（宿主限制，已如实告警） | 中 | 不修（宿主不支持，已记录） | 宿主限制 |
-| ISS-105 | 网关 `ppt.ts:154` 用 `res?.error \|\| "PPT 未生成预览"` **覆盖掉宿主真实错误** | 中高 | 待修 | 响应转换 |
-| ISS-106 | 网关 `ppt.ts` 的 manageSlides **未转发 `filePath`/`format`**，schema 里的字段到不了宿主 | 中 | 待修 | 参数转发 |
+| ISS-105 | 网关 `ppt.ts:154` 用 `res?.error \|\| "PPT 未生成预览"` **覆盖掉宿主真实错误** | 中高 | **已修待验** | 响应转换 |
+| ISS-106 | 网关 `ppt.ts` 的 manageSlides **未转发 `filePath`/`format`**，schema 里的字段到不了宿主 | 中 | **已修待验** | 参数转发 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。

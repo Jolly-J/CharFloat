@@ -42,14 +42,18 @@ export const generateDeck: Handler = async (ctx) => {
 
 export const manageSlides: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
-    if (!args?.action) throw new Error("缺少必要参数: action ('add'|'delete'|'move'|'duplicate'|'set_background')");
+    if (!args?.action) throw new Error("缺少必要参数: action ('add'|'delete'|'move'|'duplicate'|'set_background'|'save'|'save_as'|'new_presentation')");
+    // ISS-106：`filePath` / `format` 原来没转发——schema 里声明了却到不了宿主，
+    // save_as 只能落到宿主默认路径、format 完全不生效。
     return await callOffice("ppt_manage_slides", {
       presentationName: args?.presentationName,
       action: args?.action,
       slideIndex: args?.slideIndex,
       targetIndex: args?.targetIndex,
       layoutIndex: args?.layoutIndex,
-      backgroundColor: args?.backgroundColor
+      backgroundColor: args?.backgroundColor,
+      filePath: args?.filePath,
+      format: args?.format
     });
 };
 
@@ -151,6 +155,26 @@ export const captureSlidePreview: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     const outputPath = previewPath('png');
     const res: any = await callOffice("ppt_capture_slide_preview", { presentationName: args?.presentationName, slideIndex: args?.slideIndex, outputPath });
-    if (!res?.success || !fs.existsSync(outputPath)) throw new Error(res?.error || 'PPT 未生成预览');
+    // ISS-105/76/86：原来这里用 `res?.error || 'PPT 未生成预览'` 兜底，把宿主回传的真实错误
+    // （`hostError` / 两次导出尝试的失败原因）盖成一句无信息量的话，调用方无从排查。
+    // 现在优先透传宿主原始信息，并带上桥接侧观察到的事实（返回体、目标路径、文件是否存在）。
+    if (!res?.success || !fs.existsSync(outputPath)) {
+      const hostDetail = res?.hostError || res?.error;
+      // 宿主的 attempts 是对象数组（{path, scale, ok, hostError}），按字符串 join 会打成 [object Object]
+      const attempts = Array.isArray(res?.attempts) && res.attempts.length
+        ? `；宿主尝试：${(res.attempts as any[])
+            .map((a: any) => typeof a === "string"
+              ? a
+              : `${a.path ?? "?"}（${a.scale ?? "-"}）${a.ok ? "成功" : "失败"}${a.hostError ? `：${a.hostError}` : ""}`)
+            .join(" | ")}`
+        : "";
+      const exported = Array.isArray(res?.exportedPaths) && res.exportedPaths.length
+        ? `；宿主实际导出到：${res.exportedPaths.join(" | ")}`
+        : "";
+      throw new Error(
+        `PPT 未生成预览：${hostDetail || "宿主返回 success 但目标文件不存在（未给出原因）"}` +
+        `${attempts}${exported}。桥接期望的路径：${outputPath}（${fs.existsSync(outputPath) ? "已存在" : "不存在"}）。`
+      );
+    }
     return { ...res, imageBase64: fs.readFileSync(outputPath).toString('base64'), imageMimeType: 'image/png' };
 };

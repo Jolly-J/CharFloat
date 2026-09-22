@@ -11,18 +11,56 @@ import { createMcpServer } from './mcp-server.js';
 import { requestContext } from './context.js';
 import { VERSION, PROTOCOL, runtimePort, runtimeHttpsPort, getOrGenerateCerts, getToken, validToken, resourcePath, appendServiceLog } from './runtime.js';
 import { BridgeError } from './errors.js';
+import { collectBuildFingerprints, reportedVersionStatus } from './build-fingerprint.js';
 import type { ToolService } from './contracts/tool-service.js';
 import type { ChannelParams, ToolResult } from './contracts/boundary.js';
 import type { SelectionInfo } from './types.js';
 
-export interface ComponentStatus { connected: boolean; activeDocument?: string; activeSheet?: string; version?: string; lastHeartbeat?: number; summary?: any }
+/** 组件掉线记录（ISS-90）：区分"正常关闭"与"疑似崩溃/被强制结束"。 */
+export interface ComponentDisconnect {
+  at: number;
+  code: number;
+  /** 判定依据：被新连接替换 / 正常关闭 / 心跳超时 / 异常断开。 */
+  kind: 'replaced' | 'clean-close' | 'heartbeat-timeout' | 'abnormal-close';
+  reason: string;
+  suspectCrash: boolean;
+  reportedVersion?: string;
+  activeDocument?: string;
+  guidance: string;
+}
+
+export interface ComponentStatus {
+  connected: boolean;
+  activeDocument?: string;
+  activeSheet?: string;
+  version?: string;
+  lastHeartbeat?: number;
+  summary?: any;
+  /** 本次连接建立（加载项 register）的时刻。 */
+  connectedAt?: number;
+  /** 最后一次掉线记录；`suspectCrash` 为真表示没收到正常关闭握手（ISS-90）。 */
+  lastDisconnect?: ComponentDisconnect;
+}
 export interface BridgeState {
   isWpsConnected: boolean;
   isMsOfficeConnected?: boolean;
   components: { word: ComponentStatus; excel: ComponentStatus; ppt: ComponentStatus; msExcel?: ComponentStatus; msWord?: ComponentStatus; msPpt?: ComponentStatus };
   activeWorkbook?: string; activeSheet?: string; activeDocument?: string; activePresentation?: string;
   currentSelection?: SelectionInfo | null; wpsClientVersion?: string; addonNeedsUpgrade?: boolean; lastUpdated: number;
+  /** MCP 会话运行时状态（ISS-51）：上限、空闲回收阈值、已回收数量。 */
+  mcpSessions?: { active: number; limit: number; idleTimeoutMs: number; recycledTotal: number };
+  /** 疑似宿主崩溃汇总（ISS-90）：最近一次非正常掉线的组件与恢复指引。 */
+  suspectedHostCrash?: { component: string; at: number; kind: ComponentDisconnect['kind']; guidance: string; reportedVersion?: string } | null;
+  /** 构建指纹（ISS-59）：磁盘/部署副本的构建身份，用于回答"运行中的是哪一版"。 */
+  build?: unknown;
 }
+
+const CRASH_GUIDANCE =
+  '疑似宿主崩溃或窗口被强制结束（未收到正常关闭握手）。恢复顺序：' +
+  '① 重新打开 WPS/Excel；② 确认加载项已连接（bridge_diagnose 或 /api/v1/status 的 components）；' +
+  '③ 未自动恢复时在宿主里重新加载加载项（WPS：功能区【重新连接】；Excel：重新打开任务窗格）；' +
+  '④ 仍失败则重新部署加载项（npm run setup -- --addon）并核对 build 指纹；' +
+  '⑤ 反复崩溃请先检查系统崩溃报告与 service.log，不要直接重放上次的写入。';
 
 async function readBody(req: http.IncomingMessage) {
   let size = 0; const chunks: Buffer[] = [];
@@ -58,9 +96,43 @@ export class WpsBridgeServer {
   private sse = new Map<string, SSEServerTransport>();
   private listeners = new Set<(s: BridgeState) => void>();
   private heartbeat?: NodeJS.Timeout;
-  private state: BridgeState = { isWpsConnected: false, isMsOfficeConnected: false, components: { word: { connected: false }, excel: { connected: false }, ppt: { connected: false }, msExcel: { connected: false } }, lastUpdated: Date.now() };
+  /**
+   * MCP 会话空闲回收（ISS-51）。
+   *
+   * 原实现：`/mcp` 会话硬上限 64 且**永不回收**，一次性会话累积后 initialize 直接 429，
+   * 只能手动 `DELETE /mcp` 释放。现在记录每个会话的最后活动时间，定期关闭空闲会话。
+   * 阈值与上限可用环境变量调整（`WPS_BRIDGE_MCP_IDLE_MS` / `WPS_BRIDGE_MCP_MAX_SESSIONS`）。
+   */
+  private sessionLastUsed = new Map<string, number>();
+  private sessionReaper?: NodeJS.Timeout;
+  private recycledSessions = 0;
+  private readonly mcpSessionLimit = Number(process.env.WPS_BRIDGE_MCP_MAX_SESSIONS || 64);
+  private readonly mcpSessionIdleMs = Number(process.env.WPS_BRIDGE_MCP_IDLE_MS || 15 * 60 * 1000);
+  private state: BridgeState = { isWpsConnected: false, isMsOfficeConnected: false, components: { word: { connected: false }, excel: { connected: false }, ppt: { connected: false }, msExcel: { connected: false } }, lastUpdated: Date.now(), suspectedHostCrash: null };
   private toolService?: ToolService;
   constructor(private port = runtimePort(), private httpsPort = runtimeHttpsPort()) {}
+  /** 刷新会话的"最后活动时间"（任何一次带 Mcp-Session-Id 的请求都算活动）。 */
+  private touchSession(id?: string | null) {
+    if (id && this.sessions.has(id)) this.sessionLastUsed.set(id, Date.now());
+  }
+  /** 关闭超过空闲阈值的 MCP 会话；返回本次回收数量。 */
+  private sweepIdleSessions(now = Date.now()): number {
+    let recycled = 0;
+    for (const [id, transport] of [...this.sessions]) {
+      const lastUsed = this.sessionLastUsed.get(id) ?? now;
+      if (now - lastUsed < this.mcpSessionIdleMs) continue;
+      this.sessionLastUsed.delete(id);
+      this.sessions.delete(id);
+      recycled += 1;
+      this.recycledSessions += 1;
+      try { void transport.close(); } catch { /* 会话已关闭 */ }
+      appendServiceLog('WsServer', `MCP 会话空闲回收: ${id}（空闲超过 ${Math.round(this.mcpSessionIdleMs / 1000)}s）`);
+    }
+    return recycled;
+  }
+  private mcpSessionStats() {
+    return { active: this.sessions.size, limit: this.mcpSessionLimit, idleTimeoutMs: this.mcpSessionIdleMs, recycledTotal: this.recycledSessions };
+  }
   async start() {
     getToken(true);
     this.server = http.createServer((req, res) => { this.handleHttp(req, res).catch(error => {
@@ -121,10 +193,17 @@ export class WpsBridgeServer {
 
     this.heartbeat = setInterval(() => {
       for (const ws of this.wss!.clients) {
-        if ((ws as any).alive === false) { ws.terminate(); continue; }
+        if ((ws as any).alive === false) {
+          // 心跳无响应：多半是宿主进程异常（崩溃/卡死），先记原因再终止（ISS-90）。
+          (ws as any).terminationReason = 'heartbeat-timeout';
+          ws.terminate();
+          continue;
+        }
         (ws as any).alive = false; ws.ping();
       }
     }, 15000);
+    // 空闲会话回收：默认每分钟扫一次（阈值很小时按 1/4 阈值、最多 1 秒粒度）（ISS-51）。
+    this.sessionReaper = setInterval(() => { this.sweepIdleSessions(); }, Math.min(60_000, Math.max(1_000, Math.floor(this.mcpSessionIdleMs / 4))));
     console.error(`[Bridge] ${VERSION} listening on 127.0.0.1:${this.port}`);
   }
 
@@ -182,19 +261,43 @@ export class WpsBridgeServer {
       if (req.method === 'POST') {
         const body = await readBody(req);
         let transport = id ? this.sessions.get(id) : undefined;
-        if (id && !transport) return json({ error: '会话已过期，请重新初始化' }, 404);
+        if (id && !transport) return json({ error: '会话已过期，请重新初始化', mcpSessions: this.mcpSessionStats() }, 404);
         if (!transport) {
           if (body.method !== 'initialize') return json({ error: '请先初始化 MCP 会话' }, 400);
-          if (this.sessions.size >= 64) return json({ error: '会话数量达到上限' }, 429);
+          // 回收一次空闲会话再判断上限：客户端退出却没 DELETE 是常态（ISS-51）。
+          this.sweepIdleSessions();
+          if (this.sessions.size >= this.mcpSessionLimit) {
+            return json({
+              error: `MCP 会话数量达到上限（${this.mcpSessionLimit}）`,
+              active: this.sessions.size,
+              limit: this.mcpSessionLimit,
+              idleTimeoutMs: this.mcpSessionIdleMs,
+              release: [
+                `空闲超过 ${Math.round(this.mcpSessionIdleMs / 1000)} 秒的会话会被自动回收（可用 WPS_BRIDGE_MCP_IDLE_MS 调整）`,
+                '也可立即释放：对本地址发起 DELETE /mcp 并带上 Mcp-Session-Id 头（MCP 客户端的 terminateSession 即此请求）',
+                `上限可用 WPS_BRIDGE_MCP_MAX_SESSIONS 调整（当前 ${this.mcpSessionLimit}）`,
+                '重启后台会释放全部会话（npx office-agent-bridge --stop 后 --start）'
+              ],
+              hint: '最常见原因：客户端异常退出没发 DELETE。等待空闲回收即可，无需重启宿主办公软件。'
+            }, 429);
+          }
           const server = createMcpServer(this.tools());
-          transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID(), onsessioninitialized: sid => { this.sessions.set(sid, transport!); } });
-          transport.onclose = () => { if (transport?.sessionId) this.sessions.delete(transport.sessionId); void server.close(); };
+          transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => crypto.randomUUID(),
+            onsessioninitialized: sid => { this.sessions.set(sid, transport!); this.sessionLastUsed.set(sid, Date.now()); }
+          });
+          transport.onclose = () => {
+            if (transport?.sessionId) { this.sessions.delete(transport.sessionId); this.sessionLastUsed.delete(transport.sessionId); }
+            void server.close();
+          };
           await server.connect(transport);
         }
+        this.touchSession(id ?? transport.sessionId);
         await transport.handleRequest(req, res, body); return;
       }
       const transport = id ? this.sessions.get(id) : undefined;
-      if (!transport) return json({ error: '会话不存在' }, 404);
+      if (!transport) return json({ error: '会话不存在', mcpSessions: this.mcpSessionStats() }, 404);
+      this.touchSession(id);
       await transport.handleRequest(req, res); return;
     }
     if (url.pathname === '/sse' && req.method === 'GET') {
@@ -358,17 +461,27 @@ export class WpsBridgeServer {
             connected: true,
             version: clientVersion,
             lastHeartbeat: Date.now(),
+            connectedAt: Date.now(),
             activeDocument: summary.fullName || summary.workbookName || summary.documentName,
             activeSheet: summary.activeSheetName,
             summary
           };
           this.state.isMsOfficeConnected = true;
         } else {
-          this.state.components[key as 'excel'] = { connected: true, version: clientVersion, lastHeartbeat: Date.now(), activeDocument: summary.fullName || summary.workbookName || summary.documentName || summary.presentationName, activeSheet: summary.activeSheetName, summary };
+          const previousStatus = (this.state.components as any)[key] as ComponentStatus | undefined;
+          this.state.components[key as 'excel'] = {
+            connected: true, version: clientVersion, lastHeartbeat: Date.now(), connectedAt: Date.now(),
+            activeDocument: summary.fullName || summary.workbookName || summary.documentName || summary.presentationName,
+            activeSheet: summary.activeSheetName, summary,
+            // 保留上一次掉线记录：重连后仍可回答"刚才是崩溃还是正常关闭"（ISS-90）。
+            ...(previousStatus?.lastDisconnect ? { lastDisconnect: previousStatus.lastDisconnect } : {})
+          };
           if (key === 'excel') Object.assign(this.state, { activeWorkbook: summary.workbookName, activeSheet: summary.activeSheetName, currentSelection: summary.selection, wpsClientVersion: clientVersion });
           if (key === 'word') this.state.activeDocument = summary.documentName;
           if (key === 'ppt') this.state.activePresentation = summary.presentationName;
         }
+        // 该组件已重新连上：清掉指向它的"疑似崩溃"待处理信号（历史留在组件的 lastDisconnect 里）。
+        if (this.state.suspectedHostCrash?.component === key) this.state.suspectedHostCrash = null;
 
         if (clientVersion !== VERSION && !isMs) {
           try {
@@ -394,15 +507,43 @@ export class WpsBridgeServer {
         }
       }
     });
-    ws.on('close', () => {
+    ws.on('close', (code, reasonBuffer) => {
+      const reasonText = reasonBuffer?.toString?.('utf8') || '';
       for (const [key, current] of this.sockets) if (current === ws) {
+        const previous = (this.state.components as any)[key] as ComponentStatus | undefined;
         this.sockets.delete(key);
+        // 判定"正常退出"还是"疑似崩溃"（ISS-90）：
+        // - 被新连接替换（我们自己 close(1000,'replaced')）：正常，不算掉线；
+        // - 心跳超时被我们 terminate：宿主多半已经崩溃/卡死；
+        // - 1000/1001：对方主动正常关闭；
+        // - 1005/1006 等：没有正常关闭握手 → 疑似崩溃或窗口被强制结束。
+        const terminatedReason = (ws as any).terminationReason as string | undefined;
+        const replaced = reasonText === 'replaced' || (code === 1000 && reasonText === 'replaced');
+        const kind: ComponentDisconnect['kind'] = replaced ? 'replaced'
+          : terminatedReason === 'heartbeat-timeout' ? 'heartbeat-timeout'
+          : (code === 1000 || code === 1001) ? 'clean-close'
+          : 'abnormal-close';
+        const suspectCrash = kind === 'heartbeat-timeout' || kind === 'abnormal-close';
+        const disconnect: ComponentDisconnect = {
+          at: Date.now(),
+          code,
+          kind,
+          reason: reasonText || (code === 1006 ? '连接异常断开（无关闭帧）' : code === 1005 ? '连接关闭但未带状态码' : `关闭码 ${code}`),
+          suspectCrash,
+          reportedVersion: previous?.version,
+          activeDocument: previous?.activeDocument,
+          guidance: suspectCrash ? CRASH_GUIDANCE : '加载项主动断开（正常关闭）。重新打开对应组件即可恢复连接。'
+        };
         if (key.startsWith('ms-')) {
           const compKey = key === 'ms-excel' ? 'msExcel' : key === 'ms-word' ? 'msWord' : 'msPpt';
-          (this.state.components as any)[compKey] = { connected: false };
+          (this.state.components as any)[compKey] = { connected: false, lastDisconnect: disconnect };
         } else {
-          this.state.components[key as 'excel'] = { connected: false };
+          this.state.components[key as 'excel'] = { connected: false, lastDisconnect: disconnect };
           if (key === 'excel') { this.state.activeWorkbook = undefined; this.state.activeSheet = undefined; this.state.currentSelection = null; }
+        }
+        if (suspectCrash) {
+          this.state.suspectedHostCrash = { component: key, at: disconnect.at, kind, guidance: CRASH_GUIDANCE, reportedVersion: disconnect.reportedVersion };
+          appendServiceLog('WsServer', `疑似宿主崩溃信号: ${key} code=${code} kind=${kind} ${disconnect.reason}`);
         }
       }
       for (const [id, p] of this.pending) if (p.socket === ws) { clearTimeout(p.timer); p.reject(new BridgeError('unknown', '加载项断开，执行结果未知，请先读回确认', { channel: p.channel, method: p.method })); this.pending.delete(id); }
@@ -451,6 +592,14 @@ export class WpsBridgeServer {
     const copy = structuredClone(this.state);
     const hasOlder = Object.values(copy.components).some(c => c.connected && c.version && c.version !== VERSION);
     copy.addonNeedsUpgrade = hasOlder;
+    // ISS-59：把"连接上报的版本"与"当前桥接版本"的比对结果显式暴露出来，
+    // 并附上磁盘/部署副本的构建指纹（运行中的加载项是否等于该指纹无法证实，见 note）。
+    for (const status of Object.values(copy.components) as ComponentStatus[]) {
+      if (!status?.connected) continue;
+      (status as any).versionStatus = reportedVersionStatus(status.version);
+    }
+    copy.build = collectBuildFingerprints();
+    copy.mcpSessions = this.mcpSessionStats();
     return copy;
   }
   subscribeState(listener: (s: BridgeState) => void) { this.listeners.add(listener); listener(this.getState()); return () => this.listeners.delete(listener); }
@@ -462,10 +611,13 @@ export class WpsBridgeServer {
   }
   stop() {
     clearInterval(this.heartbeat);
+    clearInterval(this.sessionReaper);
     for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new BridgeError('unknown', 'Bridge 已停止，结果未知，请先读回确认', { channel: p.channel, method: p.method })); }
     this.pending.clear();
     for (const ws of this.wss?.clients || []) ws.terminate();
     for (const t of this.sessions.values()) void t.close();
+    this.sessions.clear();
+    this.sessionLastUsed.clear();
     for (const t of this.sse.values()) void t.close();
     this.wss?.close();
     this.server?.close();

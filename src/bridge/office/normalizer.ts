@@ -38,52 +38,19 @@ function msUnsupported(feature: string, alternative: string): Error {
   );
 }
 
-/** 数据有效性：把 schema 字段构造成 Office.js 的 `range.dataValidation.rule` 结构。 */
-function buildDataValidationRule(p: any): { rule?: any; auxiliaryFields: string[] } {
-  const auxiliaryFields: string[] = [];
-  if (Array.isArray(p?.unsupportedFields)) auxiliaryFields.push(...p.unsupportedFields);
-  for (const field of ['promptTitle', 'promptMessage', 'errorTitle', 'errorMessage']) {
-    if (p?.[field] !== undefined && p?.[field] !== null && p?.[field] !== '') auxiliaryFields.push(field);
-  }
-  const type = p?.validationType;
-  if (type === undefined || type === null || type === '') {
-    // 没有任何规则字段：原样透传（调用方未表达意图，加载项会因缺少 address 报错）。
-    return { rule: undefined, auxiliaryFields };
-  }
-  if (type === 'list') {
-    const items = Array.isArray(p.listItems) ? p.listItems.filter((i: any) => i !== undefined && i !== null && String(i) !== '') : [];
-    if (!items.length) throw msUnsupported('validationType="list" 且 listItems 为空的下拉校验', '请传入非空的 listItems 数组，或改用 host=wps。');
-    if (items.some((i: any) => String(i).includes(','))) throw msUnsupported('含英文逗号的列表项', 'Office.js 的内联列表以逗号分隔，请改用单元格区域来源或去掉列表项中的逗号。');
-    // Office.js 的内联列表来源是带引号的逗号分隔串（文档可证，未实机验收）。
-    return { rule: { list: { inCellDropDown: true, source: `"${items.map((i: any) => String(i)).join(',')}"` } }, auxiliaryFields };
-  }
-  if (type === 'number_range') {
-    const operatorMap: Record<string, string> = {
-      between: 'Between', greater_than: 'GreaterThan', less_than: 'LessThan', equal: 'EqualTo'
-    };
-    const operator = operatorMap[String(p.operator || 'between')];
-    if (!operator) throw msUnsupported(`数值区间条件 ${p.operator}`, '可用 operator：between / greater_than / less_than / equal。');
-    if (p.minVal === undefined && p.maxVal === undefined) throw msUnsupported('缺少 minVal / maxVal 的数值区间校验', '请至少传入 minVal 或 maxVal，或改用 host=wps。');
-    const formula1 = p.minVal !== undefined ? String(p.minVal) : String(p.maxVal);
-    const formula2 = operator === 'Between' ? String(p.maxVal ?? p.minVal) : undefined;
-    return { rule: { decimal: { operator, formula1, ...(formula2 === undefined ? {} : { formula2 }) } }, auxiliaryFields };
-  }
-  throw msUnsupported(`validationType=${type}`, 'Microsoft 通道只支持 list 与 number_range；其他类型请改用 host=wps。');
-}
-
 /** 从 schema 参数里挑出 Microsoft 通道无法实现、但不阻断主效果的字段，用于在响应里如实暴露。 */
 function reportUnsupportedFields(method: string, params: ToolArgs = {}): string[] {
   const p: any = params || {};
   const out: string[] = [];
   const push = (...fields: string[]) => { for (const f of fields) if (!out.includes(f)) out.push(f); };
   switch (method) {
-    case 'set_data_validation':
-      for (const field of ['promptTitle', 'promptMessage', 'errorTitle', 'errorMessage']) {
-        if (p[field] !== undefined && p[field] !== null && p[field] !== '') push(field);
-      }
-      break;
     case 'set_filter_and_sort':
+      // Office.js 侧没有"只开筛选按钮"的路径：enableAutoFilter 无法下发，如实回报。
       if (p.enableAutoFilter === true) push('enableAutoFilter');
+      break;
+    case 'duplicate_sheet':
+      // Office.js 的 copy 分支固定复制到源表之后（positionType 未被读取），如实回报。
+      if (p.position && String(p.position).toLowerCase() !== 'after') push('position');
       break;
     default:
       break;
@@ -210,42 +177,35 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
     case 'wps_manage_rows_and_columns':
     case 'excel_manage_rows_and_columns':
     case 'manage_rows_and_columns': {
-      // ISS-93：schema 用 targetType('row'|'column')，加载项读的是 dimension('rows'|'columns')。
-      // 原来只改方法名、字段原样透传 → targetType 被忽略，想插列却插了行。
-      // 只有调用方给出了行列操作相关字段时才走严格校验；空参数原样透传（由宿主自己报错）。
-      if (p.targetType === undefined && p.index === undefined && p.action === undefined && p.address === undefined) {
+      // ISS-93：schema 用 targetType('row'|'column')，早期加载项读的是 dimension('rows'|'columns')
+      // 且默认 rows → 想插列却插行。bridge 侧把两者都给出（Office.js 侧现在也两套都认，且识别不了时显式报错）。
+      // hide/unhide/set_size 在 Microsoft 侧已实现（office-addon/src/excel/range.js），因此**不在这里阻断**。
+      if (p.targetType === undefined && p.dimension === undefined) {
         return { method: 'modify_rows_columns', params: p };
       }
-      const action = String(p.action || 'insert');
-      const dimension = p.targetType === 'column' ? 'columns' : p.targetType === 'row' ? 'rows' : (p.dimension || 'rows');
-      if (action === 'hide' || action === 'unhide' || action === 'set_size') {
-        throw msUnsupported(
-          `行列操作 ${action}`,
-          '请改用 host=wps；Microsoft 侧需要在加载项里实现 row.hidden / column.hidden / format.rowHeight，当前未实现。'
-        );
-      }
-      if (action !== 'insert' && action !== 'delete') {
-        throw msUnsupported(`行列操作 ${action}`, 'Microsoft 通道可用 action：insert / delete。');
-      }
-      if (p.address === undefined && (p.index === undefined || p.index === null || p.index === '')) {
-        throw msUnsupported('缺少 index 的行列操作', '请传入 index（起始行号或列标识）。');
-      }
-      const kind = p.targetType === undefined ? (dimension === 'columns' ? 'column' : 'row') : p.targetType;
+      const dimension = p.targetType === 'column' ? 'columns' : p.targetType === 'row' ? 'rows' : p.dimension;
+      const kind = dimension === 'columns' ? 'column' : 'row';
       return {
         method: 'modify_rows_columns',
-        params: { ...p, targetType: kind, dimension, action, index: p.index, count: p.count ?? 1 }
+        params: { ...p, targetType: p.targetType ?? kind, dimension, count: p.count ?? 1 }
       };
     }
 
     case 'wps_get_charts':
     case 'excel_get_charts':
     case 'get_charts':
+      // 选择器（shapeName/chartIndex/chartTitle）由响应侧按 schema 语义过滤，见 normalizeOfficeResponse。
       return { method: 'get_charts', params: p };
 
     case 'wps_add_chart':
     case 'excel_add_chart':
     case 'add_chart': {
-      const dataRange = p.dataRange || p.sourceAddress || p.sourceRange || p.range;
+      // ISS-93（M8）：早期加载项只读 seriesBy / seriesColors / hasLegend / title / position.*，
+      // yAxis / seriesSettings / smoothLine / dataRanges / hasDataLabels 被静默忽略。
+      // Office.js 侧现已逐项实现并**读回校验**（未生效写进返回体 warnings），因此桥接侧只做数据源与
+      // 定位字段归一，不再阻断这些参数。
+      const dataRanges = Array.isArray(p.dataRanges) ? p.dataRanges.filter(Boolean) : [];
+      const dataRange = p.dataRange || p.sourceAddress || p.sourceRange || p.range || (dataRanges.length === 1 ? dataRanges[0] : undefined);
       const rawChartType = String(p.chartType || 'column_clustered').toLowerCase().replace(/-/g, '_');
       const chartType = CHART_TYPE_MAP[rawChartType] || p.chartType || 'ColumnClustered';
 
@@ -329,17 +289,12 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
 
     case 'wps_set_data_validation':
     case 'excel_set_data_validation':
-    case 'set_data_validation': {
-      const { rule, auxiliaryFields } = buildDataValidationRule(p);
-      if (rule === undefined && p.address) {
-        // 有目标区域却没有任何可用规则字段：加载项会先 clear() 再什么都不设（清掉原有校验）。
-        throw msUnsupported(
-          '缺少可用规则的数据有效性设置',
-          '请传入 validationType，并按类型提供 listItems（list）或 minVal/maxVal（number_range）；仅需清除校验请改用 host=wps。'
-        );
-      }
-      return { method: 'set_data_validation', params: { ...p, rule, unsupportedFields: auxiliaryFields } };
-    }
+    case 'set_data_validation':
+      // ISS-93（M1）：早期加载项只认 params.rule → 先 clear() 再什么都不设（静默清空既有校验）。
+      // Office.js 侧现在直接用 schema 字段（validationType / listItems / operator / minVal / maxVal /
+      // prompt* / error*）构造规则，并在构造失败时**在 clear() 之前**报错；桥接侧不再自建 rule，
+      // 避免两处各维护一份映射（遵循"不重复维护能力集合"）。
+      return { method: 'set_data_validation', params: p };
 
     case 'wps_set_filter_and_sort':
     case 'excel_set_filter_and_sort':
@@ -379,25 +334,13 @@ export function normalizeOfficeRequest(method: string, params: ToolArgs = {}): N
     case 'wps_manage_sheet':
     case 'excel_manage_sheet':
     case 'manage_sheet': {
-      // ISS-93（M6）：加载项只识别 action ∈ copy/duplicate/rename/hide/show/color，且读 params.tabColor。
-      // 原来 move/tab_color/protect/unprotect 会落到 if-chain 之外 → 静默返回 success 但什么都没做。
-      const action = String(p.action || '');
-      if (action === 'rename') {
-        if (!p.newName && !p.newSheetName) throw msUnsupported('缺少 newName 的工作表重命名', '请传入 newName。');
-        return { method: 'manage_sheet', params: { ...p, newName: p.newName || p.newSheetName } };
-      }
-      if (action === 'tab_color') {
-        const color = p.color || p.tabColor;
-        if (!color) throw msUnsupported('缺少 color 的工作表标签着色', '请传入 color（如 "#4472C4"）。');
-        return { method: 'manage_sheet', params: { ...p, action: 'color', color, tabColor: color } };
-      }
-      if (action === 'move' || action === 'protect' || action === 'unprotect') {
-        throw msUnsupported(
-          `工作表 ${action}`,
-          `请改用 host=wps，或用 office_execute_script 直接调用 Office.js（move → worksheet.position；protect/unprotect → worksheet.protection）。`
-        );
-      }
-      return { method: 'manage_sheet', params: p };
+      // ISS-93（M6）：早期加载项只识别 copy/duplicate/rename/hide/show/color，且读 params.tabColor，
+      // 导致 move/tab_color/protect/unprotect 静默 no-op。Office.js 侧现在同时识别两套语义，
+      // 并对 protect/unprotect（MS 桌面版不可靠）显式报错；这里只补齐字段别名，让新旧实现都能正确落位。
+      const params: any = { ...p };
+      if (!params.newName && params.newSheetName) params.newName = params.newSheetName;
+      if (params.action === 'tab_color' && !params.tabColor && params.color) params.tabColor = params.color;
+      return { method: 'manage_sheet', params };
     }
 
     case 'wps_create_pivot_table':
@@ -539,6 +482,9 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
       const cols = raw.columnCount || values?.[0]?.length || formulas?.[0]?.length || 1;
       const count = raw.modifiedCount || (rows * cols);
       return {
+        // ISS-99：先铺开宿主原始响应（warnings / 读回字段等），再覆盖桥接侧统一字段，
+        // 避免白名单式重建把宿主新增的"如实提示"丢掉。
+        ...raw,
         success: true,
         sheetName: raw.sheetName || originalParams?.sheetName || 'Sheet1',
         address: raw.address || originalParams?.address,
@@ -554,6 +500,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
     case 'format_cells':
     case 'format_range':
       return {
+        ...raw,
         success: true,
         sheetName: raw.sheetName || originalParams?.sheetName,
         address: raw.address || originalParams?.address,
@@ -562,6 +509,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
 
     case 'auto_fit_columns':
       return {
+        ...raw,
         success: true,
         message: raw.message || '已成功自适应调整列宽'
       };
@@ -569,6 +517,8 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
     case 'add_chart': {
       const chartId = raw.id || raw.name;
       return {
+        // ISS-99：warnings / dataRangesApplied / seriesCount / yAxisApplied 等如实提示必须原样传给调用方。
+        ...raw,
         success: true,
         id: chartId,
         name: raw.name || chartId,
@@ -590,8 +540,12 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
 
     case 'get_charts': {
       const all: any[] = Array.isArray(raw.charts) ? raw.charts : [];
-      // ISS-93（M7）：Office.js 加载项忽略 shapeName/chartIndex/chartTitle，会把整表图表全返回。
-      // 选择器语义在桥接侧补齐，避免"传了筛选条件却拿到全部图表"。
+      // ISS-93（M7）：早期加载项忽略 shapeName/chartIndex/chartTitle，会把整表图表全返回。
+      // Office.js 侧现已自行过滤（返回 filtered/selector/totalCount）；只有宿主没做时才在桥接侧补，
+      // 避免重复过滤把宿主如实回报的 totalCount 语义搞乱（ISS-99）。
+      if (raw.filtered !== undefined || raw.selector !== undefined) {
+        return { ...raw, success: true, count: raw.count ?? all.length, charts: all, detail: !!originalParams?.detail };
+      }
       let charts = all;
       const wantIndex = (originalParams as any)?.chartIndex;
       const wantName = (originalParams as any)?.shapeName;
@@ -613,6 +567,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
 
     case 'delete_chart':
       return {
+        ...raw,
         success: true,
         message: raw.message || '图表已成功删除'
       };
@@ -628,18 +583,19 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
         value: m.value ?? m.text
       }));
       const total = raw.count ?? allMatches.length;
-      // ISS-93：Office.js 加载项不截断结果，maxResults 由桥接侧补齐（WPS 侧由宿主截断）。
+      // ISS-93：早期加载项不截断结果，maxResults 由桥接侧补齐；宿主已截断时保留其 truncated/maxResults。
       const requestedMax = Number((originalParams as any)?.maxResults ?? 50);
       const max = Number.isFinite(requestedMax) && requestedMax > 0 ? Math.trunc(requestedMax) : 50;
       const matches = allMatches.slice(0, max);
       return {
+        ...raw,
         success: true,
         sheetName: raw.sheetName || originalParams?.sheetName || '',
         query: originalParams?.query || originalParams?.text || (originalParams as any)?.searchQuery || '',
-        totalFound: total,
+        totalFound: raw.totalFound ?? total,
         count: total,
         returnedCount: matches.length,
-        truncated: matches.length < allMatches.length,
+        truncated: Boolean(raw.truncated) || matches.length < allMatches.length,
         ...(raw.replacedWith !== undefined ? { replacedWith: raw.replacedWith } : {}),
         matches
       };
@@ -666,6 +622,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
       const notes = ['Microsoft 通道只读取区域首个单元格的字体/填充/对齐，不检查区域一致性'];
       if (unavailable.length) notes.push(`Microsoft 通道未读取字段：${unavailable.join(', ')}`);
       return {
+        ...raw,
         success: true,
         workbookName: raw.workbookName || originalParams?.workbookName || '',
         sheetName: raw.sheetName || originalParams?.sheetName || '',
@@ -677,7 +634,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
       };
     }
 
-    case 'set_data_validation':
+    case 'duplicate_sheet':
     case 'set_filter_and_sort': {
       const unsupportedFields = reportUnsupportedFields(baseMethod, originalParams);
       return {
@@ -696,6 +653,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
     case 'save': {
       const wbName = raw.workbookName || originalParams?.workbookName || '工作簿1.xlsx';
       return {
+        ...raw,
         success: true,
         saved: true,
         workbookName: wbName,
@@ -706,6 +664,7 @@ export function normalizeOfficeResponse(method: string, raw: any, originalParams
 
     case 'capture_sheet_preview':
       return {
+        ...raw,
         success: true,
         workbookName: raw.workbookName || originalParams?.workbookName || '工作簿1.xlsx',
         sheetName: raw.sheetName || originalParams?.sheetName || 'Sheet1',
