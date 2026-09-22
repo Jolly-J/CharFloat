@@ -32,7 +32,8 @@
     "build:addons": "npm run build:wps-addon && npm run build:office-addon",
     "build:win-icon": "node scripts/build-win-icon.mjs",
     "check:params": "tsx scripts/check-param-forwarding.ts",
-    "build:bytecode": "node scripts/build-cli-bytecode.mjs"
+    "build:bytecode": "node scripts/build-cli-bytecode.mjs",
+    "check:protection": "node scripts/check-cli-protection.mjs"
   },
   "build": {
     "appId": "com.antigravity.officeagentbridge",
