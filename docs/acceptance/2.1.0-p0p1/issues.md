@@ -49,9 +49,9 @@
 | ISS-19 | `delete_chart` 的 `leftCell` 是**像素邻近批量匹配**，一次删掉 14 张图 | **高** | **已修已验证** | 宿主实现 + 说明 |
 | ISS-20 | `update_chart` 在 WPS 不可用，但工具说明未标注 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-21 | `patch_cells` 静默把字符串日期（`"2026-01"`）转成序列号 | 中 | 待修 | 宿主实现 + 说明 |
-| ISS-22 | `format_cells` 的 `rowHeight` 不生效 | 低中 | 待修 | 宿主实现 |
-| ISS-23 | `get_charts` 的 `leftCell` 与实际位置不自洽，`detail` 不返回类型枚举名与颜色 | 中 | 待修 | 宿主实现 |
-| ISS-24 | `seriesColors` 对单系列图表是**逐点染色**，导致彩虹柱 | 中 | 待修 | 宿主实现 + 说明 |
+| ISS-22 | `format_cells` 的 `rowHeight` 不生效 | 低中 | **已修待验** | 宿主实现 |
+| ISS-23 | `get_charts` 的 `leftCell` 与实际位置不自洽，`detail` 不返回类型枚举名与颜色 | 中 | **已修待验** | 宿主实现 |
+| ISS-24 | `seriesColors` 对单系列图表是**逐点染色**，导致彩虹柱 | 中 | **已修待验** | 宿主实现 + 说明 |
 | ISS-25 | `capture_sheet_preview` 的参数优先级与返回字段未说明 | 低中 | **已修已验证**（契约快照已复核） | 工具说明 |
 | ISS-26 | 脚本 API 差异：`ws.Cells(r,c)` 不存在；`AddChart2` 默认按行取系列须 `PlotBy=2` | 中 | **已修已验证**（文档类） | skill 说明 |
 | ISS-27 | 缺少**选型指引**：27 对 `excel_*`/`wps_*` 完全同构，`tools/list` 里无法区分 | **高** | **已修已验证**（契约快照已复核） | 工具说明 + skill |
@@ -70,7 +70,7 @@
 | ISS-40 |  筛选范围不受 `range` 约束，自动扩展到最后一个已用行，把合计行卷进筛选区 | 中高 | **已修已验证** | 宿主实现 + 说明 |
 | ISS-41 | `freeze_panes` 的 `freezeColumnIndex` 错位 | **高** | **结论存疑，待实测** | 宿主实现 |
 | ISS-42 |  `format_cells` 的 `merge` 失败被吞仍返回 success；`borders:'none'` 文档说可去边框但实现跳过 | 中 | **已修已验证**（merge 部分） | 宿主实现 + 说明 |
-| ISS-43 | `manage_cell_comments` 的 `author` 参数不生效 | 低中 | 待修 | 宿主实现 |
+| ISS-43 | `manage_cell_comments` 的 `author` 参数不生效 | 低中 | **已修待验** | 宿主实现 |
 | ISS-44 | 条件格式 / 数据验证 / 冻结窗格**没有读回工具**，只能靠脚本探测 | 中 | 待修 | 工具能力缺口 |
 | ISS-45 | `clear_range` 属 `declaredNotCallable`，清空只能写 `null` 矩阵，极易残留 | 中 | 待修 | 工具能力缺口 |
 | ISS-46 | 回滚的"后续修改"判定基于**内容相等**，重建的同内容数据会被旧 `auditId` **清空**（真实数据破坏） | **高** | 待修 | 回滚判定逻辑 |
@@ -88,12 +88,12 @@
 | ISS-58 | 专用水印只落在**正文层第 1 页**，跨页水印需自行改页眉层 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-59 | **磁盘上是新构建、WPS 进程里跑的是旧构建**：部署后不重载，且没有任何指纹能判断"运行中的是哪一版" | **高（方法学）** | 待修 | 部署流程 + 版本可观测性 |
 | ISS-60 | 行隐藏 `hide` 返回 success 但没生效（`Range("5:6").Hidden=true` 静默 no-op） | **高** | **已修已验证** | 宿主实现 |
-| ISS-61 | 批注 `author` 无效：宿主 `Comment.Author` 恒为 jolin，返回体里的 author 是**入参回显冒充读回** | 中 | 待修 | 宿主实现 |
+| ISS-61 | 批注 `author` 无效：宿主 `Comment.Author` 恒为 jolin，返回体里的 author 是**入参回显冒充读回** | 中 | **已修待验** | 宿主实现 |
 | ISS-62 | 公式查找替换静默不支持（`totalFound:0` + `success`） | 中 | **已修待验** | 宿主实现 + 说明 |
 | ISS-63 | 透视表：建表瞬间是空骨架须手动 `Refresh`；`destSheetName` 必须已存在；`RecordCount` 恒为 1 | 中 | 待修 | 宿主实现 + 说明 |
 | ISS-64 | 条件格式无图标集/公式规则参数入口，也无读取/清除工具 | 中 | 待修 | 工具能力缺口 |
 | ISS-65 | `find_and_replace` 的 `results[].row/col` 是**区域相对偏移**，说明未写 | 低 | 待修 | 工具说明 |
-| ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | 待修 | 宿主实现 |
+| ISS-66 | 批注成功消息拼接 bug（`function Address() { [native code] }`） | 低 | **已修待验** | 宿主实现 |
 | ISS-67 | `wps_word_write_content` **吞掉所有小写字母 `a`**（现象已确认，根因待定） | **高** | 待修（根因待隔离） | 宿主实现 |
 | ISS-68 | `find_and_replace` 只查找时 `matchCount` **恒为 0**，文案还谎称"已应用格式化" | 中高 | **已修已验证** | 宿主实现 |
 | ISS-69 | 导出 PDF 返回 `success` + `savedPath` 但**磁盘无文件** | 中高 | **已修已验证** | 宿主实现 |

@@ -1825,7 +1825,21 @@
       range.WrapText = !!wrapText;
     }
     if (rowHeight) {
-      range.RowHeight = rowHeight;
+      // 本机 WPS 上给跨多行的 `range.RowHeight` 赋值会被静默忽略（问题台账 ISS-22）。
+      // 改为逐行写 Rows.Item(n).RowHeight，并读回校验。
+      const firstRow = targetRange.Row;
+      const rowTotal = targetRange.Rows.Count;
+      for (let i = 0; i < rowTotal; i++) {
+        sheet.Rows.Item(firstRow + i).RowHeight = Number(rowHeight);
+      }
+      let readBackHeight = null;
+      try { readBackHeight = Number(sheet.Rows.Item(firstRow).RowHeight); } catch (e) {}
+      if (readBackHeight !== null && Number.isFinite(readBackHeight) && Math.abs(readBackHeight - Number(rowHeight)) > 0.6) {
+        throw new Error(
+          `行高设置未生效：请求 ${rowHeight}，第 ${firstRow} 行读回 ${readBackHeight}。` +
+          `请确认该行未被合并单元格或工作表保护锁定。`
+        );
+      }
     }
 
     // 5. 数字格式
@@ -2082,24 +2096,54 @@
     const sheet = getWorksheet(app, sheetName, workbookName);
     const targetRange = address ? sheet.Range(address) : sheet.UsedRange;
 
+    // 单元格地址取值：`Address` 在不同宿主上可能是属性也可能是方法，
+    // 原实现直接写进返回体/消息里，结果输出成 "function Address() { [native code] }"（问题台账 ISS-66）。
+    const addressOf = (cell) => {
+      try {
+        const value = cell.Address;
+        return typeof value === "function" ? String(value()) : String(value);
+      } catch (e) {
+        return "";
+      }
+    };
+
     if (action === "add") {
       if (!text) throw new Error("添加批注时必须提供 text 参数");
       const cell = targetRange.Cells.Item(1, 1);
       try {
         if (cell.Comment) cell.Comment.Delete();
       } catch (e) {}
-      const commentContent = author ? `${author}:\n${text}` : text;
-      const comment = cell.AddComment(commentContent);
+      // 不再把作者拼进正文（ISS-43）：先尝试设置真实 Author，设不上再退回"正文前缀"，
+      // 并在返回体里**如实区分**"请求的作者"与"读回的作者"（原来直接回显入参，冒充读回，ISS-61）。
+      const comment = cell.AddComment(text);
       comment.Visible = false;
+      let authorApplied = false;
+      if (author) {
+        try {
+          comment.Author = author;
+          authorApplied = true;
+        } catch (e) {
+          authorApplied = false;
+        }
+      }
+      let authorOnHost = null;
+      try { authorOnHost = comment.Author || null; } catch (e) {}
+      if (author && !authorApplied && authorOnHost !== author) {
+        try {
+          comment.Text(text ? `${author}:\n${text}` : text);
+        } catch (e) {}
+      }
       return {
         success: true,
         workbookName: sheet.Parent.Name,
         sheetName: sheet.Name,
-        address: cell.Address,
+        address: addressOf(cell),
         action: "add",
         commentText: text,
-        author: author || "AI 智能审核",
-        message: `已在单元格 ${cell.Address} 成功添加批注`
+        authorRequested: author || null,
+        authorOnHost,
+        authorApplied: authorOnHost === author,
+        message: `已在单元格 ${addressOf(cell)} 添加批注${author && authorOnHost !== author ? `（宿主未接受自定义作者，已把作者写进正文；当前宿主作者为 ${authorOnHost ?? "未知"}）` : ""}`
       };
     } else if (action === "read") {
       const comments = [];
@@ -2111,7 +2155,7 @@
           try {
             if (cell.Comment) {
               comments.push({
-                address: cell.Address,
+                address: addressOf(cell),
                 text: cell.Comment.Text(),
                 author: cell.Comment.Author || undefined
               });
@@ -2502,6 +2546,9 @@
     const sheet = getWorksheet(app, sheetName, workbookName);
     try { sheet.Activate(); } catch (e) {}
 
+    /** 本次建图的告警集合（类型降级、单系列多色等），随返回体带出。 */
+    const warnings = [];
+
     // 计算图表位置与尺寸
     let left = 360;
     let top = 40;
@@ -2663,7 +2710,16 @@
 
         // 系列颜色注入 (seriesColors 数组)
         if (Array.isArray(seriesColors)) {
-          seriesColors.forEach((colorHex, idx) => {
+          // 单系列图表上传多个颜色，宿主会按"逐点染色"处理 → 应单色的柱图/条形图变成彩虹柱
+          // （问题台账 ISS-24）。这里只应用第一个颜色，并把"其余被忽略"如实告知。
+          if (seriesCount <= 1 && seriesColors.length > 1) {
+            warnings.push(
+              `seriesColors 传了 ${seriesColors.length} 个颜色，但该图只有 ${seriesCount || 1} 个数据系列；` +
+              `已只应用第 1 个（宿主对单系列多色的处理是逐点染色，会出现彩虹柱）。`
+            );
+          }
+          const colorLimit = seriesCount <= 1 ? Math.min(1, seriesColors.length) : seriesColors.length;
+          seriesColors.slice(0, colorLimit).forEach((colorHex, idx) => {
             const bgr = hexToExcelColor(colorHex);
             const sIdx = idx + 1;
             if (bgr !== null && sIdx <= seriesCount) {
@@ -2749,9 +2805,8 @@
       // 原实现对此毫无察觉（ISS-17）。这里把实际类型带回，不一致就给出 warning。
       let actualChartType = null;
       try { actualChartType = Number(shape.Chart.ChartType); } catch (e) {}
-      const typeWarnings = [];
       if (actualChartType !== null && Number.isFinite(actualChartType) && actualChartType !== xlChartType) {
-        typeWarnings.push(
+        warnings.push(
           `请求的 chartType=${chartType}（xlChartType=${xlChartType}）实际落成 ChartType=${actualChartType}；` +
           `请用 wps_get_charts 复核，必要时改用 wps_execute_script 直接指定常量。`
         );
@@ -2764,7 +2819,7 @@
         chartType,
         requestedChartType: xlChartType,
         actualChartType,
-        warnings: typeWarnings,
+        warnings,
         dataRange: targetDataRange,
         title: title || "",
         left,
@@ -2800,6 +2855,12 @@
     const sheet = getWorksheet(app, sheetName, workbookName);
     const charts = [];
     let ordinal = 0;
+    // ChartType 数字 → 可读枚举名（问题台账 ISS-23：detail 原来只给数字，调用方没法判类型）
+    const CHART_TYPE_NAMES = {
+      1: "xlArea", 4: "xlLine", 5: "xlPie", 51: "xlColumnClustered", 52: "xlColumnStacked",
+      57: "xlBarClustered", 58: "xlBarStacked", 65: "xlLineMarkers", 68: "xlBarOfPie",
+      122: "xlPareto", "-4120": "xlDoughnut", "-4169": "xlXYScatter"
+    };
 
     for (let i = 1; i <= sheet.Shapes.Count; i++) {
       const shape = sheet.Shapes.Item(i);
@@ -2811,17 +2872,22 @@
       if (chartIndex && ordinal !== Number(chartIndex)) continue;
       if (chartTitle && String(title).indexOf(chartTitle) < 0) continue;
 
+      const position = { left: safeRead(() => shape.Left, null), top: safeRead(() => shape.Top, null) };
       const item = {
         chartIndex: ordinal,
         shapeName: shape.Name,
         title,
         chartType: safeRead(() => chart.ChartType, null),
+        chartTypeName: CHART_TYPE_NAMES[safeRead(() => chart.ChartType, null)] || null,
         hasLegend: !!safeRead(() => chart.HasLegend, false),
-        left: safeRead(() => shape.Left, null),
-        top: safeRead(() => shape.Top, null),
+        left: position.left,
+        top: position.top,
         width: safeRead(() => shape.Width, null),
         height: safeRead(() => shape.Height, null),
+        // leftCell 是"形状左上角所在单元格"，**不是唯一锚点**：多张图叠在同一像素位时会报同一个值
+        // （问题台账 ISS-23）。额外给出 isDefaultPosition，避免被当成唯一定位依据。
         leftCell: safeRead(() => shape.TopLeftCell.Address(), null),
+        isDefaultPosition: Math.abs(Number(position.left) - 360) < 2 && Math.abs(Number(position.top) - 40) < 2,
         seriesCount: safeRead(() => chart.SeriesCollection().Count, 0)
       };
 
