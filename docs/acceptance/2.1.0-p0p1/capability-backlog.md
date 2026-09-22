@@ -78,7 +78,7 @@
 |---|---|---|---|
 | **CAP-50** | 修 **M1–M8 跨宿主字段错位**：`set_data_validation`（先清校验再什么都不设）、`find_and_replace`（空串搜索→全局替换）、`manage_sheet` 4 个 action 静默 no-op、`get_charts` 忽略选择器、`add_chart` 忽略 5 参数、`manage_rows_and_columns` 想插列却插行 | 源码可证 | ✅ 已完成（修 5 处：数据有效性 read 在 MS 变写、缺 listItems 先删后错、**空串护栏被跨通道回退绕过**、borders 颜色被覆盖；M3–M8 核对为已修） |
 | **CAP-51** | COM 回退白名单按**实际覆盖**生成（现在把整张 30 项路由表当白名单，COM 实际只覆盖 28/30） | 源码可证 | ✅ 已完成（COM 白名单由  实际分支派生：48→**28**，缺口 22 项派生得出，不再手写） |
-| **CAP-52** | MS 侧**矢量绘图域**整体补齐（与 CAP-08 同源） | 文档可证 | 待排期 |
+| **CAP-52** | MS 侧**矢量绘图域**整体补齐（与 CAP-08 同源） | 文档可证 | ◐ **大部分已交付，余一项确认为宿主限制**。本轮完成：**两阶段形状加载**（`loadShapeDetailTyped`：先只 load type 并 sync，拿到真实类型后再按类型补 load；Line 不 load fill、Group 不 load fill/textFrame）—— 修掉了「读回把创建带崩」这个根因；**分组已真机通过**（解组释放 m1/m2 佐证）；memberCount 恒为 0 已修（先取代理再 load，读不到成员时如实告警）；新增 excel_manage_sheet 的 activate 动作（shape 操作依赖激活状态）。**余项**：addLine 真机报「当前对象不允许此操作」，**确认为宿主限制**（关键澄清：任务窗格自检里的 line 实为 addGeometricShape+lineFormat，**从未调用 addLine**，故自检通过不能证明其可用）；替代方案已验证——用细矩形（height≈4）当线可正常建成 |
 
 ---
 
