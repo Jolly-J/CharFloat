@@ -60,7 +60,7 @@ Windows 包 exe 图标显示空白 → 只看"`RT_GROUP_ICON` 条目数够不够
 
 **只比 V8 版本号就认为字节码可用** → Windows 上仍报 `Invalid or incompatible cached data (cachedDataRejected)`，界面表现是「后台启动失败」且 `service.log` **为空**（V8 在原生层中止，不抛 JS 异常）→ V8 字节码的缓存头除版本号外还含**平台/编译配置的 flags hash**，macOS 与 Windows 都是 V8 13.4 也**不通用**；加载器必须**真正 try 一次**并在失败时回退，不能只做版本比较 → [build-cli-bytecode.mjs](build-cli-bytecode.mjs) 的加载器模板；兜底策略见 `before-pack.cjs`。
 
-Windows 包没有明文兜底 → 字节码被拒后无处可退，直接起不来 → 在 macOS 上**无法**生成 Windows 的字节码（跑不了 PE），只能让 Windows 包附带 `dist/bridge/cli-full.cjs`，由加载器回退；**代价是 Windows 侧保护降为 minify** → `before-pack.cjs` 按平台增删该文件，校验侧用 `allowPlainCli` 放行（**只放行这一个文件**），macOS 侧仍移除它 → [release-protection.mjs](lib/release-protection.mjs) 的 `checkFiles`。
+Windows 包没有明文兜底（**这是有意保留的设计，不是待办**——2026-09-23 使用者已拍板：Windows 侧就用 minify，不配 Windows 构建机）→ 字节码被拒后无处可退，直接起不来 → 在 macOS 上**无法**生成 Windows 的字节码（跑不了 PE），只能让 Windows 包附带 `dist/bridge/cli-full.cjs`，由加载器回退；**代价是 Windows 侧保护降为 minify** → `before-pack.cjs` 按平台增删该文件，校验侧用 `allowPlainCli` 放行（**只放行这一个文件**），macOS 侧仍移除它 → [release-protection.mjs](lib/release-protection.mjs) 的 `checkFiles`。
 
 `cli-full.cjs` 只放进 asar、没解包 → 加载器在 `__dirname`（**解包目录**）里找不到它，回退静默失效 → `asarUnpack` 是按**文件名逐个列**的，必需文件不在清单里就只进 asar → 新增运行文件必须同步 `asarUnpack`，并用安装路径实跑一次 → [check-release.mjs](lib/check-release.mjs) 的"Windows 明文兜底未解包"断点。
 
