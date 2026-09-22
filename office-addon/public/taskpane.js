@@ -1949,18 +1949,25 @@
       }
 
       // ── ISS-93-e：dataRanges（多段数据源）────────────────
-      // 旧实现完全忽略 dataRanges；这里逐段追加，并在读回后核对系列数，不一致写入 warnings。
+      // 诚实契约：Office.js 的 `chart.setData(range)` 是**整体替换**图表数据，不是"追加系列"
+      // （实机验证：连调两次 setData 后读回仍是 1 个系列，第一段被第二段顶掉）。
+      // 因此多段时只做一次 setData 覆盖，并在 warnings 里如实说明"多段未合并"，绝不谎报多系列。
       let dataRangesApplied = [sourceRange || extraRanges[0]];
       if (extraRanges.length > 0) {
         dataRangesApplied = extraRanges.slice();
         try {
-          for (const addr of extraRanges) {
-            chart.setData(sheet.getRange(addr), params.seriesBy || "Auto");
-          }
+          chart.setData(sheet.getRange(extraRanges[0]), params.seriesBy || "Auto");
           await context.sync();
+          if (extraRanges.length > 1) {
+            warnings.push(
+              `dataRanges 共 ${extraRanges.length} 段，但 Office.js 的 chart.setData 不支持合并多段不连续区域：` +
+              `本次只取第 1 段 "${extraRanges[0]}" 作为图表数据源（其余 ${extraRanges.slice(1).join('、')} 未进入图表）。` +
+              '需要多系列请把数据整理成一段连续区域，或改用 host="wps" 的 add_chart。'
+            );
+          }
         } catch (multiErr) {
           warnings.push(
-            `dataRanges 多段数据源设置失败（已保留首段）：${multiErr && multiErr.message ? multiErr.message : multiErr}。` +
+            `dataRanges 数据源设置失败：${multiErr && multiErr.message ? multiErr.message : multiErr}。` +
             '可改用一段连续区域，或改用 host="wps" 的 add_chart。'
           );
         }
@@ -1969,8 +1976,8 @@
       const seriesList = chart.series.load("items");
       await context.sync();
       const seriesItems = seriesList.items || [];
-      if (extraRanges.length > 0 && seriesItems.length < extraRanges.length) {
-        warnings.push(`请求 dataRanges 共 ${extraRanges.length} 段，宿主读回只有 ${seriesItems.length} 个系列（多段数据源可能未全部生效）。`);
+      if (dataRangesApplied.length > 1 && seriesItems.length < dataRangesApplied.length) {
+        warnings.push(`请求 dataRanges 共 ${dataRangesApplied.length} 段，宿主读回只有 ${seriesItems.length} 个系列（多段数据源未合并，见上条）。`);
       }
 
       // ── 系列着色 ────────────────────────────────
@@ -2205,13 +2212,21 @@
   async function handleCaptureSheetPreview(params) {
     return await Excel.run(async (context) => {
       const sheet = getTargetSheet(context, params?.sheetName);
+      // 报错文案要用工作表名，而每个分支都要 sync：load 必须在**第一次 sync 之前**排进队列，
+      // 否则在"区域截图"这条路径上永远 sync 不到 name，真正的报错会被
+      // 「属性"name"不可用」盖掉（实机踩到）。
+      sheet.load("name");
+      const chartSelector = params?.chartName || params?.name || null;
+      const address = params?.address || params?.range || null;
       const requestedMode = params?.mode === undefined || params?.mode === null || params?.mode === '' ? null : String(params.mode).toLowerCase();
+      const targetChartName = requestedMode === 'sheet' ? null : chartSelector;
+      const wantsSheetArea = requestedMode === 'sheet' || (!targetChartName && Boolean(address));
+      const charts = sheet.charts.load("items/name, items/id, items/title/text, items/width, items/height");
+      await context.sync();
+
       if (requestedMode && !['chart', 'sheet', 'auto'].includes(requestedMode)) {
         throw new Error(`[Office.js 通道] capture_sheet_preview 无法识别的 mode: "${params.mode}"（支持 chart | sheet | auto）。`);
       }
-
-      const chartSelector = params?.chartName || params?.name || null;
-      const address = params?.address || params?.range || null;
       if (requestedMode === 'sheet' && chartSelector) {
         throw new Error(
           `[Office.js 通道] capture_sheet_preview 参数冲突：mode="sheet" 与 chartName="${chartSelector}" 同时给出。` +
@@ -2219,14 +2234,7 @@
         );
       }
 
-      const targetChartName = requestedMode === 'sheet' ? null : chartSelector;
-      const wantsSheetArea = requestedMode === 'sheet' || (!targetChartName && Boolean(address));
-      // 错误分支要用 sheet.name 组文案（本通道的报错文案本身就是交付物）：先 load。
-      sheet.load("name");
-
       if (targetChartName) {
-        const charts = sheet.charts.load("items/name, items/id, items/title/text, items/width, items/height");
-        await context.sync();
         if (charts.items.length === 0) {
           throw new Error(`[Office.js 通道] capture_sheet_preview 无法渲染：工作表 [${sheet.name}] 没有任何原生图表，而你请求的是图表 "${targetChartName}"。`);
         }

@@ -122,12 +122,16 @@
 | ISS-90 | 崩溃后宿主组件掉线，桥接无疑似崩溃信号与恢复指引 | 中高 | 待修 | 可观测性 |
 | ISS-91 | 读操作被别名到写函数（`list_conditional_formats` → 新增条件格式）；**但该 RPC 无工具暴露，不可达，属潜在风险** | **中（潜在）** | **已修·静态验证** | Office.js 路由 |
 | ISS-92 | 批注 `action: "clear_all"` 静默成功（宿主不支持该 action）；`list_comments` 别名到默认 add | **高** | **已修已验证**（MS 实机） | Office.js 路由 + 处理函数 |
-| ISS-93 | `normalizer.ts` 只适配 14 个方法，**12 个 `excel_*` 在 host=microsoft 参数错位**；21 个 Word/PPT 工具在该宿主是死路 | **高** | 待修 | 跨宿主适配 |
+| ISS-93 | `normalizer.ts` 只适配 14 个方法，**12 个 `excel_*` 在 host=microsoft 参数错位**；21 个 Word/PPT 工具在该宿主是死路 | **高** | **已修已验证**（MS 实机 10/10） | 跨宿主适配 |
 | ISS-94 | **C 类·只写不读共 7 项**：条件格式、冻结窗格、数据有效性、筛选状态、工作表保护/标签色、Word 页眉页脚/水印、透视表 | 中高 | 待修 | 工具能力缺口 |
 | ISS-95 | **B 类·宿主能做但没暴露**：清空区域 / 读原表设计语言 / Word 页面预览（**3 条零成本死分支**）＋超链接、命名区域、文档属性、区域复制、图片形状、结构化表格 | 中高 | 待修 | 工具能力缺口 |
-| ISS-96 | Office.js 的 `capture_sheet_preview` 是**伪渲染**：无图表时用 Canvas 按 `cellW=110/rowH=28` 硬编码合成假图 → **AI 视觉自检会得出与真实文件不符的结论** | **高** | 待修 | 证据可信度 |
+| ISS-96 | Office.js 的 `capture_sheet_preview` 是**伪渲染**：无图表时用 Canvas 按 `cellW=110/rowH=28` 硬编码合成假图 → **AI 视觉自检会得出与真实文件不符的结论** | **高** | **已修已验证**（MS 实机） | 证据可信度 |
 | ISS-97 | adapter 把整张 `EXCEL_METHODS`(30) 当 COM 回退白名单，而 COM 实际只覆盖 28/30 → **白名单过度声明** | 中高 | 待修 | 回退策略 |
 | ISS-98 | `excel_find_and_replace`（host=microsoft）字段名错位 → `text=""` → 每个非空单元格都命中并 `replaceAll("")`，**可能破坏内容** | **高** | **已修·静态验证**（MS 通道未连，无法运行时验证） | 跨宿主契约 |
+| ISS-99 | **响应转换丢字段**：`office/normalizer.ts` 的白名单把加载项新返回的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied`（capture 的 `kind`/`renderedBy`）丢掉 → "哪些参数没生效"的如实提示到不了调用方 | 中高 | 待修 | 响应转换 |
+| ISS-100 | MS 侧行列插入"**执行成功却返回失败**"（裸读未 load 的 `sheet.name`） | 中 | 已修（MS 侧） | 宿主实现 |
+| ISS-101 | MS 侧 ISS-96 的报错被"属性 name 不可用"盖掉（`load` 排在 `sync` 之后） | 中 | 已修（MS 侧） | 宿主实现 |
+| ISS-102 | MS 侧 `dataRanges` **多段实际只生效 1 段**（`setData` 是替换不是追加） | 中 | 已修（改为只取首段 + 如实 warnings） | 宿主实现 |
 | ISS-88 | `swap_shapes` 只换 Top；`align_shapes` 实际是"对齐到首个形状"，且 `shapeIds` 先按 Id 再按索引 | 中 | **已修已验证**（契约快照已复核） | 工具说明 |
 
 > 本表随盘点和修复推进持续追加。下面每节写清证据与修法。
@@ -1550,6 +1554,16 @@ matches.push({
 **证据**：[p5/mcp-sweep/04-sheet-advanced.md](p5/mcp-sweep/04-sheet-advanced.md) §S7（第 134 行复现、第 206 行登记）；源码复核 `wps-addon/src/excel.js:911,928-929`。
 
 ---
+
+## 复核记录：一条被推翻的误报（2026-09-22）
+
+Microsoft 侧子代理在交付报告里提出："`excel_create_sheet` 的 schema 只收 `sheetName`，而网关处理器读 `args?.name`，**该工具当前无法真正建指定名字的表**"。
+
+**复核结论：不成立。** 依据两条，均可复现：
+1. **源码**：`src/bridge/gateway/excel.ts` 的 `createSheet` 读的是 `args?.sheetName`（并且 `if (!args?.sheetName) throw` 就是它的必填校验），全文没有 `args?.name` 这一读法——`args?.name` 只出现在图表/形状类工具里（作为别名）。
+2. **真机**：对 Microsoft Excel 实调一次 `excel_create_sheet{host:"microsoft", sheetName:"probe_create_sheet"}` → 返回 `{"success":true,"name":"probe_create_sheet","position":4}`，**表确实建出来了**（随后已用 `excel_delete_sheet` 删除，工作簿恢复为原来的 4 张表）。
+
+**教训**：子代理的结论要回代码或真机复核再采纳——本轮已累计推翻 3 条（ISS-41 `freeze_panes` 错位、ISS-47 "样式未恢复=缺陷"、本条）。**误报若被直接采纳，会去"修"一个本来正常的功能。**
 
 ## 待补充
 

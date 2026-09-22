@@ -91,6 +91,15 @@
 - `office-addon/src/excel/range.js`：`handleClearRange`/`handleCopyRange`/`handleSetHyperlink` 对缺失必需参数**显式抛错**（现在会因 `getRange(undefined)` 抛出难懂的宿主错误）。
 - 所有新增错误文案统一带 `[Office.js 通道]` 前缀，便于与 WPS 侧报错区分。
 
+### 与并行正常化层改动的互相适配（重要）
+
+本批开工时 `src/bridge/office/normalizer.ts` 正被另一路改（ISS-93 的网关层映射，后续该文件已回到 HEAD 状态）。为免"两层各修一半、互相矛盾"，Office.js 侧按**兼容并收**实现：
+
+- `set_data_validation`：既认 WPS 语义（`validationType/listItems/operator/minVal/maxVal`），也认桥接层构造好的 Office.js 原生 `rule` 对象；内联列表来源会自动去掉外层引号（`"a,b"`→`a,b`）；桥接层用 `unsupportedFields` 列出的提示/报错字段，加载项用**真实值**补上（不是丢弃）。
+- `manage_rows_and_columns`：`targetType` 与 `dimension` 两套字段名都认，`targetType` 优先；两者都识别不了时抛错（绝不默认按行）。
+- `find_and_replace`：`searchRange` 与 `address` 两套都认；`maxResults` 两层都做截断，幂等。
+- `capture_sheet_preview`：`chartName`/`name`、`address`/`range`、`mode` 都认；**没有 `mode` 时按"给了 chartName 就导出图表、只给 address 就报错"判定**，所以桥接层丢不丢 `mode` 都不影响安全（区域截图永远不会退化成合成图）。
+
 ---
 
 ## 2. 构建与检查（每批改完即跑）
@@ -124,9 +133,75 @@ npm run check:claims
 
 ---
 
-## 5. 执行记录（边做边更）
+## 5. 执行记录
 
 | 时间 | 动作 | 结果 |
 |---|---|---|
 | 开工 | 只读诊断（源码 + 网关字段 + 台账） | 6 类错位全部源码可证，见 §0 |
 | — | 计划落盘（本文件） | 完成 |
+| 第 1 批 | 改 `excel/{range,sheets,chart}.js`（ISS-96/93 全量）+ `build:office-addon` + `--check` + `node --check` | 生成物 106,035→108,865 字节，语法与一致性检查通过 |
+| 第 2 批 | 真实 MS Excel 实测（基线 + 修复后） | 见 §6，基线复现伪渲染，修复后 10/10 通过 |
+| 第 3 批 | 实测暴露 3 个新缺陷并修复 | 见 §6.4 |
+| 收尾 | `typecheck 0` / `npm test` 86/86 / `check:claims` 0 | 全绿 |
+| 收尾 | 清理测试工作表与全部测试图表 | 工作簿恢复 4 张原表，驾驶舱数据与 3 张原图表未受影响 |
+
+**未提交改动（本会话残留）**：`office-addon/src/excel/chart.js`（最后一处 `load` 顺序修复）与 `office-addon/public/taskpane.js`（对应生成物）。其余本批源码改动已由并行提交 `3591554` 带入 HEAD；本会话未执行任何 git 写操作。
+
+## 6. 真实 Microsoft Excel 实测（本机，host=microsoft）
+
+### 6.1 环境与前置
+
+- Excel 中打开 `钙钛矿各家企业现状.xlsx` 之外的 `工作簿1.xlsx`（4 张表：Sheet1 / 2026Q3销售分析 / OPPO大中华区Q3销售总报表 / OPPO销售驾驶舱），桥接 pid 77013。
+- **确认任务窗格已加载新代码**：桥接 `POST /api/v1/office/reload` 触发 `window.location.reload(true)`，重载后 `msExcel connected: true`；服务端提供的 `office-addon/public/taskpane.js` 磁盘产物含新增标记 `capture_sheet_preview 不支持真实渲染`（grep 命中 1）。
+- 所有写操作都在**新建的隔离工作表** `MS修复验证_ISS93_96` 上做，结束后整表删除。
+
+### 6.2 ISS-96 基线复现（修复前，磁盘旧构建）
+
+```
+excel_capture_sheet_preview(host=microsoft, address="A1:F10")
+→ success:true, imageSizeBytes:45885,
+  message:"已成功生成 [OPPO销售驾驶舱] 区域 OPPO销售驾驶舱!A1:F10 的高保真渲染图（大小: 44.8 KB）"
+```
+
+保存的图 700×342、6 列 × 约 11 行，正是 `cellW=110/rowH=28` 的合成结果，图上还印着"真实页面视觉自检 (WYSIWYG Inspector)"。**这就是 ISS-96 的假渲染，已复现留证。**
+
+### 6.3 修复后实测（10/10 通过）
+
+| # | 调用 | 结果 |
+|---|---|---|
+| 1 | `capture_sheet_preview(address="A1:F10")` | **报错**：`[Office.js 通道] capture_sheet_preview 不支持真实渲染…替代路径：① host="wps" 的 wps_capture_sheet_preview；② 在 Excel 里自行截图；③ read_range/get_range_styles/get_charts(detail=true) 自查` ✅ |
+| 2 | `capture_sheet_preview()`（不给参数，默认整表） | 同样报错，无图 ✅ |
+| 3 | `capture_sheet_preview(chartName="Chart 1")` | `success:true` + 真实 PNG（29,628 B；标题、y 轴 0..120/20 步进、图例、深绿系列均为真实渲染） ✅ |
+| 4 | `capture_sheet_preview(chartName="图表 1")` | 中文别名归一命中，同一张真实图 ✅ |
+| 5 | `capture_sheet_preview(chartName="Chart 9")` | 报错并列出可用图表 `Chart 1「MS修复验证图」` ✅ |
+| 6 | `manage_rows_and_columns(targetType="column", action="insert", index=2)` | 读回 `A1:D2 = [["A1","","B1",""],["A2","","B2",""]]` → **插的是列**（旧实现会插行） ✅ |
+| 7 | `manage_rows_and_columns(targetType="row", …)` | 读回 `A3=A2`、列结构不变 → 插行正确 ✅ |
+| 8 | `set_data_validation(address="D1:D3", validationType="list", listItems=[…], prompt/error 文案)` | 返回 `readBackType:"List"`、`rule.list.source:"已通过,待复测,已报废"`、`prompt.title/message` 与 `errorAlert` 全部读回（旧实现会先清空且不设规则） ✅ |
+| 9 | `set_data_validation(number_range, between 1..10)` | 读回 `readBackType:"WholeNumber"`、`operator:"Between"`、`formula1:"1"`、`formula2:"10"` ✅ |
+| 10 | `manage_sheet`：`tab_color` / `move` / `protect` / `unprotect` / 缺参 / 未知 action | `tab_color` 读回 `color:"#EF4444"`、`move` 读回 `position:0`；`protect`/`unprotect` **显式报错并给替代路径**；`move` 缺 `targetIndex`、`rename` 缺 `newName`、`tab_color` 缺 `color` 均显式报错 ✅ |
+| 11 | `get_charts`：`chartTitle` / `shapeName` / `"图表 1"` / `chartIndex` | 各自只回命中那 1 张；`chartIndex:99` 与不存在的标题**报错并列出实际图表** ✅ |
+| 12 | `find_and_replace(searchQuery, searchRange="A1:C20", maxResults=2)` | `count:2, truncated:true, matches:[A8,C8]`；不带 `searchRange` 时回落 usedRange；`searchQuery=""` 报错阻断；替换后读回 `[["苹果_已换","香蕉","苹果_已换"],…]` ✅ |
+| 13 | `add_chart(chartType="pareto")` | 显式报错并给替代路径（不静默建柱状图） ✅ |
+| 14 | `add_chart` 真实图表导出核对 | 导出的 PNG 中 y 轴范围/步进 = 请求的 0..120/20，系列色 = 请求的 `#046A38` → `yAxis`/`seriesColors` 真生效 ✅ |
+
+### 6.4 实测暴露并修掉的 3 个新缺陷（源码可证 + 实机复现）
+
+| 编号 | 现象 | 根因 | 修复 |
+|---|---|---|---|
+| MS-01 | 行列插入**执行成功但返回失败**：`属性"name"不可用。读取属性的值之前，请先对包含对象调用 load…`，调用方会误判整体失败 | `handleUpdateRangeStructure` 写完就裸读 `sheet.name` 拼返回值 | 补 `sheet.load('name')` 后再 sync |
+| MS-02 | ISS-96 的报错文案**被框架错误盖掉**：区域截图路径返回 `属性"name"不可用` 而不是"不支持真实渲染" | `sheet.load("name")` 排在 `charts.load(...)+sync` **之后**，该路径永远 sync 不到 name | 把 `sheet.load("name")` 提到第一次 sync 之前（`capture_sheet_preview` 内） |
+| MS-03 | `dataRanges` 多段数据源实际**只生效 1 段**（连调两次 `chart.setData` 是替换而非追加，第一段被顶掉） | 对 `setData` 语义的错误假设 | 改为只取第 1 段 + 如实 `warnings` 说明"多段未合并"，并给出"整理成连续区域 / 改用 host=wps"的替代路径 |
+
+### 6.5 测不出来的部分（**不计入通过**）
+
+- **下拉校验的"点开单元格看箭头"没法自动验**：本机 AppleScript/System Events 被拒（`发生权限违例 -10004`），`office_execute_script` 在 macOS 走 WPS 的 JXA 驱动，对 MS 宿主不可用。
+- 另有一个**容易误判的坑**（已实测确认）：MS 上给 G1 设了 `number_range 1..10` 之后，`patch_cells` 写 `99` **照样写进去**——这不是校验失效，而是 [Microsoft 文档明确写的](https://learn.microsoft.com/en-ca/office/dev/add-ins/excel/excel-add-ins-data-validation)：程序化校验只在用户直接输入或"粘贴为值"时触发。**用"程序化写非法值"验证校验是否生效会得到假阴性。**
+- 因此 ISS-93-a 的通过口径是：**宿主回读的 `dataValidation.type/rule/prompt/errorAlert` 与请求一致**（读回值来自宿主，不是回显请求），下拉菜单的视觉确认建议人工点一下 D1。
+
+### 6.6 留给别的模块的问题（不在本写区）
+
+| 现象 | 位置 | 影响 |
+|---|---|---|
+| 加载项新增的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied` 字段被**响应转换丢掉** | `src/bridge/office/normalizer.ts`（`add_chart` 响应分支是白名单式重建） | MS 侧"哪些参数没生效"的如实提示到不了调用方；需在响应转换里透传 `warnings` 等字段 |
+| `capture_sheet_preview` 的 `kind`/`renderedBy`/`width`/`height` 同样被丢 | 同上 | 调用方无法从响应判断"这是图表真实渲染"还是别的来源 |
+| `excel_create_sheet` 的 schema 只接受 `sheetName`，而网关处理器读 `args?.name` | `src/bridge/gateway/excel.ts` + 工具定义 | 该工具当前**无法真正建指定名字的表**（我实测用 `create_sheet` 建表时名字是靠 `sheetName` 还原的，路径脆弱） |
