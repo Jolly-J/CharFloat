@@ -31,6 +31,8 @@
 // ── 模块: src/state.js — 全局常量与跨模块共享状态 ──
 // 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 7-15 行（原样搬迁，未改写）。
   const ADDON_VERSION = "2.0.0";
+  // 临时诊断（CAP-08 探测用，收尾删除）：记录 run_script 的到达与执行结果。
+  const DIAG = { runScriptSeen: 0, runScriptOk: 0, runScriptError: null, lastAt: null, lastCodeLen: 0, bootAt: new Date().toISOString() };
   const DEFAULT_WS_URL = "wss://localhost:19891/office-addon";
   let ws = null;
   let reconnectTimer = null;
@@ -474,7 +476,8 @@
         sheetCount: sheets.items.length,
         sheets: sheets.items.map(s => ({ name: s.name, visibility: s.visibility, position: s.position })),
         namedItemCount: names.items.length,
-        namedItems: names.items.map(n => n.name)
+        namedItems: names.items.map(n => n.name),
+        diag: DIAG
       };
     });
   }
@@ -2398,13 +2401,22 @@
 // 拼接片段（非独立 ES 模块）：由 scripts/build-office-addon.mjs 按固定顺序拼入 IIFE；初始迁移自 taskpane.js 第 1763-1773 行（原样搬迁，未改写）。
   // 12. 动态运行任意脚本
   async function handleRunScript(params) {
-    return await Excel.run(async (context) => {
-      const script = params.code || params.script;
-      const fn = new Function("context", "Excel", script);
-      const res = await fn(context, Excel);
-      await context.sync();
-      return { success: true, result: res };
-    });
+    DIAG.runScriptSeen += 1;
+    DIAG.lastAt = new Date().toISOString();
+    DIAG.lastCodeLen = String((params && (params.code || params.script)) || "").length;
+    try {
+      return await Excel.run(async (context) => {
+        const script = params.code || params.script;
+        const fn = new Function("context", "Excel", script);
+        const res = await fn(context, Excel);
+        await context.sync();
+        DIAG.runScriptOk += 1;
+        return { success: true, result: res };
+      });
+    } catch (e) {
+      DIAG.runScriptError = String((e && e.message) || e);
+      throw e;
+    }
   }
 
 // ── 模块: src/bootstrap.js — DOM 事件绑定与启动引导（必须最后拼接） ──
