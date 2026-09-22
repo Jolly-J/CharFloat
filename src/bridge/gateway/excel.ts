@@ -893,3 +893,12 @@ export const updateShape: Handler = async (ctx) => {
       text: args?.text, visible: args?.visible, newName: args?.newName
     });
 };
+
+/** 工作表视图设置：网格线/行列标题/缩放。画布页（矢量形状拼版）必须先隐藏网格线。 */
+export const setSheetView: Handler = async (ctx) => {
+  const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
+    return await callOffice("set_sheet_view", {
+      sheetName: args?.sheetName, workbookName: args?.workbookName,
+      showGridlines: args?.showGridlines, showHeadings: args?.showHeadings, zoom: args?.zoom
+    });
+};

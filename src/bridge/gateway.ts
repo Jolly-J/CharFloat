@@ -68,6 +68,7 @@ const HANDLERS: Record<string, Handler> = {
   "wps_format_text_segment": excel.formatTextSegment,
   "wps_configure_print_layout": excel.configurePrintLayout,
   "wps_export_sheet_pdf": excel.exportSheetPdf,
+  "wps_set_sheet_view": excel.setSheetView,
   "wps_add_shape": excel.addShape,
   "wps_group_shapes": excel.groupShapes,
   "wps_ungroup_shapes": excel.ungroupShapes,

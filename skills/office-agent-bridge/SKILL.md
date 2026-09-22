@@ -33,6 +33,7 @@ description: 通过本机 Office Agent Bridge 的 MCP 操作已打开的 WPS 或
 - 演示文稿排版：[PPT 工作流](../office-agent-bridge-ppt-design/SKILL.md)。
 - 文字与表格改稿：[Word 工作流](../office-agent-bridge-word-batch-edit/SKILL.md)。
 - 脚本要用枚举取值：[枚举速查表](references/enumeration.md)；脚本变量绑定与宿主 API 差异：[原生脚本](references/native-scripting.md)。
+- 用矢量形状搭建整页版面（看板 / 信息图 / 封面页）：[画布版面规范](references/canvas-layout.md)。
 - 连接或启动失败才读 [启动与排障](references/operations.md)；讨论宿主支持范围时读 [能力边界](references/capabilities.md)。不要预先加载所有引用。
 
 ## 批次与恢复

@@ -53,6 +53,9 @@
         case "export_sheet_pdf":
           result = exportSheetPdf(app, params);
           break;
+        case "set_sheet_view":
+          result = setSheetView(app, params);
+          break;
         case "add_shape":
           result = addShape(app, params);
           break;
