@@ -123,7 +123,7 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称；action='new_presentation' 时忽略（新建后请用返回的 presentationName 继续操作）" },
-            action: { type: "string", enum: ["new_presentation", "add", "delete", "move", "duplicate", "set_background", "save", "save_as"], description: "操作: 'new_presentation'(新建演示文稿，可配 filePath 直接另存), 'add'(新增页，可配 layoutIndex), 'delete'(删除页，需 slideIndex), 'move'(移动页，需 slideIndex + targetIndex), 'duplicate'(克隆页，需 slideIndex), 'set_background'(设置背景色，需 slideIndex + backgroundColor), 'save'/'save_as'(保存，需 filePath 时走另存为、format 可为 pptx/pdf)" },
+            action: { type: "string", enum: ["new_presentation", "add", "delete", "move", "duplicate", "set_background", "save", "save_as"], description: "操作: 'new_presentation'(新建演示文稿，可配 filePath 直接另存), 'add'(新增页，可配 layoutIndex), 'delete'(删除页，需 slideIndex), 'move'(移动页，需 slideIndex + targetIndex), 'duplicate'(克隆页，需 slideIndex), 'set_background'(设置背景色，需 slideIndex + backgroundColor), 'save'/'save_as'(保存；不传 filePath 走原地保存，未命名文稿会明确报告“没有文件路径”，不会静默成功)" },
             slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)；越界时报错并给出当前总页数" },
             targetIndex: { type: "integer", description: "移动操作的目标页码(1-based)" },
             layoutIndex: { type: "integer", description: "新增页使用的 ppLayout 版式枚举，不是母版 CustomLayouts 的 1..N 序号。常用值：1=标题幻灯片(标题+副标题占位符)、2=标题和文本、7=标题和图示或组织结构图、12=空白(默认)。取值越界时宿主不报错但版式不可预期；要精确套用本模板的自定义版式，请改用 wps_execute_script 操作 slide.CustomLayout。" },
@@ -290,12 +290,13 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_ppt_capture_slide_preview",
-        description: "将指定幻灯片导出为图片，返回图片数据，用于视觉核查排版是否重叠、文字是否溢出。",
+        description: "将指定幻灯片导出为 PNG 图片并返回 base64，用于视觉核查排版是否重叠、文字是否溢出。失败时把宿主对每次导出尝试的原始报错放在 hostError / attempts 字段里回传（不再只给一句“PPT 未生成预览”）。已知可用绕行：wps_execute_script 里 call slide.Export(绝对路径, 'PNG', 1280, 720)。",
         parameters: {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
-            slideIndex: { type: "integer", description: "要截图的幻灯片页码(1-based)，不传默认第1页" }
+            slideIndex: { type: "integer", description: "要截图的幻灯片页码(1-based)，不传默认第1页；越界时报错并给出当前总页数" },
+            outputPath: { type: "string", description: "可选的额外导出落盘路径（如 '/Users/.../slide3.png'）。宿主会把图片同时写到该路径；但桥接返回的 base64 仍读取它自己生成的临时预览文件，因此指定本参数只用于你自己取图，不代表工具会自动返回该路径的图片。" }
           },
           required: [],
           additionalProperties: false

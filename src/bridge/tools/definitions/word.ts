@@ -90,12 +90,12 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_read_document",
-        description: "读取 Word 文档连续段落内容 [P1, P2...]、标题大纲骨架、排版元数据（字体、字号、加粗、对齐等）以及表格结构信息。",
+        description: "读取 Word 文档连续段落内容 [P1, P2...]、标题大纲骨架、排版元数据（字体、字号、加粗、对齐等）、表格结构，以及只读读回：节与页面版式/页眉页脚/页码域/水印形状(scope='layout')、样式清单(scope='styles')、文档属性(scope='properties')、书签(scope='bookmarks')、内容控件(scope='content_controls')、域(scope='fields')。",
         parameters: {
           type: "object",
           properties: {
             documentName: { type: "string", description: "文档名称，例如 '关于召开年度总结大会的通知.docx'，不传则默认当前活动文档" },
-            scope: { type: "string", enum: ["outline", "full", "selection", "paragraphs", "tables"], description: "读取范围: 'outline'(仅标题大纲), 'full'(全文预览与大纲，默认), 'selection'(当前选区), 'paragraphs'(仅连续段落文本数组), 'tables'(仅表格结构与预览)" },
+            scope: { type: "string", enum: ["outline", "full", "selection", "paragraphs", "tables", "layout", "styles", "properties", "bookmarks", "content_controls", "fields"], description: "读取范围: 'outline'(仅标题大纲), 'full'(全文预览与大纲，默认), 'selection'(当前选区), 'paragraphs'(仅连续段落文本数组), 'tables'(仅表格结构与预览)；以下是只读读回类（只返回对应字段，不返回段落预览）: 'layout'(每节的页面尺寸/方向/页边距/页眉页脚文本与域/页码格式/水印形状), 'styles'(样式总数、启用中样式清单), 'properties'(标题/作者/主题/关键字/自定义属性), 'bookmarks'(书签名称与范围), 'content_controls'(内容控件 Title/Tag/类型/文本), 'fields'(文档域清单与域码)" },
             maxParagraphs: { type: "integer", description: "最多返回的段落数量，默认 200" },
             includeFormatting: { type: "boolean", description: "是否提取段落级排版元数据（是否加粗、字号、字体名等），默认 true" },
             includeTables: { type: "boolean", description: "是否返回文档内全部表格的尺寸与前三行预览，默认 true" }
@@ -109,7 +109,7 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_write_content",
-        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式、断开加粗继承，并可在开头、结尾、指定段落后或光标处插入。写入后须读回核对：'bookmark' 定位在部分宿主版本未落到书签处，不要只凭 success 判断。",
+        description: "向 Word 文档结构化写入内容（标题、正文、列表、引用或代码块）。支持指定排版样式，并可在开头、结尾、指定段落后、光标处或书签所在段落之后插入。location='bookmark' 时书签必须存在，否则**直接报错拒绝**（不会静默落到文末）；写入后返回 insertedParagraphs 与实际落点，并核对读回长度，宿主吞字符时逐条报错而不是返回 success。",
         parameters: {
           type: "object",
           properties: {
@@ -127,10 +127,10 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
             location: {
               type: "string",
               enum: ["end", "start", "selection", "bookmark", "after_paragraph"],
-              description: "写入位置: 'end'(文档末尾，默认), 'start'(文档最前), 'selection'(当前光标处), 'bookmark'(指定书签), 'after_paragraph'(指定段落后)"
+              description: "写入位置: 'end'(文档末尾，默认), 'start'(文档最前), 'selection'(当前光标处), 'bookmark'(指定书签，实际写在书签**所在段落之后**的新段落里), 'after_paragraph'(指定段落后)"
             },
-            paragraphIndex: { type: "integer", description: "当 location 为 'after_paragraph' 时的基准段落索引(1-based)" },
-            targetBookmark: { type: "string", description: "当 location 为 bookmark 时的书签名称" },
+            paragraphIndex: { type: "integer", description: "当 location 为 'after_paragraph' 时的基准段落索引(1-based)，越界会报错" },
+            targetBookmark: { type: "string", description: "当 location 为 bookmark 时的书签名称；不存在则报错（错误信息里会列出文档现有书签）" },
             formatting: {
               type: "object",
               properties: {
@@ -288,16 +288,18 @@ export function wordToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_word_page_layout_and_watermark",
-        description: "Word 页面版式与水印设置：页眉页脚文本（支持奇偶页不同、首页不同）与倾斜半透明文字水印。注意：页眉/页脚/水印当前只作用于第 1 节；水印落在正文层、只出现在第 1 页，跨页水印需用 wps_execute_script 改页眉层。三项至少传一项，否则本调用不产生任何变化。",
+        description: "Word 页面版式与水印设置：页眉页脚文本（支持奇偶页不同、首页不同）、页码域格式与倾斜半透明文字水印。页眉/页脚/页码**遍历文档全部节**逐节写入，返回 appliedSections 说明每节实际写了什么，失败项收进 warnings。水印：宿主 WPS for Mac 无法把形状放进页眉层（Headers.Shapes 的写入会静默落到正文层），因此水印仍是正文层浮动图形、只在第 1 页渲染，不是“每页可见”；跨页水印需在 Word 内手动插入（插入 → 水印）或改用 Windows/COM 通道，详情见返回的 warnings。传 pageNumberFormat 时会**覆盖**同一次调用里 footerText 写的页脚内容。三项至少传一项，否则直接报错。",
         parameters: {
           type: "object",
           properties: {
             documentName: { type: "string", description: "目标文档名称" },
-            headerText: { type: "string", description: "页眉文本内容" },
-            footerText: { type: "string", description: "页脚文本内容" },
-            watermarkText: { type: "string", description: "倾斜背景文字水印，例如 '内部机密 严禁外传'" },
-            differentFirstPage: { type: "boolean", description: "是否首页不同页眉页脚" },
-            differentOddEvenPages: { type: "boolean", description: "是否奇偶页不同页眉页脚" }
+            headerText: { type: "string", description: "页眉文本内容（覆盖各节原有页眉文本，会清掉页眉里已有的域）" },
+            footerText: { type: "string", description: "页脚文本内容；同时传 pageNumberFormat 时会被页码域覆盖" },
+            pageNumberFormat: { type: "string", enum: ["dash", "simple", "page_of_pages"], description: "页脚页码格式: 'simple'(仅页码，用真 PAGE 域实现，**当前宿主唯一可用的取值**), 'dash'(形如 - 1 -), 'page_of_pages'(形如 1 / 5)。后两者在 WPS for Mac 上写入会被宿主静默丢弃（页脚只支持纯页码域），工具会逐节返回 applied:false 与中文原因，不会静默降级成纯页码。" },
+            watermarkText: { type: "string", description: "倾斜背景文字水印，例如 '内部机密 严禁外传'；落在正文层、只渲染第 1 页（见工具说明）" },
+            watermarkColor: { type: "string", description: "水印文字颜色十六进制，默认 '#C0C0C0'" },
+            differentFirstPage: { type: "boolean", description: "是否首页不同页眉页脚（文档级设置，不写首页页眉内容）" },
+            differentOddEvenPages: { type: "boolean", description: "是否奇偶页不同页眉页脚（文档级设置，只写奇数页页眉/页脚条目）" }
           },
           required: [],
           additionalProperties: false
