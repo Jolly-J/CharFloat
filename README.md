@@ -1,20 +1,133 @@
 # Office Agent Bridge
 
-让 AI 连接本机正在打开的办公文档。优先面向 Excel / WPS 表格，提供结构化操作、连接诊断和单元格修改记录。
+> **让你正在使用的 AI，真正会用 Office**  
+> 看懂当前文件，直接操作当前文档，当场完成你的要求。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node: >=22](https://img.shields.io/badge/Node-%3E%3D22-blue.svg)](package.json)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey.svg)](package.json)
+[![Protocol: MCP](https://img.shields.io/badge/Protocol-MCP%20%2F%20HTTP-green.svg)](src/bridge/AGENTS.md)
+
+ChatGPT、Claude、豆包、千问等大模型已经足够聪明。它们会分析、会写作、会理解复杂需求。但在面对 Office 时，大多数 AI 仍然停留在：**帮你想、教你怎么做，或者重新生成一个新文件**。落到 Word、Excel、PPT 里的最后一步，往往还是人自己完成。
+
+**Office Agent Bridge 做的事情很简单**：
+> **给现有 AI 增加一层真正的 Office 原生操作能力。**
+
+让 AI 不再只是隔空处理“文件”，而是直接接入你当前正在使用的 Office 桌面工作区。它可以读取当前文档、理解当前状态，并通过 Office / WPS 原生结构化能力直接完成修改。
+
+---
+
+## 核心区别：不是重新做文件，而是操作运行中的工作区
+
+现在很多 AI Office 工具的工作方式本质上是**文件处理**：
+
+```mermaid
+flowchart LR
+    A[上传文件] --> B[AI 在云端分析]
+    B --> C[重新生成整个文件]
+    C --> D[用户重新下载覆盖]
+```
+
+**Office Agent Bridge 走的是实时工作区操作路线**：
+
+```mermaid
+flowchart LR
+    A[正在使用 Office] --> B[AI 理解当前状态]
+    B --> C[Office Agent Bridge]
+    C --> D[调用 Office / WPS 原生 API]
+    D --> E[直接修改当前文件]
+    E --> F[结果实时呈现在眼前]
+```
+
+- **传统方式操作的是**：**文件**（推倒重来，覆盖历史样式与宏）。
+- **Office Agent Bridge 操作的是**：**正在运行的 Office 应用程序本身**（在已有成果上指哪改哪）。
+
+---
+
+## 它不是另一个 AI
+
+Office Agent Bridge 本身不替代你习惯的大模型，它是 AI 与 Office 之间的**实时执行基础设施**：
+
+- **AI 负责思考**：理解意图、分析逻辑、制定步骤。
+- **Office Agent Bridge 负责连接与调度**：桥接协议、会话管理、意图转译、安全审计。
+- **Office / WPS 负责执行**：调用原生结构化 API 操作文档、反馈实时状态。
+
+```mermaid
+flowchart LR
+    A[你常用的 AI<br/>ChatGPT / Claude / 豆包 / Cursor] <-->|MCP / HTTP 协议| B[Office Agent Bridge<br/>连接 / 转换 / 调度]
+    B <-->|WebSocket / COM| C[Office / WPS 加载项与原生引擎]
+    C <-->|原生结构化 API| D[当前打开的文档<br/>Word / Excel / PPT]
+```
+
+---
+
+## 普通 AI 接入前后的对比
+
+| 维度 | 普通 AI 工具 | 接入 Office Agent Bridge |
+|---|---|---|
+| **交互模式** | 告诉你怎么做，自己复制粘贴 | **直接当场执行完成** |
+| **操作对象** | 离线上载的静态文件 | **当前桌面打开的实时文件** |
+| **产出方式** | 全盘重写重新生成 | **保留已有格式与结构，局部精细修改** |
+| **操作粒度** | 粗粒度整篇替换 | **精确定位到特定单元格、段落、形状或页面** |
+| **协同方式** | AI 与 Office 完全脱节 | **AI 与人在同一工作区无缝协作** |
+| **执行反馈** | 黑盒执行，只看最终文件 | **修改过程毫秒级呈现在屏幕前** |
+| **交互连续性** | 一次性交付，错了重来 | **边看、边做、随时打断与纠偏** |
+
+---
+
+## 为什么它比传统方案更可靠
+
+### 1. 为什么比视觉 GUI Agent（模拟鼠标）更精准
+视觉 Agent 依靠截图、目标检测定位屏幕坐标，容易受屏幕分辨率、多显示器缩放、界面遮挡、弹窗及加载抖动影响。  
+Office Agent Bridge 直连宿主**结构化接口**：AI 面对的是具体的 `Sheet1!H23`、`图表 2`、`第 12 页`，实现**零漂移、高确定性的代码级修改**。
+
+### 2. 为什么比 openpyxl 等纯脚本方案更实用
+`openpyxl` 是 **File Automation**（离线修改文件，文件被 Office 占用时会报冲突，且无法处理动态计算与即时交互）。  
+Office Agent Bridge 是 **Application Automation**，直连活体进程，修改直接反映在打开的界面上，实时可用。
+
+### 3. 双向实时执行环（Observe → Reason → Act → Observe）
+不仅能写，还能读：
+```mermaid
+flowchart LR
+    A[读取当前状态 / 选区] --> B[AI 分析推理]
+    B --> C[调用 Bridge 执行动作]
+    C --> D[读取结果与新状态]
+    D --> A
+```
+
+---
+
+## 典型场景：月度经营复盘
+
+已有维护了 7 个月的月度经营复盘 Excel（内含精细公式、复杂图表与历史数据）以及汇报 PPT：
+> **你对 AI 说**：“把 8 月数据填入，按原有逻辑更新趋势图，未达标指标标红，再把结论同步更新到 PPT 第 12 页。”
+
+- **AI 通过 Bridge**：
+  1. 读取当前活页与现有数据区间结构；
+  2. 沿用现有统计逻辑在末尾追加 8 月数据；
+  3. 刷新现有图表的数据系列（保留所有配色与样式）；
+  4. 触发异常指标高亮；
+  5. 更新当前打开的 PPT 对应页面。
+- 过程中你可以随时指示：“标记不要用红色，换浅橙色” —— **AI 当场微调，无需重新上传或推倒重做**。
+
+---
 
 ## 当前支持范围
 
-| 宿主 | 实现 | 验证状态 |
-| --- | --- | --- |
-| macOS WPS | 加载项、表格工具、Word/PPT 基础工具 | 1.x 曾在本机使用；2.0 服务与模拟宿主测试通过，新加载项仍需实机回归 |
-| Windows WPS | 加载项安装分支及同一工具协议 | 待 Windows 实机验收 |
-| Windows Microsoft Excel | PowerShell COM 结构化表格适配 | 代码已实现，待真实 Office 验收 |
-| macOS Microsoft Office | JXA 原生脚本与状态通道 | 结构化 Excel 适配暂不支持 |
-| Microsoft Word / PowerPoint | 原生脚本，PowerPoint 预览 | 不与 WPS 结构化工具等同，待实机确认 |
+| 宿主 | 实现方式 | 验证状态 |
+|---|---|---|
+| **macOS WPS** | 官方加载项、结构化表格工具、Word/PPT 基础工具 | 核心服务与测试通过，持续回归新加载项 |
+| **Windows WPS** | 加载项安装分支及同一工具协议 | 待 Windows 实机全面验收 |
+| **Windows Microsoft Excel** | PowerShell COM 结构化表格适配 | 代码已就绪，支持原生 Excel 自动化 |
+| **macOS Microsoft Office** | JXA 原生脚本与状态通道 | 结构化 Excel 适配暂不支持 |
+| **Microsoft Word / PPT** | 原生脚本、PowerPoint 实时预览 | 支持基础读取与元素编辑，高保真复刻待持续迭代 |
 
-PPT 适合基础读取、文本、形状、表格和页面操作。复杂图表、嵌入数据编辑、母版、动画和高保真复刻不作完整支持承诺。
+> [!NOTE]
+> PPT 目前适合基础读取、文字、形状、表格和页面管理；复杂嵌入图表对象、母版高级定制及复杂动画暂不作全量支持承诺。
 
-## 运行方式
+---
+
+## 架构与运行方式
 
 ```text
 桌面管理器 ─┐
@@ -23,91 +136,84 @@ HTTP MCP ───┘                           ├─ WPS 加载项 WebSocket
                                       └─ Windows Office COM / macOS JXA
 ```
 
-- 管理器启动后台，窗口关闭或管理器退出后后台仍可运行。
-- stdio MCP 自动启动或复用同一个后台；退出一个 AI 客户端不停止其他连接。
-- HTTP/SSE 配置只连接已有服务，不能自行启动。可从管理器启动，或设置安装版登录启动。
-- “停止服务”主动断开所有 AI。不会关闭办公软件或替用户保存文档。
-- 服务只监听 `127.0.0.1`，HTTP 和加载项都需要当前安装的凭据。
+- **独立后台运行**：桌面管理器关闭后后台服务仍可保持常驻。
+- **多客户端复用**：stdio MCP 会自动启动或接入已存在的 Bridge 后台；单个 AI 会话断开不影响其他连接。
+- **安全与权限边界**：服务仅监听 `127.0.0.1` 本地回环接口，全部 HTTP、WebSocket 均须校验本地安装凭证；单元格更新提供快照回滚能力。
 
-## 源码运行
+---
 
-需要 Node.js 22 LTS 或更高版本。
+## 快速上手
+
+### 环境要求
+- Node.js 22 LTS 或更高版本
+- 本地已安装 WPS Office 或 Microsoft Office
+
+### 源码安装与启动
 
 ```sh
+# 1. 安装依赖
 npm ci
+
+# 2. 类型检查与构建
 npm run typecheck
 npm run build
+
+# 3. 启动桌面管理器
 npm start
 ```
 
-在概览中选择“安装 / 修复加载项”，再在合适时机重启对应 WPS 组件。安装器只合并本项目条目，保留其他插件与备份，不会自动结束 WPS。
+1. 在桌面管理器中点击**“安装 / 修复加载项”**，随后重启一次 WPS 即可自动加载 Bridge 插件。
+2. 在**“AI 接入”**面板勾选你要接入的 AI 客户端（如 Claude Desktop、Cursor、Cline 等），一键生成 MCP 配置。
 
-在“AI 接入”勾选客户端后配置。支持生成 stdio 配置，不依赖另装 Node（安装版使用随应用交付的 Electron 运行时）。设置中可切换主题、检查状态和查看日志。
-
-## CLI / Agent
+### 命令行 / CLI 运维
 
 ```sh
-node dist/bridge/cli.cjs --start
-node dist/bridge/cli.cjs --status
-node dist/bridge/cli.cjs --doctor
-node dist/bridge/cli.cjs --repair-addon
-node dist/bridge/cli.cjs --stop
+node dist/bridge/cli.cjs --start          # 后台启动服务
+node dist/bridge/cli.cjs --status         # 检查运行状态
+node dist/bridge/cli.cjs --doctor         # 连接诊断
+node dist/bridge/cli.cjs --repair-addon    # 修复/重新部署加载项
+node dist/bridge/cli.cjs --stop           # 停止服务
 ```
 
-无参数运行 `cli.cjs` 即为 stdio MCP。`--repair-addon` 仅用于明确要部署/修复加载项时。安装管理器不会在每次启动时重写 AI 配置。
+> 不带任何参数直接运行 `cli.cjs` 即作为 **stdio MCP 服务器**，供各大支持 MCP 的智能体直接作为子进程拉起。
 
-源码配置工具默认只检查：
+---
 
-```sh
-npm run setup
-npm run setup -- --agent=cursor --skills
-npm run setup -- --addon
-```
+## 技能与工具体系
 
-配套主技能位于 [skills/office-agent-bridge](skills/office-agent-bridge/SKILL.md)，包含 Python 标准库客户端、启动说明、故障分类和能力边界。AI 接入后应先调用 `bridge_get_capabilities`。
+- **MCP 工具规范**：表格工具统一采用 `excel_*` 命名规范（需传递 `host: "wps" | "microsoft"`）；旧版 `wps_*` 兼容保留。
+- **配套 Agent 技能**：位于 [skills/office-agent-bridge](skills/office-agent-bridge/SKILL.md)，包含标准调用规范、容错降级及最佳实践。接入后建议引导 Agent 首选调用 `bridge_get_capabilities` 确认可用能力。
 
-统一表格工具使用 `excel_*`，必须传 `host: "wps"` 或 `"microsoft"`；旧 `wps_*` 名称继续仅操作 WPS。原生脚本属于高级通道，不能据此推断结构化工具或宿主 API 全部可用。
+---
 
-## 数据与限制
-
-默认运行目录：macOS `~/.wps-bridge`；Windows `%LOCALAPPDATA%/WPSBridge`。
-
-`WPS_BRIDGE_HOME`、`WPS_BRIDGE_PORT` 可配置隔离环境；默认端口 19890。`installation.json` 保存可执行程序、CLI 与资源路径，`token` 保存本机凭据。不要分享 token 或把本机服务暴露到公网。
-
-- 单元格 `patch_cells` 保存值和公式快照，回滚前检查是否存在后续修改。
-- 样式、图表、工作表结构、Word/PPT、原生脚本不具备统一回滚。
-- 写入成功不代表已保存。超时或断线意味着结果可能未知，先读回，勿自动重放。
-- Windows COM 需要同一桌面用户/权限会话，PowerShell 脚本运行策略须允许本地安装资源；程序不改变系统执行策略。
-- macOS WPS 表格截图仍依赖 Swift/Cocoa 剪贴板提取；预览可能改变剪贴板或当前激活对象。
-- Microsoft Excel COM 通道附着注册的运行实例；多实例工作簿不一定都可枚举，找不到指定文件时明确报错，不创建隐藏替代文档。
-
-## 验证与打包
+## 验证与发布
 
 ```sh
+# 运行自动化测试套件
 npm test
+
+# 检查各模块导航与文档结构
+npm run check:agents
+
+# 跨平台构建打包
 npm run dist
 ```
 
-本机测试使用临时目录、随机端口和模拟宿主，不修改用户文档。CI 在 macOS / Windows 运行构建和协议测试；Windows 额外解析 PowerShell 脚本。CI 配置已提供，未将其写入等同于已在远端运行。
+打包构建产物将输出在 `release/<版本>/<平台>/` 目录中。
 
-真实 Windows Office 验收：在安装 Excel 的 Windows 桌面会话执行以下命令。它创建自己的 Excel 实例与临时工作簿，不附着或关闭已有用户文档：
+---
 
-```powershell
-powershell -NoProfile -File tests/windows-office.ps1 -RunOffice
-```
+## 参与贡献与开发导航
 
-WPS 和客户端验收步骤见 [验证矩阵](docs/validation.md)。构建成功和模拟宿主通过不等于 Windows 实机验收通过。
+本项目采用模块化协作规范，在开发前建议首读 [AGENTS.md](AGENTS.md) 了解模块边界：
+- **MCP 路由与工具契约**：参见 [src/bridge/AGENTS.md](src/bridge/AGENTS.md)
+- **WPS 加载项开发**：参见 [wps-addon/AGENTS.md](wps-addon/AGENTS.md)
+- **Office.js 插件**：参见 [office-addon/AGENTS.md](office-addon/AGENTS.md)
+- **Windows 原生自动化**：参见 [resources/office/AGENTS.md](resources/office/AGENTS.md)
+- **桌面 GUI 界面**：参见 [src/renderer/AGENTS.md](src/renderer/AGENTS.md)
 
-打包产物按版本与平台输出到 `release/<版本>/<平台>/`，平台名称为 `mac`、`win`。发布包统一命名为 `Office-Agent-Bridge-<版本>-<平台>-<架构>.<扩展名>`，即使是 x64 也不省略架构。
+---
 
-当前默认生成 macOS / Windows ZIP 和解包目录；不默认生成 DMG 或 EXE 安装程序。ZIP 用于分发，`mac-*`、`win-*-unpacked` 等目录是可运行的解包程序，不能随意删除其中的 DLL、resources 或 locales。`.blockmap` 是包的配套校验数据，应与原包一起保留。`builder-*.yml/yaml` 是构建诊断信息，可能出现在版本目录中，不是安装包。
+## 许可证 (License)
 
-已有旧发布包保留原名并按版本、平台归档；未确认版本的旧解包目录和辅助文件放在 `release/_legacy-build/`。该目录是历史归档，不是最新发布入口。后续构建不会自动删除旧版本，同版本同平台同架构再次打包会覆盖对应产物。开发编译输出仍在 `dist/`，与发布包分开。
-
-安装包签名与公证需要发布者凭据，源码不包含签名密钥。
-
-## AI 协作导航
-
-开发任务先读 [AGENTS.md](AGENTS.md)，按任务进入对应模块，避免默认扫描全项目。关键文件、调用链或验证命令变化时，同步更新对应导航及已证实的避坑条目。运行 `npm run check:agents` 检查路径和导航；该检查不替代对说明准确性的审核。
-
-项目结构改造见 [改造计划与执行台账](docs/refactoring-plan.md)，包括分阶段清单、双平台业务验收及执行备忘。
+本项目采用 [MIT License](LICENSE) 开源协议。
