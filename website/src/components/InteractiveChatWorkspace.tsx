@@ -106,7 +106,7 @@ export const InteractiveChatWorkspace: React.FC = () => {
   const [typedPrompt, setTypedPrompt] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [inputValue, setInputValue] = useState<string>('');
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentTurn = TURNS[currentTurnIdx];
 
