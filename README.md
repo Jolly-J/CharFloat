@@ -23,6 +23,14 @@
 
 <p align="center">
   <a href="https://charfloat.utmolight.xyz/">
+    <img src="website/public/hero-showcase.gif" alt="字浮 CharFloat · 交互效果演示" width="800" style="border-radius: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.12);" />
+  </a>
+  <br />
+  <sub>🎬 <strong>产品交互演示</strong>（概念模拟自制，非真实场景全流程录屏，仅供效果与流程参考）</sub>
+</p>
+
+<p align="center">
+  <a href="https://charfloat.utmolight.xyz/">
     <img src="website/public/hero-showcase.png" alt="字浮 CharFloat · 给你的 AI 开个 Office 外挂，你说它当场改" width="880" style="border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.12);" />
   </a>
 </p>
