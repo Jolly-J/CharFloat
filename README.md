@@ -99,10 +99,31 @@
 
 ## 你习惯用谁，就给谁装上字浮
 
-无需改变日常工作习惯，也不用额外花钱订阅新 AI。装上字浮，一键为你电脑上已有的常用 AI 软件打通直接操控能力：
+无需改变日常工作习惯，也不用额外花钱订阅新 AI。装上字浮，一键为你电脑上已有的常用 AI 软件打通直接操控能力。
 
+<div align="center">
+
+### 🏆 官方实测最佳搭配：WPS Office ➕ 腾讯 WorkBuddy
+
+<p>
+  <a href="https://www.wps.cn/" target="_blank" rel="noopener noreferrer">
+    <img src="website/public/wps-logo.png" width="30" height="30" alt="WPS Office" style="vertical-align: middle; margin-right: 6px;" />
+    <b>WPS Office 官网</b>
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;🤝&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://www.workbuddy.ai/" target="_blank" rel="noopener noreferrer">
+    <img src="website/public/agents/workbuddy.svg" width="30" height="30" alt="Tencent WorkBuddy" style="vertical-align: middle; margin-right: 6px;" />
+    <b>腾讯 WorkBuddy 官网</b>
+  </a>
+</p>
+<p>
+  <em>经真机重度实测：<b>WPS Office</b> 原生结构化通道 ➕ <b>WorkBuddy</b> 腾讯全场景 Agent 办公工作台，协同丝滑度最高、响应最迅捷！<br />无需切换窗口，日常对话直接唤醒字浮底层驱动，指哪改哪。</em>
+</p>
+
+</div>
+
+- **WorkBuddy**（首推搭档）：[腾讯 WorkBuddy](https://www.workbuddy.ai/) 原生联动，一键接入后在日常对话中唤醒本地 Office 驱动，指哪改哪。
 - **豆包工作**：字节跳动 AI 工作平台，打破网页边界，直接在正在运行的 WPS 中就地标色与修表。
-- **WorkBuddy**：腾讯智能助手原生联动，一键接入后在日常对话中唤醒本地 Office 驱动，指哪改哪。
 - **通义千问**：阿里巴巴通义桌面端，本地通道秒级接入，让长文本分析与复杂计算直接增量注入表格。
 - **Kimi**：月之暗面长文本推理助手，配置就绪，直接在客户端对话中提取与回写眼前正打开的工作表。
 - **Claude Code / Desktop**：Anthropic 官方智能助手与 CLI，原生支持标准 MCP 协议，代码级精准控制 Office 内部对象。
@@ -144,9 +165,9 @@
 
 | 平台与宿主 | 支持能力 | 状态 |
 |---|---|---|
-| **Windows WPS** | 表格结构化精准修改、Word / PPT 自动化与加载项支持 | **已测试通过**，完整支持（推荐） |
+| **Windows WPS** | 表格结构化精准修改、Word / PPT 自动化与加载项支持 | **已测试通过**，完整支持（[WPS 官网](https://www.wps.cn/) 推荐） |
 | **Windows Microsoft Office** | Excel 结构化表格自动化（COM 原生驱动与加载项双通道） | **已测试通过**，完整支持 |
-| **macOS WPS** | 表格结构化精准修改、Word / PPT 基础操作 | **已测试通过**，完整支持（推荐） |
+| **macOS WPS** | 表格结构化精准修改、Word / PPT 基础操作 | **已测试通过**，完整支持（[WPS 官网](https://www.wps.cn/) 推荐） |
 | **macOS Microsoft Office** | JXA 原生脚本通道 | 基础支持，持续扩展中 |
 
 ---
