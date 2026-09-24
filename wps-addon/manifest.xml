@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest>
-  <name>Office Agent Bridge</name>
-  <description>Universal AI Bridge for Office &amp; WPS (Cursor, Claude, WorkBuddy &amp; MCP Integration)</description>
-  <version>2.1.0</version>
+  <name>字浮 CharFloat</name>
+  <description>字浮 CharFloat 原生办公接管中枢 (Doubao, WorkBuddy, Cursor, Claude &amp; MCP Integration)</description>
+  <version>2.2.0</version>
   <publisher>Antigravity</publisher>
   <et>
     <ribbon>ribbon.xml</ribbon>

@@ -1,0 +1,12 @@
+{
+  "step": "doc-10",
+  "tool": "wps_word_capture_preview",
+  "args": {
+    "documentName": "文字文稿1"
+  },
+  "response": {
+    "success": false,
+    "error": "A dynamic import callback was not specified.",
+    "_httpStatus": 422
+  }
+}

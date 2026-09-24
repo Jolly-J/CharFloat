@@ -1,0 +1,30 @@
+{
+  "step": "doc-04",
+  "tool": "wps_word_write_content",
+  "args": {
+    "documentName": "文字文稿1",
+    "type": "paragraph",
+    "content": "2026 年 7 至 9 月，公司营业收入由 86 万元增长至 108 万元，累计增幅 25.6%；营业利润由 20 万元增长至 28 万元；利润率由 23.3% 提升至 25.9%。运营成本由 66 万元上升至 80 万元，环比增速高于营收增速，是本期需要重点关注的科目。",
+    "location": "end"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "insertedLines": 1,
+      "location": "end",
+      "type": "paragraph",
+      "insertedParagraphs": [
+        {
+          "textLength": 137,
+          "readBackMatches": true,
+          "start": 0,
+          "end": 138,
+          "style": "正文"
+        }
+      ],
+      "message": "已成功向 [文字文稿1] 写入 1 行内容"
+    }
+  }
+}

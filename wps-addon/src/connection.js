@@ -16,8 +16,8 @@
         isConnected = true;
         reconnectAttempts = 0;
         lastDisconnectReason = "正常连通";
-        log("已成功连上 WPS Bridge 服务端");
-        updateStatusUI(true, `已与本地 WPS Bridge (v${currentVersion}) 建立长连接`);
+        log("已成功连上字浮 CharFloat 服务端");
+        updateStatusUI(true, `已与本地字浮 CharFloat (v${currentVersion}) 建立长连接`);
 
         let clientType = "wps-office-addon";
         let initialSummary = null;

@@ -1,6 +1,6 @@
 {
   "name": "office-agent-bridge",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Universal Bridge between AI Agents (Doubao, WorkBuddy, Qwen, Kimi, Claude Code, Codex) and Microsoft Office & WPS Office with Audit Trail and GUI",
   "main": "dist/main/index.js",
   "bin": {
@@ -44,7 +44,7 @@
   },
   "build": {
     "appId": "com.antigravity.officeagentbridge",
-    "productName": "Office Agent Bridge",
+    "productName": "字浮 CharFloat",
     "directories": {
       "output": "release/${version}/${os}"
     },
@@ -73,8 +73,8 @@
       ],
       "category": "public.app-category.productivity",
       "extendInfo": {
-        "NSDocumentsFolderUsageDescription": "Office Agent Bridge 需要访问文稿目录以部署并升级 Excel 加载项清单。",
-        "NSDownloadsFolderUsageDescription": "Office Agent Bridge 需要访问下载目录以管理临时配置文件。"
+        "NSDocumentsFolderUsageDescription": "字浮 CharFloat 需要访问文稿目录以部署并升级 Excel 加载项清单。",
+        "NSDownloadsFolderUsageDescription": "字浮 CharFloat 需要访问下载目录以管理临时配置文件。"
       }
     },
     "win": {
@@ -98,7 +98,7 @@
       "**/node_modules/bytenode/**/*",
       "**/dist/bridge/cli-full.cjs"
     ],
-    "artifactName": "Office-Agent-Bridge-${version}-${os}-${arch}.${ext}",
+    "artifactName": "字浮-CharFloat-${version}-${os}-${arch}.${ext}",
     "npmRebuild": false,
     "beforePack": "scripts/before-pack.cjs",
     "afterPack": "scripts/after-pack.cjs",

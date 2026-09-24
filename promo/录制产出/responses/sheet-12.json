@@ -1,0 +1,49 @@
+{
+  "step": "sheet-12",
+  "tool": "wps_auto_fit_columns",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "workbookName": "月度经营.xlsx",
+      "mode": "usedRange",
+      "results": [
+        {
+          "colIndex": 1,
+          "finalWidth": 16.923076629638672,
+          "wrapped": true
+        },
+        {
+          "colIndex": 2,
+          "finalWidth": 6.230769157409668,
+          "wrapped": true
+        },
+        {
+          "colIndex": 3,
+          "finalWidth": 6.230769157409668,
+          "wrapped": true
+        },
+        {
+          "colIndex": 4,
+          "finalWidth": 6.230769157409668,
+          "wrapped": true
+        }
+      ],
+      "message": "已按已用区域自适应 4 列",
+      "auditId": "1e7534ea-bcd0-4892-bc09-01c2fd50cb6d",
+      "rollbackable": false,
+      "rollbackScope": {
+        "values": false,
+        "formulas": false,
+        "styles": false,
+        "charts": false,
+        "structure": false
+      },
+      "auditNote": "列宽调整只留痕、不可回滚。"
+    }
+  }
+}

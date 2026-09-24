@@ -1,0 +1,56 @@
+{
+  "step": "doc-05",
+  "tool": "wps_word_manage_table",
+  "args": {
+    "documentName": "文字文稿1",
+    "action": "insert",
+    "rows": 5,
+    "columns": 4,
+    "stylePreset": "mckinsey_three_line",
+    "repeatHeader": true,
+    "data": [
+      [
+        "经营指标 / 万元",
+        "7 月",
+        "8 月",
+        "9 月"
+      ],
+      [
+        "营业收入",
+        "86",
+        "94",
+        "108"
+      ],
+      [
+        "运营成本",
+        "66",
+        "72",
+        "80"
+      ],
+      [
+        "营业利润",
+        "20",
+        "22",
+        "28"
+      ],
+      [
+        "利润率",
+        "23.3%",
+        "23.4%",
+        "25.9%"
+      ]
+    ]
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "tableIndex": 1,
+      "rows": 5,
+      "columns": 4,
+      "style": "mckinsey_three_line",
+      "message": "已成功在 [文字文稿1] 插入 5行 × 4列 专业三线表"
+    }
+  }
+}

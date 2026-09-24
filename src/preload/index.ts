@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('api', {
   detectEnvironment: invoke('installer:detect'), executeInstall: invoke('installer:execute'),
   permissionInfo: invoke('permission:full-disk-access-info'), openFullDiskAccess: invoke('permission:open-full-disk-access'),
   setTheme: invoke('set-theme'), setLogin: invoke('set-login'), copyText: invoke('copy-text'), openLog: invoke('open-log'), exitApp: invoke('exit-app'),
+  markDoubaoConfigured: invoke('mark-doubao-configured'),
+  openAgentApp: invoke('open-agent-app'),
   startAppDrag: () => ipcRenderer.send('permission:drag-start'),
   appIcon: invoke('permission:app-icon'),
   openPermissionGuide: invoke('permission:open-guide'),

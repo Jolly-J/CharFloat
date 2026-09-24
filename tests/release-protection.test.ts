@@ -70,6 +70,6 @@ test('发布门禁拒绝源码、备份、旧入口和缺失的 Agent 使用资�
     'wps-addon/src/excel.js', 'skills/AGENTS.md', 'wps-addon/addon-core.js.map', 'wps-addon/addon-core.js.backup']) {
     assert.ok(checkFiles([...names, leak], () => Buffer.from('')).some((e: string) => e.includes(leak)));
   }
-  assert.ok(checkFiles(names.filter(n => n !== 'skills/office-agent-bridge/SKILL.md'), () => Buffer.from(''))
+  assert.ok(checkFiles(names.filter(n => n !== 'skills/charfloat/SKILL.md'), () => Buffer.from(''))
     .some((e: string) => e.includes('缺少运行资源')));
 });

@@ -1,0 +1,49 @@
+{
+  "step": "ppt-03",
+  "tool": "wps_ppt_generate_deck",
+  "args": {
+    "presentationName": "演示文稿3",
+    "themePreset": "business_blue",
+    "slides": [
+      {
+        "layout": "cards_3",
+        "title": "核心指标",
+        "cards": [
+          {
+            "tag": "REVENUE",
+            "title": "108 万元",
+            "description": "9 月营业收入，环比 +14.9%"
+          },
+          {
+            "tag": "PROFIT",
+            "title": "28 万元",
+            "description": "9 月营业利润，环比 +27.3%"
+          },
+          {
+            "tag": "MARGIN",
+            "title": "25.9%",
+            "description": "利润率较 7 月提升 2.6 个百分点"
+          }
+        ]
+      }
+    ]
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "layoutWarnings": [],
+      "visualVerificationRequired": true,
+      "presentationName": "演示文稿3",
+      "createdSlidesCount": 1,
+      "createdSlideIndices": [
+        2
+      ],
+      "themeColor": "#0F4C81",
+      "message": "已成功基于大纲批量生成 1 页专业商业演示胶片！"
+    }
+  }
+}

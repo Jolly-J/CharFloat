@@ -14,17 +14,18 @@ const {TargetLockStore}=await import('../src/bridge/gateway.js');
 const {runProcess}=await import('../src/bridge/process-runner.js');
 
 test('XML merge preserves unrelated plugins and rejects damaged input',()=>{
-  const raw='<jsplugins><jsplugin name="Other" type="et" url="./other"/><jsplugin name="WPS Bridge" type="et"/></jsplugins>';
+  const raw='<jsplugins><jsplugin name="Other" type="et" url="./other"/><jsplugin name="WPS Bridge" type="et"/><jsplugin name="Office Agent Bridge (表格)" type="et"/></jsplugins>';
   const result=mergePluginIndex(raw);
   assert.match(result,/name="Other"/);
-  assert.equal((result.match(/name="Office Agent Bridge/g)||[]).length,3);
+  assert.equal((result.match(/name="字浮 CharFloat/g)||[]).length,3);
+  assert.equal((result.match(/name="Office Agent Bridge/g)||[]).length,0);
   assert.equal((result.match(/name="WPS Bridge/g)||[]).length,0);
   assert.equal(mergePluginIndex(result),result);
   assert.throws(()=>mergePluginIndex('<jsplugins><broken>'));
   // 验证带有 BOM 和 Unicode 替换字符警告时不抛异常，正常合并
   const bomRaw='\uFEFF<jsplugins><jsplugin name="Test\uFFFDPlugin" type="et" url="./test"/></jsplugins>';
   const resBom=mergePluginIndex(bomRaw);
-  assert.match(resBom,/name="Office Agent Bridge/);
+  assert.match(resBom,/name="字浮 CharFloat/);
   // 验证缺少根节点（如仅声明、仅注释、DOCTYPE、空关闭标签或异常符号）时，自动安全初始化为 <jsplugins/>
   for (const emptyRoot of [
     '<?xml version="1.0" encoding="utf-8"?>\r\n',
@@ -34,7 +35,7 @@ test('XML merge preserves unrelated plugins and rejects damaged input',()=>{
     '   <   '
   ]) {
     const res = mergePluginIndex(emptyRoot);
-    assert.match(res, /name="Office Agent Bridge/);
+    assert.match(res, /name="字浮 CharFloat/);
   }
 });
 test('MCP merge preserves other clients and corrupt files byte for byte',()=>{
@@ -44,21 +45,21 @@ test('MCP merge preserves other clients and corrupt files byte for byte',()=>{
   assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).other,true);
   fs.writeFileSync(file,'{broken');assert.throws(()=>mergeMcpConfig(file,{}));assert.equal(fs.readFileSync(file,'utf8'),'{broken');
 });
-test('MCP 配置改名：只写新名字，并把我们自己的遗留 wps-bridge 条目迁走',()=>{
+test('MCP 配置改名：只写新名字 charfloat，并把遗留 office-agent-bridge / wps-bridge 条目迁走',()=>{
   const file=path.join(root,'rename.json');
   const entry={command:'/A.app/binary',args:['/A.app/cli.cjs']};
-  // 场景一：已有我们的遗留条目（命令与参数一致）→ 应被迁走，只留新名字
-  fs.writeFileSync(file,JSON.stringify({mcpServers:{'wps-bridge':entry,other:{command:'x'}}}));
+  // 场景一：已有我们的遗留条目（命令与参数一致）→ 应被迁走，只留新名字 charfloat
+  fs.writeFileSync(file,JSON.stringify({mcpServers:{'wps-bridge':entry,'office-agent-bridge':entry,other:{command:'x'}}}));
   mergeMcpConfig(file,entry);
   const a=JSON.parse(fs.readFileSync(file,'utf8'));
-  assert.deepEqual(Object.keys(a.mcpServers).sort(),['office-agent-bridge','other']);
-  assert.deepEqual(a.mcpServers['office-agent-bridge'],entry);
+  assert.deepEqual(Object.keys(a.mcpServers).sort(),['charfloat','other']);
+  assert.deepEqual(a.mcpServers['charfloat'],entry);
   // 场景二：别人的同名条目（命令不同）→ **必须原样保留**，不能被我们删掉
-  fs.writeFileSync(file,JSON.stringify({mcpServers:{'wps-bridge':{command:'someone-else'}}}));
+  fs.writeFileSync(file,JSON.stringify({mcpServers:{'office-agent-bridge':{command:'someone-else'}}}));
   mergeMcpConfig(file,entry);
   const b=JSON.parse(fs.readFileSync(file,'utf8'));
-  assert.deepEqual(b.mcpServers['wps-bridge'],{command:'someone-else'});
-  assert.deepEqual(b.mcpServers['office-agent-bridge'],entry);
+  assert.deepEqual(b.mcpServers['office-agent-bridge'],{command:'someone-else'});
+  assert.deepEqual(b.mcpServers['charfloat'],entry);
   // 幂等：再跑一次结果不变
   mergeMcpConfig(file,entry);
   assert.equal(fs.readFileSync(file,'utf8'),JSON.stringify(b,null,2)+'\n');

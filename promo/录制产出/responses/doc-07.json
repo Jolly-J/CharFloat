@@ -1,0 +1,56 @@
+{
+  "step": "doc-07",
+  "tool": "wps_word_write_content",
+  "args": {
+    "documentName": "文字文稿1",
+    "type": "bullet_list",
+    "content": [
+      "成本专项：9 月运营成本环比增长 11.1%，建议对采购价格与渠道费用逐项复核。",
+      "结构优化：利润率连续三月改善，维持在 25% 以上，当前收入结构可继续执行。",
+      "增量探索：海外收入占 9 月营收 12.0%，建议评估该渠道的可复制性。",
+      "数据口径：本报告数据源为《月度经营.xlsx》，与演示文稿使用同一份口径。"
+    ],
+    "location": "end"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "insertedLines": 4,
+      "location": "end",
+      "type": "bullet_list",
+      "insertedParagraphs": [
+        {
+          "textLength": 40,
+          "readBackMatches": true,
+          "start": 230,
+          "end": 271,
+          "style": "正文"
+        },
+        {
+          "textLength": 38,
+          "readBackMatches": true,
+          "start": 230,
+          "end": 269,
+          "style": "正文"
+        },
+        {
+          "textLength": 36,
+          "readBackMatches": true,
+          "start": 230,
+          "end": 267,
+          "style": "正文"
+        },
+        {
+          "textLength": 37,
+          "readBackMatches": true,
+          "start": 230,
+          "end": 268,
+          "style": "正文"
+        }
+      ],
+      "message": "已成功向 [文字文稿1] 写入 4 行内容"
+    }
+  }
+}

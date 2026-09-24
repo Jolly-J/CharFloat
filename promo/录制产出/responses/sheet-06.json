@@ -1,0 +1,35 @@
+{
+  "step": "sheet-06",
+  "tool": "wps_format_cells",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "address": "D6",
+    "numberFormat": "0.0%"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "warnings": [],
+      "success": true,
+      "address": "$D$6",
+      "appliedStyles": {
+        "sheetName": "月度经营分析",
+        "address": "D6",
+        "workbookName": "月度经营.xlsx",
+        "verticalAlignment": "center",
+        "numberFormat": "0.0%"
+      },
+      "auditId": "4213e3f9-108b-49a5-a044-31212c1a7f79",
+      "rollbackable": false,
+      "rollbackScope": {
+        "values": false,
+        "formulas": false,
+        "styles": false,
+        "charts": false,
+        "structure": false
+      },
+      "auditNote": "格式修改只留痕、不可回滚（本记录没有值/样式快照）。"
+    }
+  }
+}

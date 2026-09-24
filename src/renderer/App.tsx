@@ -10,6 +10,7 @@ import { LiveWorkspaceCard } from './components/LiveWorkspaceCard.js';
 import { AgentHub } from './components/AgentHub.js';
 import { SafetyTimeMachine } from './components/SafetyTimeMachine.js';
 import { DiffModal } from './components/DiffModal.js';
+import { DoubaoGuideModal } from './components/DoubaoGuideModal.js';
 import { ShieldAlert } from 'lucide-react';
 import { SettingsDrawer } from './components/SettingsDrawer.js';
 
@@ -26,7 +27,6 @@ export default function App() {
 
   // Agent 接入状态
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
-  const [syncSkills, setSyncSkills] = useState(true);
   const [installLogs, setInstallLogs] = useState<any[]>([]);
 
   // 安全时光机审计状态
@@ -40,6 +40,7 @@ export default function App() {
   // 权限引导：失败时主进程会打开置顶浮窗（方案 B）；主界面只留一条可回到引导的细条，避免弹窗 + toast 重复
   const [permissionNotice, setPermissionNotice] = useState<{ label: string } | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showDoubaoGuide, setShowDoubaoGuide] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -232,10 +233,19 @@ export default function App() {
     void run('install', async () => {
       const r = await api.executeInstall({
         agents: selectedAgents,
-        skills: syncSkills,
+        skills: true,
       });
       setInstallLogs(r.logs || []);
       await refreshAll();
+      if (selectedAgents.includes('doubao')) {
+        const nextEnv = await api.detectEnvironment();
+        setEnv(nextEnv);
+        const doubao = nextEnv?.agents?.find((a: any) => a.id === 'doubao');
+        // 智能探测：若豆包工作尚未配置成功，才弹出指引；已配置成功则不再自动弹出
+        if (doubao && doubao.status !== 'configured') {
+          setShowDoubaoGuide(true);
+        }
+      }
       return r;
     }, `所选 ${selectedAgents.length} 个 AI 客户端配置已更新`);
   };
@@ -339,15 +349,15 @@ export default function App() {
             <AgentHub
               agents={env?.agents || []}
               selectedAgents={selectedAgents}
-              syncSkills={syncSkills}
               busy={busy}
               installLogs={installLogs}
               mcpConfig={info.config}
               onToggleAgent={handleToggleAgent}
               onToggleSelectAll={handleToggleSelectAll}
-              onToggleSyncSkills={setSyncSkills}
               onExecuteInstall={handleExecuteInstall}
               onCopyText={handleCopyText}
+              onOpenDoubaoGuide={() => setShowDoubaoGuide(true)}
+              onOpenAgentApp={(id: string) => { void (api as any).openAgentApp?.(id); }}
             />
           </div>
 
@@ -374,7 +384,7 @@ export default function App() {
           <span>{status.online ? `本地加密通道已监听端口 ${info.port}` : '后台服务未启动'}</span>
         </div>
         <div className="footer-right">
-          <span>Office Agent Bridge · 本地高保真办公引擎</span>
+          <span>字浮 CharFloat · 本地高保真办公引擎</span>
           <span className="footer-divider">/</span>
           <span>{info.platform === 'darwin' ? 'macOS 客户端' : 'Windows 客户端'}</span>
         </div>
@@ -443,6 +453,23 @@ export default function App() {
         onOpenLog={() => {
           void run('log', api.openLog);
         }}
+      />
+
+      {/* 7. 豆包工作连接器配置指引弹窗 */}
+      <DoubaoGuideModal
+        open={showDoubaoGuide}
+        port={info?.port || 19890}
+        token={info?.token || ''}
+        onClose={() => setShowDoubaoGuide(false)}
+        onMarkConfigured={async () => {
+          await (api as any).markDoubaoConfigured?.(true);
+          setShowDoubaoGuide(false);
+          await refreshAll();
+        }}
+        onOpenDoubaoApp={() => {
+          void (api as any).openAgentApp?.('doubao');
+        }}
+        onCopyText={handleCopyText}
       />
     </div>
   );

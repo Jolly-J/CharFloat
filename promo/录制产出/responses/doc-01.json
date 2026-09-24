@@ -1,0 +1,16 @@
+{
+  "step": "doc-01",
+  "tool": "wps_word_create_document",
+  "args": {
+    "isVisible": true
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "fullName": "文字文稿1",
+      "message": "已成功创建新文档: 文字文稿1"
+    }
+  }
+}

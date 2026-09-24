@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import wpsLogo from '../assets/wps-logo.png';
 import officeLogo from '../assets/office-logo.png';
 import appLogo from '../assets/app-logo.png';
+import brandWorking from '../assets/brand-working.png';
 
 interface TopologyViewProps {
   online: boolean;
@@ -103,7 +104,7 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
         <div className={`track-node ${online ? 'active' : ''}`}>
           <div className="node-icon-row">
             <div className="core-icon-box bridge-core-box">
-              <img src={appLogo} alt="Bridge 核心" className="bridge-brand-node-img" />
+              <img src={brandWorking} alt="Bridge 核心" className="bridge-brand-node-img" />
             </div>
           </div>
           <div className="node-title">Bridge 核心</div>
@@ -132,7 +133,7 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
         <div className={`track-node ${configuredAgentsCount > 0 ? 'active' : ''}`}>
           <div className="node-icon-row">
             <div className="core-icon-box ai-agent-box">
-              <Bot size={18} className="ai-agent-icon" />
+              <Bot size={22} className="ai-agent-icon" />
             </div>
           </div>
           <div className="node-title">AI 智能体</div>

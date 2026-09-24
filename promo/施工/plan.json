@@ -1,0 +1,505 @@
+{
+  "meta": {
+    "version": "1.0",
+    "updated": "2026-09-23",
+    "product": "字浮 CharFloat",
+    "host": "macOS + WPS",
+    "note": "三个作品的施工步骤定义（单一真源）。驱动器 build.py 读本文件逐步调用本机 WPS 桥，录制时可单步执行、可等回车、可只重录某一步。所有数字口径与官网双轨动画一致：营收 86/94/108，成本 66/72/80，利润 20/22/28，利润率 23.3%/23.4%/25.9%。",
+    "principles": [
+      "不做一次性 flash：每一步只产出一部分，屏幕上看得到文件在长。",
+      "不用死数字：合计与比率一律走宿主动态公式，由 WPS 自己算。",
+      "不碰水印参数：wps_word_page_layout_and_watermark 的 watermarkText 会让 WPS 崩溃，本计划完全不用它。",
+      "每步都有留痕：表格写操作会自动进审计，为「安全时间机器」镜头提供真实记录。"
+    ],
+    "vars": {
+      "workbookName": "月度经营.xlsx",
+      "presentationName": "(由 ppt-01 新建后自动捕获)",
+      "documentName": "(由 doc-01 新建后自动捕获)",
+      "outDir": "(由 --out 指定，默认 promo/录制产出)"
+    }
+  },
+  "groups": [
+    {
+      "id": "sheet",
+      "title": "作品一 · 表格（在你看得见的那份表上原地改）",
+      "goal": "把 9 月数据并进来、补动态公式、上条件格式、插原生图表、加结论，全程只改目标区域，你原有的标题合并/填色/批注/冻结/命名区域一个不动。",
+      "fileHint": "录制前在 WPS 里打开 env-B-有插件/月度经营.xlsx",
+      "steps": [
+        {
+          "id": "sheet-01",
+          "title": "先看你正在做什么",
+          "tool": "wps_get_workspace_summary",
+          "args": {},
+          "camera": "终端/客户端出现当前工作簿与活动表；这一步没有任何文件改动，但它证明「AI 是先看你眼前的东西，不是你上传的东西」。",
+          "seconds": 3,
+          "capture": { "workbookName": ["workbookName", "activeWorkbook", "name"] }
+        },
+        {
+          "id": "sheet-02",
+          "title": "读第二张表的 9 月分项",
+          "tool": "wps_read_range",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "9月明细",
+            "address": "A1:B16",
+            "includeFormulas": true
+          },
+          "camera": "镜头给终端返回值：收入 4 个分项、成本 4 个分项，合计格是空的（你忘了算）。",
+          "seconds": 4
+        },
+        {
+          "id": "sheet-03",
+          "title": "把 9 月收入与成本并进分析表（写成 SUM 公式，不是死数字）",
+          "tool": "wps_patch_cells",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "D3:D4",
+            "formulas": [["=SUM('9月明细'!B5:B8)"], ["=SUM('9月明细'!B12:B15)"]],
+            "reason": "并入 9 月营业收入与运营成本，用跨表 SUM 动态汇总"
+          },
+          "camera": "★ 主画面：9 月列当场出现 108 和 80。镜头要给够 3 秒，让观众看清是你眼前这张表在变。",
+          "seconds": 6
+        },
+        {
+          "id": "sheet-04",
+          "title": "补上利润与利润率的动态公式",
+          "tool": "wps_patch_cells",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "D5:D6",
+            "formulas": [["=D3-D4"], ["=D5/D3"]],
+            "reason": "补 9 月营业利润与利润率公式，与 7/8 月口径一致"
+          },
+          "camera": "★ 主画面：28 与 25.9% 出现；镜头扫一下公式栏，观众能看到是公式不是手打的数。",
+          "seconds": 6
+        },
+        {
+          "id": "sheet-05",
+          "title": "给新写入的 9 月列套上金额格式",
+          "tool": "wps_format_cells",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "D3:D5",
+            "numberFormat": "#,##0"
+          },
+          "camera": "细节镜头：右侧对齐、千分位，和 7/8 月一模一样。这一步是「保留你原有格式」的实证。",
+          "seconds": 3
+        },
+        {
+          "id": "sheet-06",
+          "title": "利润率套百分比格式",
+          "tool": "wps_format_cells",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "D6",
+            "numberFormat": "0.0%"
+          },
+          "camera": "25.9% 而不是 0.259。",
+          "seconds": 2
+        },
+        {
+          "id": "sheet-07",
+          "title": "营收增长标蓝",
+          "tool": "wps_add_conditional_formatting",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "B3:D3",
+            "ruleType": "color_scale",
+            "colorScaleMin": "#DBEAFE",
+            "colorScaleMax": "#2563EB"
+          },
+          "camera": "★ 营收一行由浅到深变蓝，增长一眼看得出。",
+          "seconds": 5
+        },
+        {
+          "id": "sheet-08",
+          "title": "成本增长标黄",
+          "tool": "wps_add_conditional_formatting",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "B4:D4",
+            "ruleType": "color_scale",
+            "colorScaleMin": "#FEF9C3",
+            "colorScaleMax": "#F59E0B"
+          },
+          "camera": "★ 成本一行转黄；和上一拍形成「蓝涨黄警」的对比记忆点。",
+          "seconds": 5
+        },
+        {
+          "id": "sheet-09",
+          "title": "插入原生矢量图表（不是截图）",
+          "tool": "wps_add_chart",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "dataRange": "A2:D4",
+            "chartType": "column_clustered",
+            "title": "营收与成本趋势（万元）",
+            "position": { "leftCell": "F2", "width": 430, "height": 250 },
+            "hasLegend": true,
+            "hasDataLabels": true,
+            "replaceExisting": true
+          },
+          "camera": "★ 图表长在表里。补一个对比口播：「无插件那条线，你拿到的是一张图片，数据改不了；这张是活的。」（position.width/height 单位是磅，不是像素）",
+          "seconds": 7
+        },
+        {
+          "id": "sheet-10",
+          "title": "写下结论",
+          "tool": "wps_patch_cells",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "A9",
+            "values": [["结论：9 月营收环比 +14.9%，利润率升至 25.9%；运营成本连续三月上升，采购与渠道费用需复核。"]],
+            "reason": "写入本期分析结论"
+          },
+          "camera": "表格底部出现一句话结论。",
+          "seconds": 3
+        },
+        {
+          "id": "sheet-11",
+          "title": "结论整行合并 + 自动换行",
+          "tool": "wps_format_cells",
+          "args": {
+            "workbookName": "{{workbookName}}",
+            "sheetName": "月度经营分析",
+            "address": "A9:D9",
+            "merge": true,
+            "wrapText": true,
+            "horizontalAlignment": "left",
+            "verticalAlignment": "center",
+            "backgroundColor": "#F1F5F9",
+            "fontColor": "#0F172A",
+            "rowHeight": 26
+          },
+          "camera": "一句话横跨整行、不截断。这一步也是「整行合并」的排版纪律（详见 wps-bridge 技能）。",
+          "seconds": 3
+        },
+        {
+          "id": "sheet-12",
+          "title": "自适应列宽",
+          "tool": "wps_auto_fit_columns",
+          "args": { "workbookName": "{{workbookName}}", "sheetName": "月度经营分析" },
+          "camera": "列宽自己变合适，没有任何中文被右边框吃掉。",
+          "seconds": 3
+        },
+        {
+          "id": "sheet-13",
+          "title": "保存（还是那个文件，不是新的一份）",
+          "tool": "wps_save_workbook",
+          "args": { "workbookName": "{{workbookName}}" },
+          "camera": "★ 关键口播：「文件名没变，路径没变，你原来那份文件被就地改好了。」",
+          "seconds": 4
+        },
+        {
+          "id": "sheet-14",
+          "title": "AI 自己看一眼做对没有",
+          "tool": "wps_capture_sheet_preview",
+          "args": { "workbookName": "{{workbookName}}", "sheetName": "月度经营分析", "address": "A1:J14" },
+          "camera": "AI 拿渲染图自检：有没有文字被截断、有没有多余空白。有则它自己回去调列宽行高。",
+          "seconds": 4,
+          "optional": true
+        },
+        {
+          "id": "sheet-15",
+          "title": "每一步都留了痕",
+          "tool": "wps_get_audit_history",
+          "args": { "limit": 8 },
+          "camera": "★ 审计列表：刚才每一次写入都有记录、都带 auditId。紧接着切到桌面端的「安全时间机器」窗口，用同一批记录做回滚演示。",
+          "seconds": 6
+        }
+      ]
+    },
+    {
+      "id": "ppt",
+      "title": "作品二 · PPT（一份数据，逐页长出来）",
+      "goal": "同一个三季度数据，在 WPS 演示里逐页生成一份可直接讲的汇报稿，图表是原生可编辑的。",
+      "fileHint": "无需预先打开任何文稿；ppt-01 会新建",
+      "steps": [
+        {
+          "id": "ppt-01",
+          "title": "新建演示文稿",
+          "tool": "wps_ppt_manage_slides",
+          "args": { "action": "new_presentation" },
+          "camera": "一块空白演示稿出现在 WPS 里。",
+          "seconds": 3,
+          "capture": { "presentationName": ["presentationName", "presentation", "name"] }
+        },
+        {
+          "id": "ppt-02",
+          "title": "第 1 页 · 封面",
+          "tool": "wps_ppt_generate_deck",
+          "args": {
+            "presentationName": "{{presentationName}}",
+            "themePreset": "business_blue",
+            "slides": [
+              {
+                "layout": "title",
+                "title": "2026 年三季度经营汇报",
+                "subtitle": "数据来源：月度经营分析 · 2026-09 · 单位：万元",
+                "notes": "开场：三季度营收与利润双升，成本需要关注。"
+              }
+            ]
+          },
+          "camera": "第一页出现。逐页生成是本片「代入感」的关键：观众看到页数一页页加上去。",
+          "seconds": 4
+        },
+        {
+          "id": "ppt-03",
+          "title": "第 2 页 · 三个核心指标卡",
+          "tool": "wps_ppt_generate_deck",
+          "args": {
+            "presentationName": "{{presentationName}}",
+            "themePreset": "business_blue",
+            "slides": [
+              {
+                "layout": "cards_3",
+                "title": "核心指标",
+                "cards": [
+                  { "tag": "REVENUE", "title": "108 万元", "description": "9 月营业收入，环比 +14.9%" },
+                  { "tag": "PROFIT", "title": "28 万元", "description": "9 月营业利润，环比 +27.3%" },
+                  { "tag": "MARGIN", "title": "25.9%", "description": "利润率较 7 月提升 2.6 个百分点" }
+                ]
+              }
+            ]
+          },
+          "camera": "卡片页长出三块指标。",
+          "seconds": 4
+        },
+        {
+          "id": "ppt-04",
+          "title": "第 3 页 · 原生趋势图页",
+          "tool": "wps_ppt_generate_deck",
+          "args": {
+            "presentationName": "{{presentationName}}",
+            "themePreset": "business_blue",
+            "slides": [
+              {
+                "layout": "chart",
+                "title": "营收与成本趋势",
+                "chart": {
+                  "chartType": "column",
+                  "title": "单位：万元",
+                  "categories": ["7 月", "8 月", "9 月"],
+                  "series": [
+                    { "name": "营业收入", "values": [86, 94, 108] },
+                    { "name": "运营成本", "values": [66, 72, 80] }
+                  ]
+                }
+              }
+            ]
+          },
+          "camera": "★ 图表页是原生对象，插进去之后还能改数据、改颜色——这是它和无插件那条线的分水岭。",
+          "seconds": 5
+        },
+        {
+          "id": "ppt-05",
+          "title": "第 4 页 · 结论与行动",
+          "tool": "wps_ppt_generate_deck",
+          "args": {
+            "presentationName": "{{presentationName}}",
+            "themePreset": "business_blue",
+            "slides": [
+              {
+                "layout": "content",
+                "title": "结论与行动",
+                "bulletPoints": [
+                  "营收连续三月增长，9 月环比 +14.9%，海外占比升至 12.0%",
+                  "利润率逐月改善至 25.9%，结构优化有效",
+                  "运营成本环比 +11.1%，采购与渠道费用需专项复核",
+                  "下月动作：完成成本结构复盘，评估海外渠道复制"
+                ]
+              }
+            ]
+          },
+          "camera": "要点页长出四条结论。",
+          "seconds": 4
+        },
+        {
+          "id": "ppt-06",
+          "title": "第 5 页 · 结束页",
+          "tool": "wps_ppt_generate_deck",
+          "args": {
+            "presentationName": "{{presentationName}}",
+            "themePreset": "business_blue",
+            "slides": [
+              {
+                "layout": "end",
+                "title": "谢谢",
+                "subtitle": "字浮 CharFloat · 让 AI 直接在你的桌面上把活干完"
+              }
+            ]
+          },
+          "camera": "收尾页。",
+          "seconds": 3
+        },
+        {
+          "id": "ppt-07",
+          "title": "保存",
+          "tool": "wps_ppt_manage_slides",
+          "args": { "presentationName": "{{presentationName}}", "action": "save" },
+          "camera": "如果在 WPS 里弹出「另存为」，这正是自然镜头：你选一个路径就好。",
+          "seconds": 3
+        },
+        {
+          "id": "ppt-08",
+          "title": "AI 自检某一页排版",
+          "tool": "wps_ppt_capture_slide_preview",
+          "args": { "presentationName": "{{presentationName}}", "slideIndex": 3 },
+          "camera": "AI 拿到那一页的渲染图，检查文字有没有溢出、图形有没有重叠。",
+          "seconds": 4,
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "doc",
+      "title": "作品三 · 文档（同一份数据，落地成可发的报告）",
+      "goal": "把表格里的结论写成一份带标题层级、三线数据表和行动建议的正式报告，并保存成 .docx。",
+      "fileHint": "无需预先打开任何文档；doc-01 会新建",
+      "steps": [
+        {
+          "id": "doc-01",
+          "title": "新建文档",
+          "tool": "wps_word_create_document",
+          "args": { "isVisible": true },
+          "camera": "WPS 文字里出现空白页。",
+          "seconds": 3,
+          "capture": { "documentName": ["documentName", "document", "name"] }
+        },
+        {
+          "id": "doc-02",
+          "title": "写主标题",
+          "tool": "wps_word_write_content",
+          "args": {
+            "documentName": "{{documentName}}",
+            "type": "heading1",
+            "content": "2026 年三季度经营分析报告",
+            "location": "end"
+          },
+          "camera": "标题出现并居中。",
+          "seconds": 3
+        },
+        {
+          "id": "doc-03",
+          "title": "写第一节小标题",
+          "tool": "wps_word_write_content",
+          "args": {
+            "documentName": "{{documentName}}",
+            "type": "heading2",
+            "content": "一、总体表现",
+            "location": "end"
+          },
+          "camera": "层级结构开始搭起来。",
+          "seconds": 2
+        },
+        {
+          "id": "doc-04",
+          "title": "写总体表现正文",
+          "tool": "wps_word_write_content",
+          "args": {
+            "documentName": "{{documentName}}",
+            "type": "paragraph",
+            "content": "2026 年 7 至 9 月，公司营业收入由 86 万元增长至 108 万元，累计增幅 25.6%；营业利润由 20 万元增长至 28 万元；利润率由 23.3% 提升至 25.9%。运营成本由 66 万元上升至 80 万元，环比增速高于营收增速，是本期需要重点关注的科目。",
+            "location": "end"
+          },
+          "camera": "正文段落长出。数字与表格、PPT 完全同源。",
+          "seconds": 4
+        },
+        {
+          "id": "doc-05",
+          "title": "插入三线数据表",
+          "tool": "wps_word_manage_table",
+          "args": {
+            "documentName": "{{documentName}}",
+            "action": "insert",
+            "rows": 5,
+            "columns": 4,
+            "stylePreset": "mckinsey_three_line",
+            "repeatHeader": true,
+            "data": [
+              ["经营指标 / 万元", "7 月", "8 月", "9 月"],
+              ["营业收入", "86", "94", "108"],
+              ["运营成本", "66", "72", "80"],
+              ["营业利润", "20", "22", "28"],
+              ["利润率", "23.3%", "23.4%", "25.9%"]
+            ]
+          },
+          "camera": "★ 麦肯锡三线表一次成表，不是让你自己画框线。",
+          "seconds": 5
+        },
+        {
+          "id": "doc-06",
+          "title": "写第二节小标题",
+          "tool": "wps_word_write_content",
+          "args": {
+            "documentName": "{{documentName}}",
+            "type": "heading2",
+            "content": "二、结论与行动建议",
+            "location": "end"
+          },
+          "camera": "第二节开始。",
+          "seconds": 2
+        },
+        {
+          "id": "doc-07",
+          "title": "写行动建议列表",
+          "tool": "wps_word_write_content",
+          "args": {
+            "documentName": "{{documentName}}",
+            "type": "bullet_list",
+            "content": [
+              "成本专项：9 月运营成本环比增长 11.1%，建议对采购价格与渠道费用逐项复核。",
+              "结构优化：利润率连续三月改善，维持在 25% 以上，当前收入结构可继续执行。",
+              "增量探索：海外收入占 9 月营收 12.0%，建议评估该渠道的可复制性。",
+              "数据口径：本报告数据源为《月度经营.xlsx》，与演示文稿使用同一份口径。"
+            ],
+            "location": "end"
+          },
+          "camera": "建议列表出现，每条都是可执行动作而不是口号。",
+          "seconds": 4
+        },
+        {
+          "id": "doc-08",
+          "title": "整篇套商务排版",
+          "tool": "wps_word_format_document",
+          "args": {
+            "documentName": "{{documentName}}",
+            "preset": "business_modern",
+            "margins": { "topMm": 25.4, "bottomMm": 25.4, "leftMm": 28, "rightMm": 28 }
+          },
+          "camera": "★ 一处调用整篇变规范：字体层级、行距、边距。",
+          "seconds": 4
+        },
+        {
+          "id": "doc-09",
+          "title": "保存成 .docx",
+          "tool": "wps_word_save_document",
+          "args": {
+            "documentName": "{{documentName}}",
+            "filePath": "{{outDir}}/2026年三季度经营分析报告.docx",
+            "format": "docx"
+          },
+          "camera": "★ 落盘到指定路径，工具会校验文件真的写出去了（宿主返回成功不代表写出）。",
+          "seconds": 4
+        },
+        {
+          "id": "doc-10",
+          "title": "导出 PDF 做视觉验收",
+          "tool": "wps_word_capture_preview",
+          "args": { "documentName": "{{documentName}}" },
+          "camera": "返回一个 PDF 路径，录制后可自己翻一遍确认版式。",
+          "seconds": 3,
+          "optional": true
+        }
+      ]
+    }
+  ]
+}

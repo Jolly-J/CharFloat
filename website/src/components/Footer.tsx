@@ -1,69 +1,78 @@
-import React from 'react';
-import { Terminal, Sparkles, Heart, ArrowUp } from 'lucide-react';
+import { Sparkles, ArrowUp, Download } from 'lucide-react';
 
 interface FooterProps {
   onOpenQuickStart: () => void;
+  onOpenDownload?: (tab?: 'mac' | 'win' | 'cli') => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenQuickStart }) => {
+export const Footer: React.FC<FooterProps> = ({ onOpenQuickStart, onOpenDownload }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <footer className="bg-[#050507] text-zinc-400 border-t border-white/[0.08] relative overflow-hidden">
-      {/* Big Closing CTA Strip */}
+    <footer className="bg-white text-slate-600 border-t border-slate-200 relative overflow-hidden">
+      {/* Big Closing CTA Strip (Doubao Work Style) */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-        <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-6">
-          给你的 AI，装上真正的 Office 操作能力
+        <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">
+          给你的 AI，开个 Office 外挂
         </h2>
-
-        {/* 4 Virtues Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm sm:text-lg font-bold text-zinc-300 mb-8">
-          <span className="px-4 py-2 rounded-xl bg-blue-500/10 text-blue-300 border border-blue-500/20">
-            看得懂。
-          </span>
-          <span className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-            改得准。
-          </span>
-          <span className="px-4 py-2 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/20">
-            动得快。
-          </span>
-          <span className="px-4 py-2 rounded-xl bg-purple-500/10 text-purple-300 border border-purple-500/20">
-            全程可控。
-          </span>
-        </div>
-
-        <p className="text-lg sm:text-xl text-zinc-300 font-medium max-w-2xl mx-auto mb-10 leading-relaxed">
-          让普通 AI，从“帮你想”升级到<br />
-          <span className="text-white font-extrabold text-2xl sm:text-3xl underline decoration-blue-500 decoration-4 underline-offset-8">
-            “和你一起把事情做完”
-          </span>。
+        <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed font-normal">
+          不用上传下载，不再生成一份。现在就让你最常用的 AI 直接进入桌面 WPS 与 Excel，跟你一起改同一份文件。
         </p>
 
-        <button
-          onClick={onOpenQuickStart}
-          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white font-bold text-base shadow-2xl shadow-blue-500/30 hover:scale-[1.03] active:scale-[0.98] transition-all"
-        >
-          <Sparkles className="w-5 h-5 text-blue-200" />
-          <span>立即开始使用</span>
-        </button>
+        {/* Big Action Button Group */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto mb-10">
+          <button
+            onClick={() => onOpenDownload ? onOpenDownload() : onOpenQuickStart()}
+            className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2.5 px-8 py-4 rounded-full font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-base"
+          >
+            <Download className="w-5 h-5" />
+            <span>免费下载电脑版</span>
+          </button>
+
+          <button
+            onClick={onOpenQuickStart}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-4 rounded-full font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-sm"
+          >
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            <span>开发者配置</span>
+          </button>
+        </div>
+
+        {/* 4 Virtues Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 text-xs sm:text-sm font-bold text-slate-700">
+          <span className="px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-200/80">
+            当前文件直接改
+          </span>
+          <span className="px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-200/80">
+            边做边看所见即所得
+          </span>
+          <span className="px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-200/80">
+            原格式公式 100% 继承
+          </span>
+          <span className="px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-200/80">
+            安全快照随时撤回
+          </span>
+        </div>
       </div>
 
       {/* Standard Bottom Credits Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold text-[10px]">
-            OB
-          </div>
-          <span className="font-semibold text-zinc-200">Office Agent Bridge</span>
-          <span>© 2026. 面向 Microsoft Office 与 WPS Office 的通用 AI 连接桥梁。</span>
+          <img 
+            src="/logo.png" 
+            alt="字浮 CharFloat" 
+            className="w-5 h-5 rounded-md object-contain"
+          />
+          <span className="font-bold text-slate-900">字浮 CharFloat</span>
+          <span>© 2026. 面向 Microsoft Office 与 WPS Office 的本地桌面桥梁。</span>
         </div>
 
         <div className="flex items-center gap-6">
           <button 
             onClick={scrollToTop}
-            className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
+            className="flex items-center gap-1 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
           >
             <span>回到顶部</span>
             <ArrowUp className="w-3.5 h-3.5" />

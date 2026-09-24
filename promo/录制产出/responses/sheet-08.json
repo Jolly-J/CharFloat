@@ -1,0 +1,43 @@
+{
+  "step": "sheet-08",
+  "tool": "wps_add_conditional_formatting",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "address": "B4:D4",
+    "ruleType": "color_scale",
+    "colorScaleMin": "#FEF9C3",
+    "colorScaleMax": "#F59E0B"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "workbookName": "月度经营.xlsx",
+      "sheetName": "月度经营分析",
+      "address": "$B$4:$D$4",
+      "ruleType": "color_scale",
+      "appliedConditionCount": 1,
+      "conditions": [
+        {
+          "index": 1,
+          "type": 3,
+          "enabled": null,
+          "priority": 2,
+          "formula1": null
+        }
+      ],
+      "message": "已成功在 $B$4:$D$4 应用 color_scale 条件格式（该区域现有 1 条规则）",
+      "auditId": "5876b581-c23d-4149-a253-dfad614b6ae2",
+      "rollbackable": false,
+      "rollbackScope": {
+        "values": false,
+        "formulas": false,
+        "styles": false,
+        "charts": false,
+        "structure": false
+      },
+      "auditNote": "条件格式只留痕、不可回滚；清除需用宿主脚本或后续工具。"
+    }
+  }
+}

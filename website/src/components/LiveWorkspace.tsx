@@ -148,7 +148,7 @@ export const LiveWorkspace: React.FC = () => {
               <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
               <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
               <span className="ml-3 text-xs text-zinc-400 font-mono hidden sm:inline">
-                Office Agent Bridge · 实时就地改动
+                字浮 CharFloat · 实时就地改动
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">

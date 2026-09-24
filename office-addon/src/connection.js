@@ -13,7 +13,7 @@
 
       ws.onopen = async function () {
         isConnected = true;
-        log("已成功连上 WPS Bridge 服务端 (MS Office 通道)");
+        log("已成功连上字浮 CharFloat 服务端 (MS Office 通道)");
         await updateActiveSummary();
 
         sendPacket({

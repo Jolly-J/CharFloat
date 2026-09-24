@@ -7,8 +7,8 @@ import { atomicWrite, getToken, resourcePath, runtimePort, runtimeHome, getOrGen
 import { detectPermissionIssueCore } from './permission-detect.js';
 import { serviceRequest } from '../bridge/service-client.js';
 
-const activeNames = ['Office Agent Bridge', 'Office Agent Bridge (表格)', 'Office Agent Bridge (文字)', 'Office Agent Bridge (演示)'];
-const legacyNames = ['WPS Bridge', 'WPS Bridge (表格)', 'WPS Bridge (文字)', 'WPS Bridge (演示)'];
+const activeNames = ['字浮 CharFloat', '字浮 CharFloat (表格)', '字浮 CharFloat (文字)', '字浮 CharFloat (演示)'];
+const legacyNames = ['Office Agent Bridge', 'Office Agent Bridge (表格)', 'Office Agent Bridge (文字)', 'Office Agent Bridge (演示)', 'WPS Bridge', 'WPS Bridge (表格)', 'WPS Bridge (文字)', 'WPS Bridge (演示)'];
 const ownedNames = [...activeNames, ...legacyNames];
 
 export function readXmlSafe(file: string): string {
@@ -388,7 +388,7 @@ export class OfficeAddonInstaller {
     if (fs.existsSync(destFile)) {
       try {
         const destContent = fs.readFileSync(destFile, 'utf8');
-        if (destContent === sourceContent || (destContent.includes(`<Version>${VERSION}`) && destContent.includes('Office Agent Bridge'))) {
+        if (destContent === sourceContent || (destContent.includes(`<Version>${VERSION}`) && (destContent.includes('字浮 CharFloat') || destContent.includes('Office Agent Bridge')))) {
           appendServiceLog('AddonInstaller', `目标清单文件已处于最新状态 (v${VERSION})，跳过覆写`);
           if (process.platform === 'darwin') {
             try { execSync(`chmod 644 "${destFile}"`, { stdio: 'ignore' }); } catch {}

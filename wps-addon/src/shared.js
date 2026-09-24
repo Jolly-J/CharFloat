@@ -8,7 +8,7 @@
  * 运行在 WPS Office 进程内部 (JSA 环境)
  */
 
-  const ADDON_VERSION = "2.1.0";
+  const ADDON_VERSION = "2.2.0";
   const config = window.WPS_BRIDGE_CONFIG || {};
   const currentVersion = config.version || ADDON_VERSION;
   const BRIDGE_PORT = config.port || 19890;

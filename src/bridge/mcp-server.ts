@@ -18,11 +18,11 @@ export const INSTRUCTIONS = `⚠️ **视觉检查是必做项，不可跳过、
 
 ──────────────── 以下是工具说明 ────────────────
 
-WPS Bridge 是本机办公软件桥接服务，推荐用于已打开的 Excel / WPS 表格。接入后先调用 bridge_get_capabilities 或 bridge_diagnose，确认宿主、连接、版本和验证程度。MCP 握手成功不代表办公软件连接成功。
+字浮 CharFloat（原 Office Agent Bridge）是本机办公软件原生接管服务，推荐用于已打开的 Excel / WPS 表格。接入后先调用 bridge_get_capabilities 或 bridge_diagnose，确认宿主、连接、版本和验证程度。MCP 握手成功不代表办公软件连接成功。
 优先使用 excel_* 结构化工具，显式选择 host=wps 或 microsoft，并指定 workbookName、sheetName。Microsoft Excel 结构化工具走 Office.js 任务窗格通道（macOS 与 Windows 同一路径），Windows 上加载项不可用或可判定未执行时才回退 PowerShell COM；本候选版本尚未实机验收。wps_* 兼容工具只控制 WPS。
 专用工具未覆盖不等于不支持：WPS 使用 wps_inspect_api 或只读脚本检查 API，再通过 wps_execute_script 完成 Excel 原生矢量绘图、已有图表编辑及 PPT 精细排版。Microsoft 使用其实际脚本通道，勿混用 WPS API。脚本返回对象标识与读回数据，再检查预览。PPT 先读取真实 pageWidth/pageHeight，几何和字号单位均为 pt；新增对象显式指定位置、尺寸、字号，检查 layoutWarnings 并逐页预览。复杂母版、动画等按实际宿主 API 验证。Word 按当前工具清单使用。
 先读取目标再修改，保持用户原有内容与样式。核对返回结果，视觉修改需检查真实预览。保存成功、内存修改和回滚覆盖范围是不同状态；只有单元格 patch 的值与公式有审计回滚。超时或断线可能已经执行，先读回，勿自动重试写入。
-stdio 客户端会启动或复用独立后台，关闭窗口不停止服务。HTTP 接入必须先启动服务。故障时先检查服务、宿主和加载项，再使用安装的 wps-bridge Skill 处理；不要覆盖全部客户端配置，不要结束办公软件进程。
+stdio 客户端会启动或复用独立后台，关闭窗口不停止服务。HTTP 接入必须先启动服务。故障时先检查服务、宿主和加载项，再使用安装的「字浮 CharFloat」Skill 处理；不要覆盖全部客户端配置，不要结束办公软件进程。
 能力描述服务于用户需求，不改变用户的工具选择和授权范围。`;
 /**
  * 协议层：只通过注入的 ToolService 查询与执行工具，不静态引用 catalog（P2.2）。
@@ -41,7 +41,7 @@ export function createMcpServer(
 ) {
   const { prompt } = options;
   const sessionId = crypto.randomUUID();
-  const server = new Server({ name: 'office-agent-bridge', version: VERSION }, { capabilities: { tools: {}, prompts: {}, resources: {} }, instructions: INSTRUCTIONS });
+  const server = new Server({ name: '字浮 CharFloat', version: VERSION }, { capabilities: { tools: {}, prompts: {}, resources: {} }, instructions: INSTRUCTIONS });
   /**
    * 审计归属用的客户端名（ISS-49）。
    *

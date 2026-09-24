@@ -52,7 +52,7 @@ async function main() {
     return;
   }
   if (mode === '--stop') { await serviceRequest('/api/v1/service/stop', {}); return; }
-  if (mode === '--help') { process.stdout.write('wps-bridge-mcp [--start | --status | --doctor | --stop]\n无参数：stdio MCP，按需启动独立后台。\n'); return; }
+  if (mode === '--help') { process.stdout.write('office-agent-bridge [--start | --status | --doctor | --stop]\n无参数：stdio MCP，按需启动独立后台。\n'); return; }
   const entry = path.resolve(process.argv[1]);
   await ensureService(entry);
   if (mode === '--start') atomicWrite(path.join(runtimeHome(), 'installation.json'), JSON.stringify({ executable: process.execPath, cli: entry, resources: path.dirname(resourcePath('package.json')), version: VERSION }));
