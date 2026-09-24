@@ -2,6 +2,11 @@
   "name": "office-agent-bridge",
   "version": "2.2.0",
   "description": "Universal Bridge between AI Agents (Doubao, WorkBuddy, Qwen, Kimi, Claude Code, Codex) and Microsoft Office & WPS Office with Audit Trail and GUI",
+  "homepage": "https://charfloat.utmolight.xyz/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jolly-J/CharFloat.git"
+  },
   "main": "dist/main/index.js",
   "bin": {
     "office-agent-bridge": "./dist/bridge/cli.cjs",
