@@ -145,17 +145,43 @@
 
 ---
 
-## 运行架构
+## 系统架构与数据流
 
-```text
-你常用的 AI (ChatGPT / Claude / Cursor / 豆包 / WorkBuddy / 通义千问 / Kimi 等)
-                               │  (标准 MCP / HTTP 协议)
-                               ▼
-                    字浮 CharFloat (本地安全常驻服务 / 桌面客户端)
-                               │  (本地安全管道 WebSocket / COM / JXA)
-                               ▼
-                    WPS Office  /  Microsoft Office
+字浮采用分层解耦的架构设计。外部 AI 智能体通过标准的 MCP 协议与本地服务建立连接，所有操作在用户本机内存中闭环完成：
+
+```mermaid
+flowchart TD
+    subgraph Agent [" AI 智能体层 "]
+        A1["Cursor / Windsurf / VS Code"]
+        A2["Claude Desktop"]
+        A3["腾讯 WorkBuddy / 豆包工作"]
+        A4["任意自定义 MCP Client"]
+    end
+
+    subgraph Bridge [" 字浮核心服务 (Local Daemon) "]
+        MCP["MCP 协议网关<br/>(stdio / SSE)"]
+        Router["请求分发与权限校验"]
+        Snapshot["安全时光机快照栈<br/>(预写入差异记录)"]
+        Adapter["宿主适配器 (Host Adapter)<br/>统一 WPS 与 MS Office 接口"]
+        
+        MCP --> Router --> Snapshot --> Adapter
+    end
+
+    subgraph Host [" 桌面办公软件活体进程 "]
+        WPS["WPS Office (WebSocket RPC 加载项)"]
+        MSO["Microsoft Office (Office.js / 原生驱动)"]
+    end
+
+    Agent ==>|JSON-RPC 2.0| MCP
+    Adapter ==>|本地回环通道| WPS
+    Adapter ==>|系统原生通道| MSO
 ```
+
+数据流主要经历四个环节：
+1. **协议接入**：AI 客户端通过 stdio 或 SSE 协议向字浮发送标准的工具调用请求；
+2. **安全快照**：在执行任何写入动作前，网关会先读取目标区域的当前数据并生成快照，推入本地历史栈；
+3. **宿主适配**：统一适配器将标准调用转化为当前活跃办公软件的私有 API；
+4. **即时渲染**：指令通过本地长连接直达活体文档，修改效果当场呈现在用户眼前。
 
 ---
 
