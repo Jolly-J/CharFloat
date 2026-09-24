@@ -12,6 +12,7 @@
 </div>
 
 <p align="center">
+  <a href="https://charfloat.utmolight.xyz/"><img src="https://img.shields.io/badge/Website-charfloat.utmolight.xyz%20(%E4%B8%B4%E6%97%B6)-blue.svg" alt="Website" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue.svg" alt="Platform" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Protocol-MCP%20%2F%20HTTP-green.svg" alt="Protocol" /></a>
@@ -21,7 +22,13 @@
 </p>
 
 <p align="center">
-  <img src="website/public/hero-showcase.png" alt="字浮 CharFloat · 给你的 AI 开个 Office 外挂，你说它当场改" width="880" style="border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.12);" />
+  <a href="https://charfloat.utmolight.xyz/">
+    <img src="website/public/hero-showcase.png" alt="字浮 CharFloat · 给你的 AI 开个 Office 外挂，你说它当场改" width="880" style="border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.12);" />
+  </a>
+</p>
+
+<p align="center">
+  🌐 <strong>产品官网与在线体验</strong>（临时地址）：<a href="https://charfloat.utmolight.xyz/">https://charfloat.utmolight.xyz/</a>
 </p>
 
 > 关于「**字浮 CharFloat**」：
@@ -200,7 +207,7 @@ npm start
 - **WPS 加载项**：[wps-addon/AGENTS.md](wps-addon/AGENTS.md)
 - **Office.js 插件**：[office-addon/AGENTS.md](office-addon/AGENTS.md)
 - **配套 Agent 技能**：[skills/charfloat/SKILL.md](skills/charfloat/SKILL.md)
-- **官网宣传工程**：[website/AGENTS.md](website/AGENTS.md)
+- **官网宣传工程**：[website/AGENTS.md](website/AGENTS.md)（在线预览：[charfloat.utmolight.xyz](https://charfloat.utmolight.xyz/)，临时地址）
 
 ---
 
