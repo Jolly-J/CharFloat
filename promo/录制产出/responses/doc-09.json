@@ -1,0 +1,14 @@
+{
+  "step": "doc-09",
+  "tool": "wps_word_save_document",
+  "args": {
+    "documentName": "文字文稿1",
+    "filePath": "/Users/Python/Office Agent Bridge/promo/录制产出/2026年三季度经营分析报告.docx",
+    "format": "docx"
+  },
+  "response": {
+    "success": false,
+    "error": "A dynamic import callback was not specified.",
+    "_httpStatus": 422
+  }
+}

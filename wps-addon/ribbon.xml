@@ -1,13 +1,13 @@
 <customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="OnRibbonLoaded">
   <ribbon>
     <tabs>
-      <tab id="OfficeAgentBridgeTab" label="Office Agent (AI)">
+      <tab id="OfficeAgentBridgeTab" label="字浮 CharFloat">
         <!-- 第 1 组：协同中枢 -->
         <group id="grpConnection" label="协同中枢">
-          <button id="btnBrandHero" label="Office Agent" onAction="OnActionBridgeStatus" size="large" imageMso="AutoFormat" screentip="Office Agent (AI)" supertip="AI 办公旗舰协同中枢" />
+          <button id="btnBrandHero" label="字浮 CharFloat" onAction="OnActionBridgeStatus" size="large" imageMso="AutoFormat" screentip="字浮 CharFloat (AI)" supertip="AI 原生接管办公协同中枢" />
           <button id="btnBridgeStatus" label="Agent 状态" onAction="OnActionBridgeStatus" size="large" imageMso="ServerConnection" screentip="Agent 运行状态" supertip="查看当前 Bridge 本地通信服务状态、端口与活动工作区信息。" />
           <button id="btnForceReconnect" label="重新连接" onAction="OnActionForceReconnect" size="normal" imageMso="Refresh" screentip="重新连接" supertip="刷新 WebSocket 链路并与 Bridge 重新握手。" />
-          <button id="btnOpenDesktopApp" label="控制中心" onAction="OnActionOpenDesktopApp" size="normal" imageMso="ApplicationOptionsDialog" screentip="控制中心" supertip="查看 Office Agent Bridge 桌面管理中心与高级配置。" />
+          <button id="btnOpenDesktopApp" label="控制中心" onAction="OnActionOpenDesktopApp" size="normal" imageMso="ApplicationOptionsDialog" screentip="控制中心" supertip="查看字浮 CharFloat 桌面管理中心与高级配置。" />
           <separator id="sep_conn" />
         </group>
         
@@ -35,7 +35,7 @@
             <button id="btnPromptCleaning" label="数据清洗与自动去重" onAction="OnActionPromptCleaning" imageMso="FindDialog" screentip="复制数据清洗提示词" />
             <button id="btnPromptSummary" label="提取核心要点与摘要" onAction="OnActionPromptSummary" imageMso="TextHighlightColor" screentip="复制提取摘要提示词" />
           </menu>
-          <button id="btnShowGuide" label="使用向导" onAction="OnActionShowGuide" size="normal" imageMso="Help" screentip="使用向导" supertip="查看新手快速上手指南与 AI 接入方式。" />
+          <button id="btnShowGuide" label="使用向导" onAction="OnActionShowGuide" size="normal" imageMso="Help" screentip="使用向导" supertip="查看字浮 CharFloat 快速上手指南与 AI 接入方式。" />
         </group>
       </tab>
     </tabs>

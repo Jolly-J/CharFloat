@@ -1,0 +1,24 @@
+{
+  "step": "doc-08",
+  "tool": "wps_word_format_document",
+  "args": {
+    "documentName": "文字文稿1",
+    "preset": "business_modern",
+    "margins": {
+      "topMm": 25.4,
+      "bottomMm": 25.4,
+      "leftMm": 28,
+      "rightMm": 28
+    }
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "preset": "business_modern",
+      "formattedParagraphs": 27,
+      "message": "已成功对 [文字文稿1] 应用 [business_modern] 排版规范"
+    }
+  }
+}

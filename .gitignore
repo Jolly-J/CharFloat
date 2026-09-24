@@ -51,3 +51,9 @@ Thumbs.db
 
 # 子代理中间产物（探测脚本、预览图等）
 .scratch/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+

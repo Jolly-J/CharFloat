@@ -1,0 +1,54 @@
+{
+  "step": "sheet-01",
+  "tool": "wps_get_workspace_summary",
+  "args": {},
+  "response": {
+    "success": true,
+    "data": {
+      "hostType": "excel",
+      "hasOpenWorkbook": true,
+      "workbookName": "月度经营.xlsx",
+      "fullName": "/Users/Python/Office Agent Bridge/promo/env-B-有插件/月度经营.xlsx",
+      "openWorkbooks": [
+        {
+          "name": "月度经营.xlsx",
+          "fullName": "/Users/Python/Office Agent Bridge/promo/env-B-有插件/月度经营.xlsx",
+          "isActive": true
+        }
+      ],
+      "activeSheetName": "月度经营分析",
+      "sheetCount": 2,
+      "sheets": [
+        {
+          "index": 1,
+          "name": "月度经营分析",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "name": "9月明细",
+          "visible": true
+        }
+      ],
+      "selection": {
+        "address": "$A$1:$D$1",
+        "rowCount": 1,
+        "columnCount": 4
+      },
+      "openWorkbookCount": 1,
+      "lockTarget": {
+        "name": null,
+        "source": "none",
+        "exists": false,
+        "missing": false
+      },
+      "targetSource": "none",
+      "targetResolution": [
+        "1) 本次请求的 workbookName",
+        "2) 本会话的目标锁 wps_lock_target_document（可能来自更早的会话，不代表文稿还开着）",
+        "3) 不传目标：宿主使用活动文稿；只打开了一个文稿时使用该文稿"
+      ],
+      "message": "获取工作区摘要成功"
+    }
+  }
+}

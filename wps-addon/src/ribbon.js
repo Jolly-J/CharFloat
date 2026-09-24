@@ -12,7 +12,7 @@
       const app = getApp();
       const host = detectHostComponent();
       const summary = app ? getWorkspaceSummary(app) : null;
-      let msg = "【Office Agent Bridge 运行状态】\n\n";
+      let msg = "【字浮 CharFloat 运行状态】\n\n";
       msg += `插件版本: v${currentVersion} (协议 v2)\n`;
       msg += `通信状态: ${isConnected ? `已连接 (127.0.0.1:${BRIDGE_PORT})` : `未连接 (${lastDisconnectReason})`}\n`;
       msg += `网关配置: 127.0.0.1:${BRIDGE_PORT} (Token: ${BRIDGE_TOKEN ? "已配置" : "缺失"})\n`;
@@ -50,7 +50,7 @@
       }
 
       if (!isConnected) {
-        msg += "\n排查建议:\n1. 确认 Office Agent Bridge 桌面客户端已启动后台服务；\n2. 若长期无法连通，可在客户端点击【安装 / 升级加载项】。";
+        msg += "\n排查建议:\n1. 确认字浮 CharFloat 桌面客户端已启动后台服务；\n2. 若长期无法连通，可在客户端点击【安装 / 升级加载项】。";
       }
       showNativeAlert(msg);
     } catch (e) {
@@ -141,7 +141,7 @@
 
   window.OnActionOpenDesktopApp = function () {
     try {
-      showNativeAlert("【Office Agent Bridge 控制中心】\n\n请在屏幕顶部菜单栏或程序坞中切换至「Office Agent Bridge」桌面管理窗口。\n\n您可以在管理中心中配置 AI 助手（豆包、Kimi、Claude、WorkBuddy 等）、查看单元格修改快照以及进行系统诊断。");
+      showNativeAlert("【字浮 CharFloat 控制中心】\n\n请在屏幕顶部菜单栏或程序坞中切换至「字浮 CharFloat」桌面管理窗口。\n\n您可以在管理中心中配置 AI 助手（豆包、WorkBuddy、Kimi、Claude 等）、查看单元格修改快照以及进行系统诊断。");
     } catch (e) {
       showNativeAlert("打开控制中心提示: " + (e.message || String(e)));
     }
@@ -289,5 +289,5 @@
   };
 
   window.OnActionShowGuide = function () {
-    showNativeAlert("【Office Agent (AI) 快速使用指南】\n\n1. 确保 Office Agent Bridge 桌面客户端处于「正常运行」状态；\n2. 在桌面端「AI 助手授权中心」一键绑定您的常用客户端（豆包 / Kimi / Claude / WorkBuddy 等）；\n3. 在 AI 客户端中直接对话即可实时读取、分析并修改当前打开的表格与文档！\n4. 任何时候均可点击上方【撤销 AI 修改】秒级恢复数据。");
+    showNativeAlert("【字浮 CharFloat 快速使用指南】\n\n1. 确保字浮 CharFloat 桌面客户端处于「正常运行」状态；\n2. 在桌面端「AI 助手授权中心」一键绑定您的常用客户端（豆包 / WorkBuddy / Kimi / Claude 等）；\n3. 在 AI 客户端中直接对话即可实时读取、分析并修改当前打开的表格与文档！\n4. 任何时候均可点击上方【撤销 AI 修改】秒级恢复数据。");
   };

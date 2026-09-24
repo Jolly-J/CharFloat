@@ -1,116 +1,158 @@
-import React from 'react';
-import { Cpu, Terminal, Sparkles, Check, ArrowUpRight } from 'lucide-react';
+import { Sparkles, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface AgentGridProps {
   onOpenQuickStart: () => void;
 }
 
-const SUPPORTED_MODELS = [
+const SUPPORTED_AGENTS = [
   {
-    name: 'Claude 3.7 / Claude Code',
+    name: 'WorkBuddy',
+    logo: '/agents/workbuddy.svg',
+    category: '腾讯助手',
+    tag: '推荐',
+    desc: '腾讯智能助手原生联动，一键接入后在日常对话中唤醒本地 Office 驱动，指哪改哪。',
+    status: '已就绪'
+  },
+  {
+    name: '豆包工作',
+    logo: '/agents/doubao-color.svg',
+    category: '字节生态',
+    tag: '官方适配',
+    desc: '字节跳动 AI 工作平台，字浮让它打破网页边界，直接在正在运行的 WPS 中就地标色与修表。',
+    status: '已就绪'
+  },
+  {
+    name: '千问办公',
+    logo: '/agents/qwen-color.svg',
+    category: '阿里通义',
+    tag: '一键接入',
+    desc: '阿里巴巴通义千问桌面端，本地通道秒级接入，让长文本分析与复杂计算直接增量注入表格。',
+    status: '支持接入'
+  },
+  {
+    name: 'Kimi',
+    logo: '/agents/kimi.webp',
+    category: '月之暗面',
+    tag: '长文推理',
+    desc: 'Moonshot Kimi 客户端，配置已就绪，直接在客户端对话提取与回写眼前正打开的工作表。',
+    status: '已就绪'
+  },
+  {
+    name: 'Claude Code',
+    logo: '/agents/claude-color.svg',
     category: 'Anthropic',
-    desc: '原生支持 stdio MCP 协议，通过代码级精准思考控制复杂表格与公式。',
-    tag: '深度推理'
+    tag: '深度代码',
+    desc: 'Anthropic 官方智能助手与 CLI，原生支持标准 MCP 协议，代码级精准控制 Office 内部对象。',
+    status: '已就绪'
   },
   {
-    name: 'Cursor & VS Code',
-    category: 'IDE / Editor',
-    desc: '配置一键生效，在 Composer / Chat 侧边栏直接对话操控打开中的本地文档。',
-    tag: '开发者首选'
-  },
-  {
-    name: 'ChatGPT Plus / 4o',
+    name: 'Codex / ChatGPT',
+    logo: '/agents/openai.svg',
     category: 'OpenAI',
-    desc: '通过标准 MCP / 本地 HTTP 代理通道连接，告别传统文件反复上传下载。',
-    tag: '全能办公'
-  },
-  {
-    name: '字节 豆包 / 扣子 Coze',
-    category: '本土大模型',
-    desc: '深度接入中文本土智能体，无缝结合企业内部知识库与本地桌面办公。',
-    tag: '本土极速'
-  },
-  {
-    name: '阿里 通义千问 Qwen',
-    category: '超长上下文',
-    desc: '处理十万行复杂业务表与多工作簿关联，极速执行结构化提取与回写。',
-    tag: '海量数据'
-  },
-  {
-    name: '企业自建 Agent / Dify',
-    category: '定制生态',
-    desc: '开放标准 RESTful / SSE / WebSocket 接口与 Python SDK，私有化部署零门槛。',
-    tag: '企业可控'
+    tag: '全能办公',
+    desc: 'OpenAI 官方客户端与生态工具，秒级打通桌面通道，告别静态文件反复上传下载。',
+    status: '已就绪'
   }
 ];
 
 export const AgentGrid: React.FC<AgentGridProps> = ({ onOpenQuickStart }) => {
   return (
-    <section className="py-20 bg-[#0b0b10] relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="models" className="py-20 md:py-28 bg-[#f8fafc] relative scroll-mt-24">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-semibold mb-3">
-            <Cpu className="w-3.5 h-3.5" />
-            <span>无缝生态接入</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-4">
-            继续使用你喜欢的 AI
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-4">
+            你习惯用谁，就给谁装上字浮
           </h2>
-          <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-            你不需要为了获得 Office 操作能力再换一个新的 AI。
-            <br />
-            <strong className="text-white">你负责选择最聪明的 AI，我们让它真正会用 Office。</strong>
+          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+            不用离开你熟悉的客户端。<br className="hidden sm:inline" />
+            给豆包、WorkBuddy、通义千问或 Claude 装上字浮外挂，它们就能直接动手改你桌面上正打开的文档。
           </p>
         </div>
 
-        {/* Grid of supported AI */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {SUPPORTED_MODELS.map((item, idx) => (
-            <div 
+        {/* Grid of 6 supported AI with Real Icons */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+          {SUPPORTED_AGENTS.map((item, idx) => (
+            <motion.div 
               key={idx}
-              className="p-6 rounded-2xl bg-[#13131a] border border-white/[0.06] hover:border-blue-500/30 transition-all flex flex-col justify-between group hover:bg-[#161622] hover:-translate-y-1 shadow-lg"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: idx * 0.08, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -6, scale: 1.015, boxShadow: '0 20px 30px -10px rgba(0,0,0,0.07)' }}
+              className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm transition-colors hover:border-blue-300 flex flex-col justify-between cursor-default"
             >
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
-                    {item.category}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[10px] font-semibold">
+                {/* Card Top: Real Brand Logo + Category Tag */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={item.logo} 
+                      alt={item.name} 
+                      className="w-9 h-9 object-contain shrink-0 select-none"
+                      loading="lazy"
+                    />
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 leading-tight">
+                        {item.name}
+                      </h3>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        {item.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    item.tag === '推荐' 
+                      ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                      : 'bg-blue-50 text-blue-700 border-blue-200/60'
+                  }`}>
                     {item.tag}
                   </span>
                 </div>
-                <h3 className="text-base font-bold text-white mb-2 flex items-center gap-1.5 group-hover:text-blue-300 transition-colors">
-                  <span>{item.name}</span>
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">{item.desc}</p>
+
+                <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                  {item.desc}
+                </p>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-white/[0.04] flex items-center justify-between text-xs text-zinc-500">
-                <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                  <Check className="w-3.5 h-3.5" /> 即插即用
+              {/* Card Footer: Ready Status */}
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                <span>客户端一键授权</span>
+                <span className="text-blue-600 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{item.status}</span>
                 </span>
-                <button 
-                  onClick={onOpenQuickStart}
-                  className="text-blue-400 hover:text-blue-300 flex items-center gap-0.5 font-medium transition-colors"
-                >
-                  <span>查看接入</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
 
-        {/* Bottom CTA Box */}
+        {/* Quick config button banner */}
         <div className="text-center">
-          <button
+          <motion.button
             onClick={onOpenQuickStart}
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 450, damping: 25 }}
+            className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white hover:bg-slate-50 border border-slate-200 shadow-sm text-xs sm:text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-blue-200" />
-            <span>只需 1 分钟，为你的 AI 装上真实 Office 操作能力</span>
-          </button>
+            {/* Overlapping Brand Avatars Stack (WorkBuddy, Doubao, Qwen) */}
+            <div className="flex items-center -space-x-1.5 shrink-0">
+              <div className="w-5 h-5 rounded-full bg-white border border-slate-200 shadow-2xs flex items-center justify-center p-0.5 z-30">
+                <img src="/agents/workbuddy.svg" alt="WorkBuddy" className="w-full h-full object-contain" />
+              </div>
+              <div className="w-5 h-5 rounded-full bg-white border border-slate-200 shadow-2xs flex items-center justify-center p-0.5 z-20">
+                <img src="/agents/doubao-color.svg" alt="豆包" className="w-full h-full object-contain" />
+              </div>
+              <div className="w-5 h-5 rounded-full bg-white border border-slate-200 shadow-2xs flex items-center justify-center p-0.5 z-10">
+                <img src="/agents/qwen-color.svg" alt="通义千问" className="w-full h-full object-contain" />
+              </div>
+            </div>
+            <span>让 AI 助手为自己配置字浮外挂（支持 Cursor / Windsurf / VS Code 等）</span>
+            <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />
+          </motion.button>
         </div>
       </div>
     </section>

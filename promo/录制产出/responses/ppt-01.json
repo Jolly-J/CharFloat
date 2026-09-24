@@ -1,0 +1,18 @@
+{
+  "step": "ppt-01",
+  "tool": "wps_ppt_manage_slides",
+  "args": {
+    "action": "new_presentation"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "presentationName": "演示文稿3",
+      "slideCount": 0,
+      "savedPath": null,
+      "appended": false,
+      "message": "已新建演示文稿 [演示文稿3]（尚未保存到磁盘；后续写入请显式传 presentationName）"
+    }
+  }
+}

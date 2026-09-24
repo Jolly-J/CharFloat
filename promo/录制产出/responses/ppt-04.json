@@ -1,0 +1,46 @@
+{
+  "step": "ppt-04",
+  "tool": "wps_ppt_generate_deck",
+  "args": {
+    "presentationName": "演示文稿3",
+    "themePreset": "business_blue",
+    "slides": [
+      {
+        "layout": "chart",
+        "title": "营收与成本趋势",
+        "chart": {
+          "chartType": "column",
+          "title": "单位：万元",
+          "categories": [
+            "7 月",
+            "8 月",
+            "9 月"
+          ],
+          "series": [
+            {
+              "name": "营业收入",
+              "values": [
+                86,
+                94,
+                108
+              ]
+            },
+            {
+              "name": "运营成本",
+              "values": [
+                66,
+                72,
+                80
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "response": {
+    "success": false,
+    "error": "PPT 原生图表已创建但配置失败（已删除半成品形状）：第 1 个数据系列的 Values 未生效：写入 [86,94,108]，读回 [4.3,2.5,3.5,4.5]。宿主忽略了数组赋值（实测本机 WPS 的 ChartData.Workbook 为 null）；请改用矢量形状绘制图表。",
+    "_httpStatus": 422
+  }
+}

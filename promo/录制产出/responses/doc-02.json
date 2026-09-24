@@ -1,0 +1,30 @@
+{
+  "step": "doc-02",
+  "tool": "wps_word_write_content",
+  "args": {
+    "documentName": "文字文稿1",
+    "type": "heading1",
+    "content": "2026 年三季度经营分析报告",
+    "location": "end"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "insertedLines": 1,
+      "location": "end",
+      "type": "heading1",
+      "insertedParagraphs": [
+        {
+          "textLength": 15,
+          "readBackMatches": true,
+          "start": 0,
+          "end": 16,
+          "style": "标题 1"
+        }
+      ],
+      "message": "已成功向 [文字文稿1] 写入 1 行内容"
+    }
+  }
+}

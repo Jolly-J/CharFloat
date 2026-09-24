@@ -249,13 +249,13 @@ export class WpsBridgeServer {
       res.writeHead(204); res.end(); return;
     }
     const auth = req.headers.authorization?.replace(/^Bearer /, '');
-    if (!validToken(auth)) return json({ error: 'Bridge HTTP 401：需要本机安装凭据' }, 401);
+    const isMcpChannel = url.pathname === '/mcp' || url.pathname === '/sse' || url.pathname === '/messages';
+    // MCP 通道运行在 127.0.0.1 本机回环，并通过 requestAllowed 严格隔离跨域 Origin。
+    // 为降低本地客户端（如豆包工作自定义连接器）的配置门槛，未携带 Authorization 时允许直连；若携带则校验有效性。
+    if (!isMcpChannel && !validToken(auth)) return json({ error: 'Bridge HTTP 401：需要本机安装凭据' }, 401);
+    if (isMcpChannel && auth && !validToken(auth)) return json({ error: 'Bridge HTTP 401：凭据无效' }, 401);
     if (req.headers.origin) res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
     res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
-    if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE'); return json({});
-    }
     if (url.pathname === '/mcp') {
       const id = req.headers['mcp-session-id'] as string | undefined;
       if (req.method === 'POST') {

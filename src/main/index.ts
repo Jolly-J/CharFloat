@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ensureService, serviceRequest, probeService } from '../bridge/service-client.js';
-import { atomicWrite, runtimeHome, runtimePort, VERSION, resourcePath, appendServiceLog } from '../bridge/runtime.js';
+import { atomicWrite, runtimeHome, runtimePort, VERSION, resourcePath, appendServiceLog, getToken } from '../bridge/runtime.js';
 import { FULL_DISK_ACCESS_URL, appToAuthorize } from './permissions.js';
 import { openPermissionWindow, closePermissionWindow, startAppDrag, getPermissionIssue, loadAppIcon } from './permission-window.js';
 import { InstallerEngine } from './installer-engine.js';
@@ -35,7 +35,7 @@ function createWindow() {
   }
   window = new BrowserWindow({ width: Math.max(780, Math.min(prefs.width || 880, 1300)), height: Math.max(560, Math.min(prefs.height || 620, 950)), minWidth: 780, minHeight: 560, show: false,
     ...(appIcon ? { icon: appIcon } : {}),
-    title: 'Office Agent Bridge', titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    title: '字浮 CharFloat', titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#17191c' : '#f7f8fa',
     webPreferences: { preload: path.join(here, '../preload/index.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
@@ -103,7 +103,7 @@ function setupIpc() {
   ipcMain.handle('permission:open-guide', () => { openPermissionWindow(getPermissionIssue()); return { success: true }; });
   ipcMain.handle('permission:close-window', () => { closePermissionWindow(); return { success: true }; });
   ipcMain.handle('permission:retry-install', async () => lastPermissionRetry ? lastPermissionRetry() : { success: false, message: '没有可重试的安装' });
-  ipcMain.handle('get-app-info', () => ({ version: VERSION, port: runtimePort(), home: runtimeHome(), platform: process.platform, theme: prefs.theme || 'system', login: app.getLoginItemSettings().openAtLogin, config: { mcpServers: { 'office-agent-bridge': InstallerEngine.configEntry(), 'wps-bridge': InstallerEngine.configEntry() } } }));
+  ipcMain.handle('get-app-info', () => ({ version: VERSION, port: runtimePort(), home: runtimeHome(), token: (() => { try { return getToken(); } catch { return ''; } })(), platform: process.platform, theme: prefs.theme || 'system', login: app.getLoginItemSettings().openAtLogin, config: { mcpServers: { 'charfloat': InstallerEngine.configEntry() } } }));
   ipcMain.handle('set-theme', (_e, theme) => { if (!['system','light','dark'].includes(theme)) throw new Error('主题无效'); nativeTheme.themeSource = theme; prefs.theme = theme; persist(); return true; });
   ipcMain.handle('set-login', (_e, enabled) => { if (!app.isPackaged) throw new Error('登录启动仅在安装版中可用'); app.setLoginItemSettings({ openAtLogin: Boolean(enabled), args: ['--background'] }); return app.getLoginItemSettings().openAtLogin; });
   ipcMain.handle('copy-text', (_e, text) => { if (typeof text !== 'string' || text.length > 100000) throw new Error('文本无效'); clipboard.writeText(text); return true; });
@@ -114,6 +114,41 @@ function setupIpc() {
     }
     shell.openPath(file);
     return true;
+  });
+  ipcMain.handle('mark-doubao-configured', (_e, configured = true) => {
+    prefs.doubaoConfigured = Boolean(configured);
+    persist();
+    return true;
+  });
+  ipcMain.handle('open-agent-app', async (_e, agentId: string) => {
+    try {
+      if (agentId === 'workbuddy') {
+        try {
+          await shell.openExternal('workbuddy://connectors');
+        } catch {}
+        if (process.platform === 'darwin') {
+          const { execFile } = await import('node:child_process');
+          execFile('osascript', ['-e', 'tell application "WorkBuddy" to activate'], () => {});
+        }
+        return { success: true };
+      }
+      if (agentId === 'doubao') {
+        if (process.platform === 'darwin') {
+          await shell.openPath('/Applications/DoubaoWork.app');
+          const { execFile } = await import('node:child_process');
+          execFile('osascript', ['-e', 'tell application "DoubaoWork" to activate'], () => {});
+          return { success: true };
+        } else {
+          try {
+            await shell.openExternal('doubaowork://doubaowork-settings');
+            return { success: true };
+          } catch {}
+        }
+      }
+      return { success: false, message: '未找到该客户端的快捷唤起入口' };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   });
   ipcMain.handle('exit-app', () => app.quit());
 }
@@ -130,8 +165,8 @@ else {
     } else {
       trayIcon = nativeImage.createFromPath(resourcePath('resources/tray-win.png'));
     }
-    tray = new Tray(trayIcon); tray.setToolTip('Office Agent Bridge');
-    tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 Office Agent Bridge', click: createWindow }, { label: '停止服务', click: () => { void serviceRequest('/api/v1/service/stop', {}).catch(e => { notice = e.message; }); } }, { type: 'separator' }, { label: '退出管理窗口（后台继续运行）', click: () => app.quit() }]));
+    tray = new Tray(trayIcon); tray.setToolTip('字浮 CharFloat');
+    tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 字浮 CharFloat', click: createWindow }, { label: '停止服务', click: () => { void serviceRequest('/api/v1/service/stop', {}).catch(e => { notice = e.message; }); } }, { type: 'separator' }, { label: '退出管理窗口（后台继续运行）', click: () => app.quit() }]));
     tray.on('click', createWindow);
     if (!process.argv.includes('--background')) createWindow();
     // 启动即对齐：客户端包内的加载项若比 WPS 里部署的新，自动重新部署并触发重载。

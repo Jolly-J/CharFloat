@@ -185,7 +185,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             <div className="about-brand-box">
               <img src={appLogo} alt="Logo" className="about-logo" />
               <div>
-                <strong>Office Agent Bridge</strong>
+                <strong>字浮 CharFloat</strong>
                 <span className="version-tag">版本 v{appInfo?.version || '2.0.0'}</span>
               </div>
             </div>

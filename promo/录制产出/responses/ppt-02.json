@@ -1,0 +1,34 @@
+{
+  "step": "ppt-02",
+  "tool": "wps_ppt_generate_deck",
+  "args": {
+    "presentationName": "演示文稿3",
+    "themePreset": "business_blue",
+    "slides": [
+      {
+        "layout": "title",
+        "title": "2026 年三季度经营汇报",
+        "subtitle": "数据来源：月度经营分析 · 2026-09 · 单位：万元",
+        "notes": "开场：三季度营收与利润双升，成本需要关注。"
+      }
+    ]
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "pageWidth": 960,
+      "pageHeight": 540,
+      "unit": "pt",
+      "layoutWarnings": [],
+      "visualVerificationRequired": true,
+      "presentationName": "演示文稿3",
+      "createdSlidesCount": 1,
+      "createdSlideIndices": [
+        1
+      ],
+      "themeColor": "#0F4C81",
+      "message": "已成功基于大纲批量生成 1 页专业商业演示胶片！"
+    }
+  }
+}

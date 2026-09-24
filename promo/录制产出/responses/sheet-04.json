@@ -1,0 +1,45 @@
+{
+  "step": "sheet-04",
+  "tool": "wps_patch_cells",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "address": "D5:D6",
+    "formulas": [
+      [
+        "=D3-D4"
+      ],
+      [
+        "=D5/D3"
+      ]
+    ],
+    "reason": "补 9 月营业利润与利润率公式，与 7/8 月口径一致"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "message": "已成功修改 2 个单元格，已记录留痕",
+      "auditId": "05acd25a-d1cb-4ac8-944c-f19550710900",
+      "rollbackable": true,
+      "workbookName": "月度经营.xlsx",
+      "modifiedCount": 2,
+      "diff": [
+        {
+          "cell": "$D$5",
+          "oldValue": null,
+          "newValue": 28,
+          "oldFormula": "",
+          "newFormula": "=D3-D4"
+        },
+        {
+          "cell": "$D$6",
+          "oldValue": null,
+          "newValue": 0.25925925925925924,
+          "oldFormula": "",
+          "newFormula": "=D5/D3"
+        }
+      ]
+    }
+  }
+}

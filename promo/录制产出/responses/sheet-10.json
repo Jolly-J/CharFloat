@@ -1,0 +1,35 @@
+{
+  "step": "sheet-10",
+  "tool": "wps_patch_cells",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "address": "A9",
+    "values": [
+      [
+        "结论：9 月营收环比 +14.9%，利润率升至 25.9%；运营成本连续三月上升，采购与渠道费用需复核。"
+      ]
+    ],
+    "reason": "写入本期分析结论"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "message": "已成功修改 1 个单元格，已记录留痕",
+      "auditId": "f19d32a2-24cc-4d24-83b3-28c6d3550cc8",
+      "rollbackable": true,
+      "workbookName": "月度经营.xlsx",
+      "modifiedCount": 1,
+      "diff": [
+        {
+          "cell": "$A$9",
+          "oldValue": null,
+          "newValue": "结论：9 月营收环比 +14.9%，利润率升至 25.9%；运营成本连续三月上升，采购与渠道费用需复核。",
+          "oldFormula": "",
+          "newFormula": "结论：9 月营收环比 +14.9%，利润率升至 25.9%；运营成本连续三月上升，采购与渠道费用需复核。"
+        }
+      ]
+    }
+  }
+}

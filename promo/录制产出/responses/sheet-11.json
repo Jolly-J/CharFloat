@@ -1,0 +1,47 @@
+{
+  "step": "sheet-11",
+  "tool": "wps_format_cells",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "address": "A9:D9",
+    "merge": true,
+    "wrapText": true,
+    "horizontalAlignment": "left",
+    "verticalAlignment": "center",
+    "backgroundColor": "#F1F5F9",
+    "fontColor": "#0F172A",
+    "rowHeight": 26
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "warnings": [],
+      "success": true,
+      "address": "$A$9:$D$9",
+      "appliedStyles": {
+        "sheetName": "月度经营分析",
+        "address": "A9:D9",
+        "workbookName": "月度经营.xlsx",
+        "fontColor": "#0F172A",
+        "backgroundColor": "#F1F5F9",
+        "fillColor": "#F1F5F9",
+        "horizontalAlignment": "left",
+        "verticalAlignment": "center",
+        "rowHeight": 26,
+        "wrapText": true,
+        "merge": true
+      },
+      "auditId": "99bc79ef-8aa0-4e3d-8a3b-239a2f662d68",
+      "rollbackable": false,
+      "rollbackScope": {
+        "values": false,
+        "formulas": false,
+        "styles": false,
+        "charts": false,
+        "structure": false
+      },
+      "auditNote": "格式修改只留痕、不可回滚（本记录没有值/样式快照）。"
+    }
+  }
+}

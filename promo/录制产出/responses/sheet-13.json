@@ -1,0 +1,22 @@
+{
+  "step": "sheet-13",
+  "tool": "wps_save_workbook",
+  "args": {
+    "workbookName": "月度经营.xlsx"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "workbookName": "月度经营.xlsx",
+      "fullName": "/Users/Python/Office Agent Bridge/promo/env-B-有插件/月度经营.xlsx",
+      "saved": true,
+      "warnings": [],
+      "message": "工作簿 [月度经营.xlsx] 已成功保存到磁盘",
+      "auditId": "dc92c5c9-d5f7-4832-87c9-582dc2d3b9fb",
+      "rollbackable": false,
+      "scope": "workbook",
+      "warning": "保存是工作簿级操作：会把该工作簿内存中**所有**未保存改动一并落盘，包括其他会话/任务正在进行、尚未完成的中间结果。并发编辑同一工作簿时，请先确认他人已保存或已完成，或让每个任务使用独立副本。"
+    }
+  }
+}

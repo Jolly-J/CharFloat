@@ -39,7 +39,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* 品牌区：单行紧凑 */}
       <div className="topbar-brand">
         <img src={appLogo} alt="Logo" className="brand-logo-img" />
-        <span className="brand-name">Office Agent Bridge</span>
+        <span className="brand-name">字浮 CharFloat</span>
         <span className="brand-version-tag">2.1</span>
       </div>
 

@@ -1,0 +1,55 @@
+{
+  "step": "sheet-09",
+  "tool": "wps_add_chart",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "dataRange": "A2:D4",
+    "chartType": "column_clustered",
+    "title": "营收与成本趋势（万元）",
+    "position": {
+      "leftCell": "F2",
+      "width": 430,
+      "height": 250
+    },
+    "hasLegend": true,
+    "hasDataLabels": true,
+    "replaceExisting": true
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "workbookName": "月度经营.xlsx",
+      "sheetName": "月度经营分析",
+      "chartType": "column_clustered",
+      "requestedChartType": 51,
+      "seriesTypes": [
+        51,
+        51,
+        51
+      ],
+      "actualChartType": 51,
+      "warnings": [],
+      "dataRange": "A2:D4",
+      "title": "营收与成本趋势（万元）",
+      "left": 341,
+      "top": 32,
+      "width": 430,
+      "height": 250,
+      "shapeName": "Chart 1",
+      "chartIndex": 1,
+      "message": "已成功在 [月度经营分析] 创建 column_clustered 原生图表，数据源为 A2:D4",
+      "auditId": "3797aeee-8368-42b6-b28e-f2b94fd52344",
+      "rollbackable": false,
+      "rollbackScope": {
+        "values": false,
+        "formulas": false,
+        "styles": false,
+        "charts": false,
+        "structure": false
+      },
+      "auditNote": "新增图表只留痕、不可回滚：回滚不会删除已创建的图表。"
+    }
+  }
+}

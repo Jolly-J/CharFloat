@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 
-export const VERSION = '2.1.0';
+export const VERSION = '2.2.0';
 export const PROTOCOL = 2;
 export function runtimeHome() {
   return process.env.WPS_BRIDGE_HOME || (process.platform === 'win32'

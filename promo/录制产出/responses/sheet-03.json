@@ -1,0 +1,45 @@
+{
+  "step": "sheet-03",
+  "tool": "wps_patch_cells",
+  "args": {
+    "workbookName": "月度经营.xlsx",
+    "sheetName": "月度经营分析",
+    "address": "D3:D4",
+    "formulas": [
+      [
+        "=SUM('9月明细'!B5:B8)"
+      ],
+      [
+        "=SUM('9月明细'!B12:B15)"
+      ]
+    ],
+    "reason": "并入 9 月营业收入与运营成本，用跨表 SUM 动态汇总"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "message": "已成功修改 2 个单元格，已记录留痕",
+      "auditId": "41e46b59-0827-4e1d-8fd4-284e6d233fd3",
+      "rollbackable": true,
+      "workbookName": "月度经营.xlsx",
+      "modifiedCount": 2,
+      "diff": [
+        {
+          "cell": "$D$3",
+          "oldValue": null,
+          "newValue": 108,
+          "oldFormula": "",
+          "newFormula": "=SUM('9月明细'!B5:B8)"
+        },
+        {
+          "cell": "$D$4",
+          "oldValue": null,
+          "newValue": 80,
+          "oldFormula": "",
+          "newFormula": "=SUM('9月明细'!B12:B15)"
+        }
+      ]
+    }
+  }
+}

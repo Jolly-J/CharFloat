@@ -7,30 +7,6 @@ export interface SpreadsheetProps {
 }
 
 export const OfficeSpreadsheet: React.FC<SpreadsheetProps> = ({ scenario, step }) => {
-  // Scenario 1: Formula and data completion
-  // Step 0: Raw initial table (8月 and 同比 are empty)
-  // Step 1: Scanning range (A4:C8 highlighted with scan border)
-  // Step 2: D column (8月) filled in with green flash
-  // Step 3: E column (同比) formulas calculated and filled in
-  // Step 4: Finished
-
-  // Scenario 2: Highlight anomaly
-  // Step 0: Normal data table
-  // Step 1: Scanning/Search
-  // Step 2: Row 6 (CAC) highlighted in light yellow
-  // Step 3: Row 8 (Refund rate) highlighted in light yellow
-
-  // Scenario 3: Add chart
-  // Step 0: No chart
-  // Step 1: Range selected
-  // Step 2: Chart appears
-  // Step 3: Peak point highlighted
-
-  // Scenario 4: Rollback
-  // Step 0: Table with changes
-  // Step 1: Reading snapshot
-  // Step 2: Reverted to clean original
-
   const isScanning = (scenario === 'formula' || scenario === 'highlight' || scenario === 'chart') && step === 1;
 
   // Formula scenario flags
@@ -49,35 +25,36 @@ export const OfficeSpreadsheet: React.FC<SpreadsheetProps> = ({ scenario, step }
   const isRolledBack = (scenario === 'rollback' && step >= 2);
 
   return (
-    <div className="flex flex-col h-full bg-[#181820] rounded-xl overflow-hidden border border-white/[0.1] shadow-2xl font-sans text-xs select-none">
-      {/* Excel Title Bar */}
-      <div className="bg-[#107c41] px-3 py-1.5 flex items-center justify-between text-white border-b border-black/20">
+    <div className="flex flex-col h-full bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xl font-sans text-xs select-none">
+      {/* Excel / WPS Green Title Bar */}
+      <div className="bg-[#107c41] px-4 py-2 flex items-center justify-between text-white border-b border-black/10">
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
           <span className="font-semibold text-xs tracking-wide">2026年经营分析表.xlsx - WPS / Excel 本地打开中</span>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-emerald-100/90 font-mono">
           <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-          <span>实时同步中</span>
+          <span>本地实时直连</span>
         </div>
       </div>
 
-      {/* Ribbon Bar Mockup */}
-      <div className="bg-[#24242e] px-3 py-1 flex items-center gap-4 text-zinc-300 border-b border-white/[0.06] text-[11px]">
-        <span className="text-white font-medium border-b-2 border-[#107c41] pb-0.5">开始</span>
-        <span className="hover:text-white cursor-pointer">插入</span>
-        <span className="hover:text-white cursor-pointer">公式</span>
-        <span className="hover:text-white cursor-pointer">数据</span>
-        <span className="hover:text-white cursor-pointer">审阅</span>
+      {/* Clean Ribbon Bar Mockup */}
+      <div className="bg-[#f8fafc] px-4 py-1.5 flex items-center gap-5 text-slate-600 border-b border-slate-200 text-[11px] font-medium">
+        <span className="text-emerald-800 font-bold border-b-2 border-[#107c41] pb-1">开始</span>
+        <span className="hover:text-slate-900 cursor-pointer">插入</span>
+        <span className="hover:text-slate-900 cursor-pointer">页面布局</span>
+        <span className="hover:text-slate-900 cursor-pointer">公式</span>
+        <span className="hover:text-slate-900 cursor-pointer">数据</span>
+        <span className="hover:text-slate-900 cursor-pointer">审阅</span>
       </div>
 
       {/* Formula Bar */}
-      <div className="bg-[#1f1f28] px-3 py-1.5 flex items-center gap-2 border-b border-white/[0.06] text-zinc-300">
-        <div className="bg-[#14141c] px-2 py-0.5 rounded border border-white/[0.08] font-mono text-[10px] text-zinc-400 min-w-[44px] text-center">
+      <div className="bg-white px-3 py-1.5 flex items-center gap-2 border-b border-slate-200 text-slate-700">
+        <div className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200 font-mono text-[10px] text-slate-600 min-w-[44px] text-center font-semibold">
           {scenario === 'formula' && step >= 3 ? 'E4' : isScanning ? 'A4:C8' : 'D4'}
         </div>
-        <div className="text-zinc-500 font-serif italic text-xs">fx</div>
-        <div className="flex-1 bg-[#14141c] px-2 py-0.5 rounded border border-white/[0.08] font-mono text-[11px] text-zinc-200 truncate">
+        <div className="text-slate-400 font-serif italic text-xs font-bold">fx</div>
+        <div className="flex-1 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 font-mono text-[11px] text-slate-800 truncate">
           {scenario === 'formula' && step >= 3
             ? '=(D4-C4)/C4'
             : isScanning
@@ -86,23 +63,23 @@ export const OfficeSpreadsheet: React.FC<SpreadsheetProps> = ({ scenario, step }
         </div>
       </div>
 
-      {/* Main Table Grid */}
-      <div className="flex-1 p-3 overflow-auto flex flex-col justify-between">
+      {/* Main Clean Table Grid */}
+      <div className="flex-1 p-3.5 overflow-auto flex flex-col justify-between bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[11px] text-zinc-300">
+          <table className="w-full border-collapse text-[11px] text-slate-700">
             <thead>
-              <tr className="bg-[#23232c] text-zinc-400 font-medium">
-                <th className="border border-white/[0.08] px-2 py-1 w-8 text-center bg-[#282834] text-[10px]">#</th>
-                <th className="border border-white/[0.08] px-3 py-1.5 text-left">A (指标)</th>
-                <th className="border border-white/[0.08] px-3 py-1.5 text-right">B (6月)</th>
-                <th className="border border-white/[0.08] px-3 py-1.5 text-right">C (7月)</th>
-                <th className={`border border-white/[0.08] px-3 py-1.5 text-right transition-colors ${
-                  scenario === 'formula' && step === 2 ? 'bg-blue-500/20 text-blue-300 font-bold' : ''
+              <tr className="bg-[#f1f5f9] text-slate-600 font-semibold">
+                <th className="border border-slate-200 px-2 py-1.5 w-8 text-center bg-slate-200/70 text-[10px]">#</th>
+                <th className="border border-slate-200 px-3 py-2 text-left">A (核心指标)</th>
+                <th className="border border-slate-200 px-3 py-2 text-right">B (6月)</th>
+                <th className="border border-slate-200 px-3 py-2 text-right">C (7月)</th>
+                <th className={`border border-slate-200 px-3 py-2 text-right transition-colors ${
+                  scenario === 'formula' && step === 2 ? 'bg-blue-100 text-blue-800 font-bold' : ''
                 }`}>
                   D (8月实际)
                 </th>
-                <th className={`border border-white/[0.08] px-3 py-1.5 text-right transition-colors ${
-                  scenario === 'formula' && step >= 3 ? 'bg-emerald-500/20 text-emerald-300 font-bold' : ''
+                <th className={`border border-slate-200 px-3 py-2 text-right transition-colors ${
+                  scenario === 'formula' && step >= 3 ? 'bg-emerald-100 text-emerald-800 font-bold' : ''
                 }`}>
                   E (同比增长)
                 </th>
@@ -110,108 +87,108 @@ export const OfficeSpreadsheet: React.FC<SpreadsheetProps> = ({ scenario, step }
             </thead>
             <tbody>
               {/* Row 4: 销售总额 */}
-              <tr className={`transition-all duration-300 ${isScanning ? 'ring-1 ring-blue-400/50 bg-blue-500/[0.04]' : 'hover:bg-white/[0.02]'}`}>
-                <td className="border border-white/[0.08] px-2 py-1.5 text-center text-zinc-500 bg-[#202028] text-[10px]">4</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 font-medium text-zinc-200">销售总额 (万元)</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">540</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">560</td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono font-bold transition-all duration-500 ${
-                  isRolledBack ? 'text-zinc-600' : isDataFilled ? 'bg-emerald-500/15 text-emerald-300' : 'text-zinc-600'
+              <tr className={`transition-all duration-300 ${isScanning ? 'bg-blue-50/80 ring-1 ring-blue-400' : 'hover:bg-slate-50'}`}>
+                <td className="border border-slate-200 px-2 py-2 text-center text-slate-400 bg-slate-100 text-[10px]">4</td>
+                <td className="border border-slate-200 px-3 py-2 font-medium text-slate-900">销售总额 (万元)</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">540</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">560</td>
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono font-bold transition-all duration-500 ${
+                  isRolledBack ? 'text-slate-300' : isDataFilled ? 'bg-emerald-50 text-emerald-700' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isDataFilled ? '612' : '-'}
                 </td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono transition-all duration-500 ${
-                  isRolledBack ? 'text-zinc-600' : isFormulaCalculated ? 'bg-blue-500/15 text-blue-300 font-bold' : 'text-zinc-600'
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono transition-all duration-500 ${
+                  isRolledBack ? 'text-slate-300' : isFormulaCalculated ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isFormulaCalculated ? '+9.3%' : '-'}
                 </td>
               </tr>
 
-              {/* Row 5: 转化率 */}
-              <tr className={`transition-all duration-300 ${isScanning ? 'ring-1 ring-blue-400/50 bg-blue-500/[0.04]' : 'hover:bg-white/[0.02]'}`}>
-                <td className="border border-white/[0.08] px-2 py-1.5 text-center text-zinc-500 bg-[#202028] text-[10px]">5</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 font-medium text-zinc-200">订单转化率</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">3.4%</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">3.5%</td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono font-bold transition-all duration-500 ${
-                  isRolledBack ? 'text-zinc-600' : isDataFilled ? 'bg-emerald-500/15 text-emerald-300' : 'text-zinc-600'
+              {/* Row 5: 订单转化率 */}
+              <tr className={`transition-all duration-300 ${isScanning ? 'bg-blue-50/80 ring-1 ring-blue-400' : 'hover:bg-slate-50'}`}>
+                <td className="border border-slate-200 px-2 py-2 text-center text-slate-400 bg-slate-100 text-[10px]">5</td>
+                <td className="border border-slate-200 px-3 py-2 font-medium text-slate-900">订单转化率</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">3.4%</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">3.5%</td>
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono font-bold transition-all duration-500 ${
+                  isRolledBack ? 'text-slate-300' : isDataFilled ? 'bg-emerald-50 text-emerald-700' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isDataFilled ? '3.8%' : '-'}
                 </td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono transition-all duration-500 ${
-                  isRolledBack ? 'text-zinc-600' : isFormulaCalculated ? 'bg-blue-500/15 text-blue-300 font-bold' : 'text-zinc-600'
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono transition-all duration-500 ${
+                  isRolledBack ? 'text-slate-300' : isFormulaCalculated ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isFormulaCalculated ? '+0.3%' : '-'}
                 </td>
               </tr>
 
-              {/* Row 6: 获客成本 (CAC) - Can be highlighted */}
+              {/* Row 6: 获客成本 (CAC) - Soft Yellow Highlight */}
               <tr className={`transition-all duration-500 ${
                 isCacYellow && !isRolledBack
-                  ? 'bg-amber-400/25 border-amber-400 text-amber-200' 
-                  : isScanning ? 'ring-1 ring-blue-400/50 bg-blue-500/[0.04]' : 'hover:bg-white/[0.02]'
+                  ? 'bg-amber-100/90 text-amber-950 font-medium' 
+                  : isScanning ? 'bg-blue-50/80 ring-1 ring-blue-400' : 'hover:bg-slate-50'
               }`}>
-                <td className="border border-white/[0.08] px-2 py-1.5 text-center text-zinc-500 bg-[#202028] text-[10px]">6</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 font-medium flex items-center justify-between">
-                  <span>获客成本 CAC (元)</span>
+                <td className="border border-slate-200 px-2 py-2 text-center text-slate-400 bg-slate-100 text-[10px]">6</td>
+                <td className="border border-slate-200 px-3 py-2 font-medium flex items-center justify-between">
+                  <span className="text-slate-900">获客成本 CAC (元)</span>
                   {isCacYellow && !isRolledBack && (
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/30 text-amber-300 font-bold">
-                      ⚠️ 成本异常
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
+                      ⚠️ 成本超标
                     </span>
                   )}
                 </td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">45</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">48</td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono font-bold ${
-                  isCacYellow && !isRolledBack ? 'text-amber-300' : isDataFilled ? 'text-zinc-200' : 'text-zinc-600'
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">45</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">48</td>
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono font-bold ${
+                  isCacYellow && !isRolledBack ? 'text-amber-900 font-black' : isDataFilled ? 'text-slate-900' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isDataFilled ? '68' : '-'}
                 </td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono ${
-                  isCacYellow && !isRolledBack ? 'text-amber-300 font-bold' : isFormulaCalculated ? 'text-zinc-300' : 'text-zinc-600'
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono ${
+                  isCacYellow && !isRolledBack ? 'text-amber-900 font-bold' : isFormulaCalculated ? 'text-slate-700' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isFormulaCalculated ? '+41.7%' : '-'}
                 </td>
               </tr>
 
               {/* Row 7: 净利润率 */}
-              <tr className={`transition-all duration-300 ${isScanning ? 'ring-1 ring-blue-400/50 bg-blue-500/[0.04]' : 'hover:bg-white/[0.02]'}`}>
-                <td className="border border-white/[0.08] px-2 py-1.5 text-center text-zinc-500 bg-[#202028] text-[10px]">7</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 font-medium text-zinc-200">净利润率</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">19.1%</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">19.4%</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono font-bold text-zinc-300">
+              <tr className={`transition-all duration-300 ${isScanning ? 'bg-blue-50/80 ring-1 ring-blue-400' : 'hover:bg-slate-50'}`}>
+                <td className="border border-slate-200 px-2 py-2 text-center text-slate-400 bg-slate-100 text-[10px]">7</td>
+                <td className="border border-slate-200 px-3 py-2 font-medium text-slate-900">净利润率</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">19.1%</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">19.4%</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono font-bold text-slate-800">
                   {isRolledBack ? '-' : isDataFilled ? '14.8%' : '-'}
                 </td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono text-zinc-400">
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">
                   {isRolledBack ? '-' : isFormulaCalculated ? '-4.6%' : '-'}
                 </td>
               </tr>
 
-              {/* Row 8: 退款客诉率 - Can be highlighted */}
+              {/* Row 8: 退款客诉率 - Soft Yellow Highlight */}
               <tr className={`transition-all duration-500 ${
                 isRefundYellow && !isRolledBack
-                  ? 'bg-amber-400/25 border-amber-400 text-amber-200' 
-                  : isScanning ? 'ring-1 ring-blue-400/50 bg-blue-500/[0.04]' : 'hover:bg-white/[0.02]'
+                  ? 'bg-amber-100/90 text-amber-950 font-medium' 
+                  : isScanning ? 'bg-blue-50/80 ring-1 ring-blue-400' : 'hover:bg-slate-50'
               }`}>
-                <td className="border border-white/[0.08] px-2 py-1.5 text-center text-zinc-500 bg-[#202028] text-[10px]">8</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 font-medium flex items-center justify-between">
-                  <span>退款客诉率</span>
+                <td className="border border-slate-200 px-2 py-2 text-center text-slate-400 bg-slate-100 text-[10px]">8</td>
+                <td className="border border-slate-200 px-3 py-2 font-medium flex items-center justify-between">
+                  <span className="text-slate-900">退款客诉率</span>
                   {isRefundYellow && !isRolledBack && (
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/30 text-amber-300 font-bold">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
                       ⚠️ 客诉偏高
                     </span>
                   )}
                 </td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">1.2%</td>
-                <td className="border border-white/[0.08] px-3 py-1.5 text-right font-mono">1.3%</td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono font-bold ${
-                  isRefundYellow && !isRolledBack ? 'text-amber-300' : isDataFilled ? 'text-zinc-200' : 'text-zinc-600'
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">1.2%</td>
+                <td className="border border-slate-200 px-3 py-2 text-right font-mono text-slate-600">1.3%</td>
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono font-bold ${
+                  isRefundYellow && !isRolledBack ? 'text-amber-900 font-black' : isDataFilled ? 'text-slate-900' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isDataFilled ? '2.5%' : '-'}
                 </td>
-                <td className={`border border-white/[0.08] px-3 py-1.5 text-right font-mono ${
-                  isRefundYellow && !isRolledBack ? 'text-amber-300 font-bold' : isFormulaCalculated ? 'text-zinc-300' : 'text-zinc-600'
+                <td className={`border border-slate-200 px-3 py-2 text-right font-mono ${
+                  isRefundYellow && !isRolledBack ? 'text-amber-900 font-bold' : isFormulaCalculated ? 'text-slate-700' : 'text-slate-300'
                 }`}>
                   {isRolledBack ? '-' : isFormulaCalculated ? '+1.2%' : '-'}
                 </td>
@@ -220,80 +197,77 @@ export const OfficeSpreadsheet: React.FC<SpreadsheetProps> = ({ scenario, step }
           </table>
         </div>
 
-        {/* Dynamic Chart Area (for Chart Scenario) */}
+        {/* Dynamic Native Chart Area (Clean White Modern Styling) */}
         {scenario === 'chart' && (
-          <div className="mt-3 p-3 bg-[#1e1e28] rounded-lg border border-white/[0.08] transition-all">
+          <div className="mt-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200 shadow-sm transition-all animate-fadeIn">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                <span className="font-semibold text-zinc-200 text-[11px]">月度营收走势 (就地插入原生图表)</span>
+                <TrendingUp className="w-4 h-4 text-blue-600" />
+                <span className="font-bold text-slate-800 text-xs">月度营收趋势 (WPS/Excel 原生嵌入图表)</span>
               </div>
-              <span className="text-[10px] text-zinc-400 font-mono">
-                {isChartVisible ? '已绑定数据源: $B$4:$D$4' : '等待图表指令执行...'}
+              <span className="text-[10px] text-slate-500 font-mono">
+                {isChartVisible ? '动态绑定序列: $B$4:$D$4' : '图表生成中...'}
               </span>
             </div>
 
             {isChartVisible ? (
-              <div className="h-20 w-full relative flex items-end">
-                <svg className="w-full h-full overflow-visible" viewBox="0 0 360 60">
-                  <line x1="0" y1="15" x2="360" y2="15" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                  <line x1="0" y1="40" x2="360" y2="40" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+              <div className="h-24 w-full relative flex items-end pt-2">
+                <svg className="w-full h-full overflow-visible" viewBox="0 0 360 65">
+                  <line x1="0" y1="20" x2="360" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
+                  <line x1="0" y1="45" x2="360" y2="45" stroke="#e2e8f0" strokeDasharray="3 3" />
+
+                  {/* Gradient fill under trend line */}
+                  <defs>
+                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2" />
+                      <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  <polygon
+                    points="40,50 130,42 220,32 310,12 310,65 40,65"
+                    fill="url(#chartGradient)"
+                  />
 
                   <path
-                    d="M 40 45 L 130 38 L 220 30 L 310 10"
+                    d="M 40 50 L 130 42 L 220 32 L 310 12"
                     fill="none"
-                    stroke="#3b82f6"
-                    strokeWidth="2.5"
+                    stroke="#2563eb"
+                    strokeWidth="3"
                     strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
-                  <circle cx="40" cy="45" r="3.5" fill="#3b82f6" />
-                  <circle cx="130" cy="38" r="3.5" fill="#3b82f6" />
-                  <circle cx="220" cy="30" r="3.5" fill="#3b82f6" />
+                  <circle cx="40" cy="50" r="4" fill="#2563eb" />
+                  <circle cx="130" cy="42" r="4" fill="#2563eb" />
+                  <circle cx="220" cy="32" r="4" fill="#2563eb" />
+                  <circle cx="310" cy="12" r="5" fill="#1d4ed8" className="animate-ping" opacity="0.4" />
+                  <circle cx="310" cy="12" r="5" fill="#1d4ed8" />
 
-                  {isChartPeak ? (
-                    <g>
-                      <circle cx="310" cy="10" r="5" fill="#10b981" className="animate-ping" />
-                      <circle cx="310" cy="10" r="4" fill="#10b981" />
-                      <text x="310" y="25" textAnchor="middle" fill="#34d399" fontWeight="bold" fontSize="10">
-                        8月 612万 (最高点 🚀)
-                      </text>
-                    </g>
-                  ) : (
-                    <circle cx="310" cy="10" r="3.5" fill="#3b82f6" />
-                  )}
-
-                  <text x="40" y="58" textAnchor="middle" fill="#71717a" fontSize="9">6月</text>
-                  <text x="130" y="58" textAnchor="middle" fill="#71717a" fontSize="9">7月</text>
-                  <text x="220" y="58" textAnchor="middle" fill="#71717a" fontSize="9">8月</text>
-                  <text x="310" y="58" textAnchor="middle" fill="#34d399" fontSize="9" fontWeight="bold">9月预测</text>
+                  <text x="35" y="63" fontSize="9" fill="#64748b" fontFamily="sans-serif">6月 (540万)</text>
+                  <text x="125" y="58" fontSize="9" fill="#64748b" fontFamily="sans-serif">7月 (560万)</text>
+                  <text x="215" y="48" fontSize="9" fill="#64748b" fontFamily="sans-serif">8月预测</text>
+                  <text x="285" y="10" fontSize="10" fill="#1d4ed8" fontWeight="bold" fontFamily="sans-serif">8月实际 612万 👑</text>
                 </svg>
               </div>
             ) : (
-              <div className="h-16 flex items-center justify-center text-zinc-500 text-[11px] border border-dashed border-white/[0.06] rounded">
-                尚未插入图表（点击执行后生成）
+              <div className="h-16 flex items-center justify-center text-slate-400 text-xs">
+                正在向 WPS 图表引擎申请画板...
               </div>
             )}
           </div>
         )}
-
-        {/* Snapshot Notification for Rollback Scenario */}
-        {scenario === 'rollback' && isRolledBack && (
-          <div className="mt-3 p-2.5 rounded bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-300 text-[11px]">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>已通过快照 #snap-8021 回退至初始状态，未保存任何变更，随时由人工接管。</span>
-          </div>
-        )}
       </div>
 
-      {/* Sheet Tabs Bar */}
-      <div className="bg-[#181822] px-3 py-1 flex items-center justify-between border-t border-white/[0.06] text-[10px] text-zinc-400">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 bg-[#22222e] text-white rounded font-medium border-t border-emerald-500">
-            Sheet1 (经营月报)
-          </span>
-          <span className="hover:text-white cursor-pointer px-1">Sheet2 (明细)</span>
+      {/* Spreadsheet Bottom Status Bar */}
+      <div className="bg-[#f8fafc] px-3.5 py-1.5 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-emerald-700">就绪</span>
+          <span className="hidden sm:inline">工作表 1 / 1</span>
         </div>
-        <span className="text-zinc-500">缩放: 100% ｜ 就绪</span>
+        <div className="flex items-center gap-2 font-mono text-[10px]">
+          <span>求和: 1712</span>
+          <span>平均值: 570.6</span>
+        </div>
       </div>
     </div>
   );

@@ -5,11 +5,17 @@
 - [package.json](package.json)：官网独立依赖及构建命令。
 - [src/App.tsx](src/App.tsx)：页面编排。
 - [src/index.css](src/index.css)：公共样式。
-- [src/components/QuickStartModal.tsx](src/components/QuickStartModal.tsx)：接入引导。
-- [src/components/ArchitectureFlow.tsx](src/components/ArchitectureFlow.tsx)：架构展示。
-- [src/components/ComparisonTable.tsx](src/components/ComparisonTable.tsx)：能力对比。
-- [src/components/OfficeSlides.tsx](src/components/OfficeSlides.tsx)：演示展示。
-- [src/components/OfficeSpreadsheet.tsx](src/components/OfficeSpreadsheet.tsx)：表格展示。
+- [src/components/Navbar.tsx](src/components/Navbar.tsx)：悬浮胶囊顶栏导航与下载引导。
+- [src/components/Hero.tsx](src/components/Hero.tsx)：首屏标题、下载下拉胶囊与产品视觉海报展台。
+- [src/components/DeliverySection.tsx](src/components/DeliverySection.tsx)：文档交付核心章节（垂直轮播Tab + 大预览）。
+- [src/components/ComparisonTable.tsx](src/components/ComparisonTable.tsx)：“同一句话，两种结果”双轨流程模拟（文件流转 / 当前工作区修改）；视口内单次播放、暂停、重播与减少动态效果适配。
+- [src/components/ComparisonDemo.css](src/components/ComparisonDemo.css)：双轨模拟的局部样式及响应式布局，类名使用 comparison- 前缀。
+- [src/components/UseCasesMarquee.tsx](src/components/UseCasesMarquee.tsx)：实用指令双排横向跑马灯卡片流。
+- [src/components/AgentGrid.tsx](src/components/AgentGrid.tsx)：生态模型支持网格。
+- [src/components/DownloadModal.tsx](src/components/DownloadModal.tsx)：全平台客户端下载与系统引导。
+- [src/components/QuickStartModal.tsx](src/components/QuickStartModal.tsx)：MCP 接入引导（Cursor / Claude / VS Code）。
+- [src/components/BrandIcons.tsx](src/components/BrandIcons.tsx)：标准 Apple 与 Windows 官方矢量图标。
+- [src/components/OfficeSpreadsheet.tsx](src/components/OfficeSpreadsheet.tsx)：表格联动视窗。
 
 ## 定位与联动
 

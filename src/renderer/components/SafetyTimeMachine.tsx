@@ -11,6 +11,7 @@ import {
   History
 } from 'lucide-react';
 import appLogo from '../assets/app-logo.png';
+import brandOk from '../assets/brand-ok.png';
 
 interface SafetyTimeMachineProps {
   online: boolean;
@@ -54,7 +55,7 @@ export const SafetyTimeMachine: React.FC<SafetyTimeMachineProps> = ({
             <div className="tm-title-line">
               <h3>安全时光机</h3>
               <span className="auto-protect-badge">
-                <img src={appLogo} alt="Logo" className="brand-badge-icon" />
+                <img src={brandOk} alt="自动快照保护中" className="brand-badge-icon" />
                 <span>自动快照保护中</span>
               </span>
             </div>

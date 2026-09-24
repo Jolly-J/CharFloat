@@ -1,0 +1,30 @@
+{
+  "step": "doc-06",
+  "tool": "wps_word_write_content",
+  "args": {
+    "documentName": "文字文稿1",
+    "type": "heading2",
+    "content": "二、结论与行动建议",
+    "location": "end"
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "success": true,
+      "documentName": "文字文稿1",
+      "insertedLines": 1,
+      "location": "end",
+      "type": "heading2",
+      "insertedParagraphs": [
+        {
+          "textLength": 9,
+          "readBackMatches": true,
+          "start": 230,
+          "end": 240,
+          "style": "标题 2"
+        }
+      ],
+      "message": "已成功向 [文字文稿1] 写入 1 行内容"
+    }
+  }
+}

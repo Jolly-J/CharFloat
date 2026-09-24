@@ -1,0 +1,136 @@
+{
+  "step": "sheet-15",
+  "tool": "wps_get_audit_history",
+  "args": {
+    "limit": 8
+  },
+  "response": {
+    "success": true,
+    "data": {
+      "records": [
+        {
+          "id": "dc92c5c9-d5f7-4832-87c9-582dc2d3b9fb",
+          "host": "wps",
+          "timestamp": 1790172633972,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "save",
+          "description": "保存工作簿 月度经营.xlsx（工作簿级，含他人在途改动）",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "当前工作表",
+          "address": "",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        },
+        {
+          "id": "1e7534ea-bcd0-4892-bc09-01c2fd50cb6d",
+          "host": "wps",
+          "timestamp": 1790172633614,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "format",
+          "description": "自适应列宽",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        },
+        {
+          "id": "99bc79ef-8aa0-4e3d-8a3b-239a2f662d68",
+          "host": "wps",
+          "timestamp": 1790172633288,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "format",
+          "description": "设置区域 A9:D9 格式",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "A9:D9",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        },
+        {
+          "id": "f19d32a2-24cc-4d24-83b3-28c6d3550cc8",
+          "host": "wps",
+          "timestamp": 1790172632962,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "update_values",
+          "description": "写入本期分析结论",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "$A$9",
+          "modifiedCount": 1,
+          "rollbackable": true,
+          "status": "applied"
+        },
+        {
+          "id": "3797aeee-8368-42b6-b28e-f2b94fd52344",
+          "host": "wps",
+          "timestamp": 1790172632645,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "chart",
+          "description": "创建图表（类型 column_clustered，数据源 A2:D4）",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "A2:D4",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        },
+        {
+          "id": "5876b581-c23d-4149-a253-dfad614b6ae2",
+          "host": "wps",
+          "timestamp": 1790172632288,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "conditional_format",
+          "description": "为 B4:D4 添加条件格式（规则 color_scale）",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "B4:D4",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        },
+        {
+          "id": "f875b81d-d074-4f1a-8fc2-8c760d8e17af",
+          "host": "wps",
+          "timestamp": 1790172631974,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "conditional_format",
+          "description": "为 B3:D3 添加条件格式（规则 color_scale）",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "B3:D3",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        },
+        {
+          "id": "4213e3f9-108b-49a5-a044-31212c1a7f79",
+          "host": "wps",
+          "timestamp": 1790172631648,
+          "clientName": "CharFloat-Promo-Recorder",
+          "sessionId": "http-local",
+          "actionType": "format",
+          "description": "设置区域 D6 格式",
+          "workbookName": "月度经营.xlsx",
+          "sheetName": "月度经营分析",
+          "address": "D6",
+          "modifiedCount": 0,
+          "rollbackable": false,
+          "status": "applied"
+        }
+      ],
+      "total": 32,
+      "scopeNote": "rollbackable=true 的记录可用 wps_rollback 恢复值/公式；false 的只留痕、不可回滚。"
+    }
+  }
+}
