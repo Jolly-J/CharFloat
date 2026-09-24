@@ -12,6 +12,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { AppleLogo, WindowsLogo } from './BrandIcons';
 import { getDetectedOS } from '../utils/os';
+import { trackEvent } from '../utils/analytics';
 
 interface DownloadModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
   const handleCopyCli = () => {
     navigator.clipboard.writeText(cliCommand);
     setCopied(true);
+    trackEvent('copy_cli', { command: cliCommand });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -191,6 +193,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                         <motion.a
                           href="/release/2.2.0/mac/字浮-CharFloat-2.2.0-mac-arm64.zip"
                           download
+                          onClick={() => trackEvent('download_client', { os: 'mac', version: '2.2.0', filename: '字浮-CharFloat-2.2.0-mac-arm64.zip' })}
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.97 }}
                           className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 shrink-0 cursor-pointer"
@@ -233,6 +236,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                         <motion.a
                           href="/release/2.2.0/win/字浮-CharFloat-2.2.0-win-x64.zip"
                           download
+                          onClick={() => trackEvent('download_client', { os: 'win', version: '2.2.0', filename: '字浮-CharFloat-2.2.0-win-x64.zip' })}
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.97 }}
                           className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 shrink-0 cursor-pointer"
