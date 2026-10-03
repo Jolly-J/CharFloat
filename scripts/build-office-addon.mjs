@@ -32,7 +32,7 @@ const GENERATED_NOTICE =
 // 迁移前 taskpane.js 的文件头注释，逐字保留。
 const PRELUDE = [
   '/**',
-  ' * WPS Bridge - Microsoft Office (Excel) 官方 Office.js 核心运行时',
+  ' * 字浮 CharFloat - Microsoft Office (Excel) 官方 Office.js 核心运行时',
   ' * 运行在 Microsoft Excel 任务窗格 WebView (WebKit / Edge WebView2)',
   ' */',
 ];

@@ -17,7 +17,7 @@
 - [compose.ts](compose.ts)：**组装入口**，唯一知道"谁实现谁"，向服务实例注入工具服务。
 - [catalog.ts](catalog.ts)：共享工具清单、入参校验与能力描述。
 - [mcp-server.ts](mcp-server.ts)：MCP 协议、说明及响应；经注入的 `ToolService` 取工具，不引用 catalog。
-- [ws-server.ts](ws-server.ts)：HTTP/WebSocket、认证及加载项连接；经注入的 `ToolService` 取工具，不引用 catalog。
+- [ws-server.ts](ws-server.ts)：HTTP/WebSocket、认证及加载项连接；Office 共享运行时按工作簿保留连接并定位目标，WPS 仍按组件隔离；经注入的 `ToolService` 取工具，不引用 catalog。
 - [errors.ts](errors.ts)：失败分类（不可用/拒绝/失败/未知）与跨通道回退策略；只依赖契约层。
 - [context.ts](context.ts)：请求会话与宿主上下文。
 - [office/adapter.ts](office/adapter.ts)：宿主队列和 Office.js/COM 路由。
@@ -26,7 +26,7 @@
 - [service-client.ts](service-client.ts)：发现或启动独立后台。
 - [cli.ts](cli.ts)：CLI 和 stdio 入口。
 - [audit-store.ts](audit-store.ts)：审计持久化；含"未审计的身份类操作"台账（回滚身份判据用）。
-- [build-fingerprint.ts](build-fingerprint.ts)：磁盘/部署产物的构建指纹（桥接入口、WPS 加载项随包与已部署副本、Office.js 任务窗格），供判断"运行中的是哪一版"。
+- [build-fingerprint.ts](build-fingerprint.ts)：磁盘/部署产物的构建指纹（桥接入口、WPS 加载项随包与已部署副本、Office.js 任务窗格），供判断"运行中的是哪一版"；Office 清单状态按内容与随包资源核对，不能仅比版本号。
 - [process-runner.ts](process-runner.ts)：原生进程输入输出。
 - [runtime.ts](runtime.ts)：路径与运行配置。
 
@@ -43,6 +43,8 @@
 `node --import tsx --test tests/service.test.ts tests/office.test.ts tests/platform.test.ts tests/lifecycle.test.ts`（项目根运行）；改动失败分类或回退策略时追加 `tests/failure-routing.test.ts`；工具的**定义**放 `tools/` 对应类文件，`catalog.ts` 只做装配调用与兼容导出——**装配顺序影响 tools/list 与契约快照**，改动后用 `npm run snapshot:tools` 比对必须逐字节不变；改动模块边界或契约层时追加 `tests/contracts-boundary.test.ts`；**新增入口点（如在别处调用 `bridgeServer.start()`）必须同时调用 `composeBridgeServer()` 装配工具服务**，否则 HTTP/MCP 路由会报"工具服务尚未装配"；改动 stdio 代理或 `ToolService` 签名后必须 `npm run build` 再跑 `tests/session-isolation.test.ts`（它拉起 `dist/` 产物）；再按变更执行 typecheck/build。
 
 ## 避坑
+
+Office 图标请求返回 no-store → 即使 PNG 正确仍被 Office 替换为默认图标 → 图标与脚本的缓存契约不同 → 图片响应不发送禁止缓存指令，HTML/JS/CSS 仍禁用缓存；升级图标换 URL → [资源 HTTP 回归](../../tests/service.test.ts)。
 
 工具声称绑定目标但 schema 缺少目标名称 → AI 无法显式传参 → 检查 schema 与执行分支是否都接受名称 → 用 [参数契约测试](../../tests/ppt-layout.test.ts) 核验。写入超时或 Office.js 异常 → 不直接假设未执行或安全重试 → 先读回；尤其修改自动回退策略时检查重复写入风险。
 

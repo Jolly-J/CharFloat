@@ -45,6 +45,25 @@ test('loopback health is public, documents require auth, foreign origins rejecte
 test('schemas reject malformed writes before reaching the host',async()=>{
   const result=await call('excel_patch_cells',{host:'wps',address:'A1',values:[[1],[2,3]]});assert.equal(result.status,422);assert.equal(writes,0);
 });
+test('Office 图标资源允许缓存，HTML/JS 仍禁止缓存，图标响应是实际 PNG',async()=>{
+  for (const size of [16,20,24,32,48,64,80]) {
+    const r=await fetch(base+`/assets/icon-${size}.png?v=charfloat-20261003`);
+    assert.equal(r.status,200);
+    assert.match(r.headers.get('content-type')||'',/image\/png/);
+    assert.equal(r.headers.get('cache-control'),null);
+    assert.equal(r.headers.get('pragma'),null);
+    assert.equal(r.headers.get('expires'),null);
+    assert.ok(r.headers.get('etag'));
+    const data=Buffer.from(await r.arrayBuffer());
+    assert.equal(data.subarray(1,4).toString(),'PNG');
+    assert.ok(data.equals(fs.readFileSync(`office-addon/public/assets/icon-${size}.png`)));
+  }
+  for (const name of ['taskpane.html','taskpane.js','taskpane.css']) {
+    const r=await fetch(base+'/office-addon/'+name);
+    assert.equal(r.status,200);
+    assert.match(r.headers.get('cache-control')||'',/no-store/);
+  }
+});
 test('rollback refuses later edits and restores only matching snapshot',async()=>{
   const snapshot=(v:number)=>({sheetName:'Sheet1',address:'$A$1',rowCount:1,columnCount:1,values:[[v]],formulas:[[v]]});
   const rec=auditStore.addRecord({host:'wps',workbookName:'Test.xlsx',sheetName:'Sheet1',address:'$A$1',actionType:'update_values',description:'test',patchResult:{sheetName:'Sheet1',address:'$A$1',modifiedCount:1,diff:[],beforeSnapshot:snapshot(2),afterSnapshot:snapshot(6)}});

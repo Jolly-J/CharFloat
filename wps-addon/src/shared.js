@@ -4,7 +4,7 @@
   // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
   // ---------------------------------------------------------------------------
 /**
- * WPS Bridge - WPS 内部加载项核心运行时 (专业美学与多功能版)
+ * 字浮 CharFloat - WPS 内部加载项核心运行时 (专业美学与多功能版)
  * 运行在 WPS Office 进程内部 (JSA 环境)
  */
 
@@ -13,6 +13,10 @@
   const currentVersion = config.version || ADDON_VERSION;
   const BRIDGE_PORT = config.port || 19890;
   const BRIDGE_TOKEN = config.token || "";
+  // 侧栏复用操作函数，但不承载 RPC 连接；关闭侧栏不会关闭宿主内的连接。
+  const IS_PANEL_VIEW = window.CHARFLOAT_PANEL_VIEW === true;
+  let charfloatTaskPane = null;
+  let charfloatTaskPaneBuild = "";
   const BRIDGE_WS_URL = "ws://127.0.0.1:" + BRIDGE_PORT + "/addon?token=" + encodeURIComponent(BRIDGE_TOKEN);
   let ws = null;
   let reconnectTimer = null;
@@ -41,8 +45,10 @@
       verEl.innerText = "v" + currentVersion;
     }
     if (badge) {
-      badge.className = "badge " + (connected ? "connected" : "disconnected");
-      badge.innerText = connected ? "已连接" : "未连接";
+      badge.className = IS_PANEL_VIEW ? "status-badge " + (connected ? "connected" : "error") : "badge " + (connected ? "connected" : "disconnected");
+      const caption = IS_PANEL_VIEW ? document.getElementById("connectionText") : null;
+      if (caption) caption.innerText = connected ? "已就绪" : "未连接";
+      else badge.innerText = connected ? "已连接" : "未连接";
     }
     if (detail && text) {
       detail.innerText = text;
@@ -146,6 +152,12 @@
   }
 
   function detectHostComponent() {
+    if (IS_PANEL_VIEW) {
+      try {
+        const component = new URL(window.location.href).searchParams.get("component");
+        if (["excel", "word", "ppt"].includes(component)) return component;
+      } catch (e) {}
+    }
     try {
       const w = getWordApp();
       if (w && (w.Documents || w.ActiveDocument)) return "word";

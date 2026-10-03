@@ -1,4 +1,4 @@
-# Office Agent Bridge 项目改造计划与执行台账
+# 字浮 CharFloat 项目改造计划与执行台账
 
 状态：**P0 通过（环境部分阻塞）、P1 通过、P2.1–P2.4 + DP4 完成（P2.5/P2.6 部分完成）、P3 代码拆分与静态/模拟验证完成、P4 完成；P5.1/P5.3 部分完成、**P5.2 完成**——macOS 与 Windows 双平台发布包均已产出，Windows 包经使用者实机运行，mac 与 win 构建物一并通过使用者验收；P5.4–P5.7 真实宿主业务矩阵、加载项安装升级与最终汇总待做。**
 日期：2026-09-22（P0/P1 及评审补正于同日更新）。
@@ -171,7 +171,7 @@ docs/
       → **共同元数据已成立**：`catalog.getTools()` / `catalog.capabilities()` 是唯一权威源，MCP 的 `bridge://capabilities` 资源、`bridge_get_capabilities` 工具、HTTP `/api/v1/capabilities` 三处都读它（P2.2 后经注入的 `ToolService`）。
       → **人工说明核对**：新增只读检查 `npm run check:claims`（`scripts/check-capability-claims.ts`），扫描 `skills/`、`website/src/` 与**加载项页面**（`office-addon/public`、`wps-addon`，扫描范围在 2026-09-22 总验收审计后扩展）中"能力数量"表述并与元数据源比对。**当前 27 个文件无矛盾**；注入「全量 42 项」可稳定报错，即 P1.5 修过的那类漂移。
       → **口径已按评审修正**：区分**路由数 30**（`EXCEL_METHODS`，不代表宿主实现）、**对外工具数 91**、**WPS 可调用 26**、**Microsoft 可调用 27**。含糊表述（"全量 N 项"/"N 项结构化能力"）必须落在某个宿主的可调用数上；落在路由数上会被判错并明确提示"30 是路由表长度，不代表宿主实现"。实测「全量 30 项」报错、「全量 26 项」按 WPS 口径通过并给出提示。
-      → **已修正的定性矛盾（评审指出，无硬编码数量也有说明漂移）**：`skills/office-agent-bridge/references/capabilities.md` 原写"macOS Microsoft Excel 当前未实现结构化工具"、`src/bridge/mcp-server.ts` 原写"Microsoft Excel 结构化工具目前面向 Windows COM"，均与当前 Office.js 优先 / Windows COM 回退的代码路径不符，已改为如实描述（macOS 与 Windows 同一 Office.js 通道，COM 仅 Windows 回退；本候选版本未实机验收）。
+      → **已修正的定性矛盾（评审指出，无硬编码数量也有说明漂移）**：`skills/charfloat/references/capabilities.md` 原写"macOS Microsoft Excel 当前未实现结构化工具"、`src/bridge/mcp-server.ts` 原写"Microsoft Excel 结构化工具目前面向 Windows COM"，均与当前 Office.js 优先 / Windows COM 回退的代码路径不符，已改为如实描述（macOS 与 Windows 同一 Office.js 通道，COM 仅 Windows 回退；本候选版本未实机验收）。
       → 已接入 CI 双系统作业；`skills/AGENTS.md` 写明元数据源。
       → **未完成**：定性表述（宿主支持范围、验证程度）仍**无自动检查**，只能人工核对；本轮只修了已发现的两处。
 
@@ -216,7 +216,7 @@ docs/
 > - **P4.2**：新增避坑条目均附测试或证据链接（回退策略→`failure-routing.test.ts`、SCC→`contracts-boundary.test.ts`、会话隔离→`session-isolation.test.ts` + 复现证据、构建漂移→生成物 `--check`、伪 `case` 清单→`contract-consistency.test.ts`）；已失效的旧限制（`KNOWN_CYCLES_PENDING_P2_2` 台账、生成物"仍在源码"等表述）已删除或更新，未保留永久禁令。
 > - **P4.3**：核对 skill 与 MCP 描述——`SKILL.md` 已写明批量执行（"优先使用可批量处理且满足需求的结构化工具"）、原生脚本（"专用工具未覆盖不等于不支持…只读探测再批量执行"）、结果验证与**按需保存**（"用户要求落盘或任务交付需要保存时调用对应保存接口并核对结果"）；`mcp-server.ts` 的 INSTRUCTIONS 写明"保存成功、内存修改和回滚覆盖范围是不同状态；只有单元格 patch 的值与公式有审计回滚"。本轮修正了两处与代码路径不符的宿主通道描述（见 P2.6）。
 > - **P4.4**：三类定位任务的入口实测可达——①新增工具参数：`src/bridge/AGENTS.md` → `tools/definitions/`（schema）→ `gateway/`（映射）→ `office/normalizer.ts`（转换）→ `tests/contract-consistency.test.ts`（回归）；②修复 PPT 布局：`wps-addon/AGENTS.md` → `src/ppt-layout.js`（纯计算）→ `src/ppt.js`（宿主写入）→ `tests/ppt-layout.test.ts`；③诊断连接：`src/bridge/AGENTS.md` → `service-client.ts` → `ws-server.ts` → `compose.ts`。三组路径均在首读目录内闭合，**无需全项目扫描**。
-> - **P4.5**：`check:agents` 已接入 CI 双系统作业；`build.files` 含 `!**/AGENTS.md`（开发规范不进用户运行包）；`skills/**` 保留在包内，`skills/office-agent-bridge/` 的 `SKILL.md` + `references/{capabilities,operations,native-scripting}.md` + `scripts/` 完整。
+> - **P4.5**：`check:agents` 已接入 CI 双系统作业；`build.files` 含 `!**/AGENTS.md`（开发规范不进用户运行包）；`skills/**` 保留在包内，`skills/charfloat/` 的 `SKILL.md` + `references/{capabilities,operations,native-scripting}.md` + `scripts/` 完整。
 
 
 - [x] P4.14.1 同步根任务导航、局部文件地图、调用链和验证命令，删除失效入口。

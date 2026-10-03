@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>字浮 CharFloat · WPS 协同面板</title>
+  <link rel="stylesheet" href="./panel.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo"><img src="./ribbon-icon@2x.png" alt="字浮 CharFloat"></div>
+        <div class="brand-info"><h2>字浮 CharFloat</h2><span id="hostText" class="sub-text">WPS 协同面板</span></div>
+      </div>
+      <div id="statusBadge" class="status-badge connecting"><span class="pulse-dot"></span><span id="connectionText">连接中…</span></div>
+    </header>
+    <main class="content">
+      <section class="card">
+        <div class="card-title">后台连接</div>
+        <p id="detailInfo" class="background-hint">正在检查后台连接…</p>
+      </section>
+      <section class="card doc-card">
+        <div class="card-header"><span class="card-title">当前工作区</span><span id="addonVersionTag" class="card-tag"></span></div>
+        <div class="doc-body">
+          <div class="doc-item"><span class="item-label">文档</span><span id="docText" class="item-val primary">—</span></div>
+          <div class="doc-item-row">
+            <div id="sheetRow" class="doc-item"><span class="item-label">活动工作表</span><span id="sheetText" class="item-val">—</span></div>
+            <div id="selectionRow" class="doc-item"><span class="item-label">活动选区</span><span id="selectionText" class="item-val mono">—</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="card log-card"><div class="card-header"><span class="card-title">运行日志</span></div><pre id="logArea" class="log-box">侧栏已就绪</pre></section>
+    </main>
+    <footer class="footer">
+      <button id="btnClose" class="btn btn-text">收起侧栏</button>
+      <button id="btnReconnect" class="btn btn-reconnect"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>刷新连接</span></button>
+    </footer>
+  </div>
+  <script>window.CHARFLOAT_PANEL_VIEW = true;</script>
+  <script src="./bridge-config.js"></script>
+  <script src="./addon-core.js"></script>
+</body>
+</html>

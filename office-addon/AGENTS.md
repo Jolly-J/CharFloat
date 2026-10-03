@@ -2,11 +2,11 @@
 
 ## 文件地图
 
-- [src/](src/)：**源码**（P3.3 逐类拆分）。`state.js` / `ui.js` / `lifecycle.js` / `connection.js` / `rpc.js`（含 `dispatchExcelTool` 全部分支）/ `bootstrap.js`，以及 `src/excel/` 下按域细分的操作实现。
+- [src/](src/)：**源码**（P3.3 逐类拆分）。`state.js` / `ui.js` / `lifecycle.js`（共享运行时与每工作簿自动启动）/ `connection.js` / `rpc.js`（含 `dispatchExcelTool` 全部分支）/ `bootstrap.js`，以及 `src/excel/` 下按域细分的操作实现。
 - [public/taskpane.js](public/taskpane.js)：**构建生成物**（部署入口），由 `npm run build:office-addon` 按固定顺序拼接 `src/**`。顶部有"请勿手改"声明。
 - [public/taskpane.html](public/taskpane.html)：任务窗格入口。
-- [public/taskpane.css](public/taskpane.css)：任务窗格样式。
-- [excel/manifest.xml](excel/manifest.xml)：Excel 加载项清单。
+- [public/taskpane.css](public/taskpane.css)：Office / WPS 共用的侧栏样式源，构建时同步为 WPS 自包含的 panel.css。
+- [excel/manifest.xml](excel/manifest.xml)：Excel 加载项清单，长生命周期共享运行时与侧栏使用同一入口。
 
 ## 定位与联动
 
@@ -21,6 +21,10 @@ Office.js 与 WPS/COM 对象模型不同。读取先 load/sync，写入完成后
 `npm run build:office-addon`（重建部署入口；`--check` 只校验不写文件）→ `node --check office-addon/public/taskpane.js` → `node --import tsx --test tests/office.test.ts`；加载、授权与 sync 效果需真实 Excel 验证。
 
 ## 避坑
+
+图标 PNG 有效但显示默认占位图 → 对图标与脚本一起返回 no-store 会触发 Office 替换图标 → 微软要求图像允许缓存 → 仅 HTML/JS/CSS 禁止缓存，图片不加缓存禁用指令；更改图标 URL 刷新旧缓存 → [HTTP 回归](../tests/service.test.ts)、[微软说明](https://learn.microsoft.com/en-us/javascript/api/manifest/image?view=word-js-preview)。
+
+未打开侧栏就调用 Office.js → 宿主没有启动加载项运行时，CLI 无法收到连接 → 普通任务窗格的运行生命周期依附页面 → 配置长生命周期共享运行时，首次激活后为当前工作簿启用自动启动；不支持的版本明确提示保持侧栏 → [生命周期测试](../tests/addon-lifecycle.test.ts)、[范围与官方依据](../docs/addon-background.md)。
 
 照搬 WPS 脚本 → Office.js 使用 context/Excel 且需同步 → 使用当前执行器约定 → 核对 taskpane.js 的 execute_script 与 normalizer，并实机读回。
 

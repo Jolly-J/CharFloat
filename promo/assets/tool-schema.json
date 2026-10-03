@@ -8583,7 +8583,7 @@
         "bridgeVersion": "2.1.0",
         "bridgeEntry": {
           "role": "桥接入口产物",
-          "path": "/Users/Python/Office Agent Bridge/promo/assets/dump-tools.ts",
+          "path": "promo/assets/dump-tools.ts",
           "exists": true,
           "sha256": "3058235e637210006ba4c886e80c621456197af35d192dff463bd24eafc74387",
           "sizeBytes": 1217,
@@ -8592,7 +8592,7 @@
         "wpsAddon": {
           "resource": {
             "role": "WPS 加载项随包产物",
-            "path": "/Users/Python/Office Agent Bridge/wps-addon/addon-core.js",
+            "path": "wps-addon/addon-core.js",
             "exists": true,
             "sha256": "da3b1155a5ce852ca255984df76777a3386529a2fb6a9eec95de20896999a1c7",
             "sizeBytes": 312738,
@@ -8621,7 +8621,7 @@
         "officeAddon": {
           "resource": {
             "role": "Office.js 任务窗格产物（由桥接托管）",
-            "path": "/Users/Python/Office Agent Bridge/office-addon/public/taskpane.js",
+            "path": "office-addon/public/taskpane.js",
             "exists": true,
             "sha256": "dfd4855bd54fe88ef1489434193e80c5e1aeb8a8556bff59ac4212ecb772910f",
             "sizeBytes": 83578,
@@ -8813,7 +8813,7 @@
       "bridgeVersion": "2.1.0",
       "bridgeEntry": {
         "role": "桥接入口产物",
-        "path": "/Users/Python/Office Agent Bridge/promo/assets/dump-tools.ts",
+        "path": "promo/assets/dump-tools.ts",
         "exists": true,
         "sha256": "3058235e637210006ba4c886e80c621456197af35d192dff463bd24eafc74387",
         "sizeBytes": 1217,
@@ -8822,7 +8822,7 @@
       "wpsAddon": {
         "resource": {
           "role": "WPS 加载项随包产物",
-          "path": "/Users/Python/Office Agent Bridge/wps-addon/addon-core.js",
+          "path": "wps-addon/addon-core.js",
           "exists": true,
           "sha256": "da3b1155a5ce852ca255984df76777a3386529a2fb6a9eec95de20896999a1c7",
           "sizeBytes": 312738,
@@ -8851,7 +8851,7 @@
       "officeAddon": {
         "resource": {
           "role": "Office.js 任务窗格产物（由桥接托管）",
-          "path": "/Users/Python/Office Agent Bridge/office-addon/public/taskpane.js",
+          "path": "office-addon/public/taskpane.js",
           "exists": true,
           "sha256": "dfd4855bd54fe88ef1489434193e80c5e1aeb8a8556bff59ac4212ecb772910f",
           "sizeBytes": 83578,

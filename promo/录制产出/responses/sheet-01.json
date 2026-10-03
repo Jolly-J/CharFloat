@@ -8,11 +8,11 @@
       "hostType": "excel",
       "hasOpenWorkbook": true,
       "workbookName": "月度经营.xlsx",
-      "fullName": "/Users/Python/Office Agent Bridge/promo/env-B-有插件/月度经营.xlsx",
+      "fullName": "promo/env-B-有插件/月度经营.xlsx",
       "openWorkbooks": [
         {
           "name": "月度经营.xlsx",
-          "fullName": "/Users/Python/Office Agent Bridge/promo/env-B-有插件/月度经营.xlsx",
+          "fullName": "promo/env-B-有插件/月度经营.xlsx",
           "isActive": true
         }
       ],

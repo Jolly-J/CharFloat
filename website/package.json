@@ -1,12 +1,14 @@
 {
-  "name": "office-agent-bridge-landing",
+  "name": "charfloat-landing",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prebuild": "node ../scripts/check-brand.mjs",
+    "postbuild": "node ../scripts/check-brand.mjs --website-output"
   },
   "dependencies": {
     "clsx": "^2.1.1",

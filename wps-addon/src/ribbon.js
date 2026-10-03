@@ -7,6 +7,48 @@
   // Ribbon 全局回调顶置与原生状态呈现
   // ==========================================
 
+  window.OnActionShowTaskPane = function () {
+    try {
+      const api = typeof wps !== "undefined" ? wps : (typeof Application !== "undefined" ? Application : null);
+      if (!api || typeof api.CreateTaskPane !== "function") throw new Error("当前 WPS 版本未提供任务窗格接口。");
+      const component = detectHostComponent();
+      const key = "charfloat.taskpane." + component;
+      let storage = null;
+      try { storage = api.PluginStorage; } catch (e) {}
+      const read = suffix => { try { return storage && storage.getItem(key + suffix); } catch (e) { return null; } };
+      const write = (suffix, value) => { try { if (storage) storage.setItem(key + suffix, value); } catch (e) {} };
+      const build = typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT : "";
+      const url = new URL("./panel.html", window.location.href);
+      url.searchParams.set("component", component);
+      if (build) url.searchParams.set("build", build);
+      try {
+        const id = read("");
+        if (id && typeof api.GetTaskPane === "function") charfloatTaskPane = api.GetTaskPane(Number(id)) || null;
+      } catch (e) {}
+      if (charfloatTaskPane) {
+        try {
+          if ((read(".build") || charfloatTaskPaneBuild) !== build && typeof charfloatTaskPane.Navigate === "function") {
+            url.searchParams.set("paneId", String(charfloatTaskPane.ID));
+            charfloatTaskPane.Navigate(url.toString());
+            write(".build", build);
+          }
+          charfloatTaskPaneBuild = build;
+          charfloatTaskPane.Visible = true;
+          return;
+        } catch (e) { charfloatTaskPane = null; }
+      }
+      const pane = api.CreateTaskPane(url.toString(), "字浮 CharFloat");
+      if (!pane) throw new Error("WPS 未能创建字浮侧栏，请检查加载项权限与页面路径。");
+      charfloatTaskPane = pane;
+      charfloatTaskPaneBuild = build;
+      write("", String(pane.ID)); write(".build", build);
+      // 面板携带自己的 ID；收起时绝不能使用固定 ID，避免误关其他加载项。
+      url.searchParams.set("paneId", String(pane.ID));
+      if (typeof pane.Navigate === "function") pane.Navigate(url.toString());
+      pane.Visible = true;
+    } catch (error) { showNativeAlert("打开字浮侧栏失败：" + error.message); }
+  };
+
   window.OnActionBridgeStatus = function () {
     try {
       const app = getApp();
@@ -59,6 +101,7 @@
   };
 
   window.OnActionForceReconnect = function () {
+    if (IS_PANEL_VIEW) return reconnectPanelCore();
     try {
       log("用户点击重新连接...");
       if (ws) {
@@ -80,9 +123,9 @@
 
   window.OnGetImage = function (control) {
     try {
-      const id = typeof control === "object" && control ? (control.Id || control.id) : String(control);
-      if (id === "btnBrandHero") {
-        return "logo.png";
+      const id = typeof control === "object" && control ? (control.Id || control.id || control.ID) : String(control);
+      if (id === "btnBrandHero" || id === "btnShowCharFloatPanel") {
+        return "ribbon-icon.png";
       }
       if (id === "btnAutoFitFormat") {
         return "table-format.png";
@@ -101,7 +144,7 @@
       const call = async (name, args) => {
         const response = await fetch("http://127.0.0.1:" + (config.port || 19890) + "/api/v1/tool/call", {
           method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.token },
-          body: JSON.stringify({ name: name, arguments: args, clientName: "WPS Ribbon", sessionId: "wps-ribbon" })
+          body: JSON.stringify({ name: name, arguments: args, clientName: IS_PANEL_VIEW ? "WPS 字浮侧栏" : "WPS 字浮入口", sessionId: IS_PANEL_VIEW ? "wps-panel" : "wps-ribbon" })
         });
         const result = await response.json();
         if (!response.ok || result.success === false) throw new Error(result.error || "Bridge 请求失败");
@@ -157,7 +200,7 @@
       if (!summary.workbookName) throw new Error("请先打开目标工作簿。");
       const response = await fetch("http://127.0.0.1:" + (config.port || 19890) + "/api/v1/tool/call", {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.token },
-        body: JSON.stringify({ name: "wps_get_audit_history", arguments: { workbookName: summary.workbookName, limit: 10 }, clientName: "WPS Ribbon", sessionId: "wps-ribbon" })
+        body: JSON.stringify({ name: "wps_get_audit_history", arguments: { workbookName: summary.workbookName, limit: 10 }, clientName: IS_PANEL_VIEW ? "WPS 字浮侧栏" : "WPS 字浮入口", sessionId: IS_PANEL_VIEW ? "wps-panel" : "wps-ribbon" })
       });
       const result = await response.json();
       const records = result?.data || [];
@@ -289,5 +332,5 @@
   };
 
   window.OnActionShowGuide = function () {
-    showNativeAlert("【字浮 CharFloat 快速使用指南】\n\n1. 确保字浮 CharFloat 桌面客户端处于「正常运行」状态；\n2. 在桌面端「AI 助手授权中心」一键绑定您的常用客户端（豆包 / WorkBuddy / Kimi / Claude 等）；\n3. 在 AI 客户端中直接对话即可实时读取、分析并修改当前打开的表格与文档！\n4. 任何时候均可点击上方【撤销 AI 修改】秒级恢复数据。");
+    showNativeAlert("【字浮 CharFloat 快速使用指南】\n\n1. 确保字浮桌面客户端后台服务已启动；\n2. 在桌面端「AI 助手接入」绑定常用客户端；\n3. 在 AI 客户端中直接对话即可操作当前文件；\n4. 在字浮侧栏中查看状态、重新连接或撤销单元格修改。收起侧栏不会断开后台连接。");
   };

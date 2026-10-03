@@ -3,33 +3,38 @@
   // 本文件是 addon-core.js 的构建片段：由 scripts/build-wps-addon.mjs 按固定顺序拼进外层 IIFE。
   // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
   // ---------------------------------------------------------------------------
-  try {
-    initWebSocket();
-  } catch (e) {}
-
-  setInterval(function () {
-    if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (IS_PANEL_VIEW) {
+    if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", initPanelUI);
+    else initPanelUI();
+  } else {
     try {
-      const host = detectHostComponent();
-      // 心跳 register 与 connection.js 的首次 register 是**两处**发报文的地方，
-      // 字段必须一致：漏了 buildFingerprint 会让桥接永远判不出"进程里跑的是哪一版"（ISS-59）。
-      sendPacket({
-        type: "register",
-        client: host === "word" ? "wps-word-addon" : host === "ppt" ? "wps-ppt-addon" : "wps-et-addon",
-        version: "2.1.0",
-        buildFingerprint: typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT : null,
-        summary: getWorkspaceSummary(getApp())
-      });
-    } catch (error) { log("工作区状态更新失败: " + error.message); }
-  }, 5000);
+      initWebSocket();
+    } catch (e) {}
 
-  if (typeof document !== "undefined") {
-    if (document.readyState === "loading") {
-      window.addEventListener("DOMContentLoaded", () => {
+    setInterval(function () {
+      if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) return;
+      try {
+        const host = detectHostComponent();
+        // 心跳 register 与 connection.js 的首次 register 是**两处**发报文的地方，
+        // 字段必须一致：漏了 buildFingerprint 会让桥接永远判不出"进程里跑的是哪一版"（ISS-59）。
+        sendPacket({
+          type: "register",
+          client: host === "word" ? "wps-word-addon" : host === "ppt" ? "wps-ppt-addon" : "wps-et-addon",
+          version: currentVersion,
+          buildFingerprint: typeof ADDON_BUILD_FINGERPRINT === "string" ? ADDON_BUILD_FINGERPRINT : null,
+          summary: getWorkspaceSummary(getApp())
+        });
+      } catch (error) { log("工作区状态更新失败: " + error.message); }
+    }, 5000);
+
+    if (typeof document !== "undefined") {
+      if (document.readyState === "loading") {
+        window.addEventListener("DOMContentLoaded", () => {
+          initWebSocket();
+        });
+      }
+      window.addEventListener("load", () => {
         initWebSocket();
       });
     }
-    window.addEventListener("load", () => {
-      initWebSocket();
-    });
   }

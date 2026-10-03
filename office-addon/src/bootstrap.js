@@ -21,6 +21,12 @@
   }
 
   function bindDomEvents() {
+    updateBackgroundUI();
+    const btnHide = document.getElementById("btnHide");
+    if (btnHide) btnHide.addEventListener("click", async () => {
+      try { await Office.addin.hide(); }
+      catch (error) { log("收起侧栏失败：" + error.message); }
+    });
     const btnReconnect = document.getElementById("btnReconnect");
     if (btnReconnect) {
       btnReconnect.addEventListener("click", () => {
@@ -76,4 +82,3 @@
   } else {
     bindDomEvents();
   }
-

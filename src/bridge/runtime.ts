@@ -68,7 +68,7 @@ function previewDir(): string {
     ].map(p => path.join(os.homedir(), p));
     for (const c of candidates) {
       try {
-        if (fs.existsSync(c)) return path.join(c, 'office-agent-bridge-previews');
+        if (fs.existsSync(c)) return path.join(c, 'charfloat-previews');
       } catch { /* 尝试下一个候选 */ }
     }
   }

@@ -26,6 +26,6 @@ description: 通过「字浮 CharFloat」批量修改已打开的 WPS Word 段�
 
 `wps_word_capture_preview` **未注册成对外工具**（调用报"未知工具"），`ExportAsFixedFormat` 在本机也不落盘，所以文字文稿**取不到真实截图或 PDF**。不要反复试探预览调用；改用脚本读回真实属性作为证据：字体/字号/行距/缩进、`Style.NameLocal`、节与 `PageSetup.Orientation`、页眉页脚文本、`ComputeStatistics(2)` 的页数。收尾时如实说明"结构化读回已做、视觉验证未做"。
 
-结构、样式、书签、域、分节与横向页全都要走 [原生脚本](../office-agent-bridge/references/native-scripting.md)（专用工具没有这些能力），枚举取值见 [枚举速查表](../office-agent-bridge/references/enumeration.md)。
+结构、样式、书签、域、分节与横向页全都要走 [原生脚本](../charfloat/references/native-scripting.md)（专用工具没有这些能力），枚举取值见 [枚举速查表](../charfloat/references/enumeration.md)。
 
 整篇排版可能影响封面和表格，仅在用户要求时执行。需要落盘时保存并核对结果；旧 .doc 另存确认实际格式，不能只看扩展名。Word 没有统一快照回滚，不能用表格 auditId 宣称能撤销全文。

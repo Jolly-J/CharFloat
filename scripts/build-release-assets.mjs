@@ -1,10 +1,14 @@
 // 构建独立发布副本；不修改任何业务源码、开发加载项或技能原稿。
 import fs from 'node:fs';
+import { checkBrand } from './check-brand.mjs';
 import path from 'node:path';
 import { ROOT, STAGE, POLICY, PROFILE, MANIFEST, ADDONS, sha256, protectAddon, walk, verifyStage } from './lib/release-protection.mjs';
 
+const sourceBrand = checkBrand(ROOT);
+if (sourceBrand.errors.length) throw new Error(sourceBrand.errors.join('\n'));
+
 const inputs = [...POLICY.files, 'package.json', 'scripts/release-files.json',
-  'scripts/build-release-assets.mjs', 'scripts/lib/release-protection.mjs', 'package-lock.json'];
+  'scripts/build-release-assets.mjs', 'scripts/check-brand.mjs', 'scripts/lib/release-protection.mjs', 'package-lock.json'];
 const assets = walk(path.join(ROOT, 'dist/renderer/assets')).map(n => `dist/renderer/assets/${n}`);
 for (const name of assets) {
   if (!new RegExp(POLICY.rendererAssetPattern).test(name)) throw new Error(`意外的界面构建资源: ${name}`);
@@ -32,4 +36,6 @@ for (const name of names) {
 for (const name of new Set([...inputs, ...assets])) manifest.inputs[name] = sha256(fs.readFileSync(path.join(ROOT, name)));
 fs.writeFileSync(path.join(STAGE, MANIFEST), JSON.stringify(manifest, null, 2) + '\n');
 verifyStage();
+const stageBrand = checkBrand(ROOT, 'stage');
+if (stageBrand.errors.length) throw new Error(stageBrand.errors.join('\n'));
 console.log(`发布副本已生成：${path.relative(ROOT, STAGE)}，${names.length} 个文件；技能和提示词逐字保留。`);

@@ -4,6 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { atomicWrite, resourcePath, runtimeHome, runtimePort } from '../bridge/runtime.js';
 import { AddonInstaller } from './addon-installer.js';
+import { legacyServerKey, legacyToolPrefix, legacySkillNames } from './legacy-brand.js';
 
 export function mergeMcpConfig(file: string, entry: unknown) {
   let config: any = {};
@@ -14,9 +15,9 @@ export function mergeMcpConfig(file: string, entry: unknown) {
   }
   if (config.mcpServers !== undefined && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) throw new Error('mcpServers 格式无效，未覆盖');
   // 只写当前品牌名称 charfloat。
-  // 迁移规则：只清掉确属本产品的遗留条目（office-agent-bridge 与 wps-bridge，命令/参数与原条目一致），
+  // 迁移规则：只清掉确属本产品的遗留条目（命令/参数与原条目一致），
   // 别人的同名条目（若有）一律保留——安全性质与"合并写入、不覆盖他人"保持一致。
-  const LEGACY_KEYS = ['office-agent-bridge', 'wps-bridge'];
+  const LEGACY_KEYS = [legacyServerKey, 'wps-bridge'];
   const next: Record<string, unknown> = { ...(config.mcpServers || {}) };
   for (const leg of LEGACY_KEYS) {
     const prev = next[leg];
@@ -36,7 +37,7 @@ export class InstallerEngine {
   static runtimeEntry = '';
   static getSystemTargetDir() { return runtimeHome(); }
   static configEntry() {
-    return { command: process.execPath, args: [this.runtimeEntry || resourcePath('dist/bridge/cli.cjs')], env: { ELECTRON_RUN_AS_NODE: '1', CHARFLOAT_HOME: runtimeHome(), OFFICE_AGENT_BRIDGE_HOME: runtimeHome(), WPS_BRIDGE_HOME: runtimeHome(), WPS_BRIDGE_PORT: String(runtimePort()), WPS_BRIDGE_RESOURCES: resourcePath('package.json').replace(/[\\/]package\.json$/, '') } };
+    return { command: process.execPath, args: [this.runtimeEntry || resourcePath('dist/bridge/cli.cjs')], env: { ELECTRON_RUN_AS_NODE: '1', CHARFLOAT_HOME: runtimeHome(), WPS_BRIDGE_HOME: runtimeHome(), WPS_BRIDGE_PORT: String(runtimePort()), WPS_BRIDGE_RESOURCES: resourcePath('package.json').replace(/[\\/]package\.json$/, '') } };
   }
   static detectEnvironment() {
     const home = os.homedir();
@@ -73,7 +74,7 @@ export class InstallerEngine {
           }
         } else if (fs.existsSync(configPath)) {
           const srv = JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers;
-          configured = Boolean(srv?.['charfloat'] || srv?.['office-agent-bridge'] || srv?.['wps-bridge']);
+          configured = Boolean(srv?.['charfloat'] || srv?.[legacyServerKey] || srv?.['wps-bridge']);
         }
       } catch { detail = '配置 JSON 无法解析，修复前不会覆盖'; }
       const detected = fs.existsSync(path.dirname(configPath));
@@ -92,7 +93,7 @@ export class InstallerEngine {
         } catch {}
       }
 
-      // 2. 检查豆包本地 sessions 目录下是否有调用过 office_agent_bridge 的真实工具调用记录
+      // 2. 检查豆包本地 sessions 目录下是否有当前或旧版服务的真实工具调用记录
       const sessionsDir = path.join(doubaoWorkDir, 'agent_mode/workspace/.sessions');
       if (fs.existsSync(sessionsDir)) {
         const sessionDirs = fs.readdirSync(sessionsDir);
@@ -104,7 +105,7 @@ export class InstallerEngine {
               const toolResultsDir = path.join(agentsDir, a, 'system/tool-results');
               if (fs.existsSync(toolResultsDir)) {
                 const files = fs.readdirSync(toolResultsDir);
-                if (files.some(f => f.includes('charfloat') || f.includes('office_agent_bridge') || f.includes('office_agent'))) {
+                if (files.some(f => f.includes('charfloat') || f.includes(legacyToolPrefix) || f.includes('office_agent'))) {
                   return true;
                 }
               }
@@ -144,13 +145,7 @@ export class InstallerEngine {
         const shouldSyncSkills = options.skills !== false;
         if (shouldSyncSkills && agent.skillsPath) {
           // 清洗历史遗留技能目录，防止客户端技能列表残留旧名称
-          const legacySkills = [
-            'office-agent-bridge',
-            'office-agent-bridge-chart-style',
-            'office-agent-bridge-ppt-design',
-            'office-agent-bridge-word-batch-edit',
-            'wps-bridge'
-          ];
+          const legacySkills = [...legacySkillNames, 'wps-bridge'];
           for (const leg of legacySkills) {
             const legPath = path.join(agent.skillsPath, leg);
             if (fs.existsSync(legPath)) {

@@ -11,7 +11,7 @@ import { createMcpServer } from './mcp-server.js';
 import { requestContext } from './context.js';
 import { VERSION, PROTOCOL, runtimePort, runtimeHttpsPort, getOrGenerateCerts, getToken, validToken, resourcePath, appendServiceLog } from './runtime.js';
 import { BridgeError } from './errors.js';
-import { collectBuildFingerprints, reportedVersionStatus, reportedAddonBuildStatus } from './build-fingerprint.js';
+import { collectBuildFingerprints, reportedVersionStatus, reportedAddonBuildStatus, officeManifestMatchesResource } from './build-fingerprint.js';
 import type { ToolService } from './contracts/tool-service.js';
 import type { ChannelParams, ToolResult } from './contracts/boundary.js';
 import type { SelectionInfo } from './types.js';
@@ -53,6 +53,7 @@ export interface BridgeState {
   suspectedHostCrash?: { component: string; at: number; kind: ComponentDisconnect['kind']; guidance: string; reportedVersion?: string } | null;
   /** 构建指纹（ISS-59）：磁盘/部署副本的构建身份，用于回答"运行中的是哪一版"。 */
   build?: unknown;
+  officeWorkbooks?: { component: string; workbookName?: string; documentUrl?: string; backgroundStartup?: string }[];
 }
 
 const CRASH_GUIDANCE =
@@ -91,6 +92,8 @@ export class WpsBridgeServer {
   private httpsServer?: https.Server;
   private wss?: WebSocketServer;
   private sockets = new Map<string, WebSocket>();
+  // 共享运行时按文档存在；Office 不能像 WPS 组件一样只保留一条连接。
+  private officeConnections = new Map<WebSocket, { key: string; summary: any; version: string }>();
   private pending = new Map<string, { socket: WebSocket; resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; channel: 'wps-addon' | 'microsoft-officejs'; method: string }>();
   private sessions = new Map<string, StreamableHTTPServerTransport>();
   private sse = new Map<string, SSEServerTransport>();
@@ -217,7 +220,7 @@ export class WpsBridgeServer {
     if (url.pathname.startsWith('/office-addon/') || url.pathname.startsWith('/assets/')) {
       try {
         const publicDir = resourcePath('office-addon/public');
-        const baseName = url.pathname.startsWith('/assets/') ? path.basename(url.pathname) : url.pathname.replace(/^\/office-addon\//, '');
+        const baseName = url.pathname.startsWith('/assets/') ? path.join('assets', path.basename(url.pathname)) : url.pathname.replace(/^\/office-addon\//, '');
         const filePath = path.join(publicDir, baseName);
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
           const ext = path.extname(filePath);
@@ -228,14 +231,23 @@ export class WpsBridgeServer {
             '.png': 'image/png',
             '.svg': 'image/svg+xml'
           };
-          res.writeHead(200, {
+          const content = fs.readFileSync(filePath);
+          const image = ext === '.png' || ext === '.svg';
+          const headers: Record<string, string> = {
             'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-            'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          });
-          res.end(fs.readFileSync(filePath));
+            'Access-Control-Allow-Origin': '*'
+          };
+          if (image) {
+            // Office 会因图标带禁止缓存响应而替换成默认图标；图片允许正常缓存。
+            headers.ETag = '"' + crypto.createHash('sha256').update(content).digest('hex') + '"';
+            headers['Last-Modified'] = fs.statSync(filePath).mtime.toUTCString();
+          } else {
+            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0';
+            headers.Pragma = 'no-cache';
+            headers.Expires = '0';
+          }
+          res.writeHead(200, headers);
+          res.end(content);
           return;
         }
       } catch {}
@@ -276,7 +288,7 @@ export class WpsBridgeServer {
                 `空闲超过 ${Math.round(this.mcpSessionIdleMs / 1000)} 秒的会话会被自动回收（可用 WPS_BRIDGE_MCP_IDLE_MS 调整）`,
                 '也可立即释放：对本地址发起 DELETE /mcp 并带上 Mcp-Session-Id 头（MCP 客户端的 terminateSession 即此请求）',
                 `上限可用 WPS_BRIDGE_MCP_MAX_SESSIONS 调整（当前 ${this.mcpSessionLimit}）`,
-                '重启后台会释放全部会话（npx office-agent-bridge --stop 后 --start）'
+                '从字浮客户端重启后台会释放全部会话；源码环境可执行 node dist/bridge/cli.cjs --stop 后 --start'
               ],
               hint: '最常见原因：客户端异常退出没发 DELETE。等待空闲回收即可，无需重启宿主办公软件。'
             }, 429);
@@ -339,10 +351,10 @@ export class WpsBridgeServer {
             const content = fs.readFileSync(targetFile, 'utf8');
             const m = content.match(/<Version>(.*?)<\/Version>/i);
             ver = m ? m[1].trim() : '';
-            current = ver === VERSION || ver === `${VERSION}.0` || ver.startsWith(VERSION);
+            current = officeManifestMatchesResource(content);
           } catch {
-            current = true;
-            ver = VERSION;
+            current = false;
+            ver = '无法读取';
           }
         }
         return json({
@@ -371,11 +383,11 @@ export class WpsBridgeServer {
         if (fs.existsSync(targetFile)) {
           try {
             const existing = fs.readFileSync(targetFile, 'utf8');
-            if (existing === content || existing.includes(`<Version>${VERSION}`)) {
+            if (existing === content) {
               appendServiceLog('WsServer', '目标清单已为最新版本，跳过覆写');
               return json({
                 success: true,
-                message: 'Office 官方加载项清单已处于最新状态！请在 Excel 中点击【插入 -> 我的加载项】启用。',
+                message: 'Office 加载项清单已为最新。当前工作簿首次使用时，请启动字浮，等待后台连接启用后即可收起侧栏。',
                 targetPath: targetFile
               });
             }
@@ -399,7 +411,7 @@ export class WpsBridgeServer {
         appendServiceLog('WsServer', `Office 加载项部署就绪: ${targetFile}`);
         return json({
           success: true,
-          message: 'Office 官方加载项已成功部署！请在 Excel 中点击【插入 -> 我的加载项】启用。',
+          message: 'Office 加载项已部署。首次启用或更新清单后，请在 Excel 中启动字浮，等待后台连接启用后即可收起侧栏。',
           targetPath: targetFile
         });
       } catch (e: any) {
@@ -457,11 +469,12 @@ export class WpsBridgeServer {
 
         const previous = this.sockets.get(key);
         this.sockets.set(key, ws);
-        if (previous && previous !== ws) previous.close(1000, 'replaced');
+        if (!isMs && previous && previous !== ws) previous.close(1000, 'replaced');
         const summary = p.summary || {};
         const clientVersion = String(p.version || '未知');
 
         if (isMs) {
+          this.officeConnections.set(ws, { key, summary, version: clientVersion });
           const compKey = key === 'ms-excel' ? 'msExcel' : key === 'ms-word' ? 'msWord' : 'msPpt';
           (this.state.components as any)[compKey] = {
             connected: true,
@@ -509,6 +522,14 @@ export class WpsBridgeServer {
         clearTimeout(pending.timer); this.pending.delete(p.id);
         if (p.error) pending.reject(new BridgeError('failed', p.error, { channel: pending.channel, method: pending.method })); else pending.resolve(p.result);
       } else if (p.type === 'event' && p.event === 'selection_change') {
+        const office = this.officeConnections.get(ws);
+        if (office) {
+          office.summary = { ...office.summary, workbookName: p.data?.workbookName || office.summary.workbookName,
+            documentUrl: p.data?.documentUrl || office.summary.documentUrl,
+            activeSheetName: p.data?.sheetName || office.summary.activeSheetName, selection: { address: p.data?.address } };
+          this.sockets.set(office.key, ws);
+          this.restoreOfficeStatus(office.key, ws, office);
+        }
         if (this.sockets.get('excel') === ws || this.sockets.get('ms-excel') === ws) {
           this.state.currentSelection = p.data;
           if (p.data?.sheetName) this.state.activeSheet = p.data.sheetName;
@@ -517,6 +538,15 @@ export class WpsBridgeServer {
       }
     });
     ws.on('close', (code, reasonBuffer) => {
+      const office = this.officeConnections.get(ws);
+      this.officeConnections.delete(ws);
+      if (office && this.sockets.get(office.key) === ws) {
+        const remaining = [...this.officeConnections].find(([socket, record]) => record.key === office.key && socket.readyState === WebSocket.OPEN);
+        if (remaining) {
+          this.sockets.set(office.key, remaining[0]);
+          this.restoreOfficeStatus(office.key, remaining[0], remaining[1]);
+        }
+      }
       const reasonText = reasonBuffer?.toString?.('utf8') || '';
       for (const [key, current] of this.sockets) if (current === ws) {
         const previous = (this.state.components as any)[key] as ComponentStatus | undefined;
@@ -564,8 +594,9 @@ export class WpsBridgeServer {
     let key = typeof params.component === 'string' && params.component
       ? params.component
       : (method.startsWith('word_') || params.documentName ? 'word' : method.startsWith('ppt_') || params.presentationName ? 'ppt' : 'excel');
-    if (method === 'get_workspace_summary' && !params.workbookName && !this.sockets.has('excel') && this.sockets.size === 1) key = [...this.sockets.keys()][0];
-    const ws = this.sockets.get(key);
+    const wpsKeys = [...this.sockets.keys()].filter(name => ['excel', 'word', 'ppt'].includes(name));
+    if (method === 'get_workspace_summary' && !params.workbookName && !this.sockets.has('excel') && wpsKeys.length === 1) key = wpsKeys[0];
+    const ws = ['excel', 'word', 'ppt'].includes(key) ? this.sockets.get(key) : undefined;
     // 加载项未连接 = 执行前不可用，可确认宿主未执行。
     if (!ws || ws.readyState !== WebSocket.OPEN) throw new BridgeError('unavailable', `WPS ${key} 加载项未连接，请先打开对应组件并检查 Bridge 加载项。`, { channel: 'wps-addon', method, executed: 'no' });
     const id = crypto.randomUUID();
@@ -578,9 +609,19 @@ export class WpsBridgeServer {
   }
   async callOfficeAddon<T = ToolResult>(method: string, params: ChannelParams = {}, timeoutMs = 25000): Promise<T> {
     const key = params.component === 'word' ? 'ms-word' : params.component === 'ppt' ? 'ms-ppt' : 'ms-excel';
-    const ws = this.sockets.get(key);
-    // 任务窗格未连接 = 执行前不可用，可确认宿主未执行。
-    if (!ws || ws.readyState !== WebSocket.OPEN) throw new BridgeError('unavailable', `Microsoft Office (${key}) 加载项未连接，请在 Excel 中打开【WPS Bridge (Excel AI)】任务窗格。`, { channel: 'microsoft-officejs', method, executed: 'no' });
+    const target = params.workbookName || params.documentName || params.presentationName;
+    const candidates = [...this.officeConnections].filter(([socket, record]) => record.key === key && socket.readyState === WebSocket.OPEN);
+    const normalize = (value: string) => {
+      try { if (value.startsWith('file:')) value = new URL(value).pathname; value = decodeURIComponent(value); } catch {}
+      return value.replace(/\\/g, '/').replace(/^\/([a-z]:)/i, '$1');
+    };
+    const matches = target ? candidates.filter(([, record]) => [record.summary.workbookName, record.summary.documentName,
+      record.summary.presentationName, record.summary.fullName, record.summary.documentUrl]
+      .some(value => typeof value === 'string' && normalize(value) === normalize(String(target)))) : candidates;
+    if (matches.length > 1) throw new BridgeError('rejected', `多个 Office 后台工作簿匹配本次调用，请指定唯一的 workbookName 或完整文档路径。已连接：${candidates.map(([, record]) => record.summary.workbookName || record.summary.documentUrl || '未命名').join('、')}`, { channel: 'microsoft-officejs', method, executed: 'no', unsafe: true });
+    const ws = matches[0]?.[0];
+    // 后台运行时未连接 = 执行前不可用，可确认宿主未执行。
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new BridgeError('unavailable', `Microsoft Office (${key}) 加载项未连接。请确认字浮后台已启动；首次使用该工作簿需启动一次【字浮 CharFloat】加载项。支持后台运行的 Excel 启用后可收起侧栏，重新打开该工作簿时自动连接。`, { channel: 'microsoft-officejs', method, executed: 'no' });
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new BridgeError('unknown', `Microsoft Office ${method} 超时，请检查 Excel 任务窗格连接`, { channel: 'microsoft-officejs', method })); }, timeoutMs);
@@ -593,12 +634,21 @@ export class WpsBridgeServer {
    * 装配工具服务（P2.2）。协议层不静态引用 catalog，由组装入口 composeBridgeServer() 注入。
    */
   setToolService(service: ToolService) { this.toolService = service; }
+  private restoreOfficeStatus(key: string, socket: WebSocket, record: { summary: any; version: string }) {
+    const component = key === 'ms-excel' ? 'msExcel' : key === 'ms-word' ? 'msWord' : 'msPpt';
+    (this.state.components as any)[component] = { connected: socket.readyState === WebSocket.OPEN, version: record.version,
+      activeDocument: record.summary.workbookName || record.summary.documentName || record.summary.presentationName,
+      activeSheet: record.summary.activeSheetName, summary: record.summary, lastHeartbeat: Date.now() };
+  }
   private tools(): ToolService {
     if (!this.toolService) throw new BridgeError('unavailable', '工具服务尚未装配：请通过组装入口 composeBridgeServer() 启动服务', { channel: 'bridge' });
     return this.toolService;
   }
   getState() {
     const copy = structuredClone(this.state);
+    copy.officeWorkbooks = [...this.officeConnections].filter(([socket]) => socket.readyState === WebSocket.OPEN)
+      .map(([, record]) => ({ component: record.key, workbookName: record.summary.workbookName,
+        documentUrl: record.summary.documentUrl, backgroundStartup: record.summary.backgroundStartup }));
     const hasOlder = Object.values(copy.components).some(c => c.connected && c.version && c.version !== VERSION);
     copy.addonNeedsUpgrade = hasOlder;
     // ISS-59：把"连接上报的版本"与"当前桥接版本"的比对结果显式暴露出来，
@@ -640,4 +690,3 @@ export class WpsBridgeServer {
   }
 }
 export const bridgeServer = new WpsBridgeServer();
-

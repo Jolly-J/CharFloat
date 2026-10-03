@@ -4,6 +4,7 @@
   // 文本原样搬迁，因此保留 2 空格基础缩进；请勿在此文件内写 import/export。
   // ---------------------------------------------------------------------------
   function initWebSocket() {
+    if (IS_PANEL_VIEW) return;
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
       return;
     }

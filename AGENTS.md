@@ -18,7 +18,7 @@
 | 官网内容和交互 | [官网](website/AGENTS.md) | website/src/App.tsx → components |
 | 宣传片剧本、录制环境与道具 | [宣传片](promo/AGENTS.md) | README.md（拍摄台本）→ 01/02 剧本 → [施工/plan.json](promo/施工/plan.json) |
 
-其他目录：[docs](docs/) 放架构和验证说明；[prompts](prompts/) 放运行时提示词；[build](build/) 和 resources 的图片为打包素材。它们沿用根规范。发布包的代码保护（sourcemap 排除、V8 字节码、验证脚本）见 [code-protection.md](docs/code-protection.md)；发布专用副本由 [build-release-assets.mjs](scripts/build-release-assets.mjs) 生成到 `dist/release-app/`，只在该副本做混淆，业务源码和技能原稿保留。当前架构参考 [architecture.md](docs/architecture.md)，主入口配置为 [package.json](package.json) 和 [tsup.config.ts](tsup.config.ts)。
+其他目录：[docs](docs/) 放架构和验证说明；[prompts](prompts/) 放运行时提示词；[build](build/) 和 resources 的图片为打包素材。它们沿用根规范。发布包的代码保护（sourcemap 排除、V8 字节码、验证脚本）见 [code-protection.md](docs/code-protection.md)；发布专用副本由 [build-release-assets.mjs](scripts/build-release-assets.mjs) 生成到 `dist/release-app/`，只在该副本做混淆，业务源码和技能原稿保留。品牌声明与检查范围见 [branding.md](docs/branding.md)，插件侧栏与后台运行范围见 [addon-background.md](docs/addon-background.md)。当前架构参考 [architecture.md](docs/architecture.md)，主入口配置为 [package.json](package.json) 和 [tsup.config.ts](tsup.config.ts)。
 
 阶段验收证据按候选标识存放在 `docs/acceptance/<候选标识>/`，至少包含基线指纹、工具契约快照、环境清单与兼容性差异；只写"已完成"而没有对应证据的条目视为未完成。
 
@@ -48,7 +48,7 @@
 
 ## 验证与交付
 
-按修改范围选择检查：[package.json](package.json) 中的 `npm run typecheck`、`npm test`、`npm run build`；官网使用 `npm run build:website`；导航使用 `npm run check:agents`。局部测试见模块规范，不为纯文档改动启动办公软件。
+按修改范围选择检查：[package.json](package.json) 中的 `npm run typecheck`、`npm test`、`npm run build`；官网使用 `npm run build:website`；导航使用 `npm run check:agents`，品牌使用 `npm run check:brand`。局部测试见模块规范，不为纯文档改动启动办公软件。
 
 模拟测试、构建、真实宿主验证分别报告，不能互相替代。失败时区分本次回归、既有缺陷与环境限制，保留原始证据；不为通过检查顺手改无关模块。最终说明完成内容、主要文件、验证及遗留问题。
 
