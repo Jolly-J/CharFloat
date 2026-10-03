@@ -6,9 +6,11 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { atomicWrite, getToken, resourcePath, runtimePort, runtimeHome, getOrGenerateCerts, appendServiceLog, VERSION } from '../bridge/runtime.js';
 import { detectPermissionIssueCore } from './permission-detect.js';
 import { serviceRequest } from '../bridge/service-client.js';
+import { legacyPluginNames, legacyServerKey } from './legacy-brand.js';
+import { officeManifestMatchesResource } from '../bridge/build-fingerprint.js';
 
 const activeNames = ['字浮 CharFloat', '字浮 CharFloat (表格)', '字浮 CharFloat (文字)', '字浮 CharFloat (演示)'];
-const legacyNames = ['Office Agent Bridge', 'Office Agent Bridge (表格)', 'Office Agent Bridge (文字)', 'Office Agent Bridge (演示)', 'WPS Bridge', 'WPS Bridge (表格)', 'WPS Bridge (文字)', 'WPS Bridge (演示)'];
+const legacyNames = [...legacyPluginNames, 'WPS Bridge', 'WPS Bridge (表格)', 'WPS Bridge (文字)', 'WPS Bridge (演示)'];
 const ownedNames = [...activeNames, ...legacyNames];
 
 export function readXmlSafe(file: string): string {
@@ -96,7 +98,7 @@ function isHostBlocked(dir: string): boolean {
   if (!fs.existsSync(blockFile)) return false;
   try {
     const content = fs.readFileSync(blockFile, 'utf8');
-    return /127\.0\.0\.1|localhost|19890|19891|wps-bridge|office-agent-bridge/i.test(content);
+    return /127\.0\.0\.1|localhost|19890|19891|wps-bridge/i.test(content) || content.toLowerCase().includes(legacyServerKey);
   } catch {
     return false;
   }
@@ -285,7 +287,9 @@ export class AddonInstaller {
           }
         } catch {}
 
-        const aliases = ['wps-bridge', 'office-agent-bridge', ...activeNames.slice(1).flatMap(name => [`${name}_`, `${name}_${VERSION}`])];
+        // 新安装不再创建旧品牌目录；已有缓存入口继续更新，衔接正在运行的旧加载项。
+        const existingLegacyAlias = fs.existsSync(path.join(dir, legacyServerKey)) ? [legacyServerKey] : [];
+        const aliases = ['wps-bridge', ...existingLegacyAlias, ...activeNames.slice(1).flatMap(name => [`${name}_`, `${name}_${VERSION}`])];
         for (const alias of aliases) {
           const dest = path.join(dir, alias);
           fs.mkdirSync(dest, { recursive: true, mode: 0o700 });
@@ -304,18 +308,22 @@ export class AddonInstaller {
           // 这里给 <script src> 附上构建指纹查询串：每次构建 URL 都不同 → reload 必然重新取文件，
           // 于是"部署 + 重新连接"即可生效，不必彻底退出并重开 WPS。
           const addonEntry = path.join(dest, 'addon-core.js');
-          const indexPath = path.join(dest, 'index.html');
-          if (fs.existsSync(addonEntry) && fs.existsSync(indexPath)) {
+          if (fs.existsSync(addonEntry)) {
             try {
               const head = fs.readFileSync(addonEntry, 'utf8').slice(0, 4096);
               const fp = head.match(/ADDON_BUILD_FINGERPRINT:\s*([0-9a-f]{16,64})/);
               if (fp) {
-                const html = fs.readFileSync(indexPath, 'utf8');
-                const patched = html.replace(
-                  /src="\.\/addon-core\.js(\?v=[0-9a-f]+)?"/g,
-                  `src="./addon-core.js?v=${fp[1].slice(0, 16)}"`
-                );
-                if (patched !== html) fs.writeFileSync(indexPath, patched, 'utf8');
+                for (const page of ['index.html', 'panel.html']) {
+                  const indexPath = path.join(dest, page);
+                  if (!fs.existsSync(indexPath)) continue;
+                  const html = fs.readFileSync(indexPath, 'utf8');
+                  const suffix = fp[1].slice(0, 16);
+                  const patched = html.replace(
+                    /src="\.\/addon-core\.js(\?v=[0-9a-f]+)?"/g,
+                    `src="./addon-core.js?v=${suffix}"`
+                  ).replace(/href="\.\/panel\.css(\?v=[0-9a-f]+)?"/g, `href="./panel.css?v=${suffix}"`);
+                  if (patched !== html) fs.writeFileSync(indexPath, patched, 'utf8');
+                }
               }
             } catch (e) {
               appendServiceLog('AddonInstaller', `缓存失效改写失败（不影响部署）: ${(e as Error).message}`);
@@ -328,7 +336,7 @@ export class AddonInstaller {
         appendServiceLog('AddonInstaller', `写入更新索引文件成功: ${index.file}`);
       }
       appendServiceLog('AddonInstaller', `=== WPS 加载项部署成功完成 (v${VERSION}) ===`);
-      return { success: true, message: `加载项已成功部署并更新至 v${VERSION}！请在 WPS 中点击功能区【重新连接】或重启 WPS 生效。`, targetPath: dirs.join(' | '), warnings: dirs.filter(dir => fs.existsSync(path.join(dir, 'jsaddinblockhost.ini'))).map(() => '检测到 WPS 阻断配置，未删除。请在 WPS 中检查加载项权限。') };
+      return { success: true, message: `加载项已成功部署并更新至 v${VERSION}！请在 WPS 的字浮侧栏中点击【重新连接】，或重启 WPS 生效。`, targetPath: dirs.join(' | '), warnings: dirs.filter(dir => fs.existsSync(path.join(dir, 'jsaddinblockhost.ini'))).map(() => '检测到 WPS 阻断配置，未删除。请在 WPS 中检查加载项权限。') };
     } catch (e: any) {
       appendServiceLog('AddonInstaller', `WPS 加载项安装失败: ${e.message}\n堆栈: ${e.stack || ''}`);
       // 权限受限不是普通失败：交给界面走引导流程，而不是甩一条裸 EPERM 文案给用户。
@@ -388,7 +396,8 @@ export class OfficeAddonInstaller {
     if (fs.existsSync(destFile)) {
       try {
         const destContent = fs.readFileSync(destFile, 'utf8');
-        if (destContent === sourceContent || (destContent.includes(`<Version>${VERSION}`) && (destContent.includes('字浮 CharFloat') || destContent.includes('Office Agent Bridge')))) {
+        // 同版本也可能更新品牌、菜单资源或支持链接；只有内容相同才跳过。
+        if (destContent === sourceContent) {
           appendServiceLog('AddonInstaller', `目标清单文件已处于最新状态 (v${VERSION})，跳过覆写`);
           if (process.platform === 'darwin') {
             try { execSync(`chmod 644 "${destFile}"`, { stdio: 'ignore' }); } catch {}
@@ -524,10 +533,10 @@ export class OfficeAddonInstaller {
           const content = fs.readFileSync(targetFile, 'utf8');
           const m = content.match(/<Version>(.*?)<\/Version>/i);
           ver = m ? m[1].trim() : VERSION;
-          current = ver === VERSION || ver === `${VERSION}.0` || ver.startsWith(VERSION);
+          current = officeManifestMatchesResource(content);
         } catch {
-          current = true;
-          ver = VERSION;
+          current = false;
+          ver = '无法读取';
         }
       }
       const status = {
@@ -555,7 +564,7 @@ export class OfficeAddonInstaller {
       appendServiceLog('AddonInstaller', `Office 加载项部署成功: ${targetFile}`);
       return {
         success: true,
-        message: 'Office 官方加载项清单与本地安全配置已就绪！请在 Excel 中重新打开侧边栏。',
+        message: 'Office 加载项清单已就绪。首次启用或更新清单后，请在 Excel 中启动字浮，等待「后台连接已启用」提示；支持的版本随后可收起侧栏。',
         targetPath: targetFile
       };
     } catch (e: any) {
@@ -593,4 +602,3 @@ export class OfficeAddonInstaller {
     }
   }
 }
-

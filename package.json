@@ -1,15 +1,15 @@
 {
-  "name": "office-agent-bridge",
+  "name": "charfloat",
   "version": "2.2.0",
   "description": "Universal Bridge between AI Agents (Doubao, WorkBuddy, Qwen, Kimi, Claude Code, Codex) and Microsoft Office & WPS Office with Audit Trail and GUI",
-  "homepage": "https://charfloat.utmolight.xyz/",
+  "homepage": "https://charfloat.online/",
   "repository": {
     "type": "git",
     "url": "https://github.com/Jolly-J/CharFloat.git"
   },
   "main": "dist/main/index.js",
   "bin": {
-    "office-agent-bridge": "./dist/bridge/cli.cjs",
+    "charfloat": "./dist/bridge/cli.cjs",
     "wps-bridge-mcp": "./dist/bridge/cli.cjs"
   },
   "type": "module",
@@ -45,10 +45,13 @@
     "dist:fast": "npm run build:release && npm run build:win-icon && node scripts/dist-parallel.mjs --no-sign",
     "build:release-assets": "node scripts/build-release-assets.mjs",
     "check:release": "node scripts/check-release-protection.mjs",
-    "build:release": "npm run build && npm run build:release-assets"
+    "build:release": "npm run build && npm run build:release-assets",
+    "check:brand": "node scripts/check-brand.mjs",
+    "prebuild": "npm run check:brand",
+    "postbuild": "node scripts/check-brand.mjs --generated"
   },
   "build": {
-    "appId": "com.antigravity.officeagentbridge",
+    "appId": "com.antigravity.charfloat",
     "productName": "字浮 CharFloat",
     "directories": {
       "output": "release/${version}/${os}"

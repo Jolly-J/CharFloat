@@ -1,4 +1,4 @@
-/* WPS Bridge Office Add-in - 现代轻量商务风 */
+/* 字浮 CharFloat Office Add-in - 现代轻量商务风 */
 :root {
   --bg: #f8f9fb;
   --card-bg: #ffffff;
@@ -45,6 +45,8 @@
   -webkit-font-smoothing: antialiased;
 }
 
+[hidden] { display: none !important; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   background-color: var(--bg);
@@ -70,6 +72,8 @@ body {
   margin-bottom: 14px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -82,12 +86,23 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--green-bg);
-  color: var(--green);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+.brand-logo img { width: 32px; height: 32px; object-fit: contain; display: block; }
+.brand { min-width: 0; }
+.brand-info { min-width: 0; }
+.brand-info h2 { overflow-wrap: anywhere; }
+.background-hint { margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
+.card-header { gap: 8px; flex-wrap: wrap; }
+.card-tag { overflow-wrap: anywhere; }
+.footer { flex-shrink: 0; gap: 6px; flex-wrap: wrap; }
+.log-card .log-box { max-height: 180px; }
+.btn:focus-visible, .btn-clean:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled { opacity: .5; cursor: default; }
 
 .brand-info h2 {
   font-size: 14px;

@@ -41,3 +41,18 @@
     if (activeSelEl) activeSelEl.innerText = activeSelectionAddress;
   }
 
+  function updateBackgroundUI() {
+    const title = document.getElementById("backgroundStatus");
+    const hint = document.getElementById("backgroundHint");
+    const hide = document.getElementById("btnHide");
+    const labels = {
+      checking: ["正在设置后台连接", "首次启动后，为当前工作簿启用后台连接。"],
+      enabled: ["后台连接已启用", "收起侧栏仍可接收 AI 指令；该工作簿下次打开时自动连接。其他工作簿需首次启动一次。"],
+      unsupported: ["当前 Excel 需保持侧栏开启", "此版本不支持后台运行。请保持侧栏打开，或升级到支持后台运行的 Excel 版本。"],
+      failed: ["自动启动尚未启用", "本次连接可继续使用；重新打开该工作簿时，请手动启动字浮并重试。"]
+    };
+    const text = labels[backgroundStartupState] || labels.checking;
+    if (title) title.innerText = text[0];
+    if (hint) hint.innerText = text[1];
+    if (hide) hide.disabled = !(sharedRuntimeSupported && Office.addin && typeof Office.addin.hide === "function");
+  }

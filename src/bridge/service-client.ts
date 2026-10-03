@@ -16,10 +16,10 @@ export function serviceAddress() {
 }
 export function serviceRecovery(): string[] {
   return [
-    '确认 Bridge 后台正在运行：执行 `npx office-agent-bridge --status` 查看 ready 字段',
-    '未运行时启动：`npx office-agent-bridge --start`（stdio 客户端首次连接也会自动启动）',
-    `仍失败时查看日志 ${path.join(runtimeHome(), 'service.log')}，并用 \`npx office-agent-bridge --doctor\` 复核凭据与端口`,
-    '不要反复启动多个实例；端口被旧版占用时先 `npx office-agent-bridge --stop`'
+    '在字浮客户端检查后台状态；源码环境可执行 `node dist/bridge/cli.cjs --status` 查看 ready 字段',
+    '未运行时从字浮客户端启动后台；源码环境执行 `node dist/bridge/cli.cjs --start`（stdio 首次连接也会自动启动）',
+    `仍失败时查看日志 ${path.join(runtimeHome(), 'service.log')}；源码环境用 \`node dist/bridge/cli.cjs --doctor\` 复核凭据与端口`,
+    '不要反复启动多个实例；端口被旧版占用时先从字浮客户端停止后台，或在源码环境执行 `node dist/bridge/cli.cjs --stop`'
   ];
 }
 /** 网络层不可达（区别于 HTTP 已返回但业务失败）。 */

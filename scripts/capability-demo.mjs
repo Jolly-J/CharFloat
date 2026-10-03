@@ -90,7 +90,7 @@ for (let i = 0; i < 3; i++) {
   await step(`KPI 数值 ${i + 1}`, 'excel_add_shape', { host: 'wps', workbookName: WB, sheetName: '看板', kind: 'textBox', left: x + 14, top: 88, width: 150, height: 30, text: KPI[i][0], fontSize: 18, bold: true, fontColor: KPI[i][2], textVAlign: 'middle', name: `k_num${i + 1}` });
   await step(`KPI 标签 ${i + 1}`, 'excel_add_shape', { host: 'wps', workbookName: WB, sheetName: '看板', kind: 'textBox', left: x + 14, top: 120, width: 150, height: 18, text: KPI[i][1], fontSize: 10, fontColor: '#6B7A90', textVAlign: 'middle', name: `k_lbl${i + 1}` });
 }
-await step('艺术字', 'excel_add_shape', { host: 'wps', workbookName: WB, sheetName: '看板', kind: 'wordart', left: 600, top: 14, width: 240, height: 48, text: 'Office Agent Bridge', fontName: '微软雅黑', fontSize: 16, name: 'k_art' });
+await step('艺术字', 'excel_add_shape', { host: 'wps', workbookName: WB, sheetName: '看板', kind: 'wordart', left: 600, top: 14, width: 240, height: 48, text: '字浮 CharFloat', fontName: '微软雅黑', fontSize: 16, name: 'k_art' });
 const shapes = await call('excel_list_shapes', { host: 'wps', workbookName: WB, sheetName: '看板' });
 console.log(`      形状读回：共 ${shapes.data?.count} 个`);
 const num1 = (shapes.data?.shapes ?? []).find(s => s.name === 'k_num1');
@@ -120,7 +120,7 @@ await step('命名区域', 'excel_manage_named_range', { host: 'wps', workbookNa
 const nr = await call('excel_manage_named_range', { host: 'wps', workbookName: WB, action: 'list' });
 const mine = (nr.data?.names ?? []).find(n => /RevenueData/.test(String(n.name)));
 console.log(`      命名区域读回：${mine?.name} → ${mine?.refersTo}`);
-await step('文档属性', 'excel_manage_document_properties', { host: 'wps', workbookName: WB, action: 'apply', properties: { Title: '2026 上半年经营分析', Author: 'Office Agent Bridge', Subject: '能力验证' } });
+await step('文档属性', 'excel_manage_document_properties', { host: 'wps', workbookName: WB, action: 'apply', properties: { Title: '2026 上半年经营分析', Author: '字浮 CharFloat', Subject: '能力验证' } });
 const props = await call('excel_manage_document_properties', { host: 'wps', workbookName: WB, action: 'read' });
 console.log(`      属性读回：Title=${JSON.stringify(props.data?.builtin?.Title)} Author=${JSON.stringify(props.data?.builtin?.Author)}`);
 

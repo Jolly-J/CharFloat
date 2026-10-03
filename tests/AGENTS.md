@@ -2,8 +2,10 @@
 
 ## 文件地图
 
+- [brand.test.ts](brand.test.ts)：品牌门禁的正反向夹具、历史例外与生成物检查；只操作临时目录。
 - [release-protection.test.ts](release-protection.test.ts)：发布副本混淆后的 WPS/Office RPC 行为、构建指纹和泄露门禁；不修改开发加载项或真实文档。
 - [addon.test.ts](addon.test.ts)：WPS 模拟 RPC。
+- [addon-lifecycle.test.ts](addon-lifecycle.test.ts)：WPS 侧栏与连接分离、单实例和关闭后的 RPC；Office 共享运行时、自动启动与失败降级。
 - [failure-routing.test.ts](failure-routing.test.ts)：失败分类与跨通道回退故障注入。
 - [contracts-boundary.test.ts](contracts-boundary.test.ts)：契约层边界与依赖回环守卫。
 - [session-isolation.test.ts](session-isolation.test.ts)：两个 stdio 客户端的真实链路会话隔离与审计归属（模拟宿主，需先 `npm run build`）。
@@ -11,6 +13,7 @@
 - [ppt-layout.test.ts](ppt-layout.test.ts)：页面缩放、容量及脚本参数。
 - [win-icon.test.ts](win-icon.test.ts)：Windows 图标生成器的 PNG 解码/缩放/编码与 ICO 条目格式（含"小于 256 的条目必须是 DIB"的回归项）。
 - [office.test.ts](office.test.ts)：Office.js 参数转换。
+- [office-background-routing.test.ts](office-background-routing.test.ts)：多工作簿后台连接、精确路由、歧义拒绝、改名和 WPS/Office 通道隔离。
 - [service.test.ts](service.test.ts)：HTTP/MCP、鉴权、审计。
 - [lifecycle.test.ts](lifecycle.test.ts)：后台与客户端生命周期。
 - [platform.test.ts](platform.test.ts)：安装配置、目标隔离、原生进程。

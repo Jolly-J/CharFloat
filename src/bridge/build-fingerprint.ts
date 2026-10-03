@@ -64,6 +64,16 @@ function tryResource(relative: string): string | null {
   try { return resourcePath(relative); } catch { return null; }
 }
 
+/** 同版本的 Office 清单也可能更新品牌/菜单；不能仅凭版本号判为最新。 */
+export function officeManifestMatchesResource(content: string): boolean {
+  const source = tryResource('office-addon/excel/manifest.xml');
+  if (!source) return false;
+  try {
+    const normalize = (text: string) => text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trim();
+    return normalize(content) === normalize(fs.readFileSync(source, 'utf8'));
+  } catch { return false; }
+}
+
 /**
  * WPS 用户加载项目录（只读镜像 `src/main/addon-installer.ts` 的候选路径）。
  *

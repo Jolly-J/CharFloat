@@ -13,11 +13,7 @@
     <header class="header">
       <div class="brand">
         <div class="brand-logo">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 11a9 9 0 0 1 9 9" />
-            <path d="M4 4a16 16 0 0 1 16 16" />
-            <circle cx="5" cy="19" r="1" />
-          </svg>
+          <img src="./assets/icon-64.png?v=charfloat-20261003" alt="字浮 CharFloat">
         </div>
         <div class="brand-info">
           <h2>字浮 CharFloat</h2>
@@ -31,6 +27,10 @@
     </header>
 
     <main class="content">
+      <section class="card">
+        <div id="backgroundStatus" class="card-title">正在设置后台连接</div>
+        <p id="backgroundHint" class="background-hint">首次启动后，为当前工作簿启用后台连接。</p>
+      </section>
       <!-- 工作区卡片 -->
       <section class="card doc-card">
         <div class="card-header">
@@ -74,6 +74,7 @@
 
     <!-- 底部状态栏 -->
     <footer class="footer">
+      <button id="btnHide" class="btn btn-text" disabled>收起侧栏</button>
       <button id="btnReconnect" class="btn btn-reconnect" title="重新连接到本地后台服务">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>

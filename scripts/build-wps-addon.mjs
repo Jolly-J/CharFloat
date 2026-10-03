@@ -53,6 +53,11 @@ const FINGERPRINT_VAR = "ADDON_BUILD_FINGERPRINT";
  */
 
 import * as esbuild from "esbuild";
+import { buildWpsRibbonIcons, RIBBON_ICONS } from "./build-wps-ribbon-icons.mjs";
+import { syncAddonPanelStyle } from "./sync-addon-panel-style.mjs";
+
+buildWpsRibbonIcons(ROOT, CHECK_ONLY);
+syncAddonPanelStyle(ROOT, CHECK_ONLY);
 
 const MODULES = [
   "shared.js",
@@ -64,6 +69,7 @@ const MODULES = [
   "word.js",
   "ppt-layout.js",
   "ppt.js",
+  "panel.js",
   "bootstrap.js",
 ];
 
@@ -167,7 +173,12 @@ for (const name of MODULES) {
 //   2. IIFE 内 `var ADDON_BUILD_FINGERPRINT = "<sha>"` —— 加载项**运行时报**的上报值，
 //      代表"WPS 进程里真正加载的字节"。
 // 两者不一致即说明部署了新构建但进程里还是旧代码。
-const sourceFingerprint = createHash("sha256").update(bodies.join("\n\n"), "utf8").digest("hex");
+const fingerprintHash = createHash("sha256").update(bodies.join("\n\n"), "utf8");
+// 侧栏布局/样式与入口变化也必须触发部署更新。
+for (const resource of ["panel.html", "panel.css", "ribbon.xml", "logo.png", ...RIBBON_ICONS.map(([name]) => name)]) {
+  fingerprintHash.update(resource).update(fs.readFileSync(path.join(ROOT, "wps-addon", resource)));
+}
+const sourceFingerprint = fingerprintHash.digest("hex");
 const fingerprintComment = `// ADDON_BUILD_FINGERPRINT: ${sourceFingerprint}`;
 let output = `${HEADER}\n${fingerprintComment}\n(function () {\n  var ${FINGERPRINT_VAR} = "${sourceFingerprint}";\n${bodies.join("\n\n")}\n})();\n`;
 

@@ -51,7 +51,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
     return () => observer.disconnect();
   }, [isOpen, activeTab]);
 
-  const cliCommand = 'npx office-agent-bridge setup';
+  const cliCommand = 'node dist/bridge/cli.cjs --start';
 
   const handleCopyCli = () => {
     navigator.clipboard.writeText(cliCommand);
@@ -267,7 +267,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({
                       className="space-y-4"
                     >
                       <p className="text-xs text-slate-600 leading-relaxed">
-                        无需下载完整桌面壳层，可在终端直接执行命令快速启动与配置：
+                        在源码目录运行 npm ci 和 npm run build 后，可启动本地后台服务：
                       </p>
                       <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200 font-mono text-xs flex items-center justify-between">
                         <code className="text-blue-700 font-semibold">{cliCommand}</code>

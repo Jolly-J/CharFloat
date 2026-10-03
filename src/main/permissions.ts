@@ -22,7 +22,7 @@ export const FULL_DISK_ACCESS_URL = 'x-apple.systempreferences:com.apple.prefere
 /**
  * 当前运行模式下用户应当授权的 App 路径。
  *
- * - 打包版：`.../Office Agent Bridge.app`
+ * - 打包版：`.../字浮 CharFloat.app`
  * - 开发版：`.../node_modules/electron/dist/Electron.app`
  *
  * 两者是**不同的 TCC 主体**，授权一个不会让另一个生效，因此界面必须显示当前这一个。

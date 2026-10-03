@@ -2,11 +2,14 @@
 
 ## 文件地图
 
-- [src/](src/)：**源码**（P3.2 逐类拆分）。`shared.js` 配置与公共工具、`connection.js` 连接握手、`ribbon.js` 功能区回调、`dispatch.js` RPC 分发、`excel.js` / `word.js` / `ppt.js` 三类文档操作、`ppt-layout.js` **纯布局计算（无宿主 API，可 Node 直接 import）**、`bootstrap.js` 启动引导。
+- [src/](src/)：**源码**（P3.2 逐类拆分）。`shared.js` 配置与公共工具、`connection.js` 连接握手、`ribbon.js` 侧栏入口与操作回调、`panel.js` 侧栏状态与交互、`dispatch.js` RPC 分发、`excel.js` / `word.js` / `ppt.js` 三类文档操作、`ppt-layout.js` **纯布局计算（无宿主 API，可 Node 直接 import）**、`bootstrap.js` 启动引导。
 - [addon-core.js](addon-core.js)：**构建生成物**（部署入口），由 `npm run build:wps-addon` 按固定顺序拼接 `src/**`。顶部有"请勿手改"声明。
-- [index.html](index.html)：加载项入口。
+- [index.html](index.html)：宿主连接/RPC 的加载入口。
+- [panel.html](panel.html)：精简右侧任务窗格，保留工作区、状态、日志、收起与重连；面板模式只负责 UI，不创建连接。
+- [panel.css](panel.css)：生成的部署样式，唯一来源为 [Office 侧栏样式](../office-addon/public/taskpane.css)，由 [同步器](../scripts/sync-addon-panel-style.mjs) 更新，不手改。
 - [manifest.xml](manifest.xml)：加载项元信息。
-- [ribbon.xml](ribbon.xml)：功能区入口。
+- [ribbon.xml](ribbon.xml)：已有“开始”功能区中的 App 大图标侧栏入口（上图下文）。
+- `ribbon-icon.png` / `ribbon-icon@2x.png`：32px / 64px 构建生成物，由 [图标构建器](../scripts/build-wps-ribbon-icons.mjs) 从 App 原图生成，不手改。
 - [status.html](status.html)：状态页面。
 
 ## 定位与联动
@@ -22,6 +25,10 @@
 `npm run build:wps-addon`（重建部署入口；**会用 esbuild 压缩**去注释与局部变量名；`--check` 只校验不写文件）→ `node --check wps-addon/addon-core.js` → `node --import tsx --test tests/addon.test.ts tests/ppt-layout.test.ts`；视觉变化还需真实宿主预览。
 
 ## 避坑
+
+图标路径存在但画面空白 → 只检查文件存在会漏掉全透明 PNG → 本次源图全部像素 alpha=0 → 加载项使用 `resources/icon.png` 的原始 App 图标，并检查非透明像素；图标纳入构建指纹 → [生命周期回归](../tests/addon-lifecycle.test.ts)。Mac 功能区自定义图标的宿主限制见 [后台连接说明](../docs/addon-background.md)。
+
+侧栏再次加载整个部署入口 → 两条 WebSocket 互相替换、关闭 UI 后断线 → 面板与宿主入口是独立上下文 → 面板标识禁用连接、心跳和事件注册；只从 HTTP 获取状态 → [生命周期测试](../tests/addon-lifecycle.test.ts)，设计见 [后台连接](../docs/addon-background.md)。
 
 改了 `src/**` 但忘记重新构建 → 测试与部署仍跑旧 `addon-core.js`，改动看着"没生效"或"已生效"都是假的 → 生成物必须由构建刷新 → `npm run build:wps-addon --check` 漂移即报错；[ppt-layout.test.ts](../tests/ppt-layout.test.ts) 也断言生成物与源码一致。
 

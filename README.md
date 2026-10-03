@@ -12,7 +12,7 @@
 </div>
 
 <p align="center">
-  <a href="https://charfloat.utmolight.xyz/"><img src="https://img.shields.io/badge/Website-charfloat.utmolight.xyz%20(%E4%B8%B4%E6%97%B6)-blue.svg" alt="Website" /></a>
+  <a href="https://charfloat.online/"><img src="https://img.shields.io/badge/Website-charfloat.online-blue.svg" alt="Website" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue.svg" alt="Platform" /></a>
   <a href="package.json"><img src="https://img.shields.io/badge/Protocol-MCP%20%2F%20HTTP-green.svg" alt="Protocol" /></a>
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://charfloat.utmolight.xyz/">
+  <a href="https://charfloat.online/">
     <img src="website/public/hero-showcase.gif" alt="字浮 CharFloat · 交互效果演示" width="800" style="border-radius: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.12);" />
   </a>
   <br />
@@ -30,14 +30,16 @@
 </p>
 
 <p align="center">
-  <a href="https://charfloat.utmolight.xyz/">
+  <a href="https://charfloat.online/">
     <img src="website/public/hero-showcase.png" alt="字浮 CharFloat · 给你的 AI 开个 Office 外挂，你说它当场改" width="880" style="border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.12);" />
   </a>
 </p>
 
 <p align="center">
-  🌐 <strong>产品官网与在线体验</strong>（临时地址）：<a href="https://charfloat.utmolight.xyz/">https://charfloat.utmolight.xyz/</a>
+  🌐 <strong>产品官网与在线体验</strong>：<a href="https://charfloat.online/">https://charfloat.online/</a>
 </p>
+
+> **品牌更名声明**：本项目当前品牌正式统一为「字浮」，英文名为 CharFloat，服务标识为 `charfloat`。历史验收材料及既有发布包保留当时记录，不代表当前品牌；当前源码、文档、官网及新构建的 WPS / Microsoft Office 加载项统一使用新名称。
 
 > 关于「**字浮 CharFloat**」：
 > - **字浮 ≈ 字符**：中文读音天然顺口，自然好记。
@@ -46,7 +48,7 @@
 > - **开放延伸**：不把能力局限在单一工具，未来作为 AI 扩展至更多桌面软件的原生桥梁。
 
 大多数 AI 助手在 Office 里仍停留在“教你怎么做”或“重新生成一个新文件”。  
-**字浮 CharFloat**（前身 Office Agent Bridge）不是又一个独立的 AI 软件，而是给你现有常用 AI 的「**外挂双手**」：100% 免费纯本地运行，连接你正在运行的桌面 WPS / Microsoft Office，读懂当前状态，指哪改哪，当场把事情做完。
+**字浮 CharFloat**不是又一个独立的 AI 软件，而是给你现有常用 AI 的「**外挂双手**」：100% 免费纯本地运行，连接你正在运行的桌面 WPS / Microsoft Office，读懂当前状态，指哪改哪，当场把事情做完。
 
 ---
 
@@ -209,6 +211,8 @@ flowchart TD
 
 > 客户端内提供“**安装 / 修复加载项**”与“**AI 授权中心**”，一键完成本地环境就绪。
 
+WPS 可从“开始”功能区打开“字浮侧栏”，收起侧栏不影响后台连接。Microsoft Excel 每个工作簿首次须手动启动一次字浮加载项；支持后台运行的版本启用后可收起侧栏，重开该工作簿时自动连接。详见[插件后台运行范围](docs/addon-background.md)。
+
 ### 方式二：让 AI 为自己一键配置 MCP
 
 如果你正在使用 Cursor、Windsurf、VS Code、Claude Code 等智能体工具，**无需手动翻阅文档写配置**，直接将下面这段调教好的指令复制发给你的 AI：
@@ -218,20 +222,24 @@ flowchart TD
 
 MCP 服务配置信息如下：
 服务名称: charfloat
-启动命令: npx -y office-agent-bridge
+启动配置: 使用字浮桌面客户端「AI 助手接入」中复制的本机 MCP 配置（包含实际启动命令、参数和环境变量）
 
-请识别当前开发环境（如 Cursor、Windsurf、VS Code、Claude Code 等），自动将上述配置写入你的 MCP 配置文件（例如 .cursor/mcp.json 或对应客户端设置）中并激活。
+请先读取我提供的本机 MCP 配置，再识别当前客户端，将 charfloat 条目安全合并到 MCP 配置文件中并激活，保留其他服务。若尚未提供本机配置，请提醒我从字浮客户端复制，不要猜测安装路径或从 npm 下载。
 ```
 
 AI 将自动识别当前环境写入配置文件并启用 MCP，当场获得操作 Office 的能力！
 
 ### 方式三：开发者 CLI 命令行
 
-字浮支持通过 npm / npx 快速初始化与服务管理：
+在本仓库安装依赖并完成构建后，可通过本地 CLI 管理服务；当前不提供已发布的 npm 包安装命令：
 
 ```sh
-# 快速向导配置
-npx office-agent-bridge setup
+# 安装依赖并构建
+npm ci
+npm run build
+
+# 安装加载项（会修改本机 WPS/Office 配置）
+npm run setup -- --addon
 
 # 常用服务管理命令
 node dist/bridge/cli.cjs --start          # 后台常驻运行
@@ -262,7 +270,7 @@ npm start
 - **WPS 加载项**：[wps-addon/AGENTS.md](wps-addon/AGENTS.md)
 - **Office.js 插件**：[office-addon/AGENTS.md](office-addon/AGENTS.md)
 - **配套 Agent 技能**：[skills/charfloat/SKILL.md](skills/charfloat/SKILL.md)
-- **官网宣传工程**：[website/AGENTS.md](website/AGENTS.md)（在线预览：[charfloat.utmolight.xyz](https://charfloat.utmolight.xyz/)，临时地址）
+- **官网宣传工程**：[website/AGENTS.md](website/AGENTS.md)（在线预览：[charfloat.online](https://charfloat.online/)）
 
 ---
 

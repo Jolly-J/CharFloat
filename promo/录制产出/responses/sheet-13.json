@@ -9,7 +9,7 @@
     "data": {
       "success": true,
       "workbookName": "月度经营.xlsx",
-      "fullName": "/Users/Python/Office Agent Bridge/promo/env-B-有插件/月度经营.xlsx",
+      "fullName": "promo/env-B-有插件/月度经营.xlsx",
       "saved": true,
       "warnings": [],
       "message": "工作簿 [月度经营.xlsx] 已成功保存到磁盘",

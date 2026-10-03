@@ -16,17 +16,7 @@
         log("已成功连上字浮 CharFloat 服务端 (MS Office 通道)");
         await updateActiveSummary();
 
-        sendPacket({
-          type: "register",
-          client: "ms-excel-addon",
-          host: "microsoft",
-          version: ADDON_VERSION,
-          summary: {
-            workbookName: activeWorkbookName,
-            activeSheetName: activeSheetName,
-            selection: { address: activeSelectionAddress }
-          }
-        });
+        sendOfficeRegistration();
         updateStatusUI(true);
       };
 
@@ -50,6 +40,22 @@
     }
   }
 
+  function sendOfficeRegistration() {
+    sendPacket({
+      type: "register",
+      client: "ms-excel-addon",
+      host: "microsoft",
+      version: ADDON_VERSION,
+      summary: {
+        workbookName: activeWorkbookName,
+        activeSheetName: activeSheetName,
+        selection: { address: activeSelectionAddress },
+        documentUrl: Office.context.document.url || "",
+        backgroundStartup: backgroundStartupState
+      }
+    });
+  }
+
   function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(connect, 2500);
@@ -67,4 +73,3 @@
       ws.send(JSON.stringify(packet));
     }
   }
-

@@ -14,9 +14,9 @@ export const QuickStartModal: React.FC<QuickStartModalProps> = ({ isOpen, onClos
 
 MCP 服务配置信息如下：
 服务名称: charfloat
-启动命令: npx -y office-agent-bridge
+启动配置: 使用字浮桌面客户端「AI 助手接入」中复制的本机 MCP 配置（包含实际启动命令、参数和环境变量）
 
-请识别当前开发环境（如 Cursor、Windsurf、VS Code、Claude Code 等），自动将上述配置写入你的 MCP 配置文件（例如 .cursor/mcp.json 或对应客户端设置）中并激活。`;
+请先读取我提供的本机 MCP 配置，再识别当前客户端，将 charfloat 条目安全合并到 MCP 配置文件中并激活，保留其他服务。若尚未提供本机配置，请提醒我从字浮客户端复制，不要猜测安装路径或从 npm 下载。`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(AI_AUTO_CONFIG_PROMPT);
@@ -54,7 +54,7 @@ MCP 服务配置信息如下：
                     让 AI 为自己配置「字浮 MCP 插件」
                   </h3>
                   <p className="text-xs sm:text-[13px] text-slate-500 font-normal mt-0.5 leading-relaxed">
-                    无需手动翻看文档写配置，一键复制提示词发给你的 AI 即可
+                    先从字浮客户端复制本机 MCP 配置，再把配置和下方提示词发给 AI
                   </p>
                 </div>
               </div>
@@ -126,7 +126,7 @@ MCP 服务配置信息如下：
                       <span>复制上方指令</span>
                     </div>
                     <p className="text-slate-500 text-[11.5px] leading-relaxed">
-                      点击按钮一键复制这段专门调教好的 AI 配置提示词。
+                      从字浮客户端复制本机 MCP 配置，再复制这里的提示词。
                     </p>
                   </div>
 
@@ -136,7 +136,7 @@ MCP 服务配置信息如下：
                       <span>发给你的 AI</span>
                     </div>
                     <p className="text-slate-500 text-[11.5px] leading-relaxed">
-                      直接粘贴发送给 Cursor、Windsurf 或 Claude 等任意智能体。
+                      将本机配置和提示词一起发送给 Cursor、Windsurf 或 Claude。
                     </p>
                   </div>
 

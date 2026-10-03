@@ -9,6 +9,7 @@
 - [build_beautified_sheet.ts](build_beautified_sheet.ts)：真实表格写入与排版。
 - [create-icons.mjs](create-icons.mjs)：生成图标文件。
 - [check-agents.mjs](check-agents.mjs)：只读检查协作导航。
+- [check-brand.mjs](check-brand.mjs)：只读检查当前文本与相对路径中的旧品牌标识；历史验收及既有发布包例外，构建输出和发布副本分别检查。范围见 [品牌声明](../docs/branding.md)。
 - [snapshot-tools.ts](snapshot-tools.ts)：只读导出工具契约与能力快照（`npm run snapshot:tools`）。
 - [check-capability-claims.ts](check-capability-claims.ts)：只读核对 skill、官网与**加载项页面**中的能力数量表述与元数据源（`npm run check:claims`）。
 - [check-param-forwarding.ts](check-param-forwarding.ts)：只读核对"**schema 声明了参数、网关处理器却没读取**"的静默丢参（`npm run check:params`）；带自检，证明能抓到未转发参数且读过的不误报。
@@ -21,7 +22,9 @@
 - [before-pack.cjs](before-pack.cjs)、[after-pack.cjs](after-pack.cjs)、[after-artifact.cjs](after-artifact.cjs)：打包前防过期、包内/解包路径检查、最终 ZIP 哈希证据。
 - [probe-release-mcp.mjs](probe-release-mcp.mjs)：隔离运行发布 CLI，比较完整工具契约、提示词、能力资源；只使用临时 HOME 和随机端口，关闭自己的子进程，不控制真实宿主。
 - [probe-mcp-tools.mjs](probe-mcp-tools.mjs)：以 stdio 启动 `cli.cjs` 做一次 MCP 握手、**只输出工具数量**；供上面的校验脚本复用。
-- [build-wps-addon.mjs](build-wps-addon.mjs)：由 `wps-addon/src/**` 生成部署入口 `wps-addon/addon-core.js`（`npm run build:wps-addon`，`--check` 只校验）。
+- [sync-addon-panel-style.mjs](sync-addon-panel-style.mjs)：从 Office 唯一样式源生成 WPS 自包含 CSS，加载项构建自动同步，`--check` 只检查一致性。
+- [build-wps-ribbon-icons.mjs](build-wps-ribbon-icons.mjs)：从 App 原图生成 32px / 64px @2x 工具栏资源，主加载项构建自动调用，`--check` 只校验。
+- [build-wps-addon.mjs](build-wps-addon.mjs)：由 `wps-addon/src/**` 生成含后台与侧栏两种运行模式的部署入口 `wps-addon/addon-core.js`（`npm run build:wps-addon`，`--check` 只校验）。
 - [build-office-addon.mjs](build-office-addon.mjs)：由 `office-addon/src/**` 生成部署入口 `office-addon/public/taskpane.js`（`npm run build:office-addon`，`--check` 只校验）。
 
 ## 定位与联动
