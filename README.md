@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="https://charfloat.online/">
-    <img src="website/public/hero-showcase.gif" alt="字浮 CharFloat · 交互效果演示" width="800" style="border-radius: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.12);" />
+    <img src="docs/images/hero-showcase.gif" alt="字浮 CharFloat · 交互效果演示" width="800" style="border-radius: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.12);" />
   </a>
   <br />
   <sub>🎬 <strong>交互演示</strong>：直接让 AI 读当前工作表、补齐数据、条件标色并绘制原生图表</sub>
@@ -58,9 +58,9 @@
 - **本地修改历史与秒级撤回**：每次 AI 动手改单元格前，本地都会预先保留一份快照。万一 AI 算偏了或者你想恢复，随时一键还原，不怕文件被改坏。
 
 <div align="center">
-  <img src="website/public/screenshots/client-topology.jpg" width="32%" alt="本地连接拓扑" />
-  <img src="website/public/screenshots/client-timemachine.jpg" width="32%" alt="快照对比与秒级还原" />
-  <img src="website/public/screenshots/client-auth.jpg" width="32%" alt="AI 助手快速配置" />
+  <img src="docs/images/client-topology.jpg" width="32%" alt="本地连接拓扑" />
+  <img src="docs/images/client-timemachine.jpg" width="32%" alt="快照对比与秒级还原" />
+  <img src="docs/images/client-auth.jpg" width="32%" alt="AI 助手快速配置" />
 </div>
 
 ---
