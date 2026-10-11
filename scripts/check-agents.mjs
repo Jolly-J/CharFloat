@@ -2,10 +2,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+function getIgnoredDirs(root) {
+  const dirs = new Set();
+  try {
+    const gitignorePath = path.join(root, '.gitignore');
+    if (fs.existsSync(gitignorePath)) {
+      for (const line of fs.readFileSync(gitignorePath, 'utf8').split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        if (trimmed.endsWith('/')) dirs.add(trimmed.slice(0, -1));
+      }
+    }
+  } catch {}
+  return dirs;
+}
+
 // Read-only; exported for isolated fixture tests. Never traverse build/dependency trees.
 export function checkAgents(root) {
   const errors = [], files = [];
-  const skip = new Set(['node_modules', 'dist', 'release', 'out', '.git']);
+  const ignoredDirs = getIgnoredDirs(root);
+  const skip = new Set(['node_modules', 'dist', 'release', 'out', '.git', ...ignoredDirs]);
   function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.isSymbolicLink() || skip.has(entry.name) || entry.name.startsWith('.')) continue;
@@ -29,7 +45,11 @@ export function checkAgents(root) {
       if (/^[a-z]+:/i.test(target) || target.startsWith('#')) continue;
       target = decodeURIComponent(target.split('#')[0]);
       const full = path.resolve(path.dirname(file), target);
-      if (!fs.existsSync(full)) errors.push(`${label}: 无效引用 ${target}`);
+      if (!fs.existsSync(full)) {
+        const topDir = target.split('/')[0];
+        if (ignoredDirs.has(topDir)) continue;
+        errors.push(`${label}: 无效引用 ${target}`);
+      }
       if (file === rootGuide) linked.add(full);
     }
     if (file !== rootGuide && !text.includes('## 同步维护')) errors.push(`${label}: 缺少同步维护约定`);

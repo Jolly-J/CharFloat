@@ -31,8 +31,10 @@
 
 ## 交付边界
 
-候选包在 `release/2.1.0-protection/{mac,win}/`，原 `release/2.1.0/` 未覆盖。
+候选包当时在 `release/2.1.0-protection/{mac,win}/`，原 `release/2.1.0/` 未覆盖。
 候选包未签名，未部署；真实 WPS/Excel 加载与业务验收未完成，不能据模拟测试声称正式发布就绪。
+
+**2026-10-04 清理说明**：该候选目录已按 `release/` 的"每个版本一套构建物"口径删除（mac sha256 `8d245712…`、win `4c8ec9a3…` 的实物不再存在于本地，占据 806 MB），因此上文路径现在指向不存在的文件。精确哈希与全部验证结论仍完整保存在 [results.json](results.json)，未被改写；如需复现候选包，从 [baseline.json](baseline.json) 记录的提交 `04d8e069` 重新构建，但重新打包的 ZIP 字节不会与当初候选包完全一致。产物规则见 [release/AGENTS.md](../../../release/AGENTS.md)。
 
 PowerShell、必要调用知识及部分压缩 JS 仍可读；本轮未引入原生核心、授权系统或云服务。
 保护目的是抬高静态阅读成本与杜绝误带源码，不承诺无法提取、动态分析或原样复制。
