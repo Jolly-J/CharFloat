@@ -49,11 +49,26 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/extensions.json
 
-# 子代理中间产物（探测脚本、预览图等）
+# 临时探针与中间产物
 .scratch/
+tmp/
+
+# 商业官网、宣发物料与产出物（不公开至公开仓库）
+website/
+promo/
+output/
+
+# 本地数据库、归档与备份文件
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+*.backup
+*.previous
+*~
+*.zip
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
-

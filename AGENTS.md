@@ -26,7 +26,7 @@
 
 **加载项部署入口为生成物**（改造计划 P3.4/P3.5）：`wps-addon/addon-core.js` 由 `npm run build:wps-addon` 从 `wps-addon/src/**` 生成，`office-addon/public/taskpane.js` 由 `npm run build:office-addon` 从 `office-addon/src/**` 生成；两者顶部都有"请勿手改"注释。**改源码后重新构建，禁止手改生成物掩盖源码问题**；从干净目录（删除生成物后）执行 `npm run build:addons` 必须能重建并通过测试。
 
-生成物 dist/、release/、website/dist/、上述两个加载项入口和依赖 node_modules/ 不作为修改入口，也不维护 AGENTS.md。开发编译在 dist/，发布包按 release/<版本>/<平台>/ 存放；改源文件后通过构建更新，禁止手修产物掩盖源码问题。
+生成物 dist/、release/、website/dist/、上述两个加载项入口和依赖 node_modules/ 不作为修改入口，也不维护 AGENTS.md——唯一例外是 [release/AGENTS.md](release/AGENTS.md)：它约束产物仓库"每个版本只保留一套构建物"（mac 留解包 `.app`、win 留 zip），`check:agents` 跳过 release/ 目录，该文件只在清理与发布时适用。开发编译在 dist/，发布包按 release/<版本>/<平台>/ 存放；改源文件后通过构建更新，禁止手修产物掩盖源码问题。
 
 ## 改造任务入口
 
