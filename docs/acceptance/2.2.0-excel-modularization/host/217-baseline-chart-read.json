@@ -1,0 +1,52 @@
+{
+  "tool": "wps_get_charts",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "sheetName": "无表对照",
+    "detail": true
+  },
+  "startUTC": "2026-10-11T17:03:38.753Z",
+  "endUTC": "2026-10-11T17:03:38.768Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "sheetName": "无表对照",
+    "totalChartCount": 1,
+    "chartCount": 1,
+    "detail": true,
+    "charts": [
+      {
+        "chartIndex": 1,
+        "shapeName": "Chart 1",
+        "title": "固定基线标题",
+        "chartType": 51,
+        "chartTypeName": "xlColumnClustered",
+        "hasLegend": true,
+        "left": 288,
+        "top": 224,
+        "width": 300,
+        "height": 180,
+        "leftCell": "$G$14",
+        "isDefaultPosition": false,
+        "seriesCount": 1,
+        "series": [
+          {
+            "seriesIndex": 1,
+            "name": "数量",
+            "formula": "=SERIES(无表对照!$B$1,无表对照!$A$2:$A$3,无表对照!$B$2:$B$3,1)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#4874CB"
+          }
+        ],
+        "yAxis": {
+          "minimumScale": 0,
+          "maximumScale": 2.5,
+          "majorUnit": 0.5,
+          "numberFormat": "General",
+          "title": ""
+        }
+      }
+    ]
+  }
+}

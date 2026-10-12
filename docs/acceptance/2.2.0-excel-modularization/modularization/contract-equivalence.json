@@ -1,0 +1,10 @@
+{
+  "toolCount": 142,
+  "readOnlyCount": 23,
+  "contractUnchanged": true,
+  "excludedDiagnostics": [
+    "capabilities.build",
+    "capabilities.connection.build"
+  ],
+  "reason": "含当前采集时间、磁盘更新时间与重建后的产物 SHA；不属于工具名、schema、说明、顺序或能力语义。完整产物指纹另存验证结果。"
+}

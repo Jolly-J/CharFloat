@@ -1,0 +1,48 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "G1:H1",
+    "values": [
+      [
+        7,
+        "保留值"
+      ]
+    ],
+    "formulas": [
+      [
+        "=SUM(C2:C6)",
+        ""
+      ]
+    ],
+    "reason": "混合矩阵回归"
+  },
+  "startUTC": "2026-10-11T16:53:48.608Z",
+  "endUTC": "2026-10-11T16:53:48.630Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 2 个单元格，已记录留痕",
+    "auditId": "531e0ffa-93e3-4790-ae38-92052f3be208",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "modifiedCount": 2,
+    "diff": [
+      {
+        "cell": "$G$1",
+        "oldValue": null,
+        "newValue": 10,
+        "oldFormula": "",
+        "newFormula": "=SUM(C2:C6)"
+      },
+      {
+        "cell": "$H$1",
+        "oldValue": null,
+        "newValue": "保留值",
+        "oldFormula": "",
+        "newFormula": "保留值"
+      }
+    ]
+  }
+}

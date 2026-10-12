@@ -1,0 +1,72 @@
+{
+  "tool": "wps_configure_print_layout",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "printArea": "A1:S28",
+    "orientation": "landscape",
+    "paperSize": "a4",
+    "fitToPagesWide": 1,
+    "fitToPagesTall": 1,
+    "centerHorizontally": true,
+    "printGridlines": false,
+    "centerHeader": "M1-H 独立CLI验收"
+  },
+  "startUTC": "2026-10-11T16:53:49.764Z",
+  "endUTC": "2026-10-11T16:53:49.895Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "apply",
+    "applied": {
+      "printArea": "A1:S28",
+      "orientation": 2,
+      "paperSize": 9,
+      "fitToPagesWide": 1,
+      "fitToPagesTall": 1,
+      "centerHorizontally": true,
+      "printGridlines": false,
+      "centerHeader": "M1-H 独立CLI验收"
+    },
+    "settings": {
+      "printArea": "$A$1:$S$28",
+      "printTitleRows": "",
+      "printTitleColumns": "",
+      "orientation": 2,
+      "paperSize": 9,
+      "zoom": 0,
+      "fitToPagesWide": 1,
+      "fitToPagesTall": 1,
+      "centerHorizontally": true,
+      "centerVertically": false,
+      "printGridlines": false,
+      "margins": {
+        "left": 54,
+        "right": 54,
+        "top": 72,
+        "bottom": 72,
+        "header": 36,
+        "footer": 36
+      },
+      "headers": {
+        "center": "M1-H 独立CLI验收",
+        "left": "",
+        "right": ""
+      },
+      "footers": {
+        "center": "",
+        "left": "",
+        "right": ""
+      },
+      "pageBreaks": {
+        "horizontal": 0,
+        "vertical": 0
+      },
+      "orientationName": "landscape"
+    },
+    "warnings": [],
+    "message": "已应用并读回核对 [验收数据] 的打印设置"
+  }
+}

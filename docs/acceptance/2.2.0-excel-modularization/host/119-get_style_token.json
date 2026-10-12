@@ -1,0 +1,640 @@
+{
+  "tool": "wps_get_style_token",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "sampleAddress": "A1:E6"
+  },
+  "startUTC": "2026-10-11T16:53:48.845Z",
+  "endUTC": "2026-10-11T16:53:48.876Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "sampleAddress": "$A$1:$E$6",
+    "sampledCell": {
+      "address": "$A$1:$E$6",
+      "fontName": null,
+      "fontSize": 0,
+      "bold": null,
+      "italic": false,
+      "fontColor": null,
+      "backgroundColor": null,
+      "backgroundColorEffective": null,
+      "hasFill": true,
+      "fillPattern": 0,
+      "numberFormat": "General",
+      "horizontalAlignment": "general",
+      "rowHeight": 28,
+      "columnWidth": 8.538461685180664,
+      "borderBottom": -4142
+    },
+    "fontName": null,
+    "titleFontName": "微软雅黑",
+    "sampleFontSize": 0,
+    "sampleBold": null,
+    "fontColor": null,
+    "headerBackgroundColor": null,
+    "titleCell": {
+      "address": "$A$1",
+      "fontName": "微软雅黑",
+      "fontSize": 14,
+      "bold": true,
+      "italic": false,
+      "fontColor": "#FFFFFF",
+      "backgroundColor": "#1F4E78",
+      "backgroundColorEffective": "#1F4E78",
+      "hasFill": true,
+      "fillPattern": 1,
+      "numberFormat": "General",
+      "horizontalAlignment": "general",
+      "rowHeight": 28,
+      "columnWidth": 8.538461685180664,
+      "borderBottom": -4142
+    },
+    "fonts": {
+      "title": {
+        "role": "title",
+        "signature": "微软雅黑|14|true|false|#FFFFFF|#1F4E78|General",
+        "sampleAddress": "$A$1",
+        "sampleCells": [
+          "$A$1",
+          "$B$1",
+          "$C$1"
+        ],
+        "sampleText": "类别",
+        "cellCount": 5,
+        "contentCellCount": 5,
+        "fontName": "微软雅黑",
+        "fontSize": 14,
+        "bold": true,
+        "italic": false,
+        "fontColor": "#FFFFFF",
+        "backgroundColor": "#1F4E78",
+        "hasFill": true,
+        "numberFormat": "General",
+        "horizontalAlignment": "general"
+      },
+      "header": {
+        "role": "header",
+        "signature": "微软雅黑|14|true|false|#FFFFFF|#1F4E78|General",
+        "sampleAddress": "$A$1",
+        "sampleCells": [
+          "$A$1",
+          "$B$1",
+          "$C$1"
+        ],
+        "sampleText": "类别",
+        "cellCount": 5,
+        "contentCellCount": 5,
+        "fontName": "微软雅黑",
+        "fontSize": 14,
+        "bold": true,
+        "italic": false,
+        "fontColor": "#FFFFFF",
+        "backgroundColor": "#1F4E78",
+        "hasFill": true,
+        "numberFormat": "General",
+        "horizontalAlignment": "general"
+      },
+      "body": {
+        "role": "body",
+        "signature": "宋体|11|false|false|#000000|no-fill|General",
+        "sampleAddress": "$F$1",
+        "sampleCells": [
+          "$F$1",
+          "$G$1",
+          "$A$2"
+        ],
+        "sampleText": "10",
+        "cellCount": 42,
+        "contentCellCount": 26,
+        "fontName": "宋体",
+        "fontSize": 11,
+        "bold": false,
+        "italic": false,
+        "fontColor": "#000000",
+        "backgroundColor": null,
+        "hasFill": false,
+        "numberFormat": "General",
+        "horizontalAlignment": "general"
+      },
+      "caption": null,
+      "heuristic": "启发式判据：title=字号最大的一组；header=加粗且有底色中出现最多的一组；body=出现最多的一组；caption=字号最小的一组（等于 body 时为 null）"
+    },
+    "palette": {
+      "themeColors": null,
+      "themeColorsSource": null,
+      "workbookPalette": [
+        {
+          "index": 1,
+          "color": "#000000"
+        },
+        {
+          "index": 2,
+          "color": "#FFFFFF"
+        },
+        {
+          "index": 3,
+          "color": "#FF0000"
+        },
+        {
+          "index": 4,
+          "color": "#00FF00"
+        },
+        {
+          "index": 5,
+          "color": "#0000FF"
+        },
+        {
+          "index": 6,
+          "color": "#FFFF00"
+        },
+        {
+          "index": 7,
+          "color": "#FF00FF"
+        },
+        {
+          "index": 8,
+          "color": "#00FFFF"
+        },
+        {
+          "index": 9,
+          "color": "#800000"
+        },
+        {
+          "index": 10,
+          "color": "#008000"
+        },
+        {
+          "index": 11,
+          "color": "#000080"
+        },
+        {
+          "index": 12,
+          "color": "#808000"
+        },
+        {
+          "index": 13,
+          "color": "#800080"
+        },
+        {
+          "index": 14,
+          "color": "#008080"
+        },
+        {
+          "index": 15,
+          "color": "#C0C0C0"
+        },
+        {
+          "index": 16,
+          "color": "#808080"
+        },
+        {
+          "index": 17,
+          "color": "#9999FF"
+        },
+        {
+          "index": 18,
+          "color": "#993366"
+        },
+        {
+          "index": 19,
+          "color": "#FFFFCC"
+        },
+        {
+          "index": 20,
+          "color": "#CCFFFF"
+        },
+        {
+          "index": 21,
+          "color": "#660066"
+        },
+        {
+          "index": 22,
+          "color": "#FF8080"
+        },
+        {
+          "index": 23,
+          "color": "#0066CC"
+        },
+        {
+          "index": 24,
+          "color": "#CCCCFF"
+        },
+        {
+          "index": 25,
+          "color": "#000080"
+        },
+        {
+          "index": 26,
+          "color": "#FF00FF"
+        },
+        {
+          "index": 27,
+          "color": "#FFFF00"
+        },
+        {
+          "index": 28,
+          "color": "#00FFFF"
+        },
+        {
+          "index": 29,
+          "color": "#800080"
+        },
+        {
+          "index": 30,
+          "color": "#800000"
+        },
+        {
+          "index": 31,
+          "color": "#008080"
+        },
+        {
+          "index": 32,
+          "color": "#0000FF"
+        },
+        {
+          "index": 33,
+          "color": "#00CCFF"
+        },
+        {
+          "index": 34,
+          "color": "#CCFFFF"
+        },
+        {
+          "index": 35,
+          "color": "#CCFFCC"
+        },
+        {
+          "index": 36,
+          "color": "#FFFF99"
+        },
+        {
+          "index": 37,
+          "color": "#99CCFF"
+        },
+        {
+          "index": 38,
+          "color": "#FF99CC"
+        },
+        {
+          "index": 39,
+          "color": "#CC99FF"
+        },
+        {
+          "index": 40,
+          "color": "#FFCC99"
+        },
+        {
+          "index": 41,
+          "color": "#3366FF"
+        },
+        {
+          "index": 42,
+          "color": "#33CCCC"
+        },
+        {
+          "index": 43,
+          "color": "#99CC00"
+        },
+        {
+          "index": 44,
+          "color": "#FFCC00"
+        },
+        {
+          "index": 45,
+          "color": "#FF9900"
+        },
+        {
+          "index": 46,
+          "color": "#FF6600"
+        },
+        {
+          "index": 47,
+          "color": "#666699"
+        },
+        {
+          "index": 48,
+          "color": "#969696"
+        },
+        {
+          "index": 49,
+          "color": "#003366"
+        },
+        {
+          "index": 50,
+          "color": "#339966"
+        },
+        {
+          "index": 51,
+          "color": "#003300"
+        },
+        {
+          "index": 52,
+          "color": "#333300"
+        },
+        {
+          "index": 53,
+          "color": "#993300"
+        },
+        {
+          "index": 54,
+          "color": "#993366"
+        },
+        {
+          "index": 55,
+          "color": "#333399"
+        },
+        {
+          "index": 56,
+          "color": "#333333"
+        }
+      ],
+      "workbookPaletteSource": "Workbook.Colors",
+      "observed": [
+        {
+          "color": "#000000",
+          "kind": "font",
+          "cellCount": 42,
+          "sampleCells": [
+            "$F$1",
+            "$G$1",
+            "$A$2"
+          ]
+        },
+        {
+          "color": "#FFFFFF",
+          "kind": "font",
+          "cellCount": 5,
+          "sampleCells": [
+            "$A$1",
+            "$B$1",
+            "$C$1"
+          ]
+        },
+        {
+          "color": "#1F4E78",
+          "kind": "fill",
+          "cellCount": 5,
+          "sampleCells": [
+            "$A$1",
+            "$B$1",
+            "$C$1"
+          ]
+        }
+      ]
+    },
+    "census": {
+      "scannedCells": 48,
+      "blockCells": 48,
+      "truncated": false,
+      "styleGroups": 3,
+      "styles": [
+        {
+          "signature": "微软雅黑|14|true|false|#FFFFFF|#1F4E78|General",
+          "cellCount": 5,
+          "contentCellCount": 5,
+          "sampleCells": [
+            "$A$1",
+            "$B$1",
+            "$C$1"
+          ],
+          "sampleText": "类别",
+          "fontName": "微软雅黑",
+          "fontSize": 14,
+          "bold": true,
+          "fontColor": "#FFFFFF",
+          "backgroundColor": "#1F4E78",
+          "hasFill": true,
+          "numberFormat": "General"
+        },
+        {
+          "signature": "宋体|11|false|false|#000000|no-fill|General",
+          "cellCount": 42,
+          "contentCellCount": 26,
+          "sampleCells": [
+            "$F$1",
+            "$G$1",
+            "$A$2"
+          ],
+          "sampleText": "10",
+          "fontName": "宋体",
+          "fontSize": 11,
+          "bold": false,
+          "fontColor": "#000000",
+          "backgroundColor": null,
+          "hasFill": false,
+          "numberFormat": "General"
+        },
+        {
+          "signature": "宋体|11||false||no-fill|General",
+          "cellCount": 1,
+          "contentCellCount": 1,
+          "sampleCells": [
+            "$H$1"
+          ],
+          "sampleText": "保留值",
+          "fontName": "宋体",
+          "fontSize": 11,
+          "bold": null,
+          "fontColor": null,
+          "backgroundColor": null,
+          "hasFill": false,
+          "numberFormat": "General"
+        }
+      ]
+    },
+    "tableStyles": {
+      "ok": true,
+      "count": 0,
+      "tableCount": 0,
+      "returnedTables": 0,
+      "items": [],
+      "truncated": false,
+      "limit": 20
+    },
+    "conditionalFormatStyles": {
+      "scannedAreas": 8,
+      "areaCount": 7,
+      "areas": [
+        {
+          "address": "$A$1:$H$6",
+          "probe": "usedRange",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        },
+        {
+          "address": "$A$1:$L$40",
+          "probe": "A1:L40",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        },
+        {
+          "address": "$A$2:$L$2",
+          "probe": "A2:L2",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        },
+        {
+          "address": "$A$3:$L$3",
+          "probe": "A3:L3",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        },
+        {
+          "address": "$A$4:$L$4",
+          "probe": "A4:L4",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        },
+        {
+          "address": "$A$5:$L$5",
+          "probe": "A5:L5",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        },
+        {
+          "address": "$A$6:$L$6",
+          "probe": "A6:L6",
+          "ruleCount": 1,
+          "returnedRules": 1,
+          "rules": [
+            {
+              "index": 1,
+              "type": "cell_value",
+              "typeCode": 1,
+              "operator": 5,
+              "formula1": "=100",
+              "fillColor": "#FFE8E5",
+              "fontColor": "#000000",
+              "fontBold": false
+            }
+          ]
+        }
+      ]
+    },
+    "probes": [
+      {
+        "target": "设计普查(已用区域左上角有界窗口)",
+        "ok": true,
+        "detail": "扫描 48 格，识别出 3 套不同样式"
+      },
+      {
+        "target": "Workbook.ThemeColorScheme",
+        "ok": false,
+        "detail": "返回 undefined"
+      },
+      {
+        "target": "Workbook.Theme",
+        "ok": false,
+        "detail": "对象存在但取不到颜色条目（Count=0）"
+      },
+      {
+        "target": "Application.Theme",
+        "ok": false,
+        "detail": "返回 undefined"
+      },
+      {
+        "target": "Workbook.Colors",
+        "ok": true,
+        "detail": "读到 56 个调色板颜色"
+      },
+      {
+        "target": "observed(设计普查统计)",
+        "ok": true,
+        "detail": "统计到 3 个实际使用的颜色"
+      },
+      {
+        "target": "ListObjects(结构化表格样式)",
+        "ok": true,
+        "detail": "工作表中 0 个结构化表格"
+      },
+      {
+        "target": "FormatConditions(有界区域)",
+        "ok": true,
+        "detail": "在 7 个区域读到条件格式规则"
+      }
+    ],
+    "unavailable": [
+      "themeColors: 宿主的主题色入口（Workbook.ThemeColorScheme / Workbook.Theme / Application.Theme）在本机全部探测失败，见 probes；色板请参考 workbookPalette 与 observed"
+    ],
+    "warnings": [
+      "取样格 $A$1:$E$6 的 fontName / fontColor / backgroundColor 读不到（空单元格或宿主未返回该属性）；对应字段为 **null 而不是默认值**，请勿当成原表风格"
+    ],
+    "message": "已读取 [验收数据] 的设计语言：取样格 $A$1:$E$6，主样式 宋体 11pt；5/8 项探测成功，1 项不可用（见 unavailable/probes）"
+  }
+}

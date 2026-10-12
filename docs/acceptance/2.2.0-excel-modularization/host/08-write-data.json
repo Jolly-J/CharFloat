@@ -1,0 +1,276 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "A1:E6",
+    "values": [
+      [
+        "类别",
+        "项目",
+        "数量",
+        "金额",
+        "状态"
+      ],
+      [
+        "甲",
+        "项目1",
+        0,
+        120,
+        "通过"
+      ],
+      [
+        "乙",
+        "项目2",
+        2,
+        50,
+        "不通过"
+      ],
+      [
+        "甲",
+        "项目3",
+        3,
+        80,
+        "通过"
+      ],
+      [
+        "乙",
+        "项目4",
+        1,
+        200,
+        "通过"
+      ],
+      [
+        "甲",
+        "项目5",
+        4,
+        150,
+        "不通过"
+      ]
+    ],
+    "reason": "M1-H 独立验收数据"
+  },
+  "startUTC": "2026-10-11T16:47:54.156Z",
+  "endUTC": "2026-10-11T16:47:54.195Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 30 个单元格，已记录留痕",
+    "auditId": "de0ee087-fe87-4760-bbdc-8f7a7252756a",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "modifiedCount": 30,
+    "diff": [
+      {
+        "cell": "$A$1",
+        "oldValue": null,
+        "newValue": "类别",
+        "oldFormula": "",
+        "newFormula": "类别"
+      },
+      {
+        "cell": "$B$1",
+        "oldValue": null,
+        "newValue": "项目",
+        "oldFormula": "",
+        "newFormula": "项目"
+      },
+      {
+        "cell": "$C$1",
+        "oldValue": null,
+        "newValue": "数量",
+        "oldFormula": "",
+        "newFormula": "数量"
+      },
+      {
+        "cell": "$D$1",
+        "oldValue": null,
+        "newValue": "金额",
+        "oldFormula": "",
+        "newFormula": "金额"
+      },
+      {
+        "cell": "$E$1",
+        "oldValue": null,
+        "newValue": "状态",
+        "oldFormula": "",
+        "newFormula": "状态"
+      },
+      {
+        "cell": "$A$2",
+        "oldValue": null,
+        "newValue": "甲",
+        "oldFormula": "",
+        "newFormula": "甲"
+      },
+      {
+        "cell": "$B$2",
+        "oldValue": null,
+        "newValue": "项目1",
+        "oldFormula": "",
+        "newFormula": "项目1"
+      },
+      {
+        "cell": "$C$2",
+        "oldValue": null,
+        "newValue": 0,
+        "oldFormula": "",
+        "newFormula": "0"
+      },
+      {
+        "cell": "$D$2",
+        "oldValue": null,
+        "newValue": 120,
+        "oldFormula": "",
+        "newFormula": "120"
+      },
+      {
+        "cell": "$E$2",
+        "oldValue": null,
+        "newValue": "通过",
+        "oldFormula": "",
+        "newFormula": "通过"
+      },
+      {
+        "cell": "$A$3",
+        "oldValue": null,
+        "newValue": "乙",
+        "oldFormula": "",
+        "newFormula": "乙"
+      },
+      {
+        "cell": "$B$3",
+        "oldValue": null,
+        "newValue": "项目2",
+        "oldFormula": "",
+        "newFormula": "项目2"
+      },
+      {
+        "cell": "$C$3",
+        "oldValue": null,
+        "newValue": 2,
+        "oldFormula": "",
+        "newFormula": "2"
+      },
+      {
+        "cell": "$D$3",
+        "oldValue": null,
+        "newValue": 50,
+        "oldFormula": "",
+        "newFormula": "50"
+      },
+      {
+        "cell": "$E$3",
+        "oldValue": null,
+        "newValue": "不通过",
+        "oldFormula": "",
+        "newFormula": "不通过"
+      },
+      {
+        "cell": "$A$4",
+        "oldValue": null,
+        "newValue": "甲",
+        "oldFormula": "",
+        "newFormula": "甲"
+      },
+      {
+        "cell": "$B$4",
+        "oldValue": null,
+        "newValue": "项目3",
+        "oldFormula": "",
+        "newFormula": "项目3"
+      },
+      {
+        "cell": "$C$4",
+        "oldValue": null,
+        "newValue": 3,
+        "oldFormula": "",
+        "newFormula": "3"
+      },
+      {
+        "cell": "$D$4",
+        "oldValue": null,
+        "newValue": 80,
+        "oldFormula": "",
+        "newFormula": "80"
+      },
+      {
+        "cell": "$E$4",
+        "oldValue": null,
+        "newValue": "通过",
+        "oldFormula": "",
+        "newFormula": "通过"
+      },
+      {
+        "cell": "$A$5",
+        "oldValue": null,
+        "newValue": "乙",
+        "oldFormula": "",
+        "newFormula": "乙"
+      },
+      {
+        "cell": "$B$5",
+        "oldValue": null,
+        "newValue": "项目4",
+        "oldFormula": "",
+        "newFormula": "项目4"
+      },
+      {
+        "cell": "$C$5",
+        "oldValue": null,
+        "newValue": 1,
+        "oldFormula": "",
+        "newFormula": "1"
+      },
+      {
+        "cell": "$D$5",
+        "oldValue": null,
+        "newValue": 200,
+        "oldFormula": "",
+        "newFormula": "200"
+      },
+      {
+        "cell": "$E$5",
+        "oldValue": null,
+        "newValue": "通过",
+        "oldFormula": "",
+        "newFormula": "通过"
+      },
+      {
+        "cell": "$A$6",
+        "oldValue": null,
+        "newValue": "甲",
+        "oldFormula": "",
+        "newFormula": "甲"
+      },
+      {
+        "cell": "$B$6",
+        "oldValue": null,
+        "newValue": "项目5",
+        "oldFormula": "",
+        "newFormula": "项目5"
+      },
+      {
+        "cell": "$C$6",
+        "oldValue": null,
+        "newValue": 4,
+        "oldFormula": "",
+        "newFormula": "4"
+      },
+      {
+        "cell": "$D$6",
+        "oldValue": null,
+        "newValue": 150,
+        "oldFormula": "",
+        "newFormula": "150"
+      },
+      {
+        "cell": "$E$6",
+        "oldValue": null,
+        "newValue": "不通过",
+        "oldFormula": "",
+        "newFormula": "不通过"
+      }
+    ]
+  }
+}

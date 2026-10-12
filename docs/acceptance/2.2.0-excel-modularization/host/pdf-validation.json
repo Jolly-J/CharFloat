@@ -1,0 +1,14 @@
+{
+  "validPdf": true,
+  "pages": 1,
+  "pageSizesPoints": [
+    [
+      841.9,
+      595.3
+    ]
+  ],
+  "containsChineseTitle": true,
+  "sha256": "a1a6f31d50273d0dbf499feda61b0fea1d29ffe1c5e88de576e401ba12eba52f",
+  "renderedPage": "pdf-page.png",
+  "visualChecked": true
+}

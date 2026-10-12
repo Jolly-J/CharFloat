@@ -1,0 +1,77 @@
+{
+  "tool": "wps_create_pivot_table",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "action": "read",
+    "destSheetName": "透视验收"
+  },
+  "startUTC": "2026-10-11T16:53:49.393Z",
+  "endUTC": "2026-10-11T16:53:49.413Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "count": 1,
+    "pivotTables": [
+      {
+        "sheetName": "透视验收",
+        "name": "PivotTable_1791737629383",
+        "sourceData": "=验收数据!R1C1:R6C5",
+        "rowRange": "default",
+        "tableRange1": "$A$1:$B$4",
+        "refreshDate": "1900-01-08T23:54:17.000Z",
+        "version": "1",
+        "fieldCount": 5,
+        "fields": [
+          {
+            "name": "类别",
+            "orientation": 1,
+            "position": 1,
+            "function": 0,
+            "subtotals": true
+          },
+          {
+            "name": "项目",
+            "orientation": 0,
+            "position": 0,
+            "function": 0,
+            "subtotals": true
+          },
+          {
+            "name": "数量",
+            "orientation": 0,
+            "position": 0,
+            "function": 0,
+            "subtotals": true
+          },
+          {
+            "name": "金额",
+            "orientation": 0,
+            "position": 0,
+            "function": 0,
+            "subtotals": true
+          },
+          {
+            "name": "状态",
+            "orientation": 0,
+            "position": 0,
+            "function": 0,
+            "subtotals": true
+          }
+        ]
+      }
+    ],
+    "warnings": [],
+    "message": "工作簿 [CharFloat_M1H_20261012.xlsx] 共 1 个数据透视表",
+    "auditId": "6be6ccf7-7c69-41bb-bad8-ca0796d463d4",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "创建透视表只留痕、不可回滚。"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "tool": "wps_get_charts",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "detail": true
+  },
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "totalChartCount": 1,
+    "chartCount": 1,
+    "detail": true,
+    "charts": [
+      {
+        "chartIndex": 1,
+        "shapeName": "Chart 1",
+        "title": "数量验收-已更新",
+        "chartType": 4,
+        "chartTypeName": "xlLine",
+        "hasLegend": false,
+        "left": 230,
+        "top": 78,
+        "width": 359.95001220703125,
+        "height": 209.60000610351562,
+        "leftCell": "$G$5",
+        "isDefaultPosition": false,
+        "seriesCount": 1,
+        "series": [
+          {
+            "seriesIndex": 1,
+            "name": "数量",
+            "formula": "=SERIES(验收数据!$H$31,验收数据!$G$32:$G$33,验收数据!$H$32:$H$33,1)",
+            "smooth": false,
+            "lineColor": "#4874CB",
+            "fillColor": "#000000"
+          }
+        ],
+        "yAxis": {
+          "minimumScale": 0,
+          "maximumScale": 2.5,
+          "majorUnit": 0.5,
+          "numberFormat": "General",
+          "title": ""
+        }
+      }
+    ]
+  },
+  "atUTC": "2026-10-11T17:17:12.291Z"
+}

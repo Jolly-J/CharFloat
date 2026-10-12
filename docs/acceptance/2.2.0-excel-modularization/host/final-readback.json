@@ -1,0 +1,371 @@
+{
+  "before": {
+    "saved": true,
+    "data": [
+      [
+        "类别",
+        "项目",
+        "数量",
+        "金额",
+        "状态",
+        null,
+        10,
+        "保留值"
+      ],
+      [
+        "乙",
+        "项目2",
+        2,
+        50,
+        "不通过",
+        null,
+        null,
+        null
+      ],
+      [
+        "甲",
+        "项目3",
+        3,
+        80,
+        "通过",
+        null,
+        "M1-H落盘标记",
+        "验收链接"
+      ],
+      [
+        "甲",
+        "项目1",
+        0,
+        120,
+        "通过",
+        null,
+        null,
+        null
+      ],
+      [
+        "甲",
+        "项目5",
+        4,
+        150,
+        "不通过",
+        null,
+        null,
+        null
+      ],
+      [
+        "乙",
+        "项目4",
+        1,
+        200,
+        "通过",
+        null,
+        null,
+        null
+      ]
+    ],
+    "formulas": [
+      [
+        "类别",
+        "项目",
+        "数量",
+        "金额",
+        "状态",
+        "",
+        "=SUM(C2:C6)",
+        "保留值"
+      ],
+      [
+        "乙",
+        "项目2",
+        "2",
+        "50",
+        "不通过",
+        "",
+        "",
+        ""
+      ],
+      [
+        "甲",
+        "项目3",
+        "3",
+        "80",
+        "通过",
+        "",
+        "M1-H落盘标记",
+        "验收链接"
+      ],
+      [
+        "甲",
+        "项目1",
+        "0",
+        "120",
+        "通过",
+        "",
+        "",
+        ""
+      ],
+      [
+        "甲",
+        "项目5",
+        "4",
+        "150",
+        "不通过",
+        "",
+        "",
+        ""
+      ],
+      [
+        "乙",
+        "项目4",
+        "1",
+        "200",
+        "通过",
+        "",
+        "",
+        ""
+      ]
+    ],
+    "shapes": 4,
+    "sheets": 4,
+    "validationType": 3,
+    "conditionCount": 1,
+    "names": 3,
+    "links": 1
+  },
+  "after": {
+    "saved": true,
+    "data": [
+      [
+        "类别",
+        "项目",
+        "数量",
+        "金额",
+        "状态",
+        null,
+        10,
+        "保留值"
+      ],
+      [
+        "乙",
+        "项目2",
+        2,
+        50,
+        "不通过",
+        null,
+        null,
+        null
+      ],
+      [
+        "甲",
+        "项目3",
+        3,
+        80,
+        "通过",
+        null,
+        "M1-H落盘标记",
+        "验收链接"
+      ],
+      [
+        "甲",
+        "项目1",
+        0,
+        120,
+        "通过",
+        null,
+        null,
+        null
+      ],
+      [
+        "甲",
+        "项目5",
+        4,
+        150,
+        "不通过",
+        null,
+        null,
+        null
+      ],
+      [
+        "乙",
+        "项目4",
+        1,
+        200,
+        "通过",
+        null,
+        null,
+        null
+      ]
+    ],
+    "formulas": [
+      [
+        "类别",
+        "项目",
+        "数量",
+        "金额",
+        "状态",
+        "",
+        "=SUM(C2:C6)",
+        "保留值"
+      ],
+      [
+        "乙",
+        "项目2",
+        "2",
+        "50",
+        "不通过",
+        "",
+        "",
+        ""
+      ],
+      [
+        "甲",
+        "项目3",
+        "3",
+        "80",
+        "通过",
+        "",
+        "M1-H落盘标记",
+        "验收链接"
+      ],
+      [
+        "甲",
+        "项目1",
+        "0",
+        "120",
+        "通过",
+        "",
+        "",
+        ""
+      ],
+      [
+        "甲",
+        "项目5",
+        "4",
+        "150",
+        "不通过",
+        "",
+        "",
+        ""
+      ],
+      [
+        "乙",
+        "项目4",
+        "1",
+        "200",
+        "通过",
+        "",
+        "",
+        ""
+      ]
+    ],
+    "shapes": 4,
+    "sheets": 4,
+    "validationType": 3,
+    "conditionCount": 1,
+    "names": 3,
+    "links": 1
+  },
+  "dataFormulasObjectsPersisted": true,
+  "controlViewsPersisted": true,
+  "print": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "read",
+    "applied": {},
+    "settings": {
+      "printArea": "$A$1:$S$28",
+      "printTitleRows": "",
+      "printTitleColumns": "",
+      "orientation": 2,
+      "paperSize": 9,
+      "zoom": 0,
+      "fitToPagesWide": 1,
+      "fitToPagesTall": 1,
+      "centerHorizontally": true,
+      "centerVertically": false,
+      "printGridlines": false,
+      "margins": {
+        "left": 54,
+        "right": 54,
+        "top": 72,
+        "bottom": 72,
+        "header": 36,
+        "footer": 36
+      },
+      "headers": {
+        "center": "M1-H 独立CLI验收",
+        "left": "",
+        "right": ""
+      },
+      "footers": {
+        "center": "",
+        "left": "",
+        "right": ""
+      },
+      "pageBreaks": {
+        "horizontal": 0,
+        "vertical": 0
+      },
+      "orientationName": "landscape"
+    },
+    "warnings": [],
+    "message": "已读回 [验收数据] 的打印设置（打印区域 $A$1:$S$28，landscape）"
+  },
+  "frozen": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "frozen": true,
+    "freezeRowIndex": 2,
+    "freezeColumnIndex": 1,
+    "splitRow": 1,
+    "splitColumn": 0,
+    "warnings": [],
+    "message": "工作表 [验收数据] 已冻结：第 1 行之上的 1 行、第 0 列之左的 0 列保持不动",
+    "auditId": "5a7b1f6e-38ee-49a3-9dd6-5045a163d74f",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "冻结窗格只留痕、不可回滚。"
+  },
+  "preview": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$A$1:$S$28",
+    "imageMimeType": "image/png",
+    "imageSizeBytes": 177818,
+    "message": "已成功生成 [验收数据] 区域 $A$1:$S$28 的高保真渲染图（大小: 173.7 KB）",
+    "previewArtifact": "final-preview.png"
+  },
+  "runningCandidateMatches": true,
+  "originalWorkbookStillOpen": true,
+  "files": [
+    {
+      "file": "CharFloat_M1H_20261012.xlsx",
+      "size": 32420,
+      "sha256": "279cc874d5ff6d209477706e5ecdde1cf1f3282caf97bf42c7d3dffb9d177957"
+    },
+    {
+      "file": "CharFloat_M1H_ViewControl_20261012.xlsx",
+      "size": 19688,
+      "sha256": "ea188dae9363ae43238ab25f73ac6e753d93df5e0734edbf8cfcba768fb3d0e9"
+    },
+    {
+      "file": "acceptance.pdf",
+      "size": 668454,
+      "sha256": "a1a6f31d50273d0dbf499feda61b0fea1d29ffe1c5e88de576e401ba12eba52f"
+    },
+    {
+      "file": "chart.png",
+      "size": 8510,
+      "sha256": "a37bac3b3fcd6d7867745f17a642a4972e7870fcb73d703226414efa68717e97"
+    }
+  ]
+}

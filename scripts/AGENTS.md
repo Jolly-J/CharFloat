@@ -9,12 +9,13 @@
 - [build_beautified_sheet.ts](build_beautified_sheet.ts)：真实表格写入与排版。
 - [create-icons.mjs](create-icons.mjs)：生成图标文件。
 - [check-agents.mjs](check-agents.mjs)：只读检查协作导航。
+- [check-version.mjs](check-version.mjs)：以 package.json 为基准，只读核对锁文件、Bridge、加载项源码/清单、界面默认值和 CHANGELOG；`npm run check:version` 已接入 prebuild、beforePack 与 CI，不同步版本或执行发布。制度见 [release-policy.md](../docs/release-policy.md)。
 - [check-brand.mjs](check-brand.mjs)：只读检查当前文本与相对路径中的旧品牌标识；历史验收及既有发布包例外，构建输出和发布副本分别检查。范围见 [品牌声明](../docs/branding.md)。
 - [snapshot-tools.ts](snapshot-tools.ts)：只读导出工具契约与能力快照（`npm run snapshot:tools`）。
 - [check-capability-claims.ts](check-capability-claims.ts)：只读核对 skill、官网与**加载项页面**中的能力数量表述与元数据源（`npm run check:claims`）。
 - [check-param-forwarding.ts](check-param-forwarding.ts)：只读核对"**schema 声明了参数、网关处理器却没读取**"的静默丢参（`npm run check:params`）；带自检，证明能抓到未转发参数且读过的不误报。
 - [build-win-icon.mjs](build-win-icon.mjs)：由 `build/icon.png` 生成 Windows 用的**多尺寸** `build/icon.ico`（`npm run build:win-icon`）；纯 Node 实现（自带 PNG 解码/缩放/编码与 DIB 封装），写完自检格式，不通过不落盘。
-- [dist-parallel.mjs](dist-parallel.mjs)：**并行**跑两个平台的打包（`npm run dist:all`）。`electron-builder --mac --win` 是串行的，而打包以 I/O 为主、单进程吃不满多核；两平台写入不同目录，可安全并行。`--no-sign` 跳过 macOS 代码签名（`npm run dist:fast`）——实测签名是 mac 侧的主要耗时（mac 204s vs win 43s，且 electron-builder 自身 CPU 只用了 3 秒：`codesign` 在等 Apple 时间戳服务器，属网络等待，所以 CPU 闲置）。
+- [dist-parallel.mjs](dist-parallel.mjs)：现有双平台并行入口（`dist:all` / `dist:fast`）；两平台虽输出到不同目录，beforePack 仍增删共享发布副本的 CLI 回退文件。副本隔离前正式验收构建须串行，见 [发布制度](../docs/release-policy.md)；不要把输出目录不同当作共享输入安全的证明。
 - [build-cli-bytecode.mjs](build-cli-bytecode.mjs)：把 `dist/bridge/cli.cjs` 编译成 **V8 字节码** `cli.jsc`，并把 `cli.cjs` 就地替换为加载器（`npm run build:bytecode`，已串进 `npm run build`）。**必须用 Electron 的 Node 编译**（V8 版本与运行时锁死）。详见 [code-protection.md](../docs/code-protection.md)。
 - [check-cli-protection.mjs](check-cli-protection.mjs)：旧命令兼容入口，委托包级检查，不移动开发文件或连接默认用户服务。
 - [build-release-assets.mjs](build-release-assets.mjs)：仅生成 `dist/release-app/` 发布副本；输入白名单见 [release-files.json](release-files.json)，保护策略与过期校验见 [lib/release-protection.mjs](lib/release-protection.mjs)。
@@ -25,6 +26,7 @@
 - [sync-addon-panel-style.mjs](sync-addon-panel-style.mjs)：从 Office 唯一样式源生成 WPS 自包含 CSS，加载项构建自动同步，`--check` 只检查一致性。
 - [build-wps-ribbon-icons.mjs](build-wps-ribbon-icons.mjs)：从 App 原图生成 32px / 64px @2x 工具栏资源，主加载项构建自动调用，`--check` 只校验。
 - [build-wps-addon.mjs](build-wps-addon.mjs)：由 `wps-addon/src/**` 生成含后台与侧栏两种运行模式的部署入口 `wps-addon/addon-core.js`（`npm run build:wps-addon`，`--check` 只校验）。
+- [lib/wps-addon-modules.mjs](lib/wps-addon-modules.mjs)：构建器共用的递归源码枚举与双向清单校验；只读，不导入加载项片段。显式清单决定拼接顺序，目录枚举只检查遗漏、缺失和重复。
 - [build-office-addon.mjs](build-office-addon.mjs)：由 `office-addon/src/**` 生成部署入口 `office-addon/public/taskpane.js`（`npm run build:office-addon`，`--check` 只校验）。
 
 ## 定位与联动

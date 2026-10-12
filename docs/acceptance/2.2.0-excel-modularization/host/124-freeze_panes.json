@@ -1,0 +1,30 @@
+{
+  "tool": "wps_freeze_panes",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "freezeRowIndex": 1,
+    "freezeColumnIndex": 0
+  },
+  "startUTC": "2026-10-11T16:53:48.913Z",
+  "endUTC": "2026-10-11T16:53:48.923Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "freezeRowIndex": 1,
+    "freezeColumnIndex": 1,
+    "message": "已成功锁定第 0 行之上的表头吸顶显示",
+    "auditId": "1edf1bd2-ee46-4c79-9615-7c5d379c7196",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "冻结窗格只留痕、不可回滚。"
+  }
+}

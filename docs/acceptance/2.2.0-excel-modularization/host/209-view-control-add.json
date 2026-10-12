@@ -1,0 +1,29 @@
+{
+  "tool": "wps_manage_workbook_views",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "action": "add",
+    "viewName": "M1H_NoTableView"
+  },
+  "startUTC": "2026-10-11T16:58:46.219Z",
+  "endUTC": "2026-10-11T16:58:46.282Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "action": "add",
+    "viewName": "M1H_NoTableView",
+    "readBack": {
+      "name": "M1H_NoTableView",
+      "index": 1
+    },
+    "warnings": [],
+    "views": [
+      {
+        "name": "M1H_NoTableView",
+        "index": 1
+      }
+    ],
+    "message": "已创建自定义视图 [M1H_NoTableView]"
+  }
+}

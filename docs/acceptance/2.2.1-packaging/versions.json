@@ -1,0 +1,10 @@
+{
+  "package": "2.2.1",
+  "lock": "2.2.1",
+  "lockRoot": "2.2.1",
+  "bridge": "2.2.1",
+  "wpsRuntime": "2.2.1",
+  "officeRuntime": "2.2.1",
+  "wpsManifest": "2.2.1",
+  "officeManifest": "2.2.1.0"
+}

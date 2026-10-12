@@ -1,0 +1,34 @@
+{
+  "tool": "wps_manage_pictures",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "insert",
+    "filePath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_icon.png",
+    "pictureName": "M1H_Icon",
+    "left": 735,
+    "top": 335,
+    "width": 48,
+    "height": 48
+  },
+  "startUTC": "2026-10-11T16:57:20.924Z",
+  "endUTC": "2026-10-11T16:57:20.939Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "insert",
+    "picture": {
+      "name": "M1H_Icon",
+      "kind": "picture",
+      "left": 734.4,
+      "top": 320.6,
+      "width": 48,
+      "height": 45.6,
+      "topLeftCell": "$R$20"
+    },
+    "warnings": [],
+    "message": "已插入图片 <user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_icon.png"
+  }
+}

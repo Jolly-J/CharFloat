@@ -105,7 +105,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_range_styles",
-        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。可通过 include 追加：**validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效；**validationViolations**（数据有效性**违规定位**）——逐格比对规则并列出**取值越界的单元格**（地址+值+命中的规则+期望），同时给出规则清单与无法判定的单元格；区域大时只扫描前 maxCells 个（默认 300，上限 2000），截断时返回 truncated=true 并在 warnings 说明。判定不了的一律进 unevaluated，**不会当作通过**。**宿主差异**：validation / validationViolations 仅在 WPS 表格侧实现（host=microsoft 会忽略 include，只返回基础样式，不要据此判断校验是否生效）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。说明：混合格式（区域内或格内格式不一致）时 fontName/bold 等字段返回 null，代表格式不一致而非不支持；本工具默认读取单元格级样式，看不到单元格内 Characters 字符级的局部加粗。排查单元格内部字符级局部格式（rich text）可在 include 中传 'runs'（逐段返回起始位/长度/文本/字体/字重等，仅 WPS 实现）。可通过 include 追加：**validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效；**validationViolations**（数据有效性**违规定位**）——逐格比对规则并列出**取值越界的单元格**（地址+值+命中的规则+期望），同时给出规则清单与无法判定的单元格；区域大时只扫描前 maxCells 个（默认 300，上限 2000），截断时返回 truncated=true 并在 warnings 说明。判定不了的一律进 unevaluated，**不会当作通过**。**宿主差异**：runs / validation / validationViolations 仅在 WPS 表格侧实现（host=microsoft 会忽略这些扩展字段，只返回基础样式）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -115,8 +115,8 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
             mode: { type: "string", enum: ["summary", "cells"], description: "返回模式，默认 summary" },
             include: {
               type: "array",
-              items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation", "validationViolations"] },
-              description: "只返回指定样式字段；不传时返回常用字段。validation=只读回规则；validationViolations=规则+违规定位（两者可同时给）"
+              items: { type: "string", enum: ["fontName", "fontSize", "bold", "fontColor", "backgroundColor", "numberFormat", "horizontalAlignment", "verticalAlignment", "wrapText", "rowHeight", "columnWidth", "merged", "mergeArea", "borders", "validation", "validationViolations", "runs"] },
+              description: "只返回指定样式字段；不传时返回常用字段。runs=单元格内富文本分段列表（单格生效）；validation=只读回规则；validationViolations=规则+违规定位（两者可同时给）"
             },
             maxCells: { type: "number", description: "cells 模式最多展开的单元格数，默认 100，最大 500；include 含 validationViolations 时同时作为违规扫描上限（默认 300，上限 2000）" }
           },
@@ -147,7 +147,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_patch_cells",
-        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。写入特性：写入文本会保留原有字体；若单元格原本是粗体字族（如 Microsoft YaHei Bold），写入后仍会显示为粗体。需要正文为常规时，可传入 fontName 规范化字族（如 'Microsoft YaHei'）或 bold: false，也可使用 format_cells 同时规范化 fontName 与 bold。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -164,6 +164,8 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
               items: { type: "array", items: { type: ["string", "null"] } },
               description: "二维公式矩阵，例如 [['=A2*1.1']]；空项 '' 或 null 表示该单元格不改公式（同批 values 写入的值保留），不会清空单元格"
             },
+            fontName: { type: "string", description: "写入时顺带规范化字体名称（如 'Microsoft YaHei'、'微软雅黑'），避免单元格继承原有粗体字族（如 Microsoft YaHei Bold）导致正文显粗" },
+            bold: { type: "boolean", description: "写入时顺带设置整格字重（false 为常规，true 为粗体）" },
             reason: { type: "string", description: "本次修改的意图描述，用于留痕审计" }
           },
           required: ["address"],
@@ -175,7 +177,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_format_cells",
-        description: "设置单元格字体、字号、加粗、文字色、底色、对齐、行高、数字格式、边框与合并/取消合并，写入后可用 wps_get_range_styles 读回。注意：borders 传 'none' 或 false 当前不会去除边框（只接受颜色值或 true 画细边框）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "设置单元格字体、字号、加粗、文字色、底色、对齐、行高、数字格式、边框与合并/取消合并，写入后可用 wps_get_range_styles 读回。注意：borders 传 'none' 或 false 当前不会去除边框（只接受颜色值或 true 画细边框）；bold: false 对粗体字族（如 Microsoft YaHei Bold）无效，若正文显粗须同时将 fontName 设为常规字体名称。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -346,7 +348,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_capture_sheet_preview",
-        description: "捕获工作表或指定区域的渲染截图，用于视觉自检。参数优先级：address 优先于别名 range，都不传取整表已用区域；chartName（别名 name）在 WPS 宿主被忽略，仍按区域截图。返回 {success, workbookName, sheetName, address, imageBase64, imageMimeType, imageSizeBytes}；截图失败时可能只有 message 而没有 imageBase64，用前先确认该字段存在。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "捕获工作表或指定区域的渲染截图，用于视觉自检。参数优先级：address 优先于别名 range，都不传取整表已用区域；chartName（别名 name）在 WPS 宿主被忽略，仍按区域截图。返回 {success, workbookName, sheetName, address, imageBase64, imageMimeType, imageSizeBytes}；截图失败时可能只有 message 而没有 imageBase64，用前先确认该字段存在。⚠️ 预览图不可作为字重/字体验收依据：宿主导出渲染通道可能存在字体替换或抗锯齿渲染，预览图中字体粗细可能与实际属性不一致；样式验收必须使用 get_range_styles 探针读取实际属性。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -939,7 +941,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_format_text_segment",
-        description: "**单元格内局部格式（富文本）**：只给一个单元格里的一段文字加格式（如「整句里只把结论加粗变红」），不影响该格其余文字。定位方式二选一：① find 按文本找（可配 occurrence 指定第几处）② start（1 基起点）+ length。格式项至少要给一项：bold / italic / underline / fontColor / fontSize / fontName。**写完逐项读回核对**，任一项没落上直接报错，不做静默降级。若只想整格统一格式，用 format_cells 更省事。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "**单元格内局部格式（富文本）**：只给一个单元格里的一段文字加格式（如「整句里只把结论加粗变红」），不影响该格其余文字。定位方式二选一：① find 按文本找（可配 occurrence 指定第几处）② start（1 基起点）+ length。格式项至少要给一项：bold / italic / underline / fontColor / fontSize / fontName。**写完逐项读回核对**，任一项没落上直接报错，不做静默降级。顺序要求：修改单元格整格 Font.Name 会清空已有字符级局部格式；若单元格需修改字体或规范化字族，必须先通过 format_cells 设置整格 fontName，再调用本工具施加局部加粗或样式。若只想整格统一格式，用 format_cells 更省事。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {

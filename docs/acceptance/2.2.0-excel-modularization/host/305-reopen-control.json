@@ -1,0 +1,23 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "component": "excel",
+    "readOnly": false,
+    "params": {
+      "filePath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_ViewControl_20261012.xlsx"
+    },
+    "code": "const b=app.Workbooks.Open(params.filePath);return {name:b.Name};"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 39,
+    "returnValue": {
+      "name": "CharFloat_M1H_ViewControl_20261012.xlsx"
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 39ms）"
+  },
+  "atUTC": "2026-10-11T17:17:11.871Z"
+}

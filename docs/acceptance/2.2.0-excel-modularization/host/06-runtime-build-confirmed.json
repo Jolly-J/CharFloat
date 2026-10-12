@@ -1,0 +1,9 @@
+{
+  "connected": true,
+  "wpsVersion": "12.1.28496",
+  "runningFingerprint": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+  "runningMatchesResource": true,
+  "runningMatchesDeployed": true,
+  "bridgeEntrySha256": "d3fd6dd137e24b856f599259389602803a513c479f2afb1c4c56acad3e190b31",
+  "existingWorkbookCount": 1
+}

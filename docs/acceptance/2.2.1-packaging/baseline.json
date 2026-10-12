@@ -1,0 +1,37 @@
+{
+  "versionBefore": "2.2.0",
+  "selectedVersion": "2.2.1",
+  "baseCommit": "b644c479239061cb9d36000fade06d52c54ac40a",
+  "priorChanges": [
+    " M AGENTS.md",
+    " M docs/modularization-plan.md",
+    " M scripts/AGENTS.md",
+    " M scripts/build-wps-addon.mjs",
+    " M skills/charfloat/references/enumeration.md",
+    " M src/bridge/AGENTS.md",
+    " M src/bridge/gateway/excel.ts",
+    " M tests/AGENTS.md",
+    " M tests/contracts-boundary.test.ts",
+    " M tests/release-protection.test.ts",
+    " M wps-addon/AGENTS.md",
+    " M wps-addon/addon-core.js",
+    " D wps-addon/src/excel.js",
+    "?? docs/acceptance/2.2.0-excel-modularization/",
+    "?? scripts/lib/wps-addon-modules.mjs",
+    "?? tests/bytecode-exports.test.ts",
+    "?? tests/wps-addon-modules.test.ts",
+    "?? tests/wps-excel-pure.test.ts",
+    "?? tests/wps-excel-rpc.test.ts",
+    "?? wps-addon/src/excel/"
+  ],
+  "retainedReleaseFiles": {
+    "release/2.2.0/win/字浮-CharFloat-2.2.0-win-x64.zip": "b91aa567af68c543887b73fe2a2b5ef86a22e1d7703091ee57dedbe7466c2fca",
+    "release/2.2.0/mac/mac-arm64/字浮 CharFloat.app/Contents/Resources/app.asar": "9ca7799a5c9c8c0183bfb25171d74a8fffde3e4037b30d9c7018d5730eca3012",
+    "release/2.2.0/mac/mac-arm64/字浮 CharFloat.app/Contents/MacOS/字浮 CharFloat": "7baba2344adeeb821ff779b6d0f932365872ade22d6390cfb4ee777eb2f3231a"
+  },
+  "targets": {
+    "mac": "arm64 app, no developer certificate signing",
+    "win": "x64 portable zip"
+  },
+  "publishing": "not requested"
+}

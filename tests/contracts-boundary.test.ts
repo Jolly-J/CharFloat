@@ -186,8 +186,8 @@ test('契约层判定在搬迁中保持不变（回归护栏）', async () => {
   // set_sheet_view（画布页必须先隐藏网格线，CAP-07 验收暴露的缺口）、
   // add_shape/list_shapes/update_shape/group_shapes/ungroup_shapes/set_shape_zorder/export_shape_image
   // （矢量图形，CAP-07 WPS 表格侧 + CAP-08 Office.js 侧）——
-  // 三者都是**真实存在的宿主方法**：dispatch.js 有 RPC 分支、excel.js 有实现、网关有处理器与注册项。
-  // 同样是**真实存在的宿主方法**：wps-addon/src/dispatch.js 有 RPC 分支、excel.js 有
+  // 三者都是**真实存在的宿主方法**：dispatch.js 有 RPC 分支、src/excel/ 有实现、网关有处理器与注册项。
+  // 同样是**真实存在的宿主方法**：wps-addon/src/dispatch.js 有 RPC 分支、src/excel/format.js 有
   // formatTextSegment 实现、网关有对应处理器与注册项。
   // 2026-09-22（CAP-14）：新增 `manage_workbook_views` —— WPS 侧「自定义视图」宿主方法。
   // 真机确认：`wb.CustomViews` 可用（实测能建视图并读回 Name），而 `wb.LinkedDataTypes` 不存在，

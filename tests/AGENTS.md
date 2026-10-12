@@ -3,8 +3,13 @@
 ## 文件地图
 
 - [brand.test.ts](brand.test.ts)：品牌门禁的正反向夹具、历史例外与生成物检查；只操作临时目录。
+- [version-policy.test.ts](version-policy.test.ts)：版本一致性门禁及漏改、缺失、重复声明、锁文件根版本、格式错误的反向夹具；只操作临时目录，不构建或访问宿主。
 - [release-protection.test.ts](release-protection.test.ts)：发布副本混淆后的 WPS/Office RPC 行为、构建指纹和泄露门禁；不修改开发加载项或真实文档。
+- [bytecode-exports.test.ts](bytecode-exports.test.ts)：用实际 Electron 运行时编译并加载字节码，验证 PDF/图表文件核验、缺失文件拒绝和宿主调用次数；只用临时文件和模拟导出，不连接办公软件。
 - [addon.test.ts](addon.test.ts)：WPS 模拟 RPC。
+- [wps-addon-modules.test.ts](wps-addon-modules.test.ts)：递归构建清单的合法多层目录及未登记、缺失、重复反向夹具；只操作临时目录。
+- [wps-excel-pure.test.ts](wps-excel-pure.test.ts)：矩阵归一化与列名进位，可直接导入无宿主依赖的 `excel/pure.js`。
+- [wps-excel-rpc.test.ts](wps-excel-rpc.test.ts)：压缩产物的 Excel 领域模拟 RPC、宿主写入失败、选区去重与注册/心跳指纹；可用 `OAB_TEST_WPS_ARTIFACT` 选择隔离产物，用 `CHARFLOAT_EXCEL_SNAPSHOT` 输出响应与宿主调用记录。
 - [addon-lifecycle.test.ts](addon-lifecycle.test.ts)：WPS 侧栏与连接分离、单实例和关闭后的 RPC；Office 共享运行时、自动启动与失败降级。
 - [failure-routing.test.ts](failure-routing.test.ts)：失败分类与跨通道回退故障注入。
 - [contracts-boundary.test.ts](contracts-boundary.test.ts)：契约层边界与依赖回环守卫。

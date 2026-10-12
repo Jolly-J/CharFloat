@@ -18,7 +18,13 @@ description: 通过「字浮 CharFloat」批量读写实时 Excel/WPS 表格，�
 
 **搭建整页版面（看板 / 信息图 / 封面页）前先读 [画布版面规范](../charfloat/references/canvas-layout.md)**：它给出纵向节奏算法、"视觉中心"对齐规则、宿主不按请求尺寸创建对象时的读回校正做法、层级与遍历陷阱，以及**交付前的自检清单**。跳过它会做出"能看但很业余"的页面。
 
-`excel_get_range_styles` 使用 `mode: "summary"` 和 `include` 选择需要的字段；只有定位差异时才使用 `cells` 和 `maxCells`。数据过大时分块读取所需范围，汇总可在宿主脚本中计算并返回摘要，避免传回整个工作簿。不能因只读取了样本就声称核验了全部数据。
+`excel_get_range_styles` 使用 `mode: "summary"` 和 `include` 选择需要的字段；只有定位差异时才使用 `cells` 和 `maxCells`。混合格式下 `fontName/bold` 等字段返回 `null`（表示区域或格内格式不一致，并非不支持）；排查单元格内字符级局部格式（rich text）可传 `include: ["runs"]` 获取逐段详情。数据过大时分块读取所需范围，汇总可在宿主脚本中计算并返回摘要，避免传回整个工作簿。不能因只读取了样本就声称核验了全部数据。
+
+**样式排查与避坑指南**：
+1. **粗体字族陷阱**：单元格正文显粗但 `Bold=false` 时，检查 `Font.Name` 是否为 `xxx Bold`（如 `Microsoft YaHei Bold`）。`Font.Bold=false` 对粗体字族无效，必须显式修改 `Font.Name`（如设为 `Microsoft YaHei`）换回常规字族。
+2. **局部格式顺序陷阱**：修改整格 `Font.Name` 会重置单元格内所有字符级局部格式（`Characters`）。必须**先统一整格字体**，**再施加局部加粗**（`format_text_segment`）。
+3. **写入继承原字体**：往单元格写文本会保留原有字体；若写入后需要常规正文，可在 `patch_cells` 中传入 `fontName` 规范化字族，或使用 `format_cells` 同时规范化 `fontName` 与 `bold`。
+4. **预览图不验字重**：`capture_sheet_preview` 渲染通道可能发生字体替换或抗锯齿加粗，**预览图不可作为字重/字体验收依据**，验收必须以 `get_range_styles` 探针读取实际属性为准。
 
 保留已有内容、数据源和样式，不自动套用统一模板。日期数值结合工作簿日期系统判断；百分比轴保留真实量纲，例如 0.72 对应 72%。
 

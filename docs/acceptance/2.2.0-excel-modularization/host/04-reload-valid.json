@@ -1,0 +1,33 @@
+{
+  "tool": "wps_reload_addon",
+  "arguments": {},
+  "startUTC": "2026-10-11T16:46:30.164Z",
+  "endUTC": "2026-10-11T16:46:30.210Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "reloadedComponents": [
+      "excel"
+    ],
+    "results": [
+      {
+        "component": "excel",
+        "reloaded": true,
+        "result": {
+          "reloading": true
+        }
+      },
+      {
+        "component": "word",
+        "reloaded": false,
+        "error": "WPS word 加载项未连接，请先打开对应组件并检查 Bridge 加载项。"
+      },
+      {
+        "component": "ppt",
+        "reloaded": false,
+        "error": "WPS ppt 加载项未连接，请先打开对应组件并检查 Bridge 加载项。"
+      }
+    ],
+    "message": "已触发 1 个组件重新加载加载项（excel）；因 index.html 的 <script src> 带构建指纹，重载会真正取到新构建。"
+  }
+}

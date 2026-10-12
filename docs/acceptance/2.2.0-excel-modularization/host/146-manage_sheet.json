@@ -1,0 +1,29 @@
+{
+  "tool": "wps_manage_sheet",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象副本_验收",
+    "action": "move",
+    "targetIndex": 2
+  },
+  "startUTC": "2026-10-11T16:53:49.199Z",
+  "endUTC": "2026-10-11T16:53:49.216Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象副本_验收",
+    "targetIndex": 2,
+    "message": "工作表 [对象副本_验收] 已成功移动至位置 2",
+    "auditId": "d730a24a-6123-4da6-9f06-d2441fa37ab3",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "工作表管理只留痕、不可回滚（含密码保护，回滚不会还原保护状态）。"
+  }
+}

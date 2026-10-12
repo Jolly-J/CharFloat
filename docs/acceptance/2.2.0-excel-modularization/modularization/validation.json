@@ -1,0 +1,82 @@
+{
+  "clientDate": "2026-10-12",
+  "recordedAtUTC": "2026-10-11T16:33:26.372107+00:00",
+  "checks": [
+    {
+      "command": "node scripts/build-wps-addon.mjs --check (before migration)",
+      "exitCode": 0,
+      "log": "m0-check.log",
+      "logSha256": "d488e5e013184ebe5bf23272b16b5f47118bfa2d269e348e622a6a231ce16060"
+    },
+    {
+      "command": "node --import tsx --test tests/wps-addon-modules.test.ts",
+      "exitCode": 0,
+      "log": "m0-tests.log",
+      "logSha256": "bf844dfc1d135701eb7864ef351867042719f67a675d4d64fe8f894d9e443a53",
+      "passedTests": 4
+    },
+    {
+      "command": "node --import tsx --test tests/wps-excel-pure.test.ts tests/wps-excel-rpc.test.ts",
+      "exitCode": 0,
+      "log": "excel-tests.log",
+      "logSha256": "f7e3d8c61c7e2ccbd1b272386154d706c297231fdd6769afe16d95a35c23d6d5",
+      "passedTests": 24
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "log": "typecheck.log",
+      "logSha256": "c785bfc84ff0ffcd2bd5d91f87ef9ba410a35ce226c24b46f223ceb5d65f81ee"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "build.log",
+      "logSha256": "81bf24786a514e79b54a3e06becc286ed94ca3a324cf9d00b80cbfc170bbbe78"
+    },
+    {
+      "command": "npm test (sandbox denied loopback listen)",
+      "exitCode": 1,
+      "log": "full-test.log",
+      "logSha256": "7bdf18fe3af96ea3327aa340e827eaec45836a2890ba88f65fcf9736188488ae"
+    },
+    {
+      "command": "npm test (isolated loopback permitted)",
+      "exitCode": 0,
+      "log": "full-test-unsandboxed.log",
+      "logSha256": "a4692f1b2653d0026d2d30282f71e6fb55375fe820dbcca6f1dbb151112dc7e0",
+      "passedTests": 152
+    },
+    {
+      "command": "node --import tsx scripts/check-param-forwarding.ts",
+      "exitCode": 0,
+      "log": "params.log",
+      "logSha256": "5c61f88c3917666bdba045f6b2cd3e4a524eee332d0c8aed09716c070049c97f"
+    },
+    {
+      "command": "node --import tsx --test tests/release-protection.test.ts tests/wps-addon-modules.test.ts",
+      "exitCode": 0,
+      "log": "final-local-tests.log",
+      "logSha256": "27a6990d12f3868cad71f77f895ed39b96cc42829a7195b6e20451a95cb6a286",
+      "passedTests": 7
+    },
+    {
+      "command": "npm run check:agents",
+      "exitCode": 0,
+      "log": "navigation.log",
+      "logSha256": "118ff2f4f4b16588964740a1817a677c90060ee19c18ff9418e4a7914653ea3a"
+    },
+    {
+      "command": "node --import tsx scripts/check-capability-claims.ts",
+      "exitCode": 0,
+      "log": "claims.log",
+      "logSha256": "bc73792c7b388419fa358b9e4e3875586c7ff3476571c10129298996ca5d6eaf"
+    }
+  ],
+  "hostAcceptance": "pending",
+  "deployment": "not performed",
+  "cleanBuild": "clean-build.json",
+  "functionEquivalence": "equivalence.json",
+  "rpcEquivalence": "rpc-equivalence.json",
+  "contractEquivalence": "contract-equivalence.json"
+}

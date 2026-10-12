@@ -1,0 +1,32 @@
+{
+  "tool": "wps_read_range",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "G1:H1",
+    "includeFormulas": true
+  },
+  "startUTC": "2026-10-11T16:53:48.666Z",
+  "endUTC": "2026-10-11T16:53:48.675Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$G$1:$H$1",
+    "rowCount": 1,
+    "columnCount": 2,
+    "values": [
+      [
+        10,
+        "保留值"
+      ]
+    ],
+    "formulas": [
+      [
+        "=SUM(C2:C6)",
+        "保留值"
+      ]
+    ],
+    "numberFormats": null
+  }
+}

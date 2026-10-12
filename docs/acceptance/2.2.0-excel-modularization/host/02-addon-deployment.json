@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "backupLocation": "隔离运行目录/addon-backup（包含本机凭据，不纳入仓库）",
+  "directories": 2,
+  "foreignPluginIndexesUnchanged": true,
+  "blockedConfigPreserved": true,
+  "expectedFingerprint": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+  "deployed": [
+    {
+      "directory": 0,
+      "fingerprint": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+      "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db"
+    },
+    {
+      "directory": 1,
+      "fingerprint": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+      "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db"
+    }
+  ],
+  "source": "仓库本次构建，无手改生成物",
+  "atUTC": "2026-10-11T16:46:07.169Z"
+}

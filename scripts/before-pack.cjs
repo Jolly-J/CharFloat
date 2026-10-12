@@ -18,7 +18,10 @@ module.exports = async ({ electronPlatformName } = {}) => {
   const fs = require('node:fs');
   const path = require('node:path');
 
+  const { checkVersion } = await import('./check-version.mjs');
   const { verifyStage, STAGE, ROOT } = await import('./lib/release-protection.mjs');
+  const versionCheck = checkVersion(ROOT);
+  if (versionCheck.errors.length) throw new Error(versionCheck.errors.join('\n'));
   const isWin = electronPlatformName === 'win32';
 
   if (isWin) {

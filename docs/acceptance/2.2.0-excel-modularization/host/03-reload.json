@@ -1,0 +1,15 @@
+{
+  "tool": "wps_reload_addon",
+  "arguments": {
+    "component": "excel"
+  },
+  "startUTC": "2026-10-11T16:46:17.411Z",
+  "endUTC": "2026-10-11T16:46:17.421Z",
+  "isError": true,
+  "data": [
+    {
+      "type": "text",
+      "text": "arguments.component: 未知参数；本工具允许的参数：（无）"
+    }
+  ]
+}

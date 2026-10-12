@@ -7,7 +7,7 @@
 | 任务 | 首读目录规范 | 进一步定位 |
 |---|---|---|
 | MCP 参数、工具清单、路由、审计 | [Bridge](src/bridge/AGENTS.md) | tools/definitions/（工具定义按类）→ catalog.ts（装配与校验）→ gateway/（处理器）→ office/adapter.ts |
-| WPS 执行、Word/PPT、矢量绘图 | [WPS](wps-addon/AGENTS.md) | src/dispatch.js（RPC 分支）→ src/{excel,word,ppt}.js → 部署入口 addon-core.js（**生成物**） |
+| WPS 执行、Word/PPT、矢量绘图 | [WPS](wps-addon/AGENTS.md) | src/dispatch.js（RPC 分支）→ src/excel/ 或 src/{word,ppt}.js → 部署入口 addon-core.js（**生成物**） |
 | Microsoft 表格请求及宿主差异 | [Bridge](src/bridge/AGENTS.md)、[Office.js](office-addon/AGENTS.md) | office/adapter.ts → normalizer.ts → src/rpc.js → 部署入口 public/taskpane.js（**生成物**）；Windows 回退见原生驱动 |
 | Windows 原生 Office 操作 | [原生 Office](resources/office/AGENTS.md) | runner.ps1 → excel.ps1/common.ps1 |
 | 安装、客户端配置、桌面生命周期 | [主进程](src/main/AGENTS.md) | installer-engine.ts、addon-installer.ts、index.ts |
@@ -15,6 +15,7 @@
 | AI 不会调用已有能力 | [技能](skills/AGENTS.md) | 对应 SKILL.md → gateway 工具说明 → 宿主实现 |
 | 测试失败与验收 | [测试](tests/AGENTS.md) | 对应测试文件，不先运行真实宿主脚本 |
 | 开发、检查、构建脚本 | [脚本](scripts/AGENTS.md) | 对应脚本和 package.json |
+| 版本管理、验收放行、打包发布 | [版本与发布制度](docs/release-policy.md)、[脚本](scripts/AGENTS.md) | [验收清单](docs/release-checklist.md) → check-version.mjs → release/AGENTS.md（产物细则） |
 | 官网内容和交互 | [官网](website/AGENTS.md) | website/src/App.tsx → components |
 | 宣传片剧本、录制环境与道具 | [宣传片](promo/AGENTS.md) | README.md（拍摄台本）→ 01/02 剧本 → [施工/plan.json](promo/施工/plan.json) |
 
@@ -30,7 +31,7 @@
 
 ## 改造任务入口
 
-涉及模块化、契约统一及双平台验收的改造，先读 [改造计划与执行台账](docs/refactoring-plan.md)，按当前阶段与任务 ID 继续；计划内保留完成清单、验收标准和交接备忘。
+涉及模块化、契约统一及双平台验收的改造，先读 [改造计划与执行台账](docs/refactoring-plan.md)，按当前阶段与任务 ID 继续；WPS 领域分片的进一步拆分见 [模块化方案与执行清单](docs/modularization-plan.md)。计划内保留完成清单、验收标准和交接备忘。
 
 ## 协作与变更边界
 
@@ -48,7 +49,7 @@
 
 ## 验证与交付
 
-按修改范围选择检查：[package.json](package.json) 中的 `npm run typecheck`、`npm test`、`npm run build`；官网使用 `npm run build:website`；导航使用 `npm run check:agents`，品牌使用 `npm run check:brand`。局部测试见模块规范，不为纯文档改动启动办公软件。
+按修改范围选择检查：[package.json](package.json) 中的 `npm run typecheck`、`npm test`、`npm run build`；官网使用 `npm run build:website`；导航使用 `npm run check:agents`，品牌使用 `npm run check:brand`，版本一致性使用 `npm run check:version`（构建、打包与 CI 门禁）。发布统一遵循 [版本与发布制度](docs/release-policy.md)，已正式发布版本不得覆盖包或移动标签。局部测试见模块规范，不为纯文档改动启动办公软件。
 
 模拟测试、构建、真实宿主验证分别报告，不能互相替代。失败时区分本次回归、既有缺陷与环境限制，保留原始证据；不为通过检查顺手改无关模块。最终说明完成内容、主要文件、验证及遗留问题。
 

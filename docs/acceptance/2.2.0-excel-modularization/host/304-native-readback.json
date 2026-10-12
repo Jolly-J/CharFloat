@@ -1,0 +1,21 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "component": "excel",
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "readOnly": false,
+    "code": "if(wb.Name!==\"CharFloat_M1H_ViewControl_20261012.xlsx\")throw Error('目标保护');wb.Close(false);return {closed:true};"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 33,
+    "returnValue": {
+      "closed": true
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 33ms）"
+  },
+  "atUTC": "2026-10-11T17:17:11.788Z"
+}

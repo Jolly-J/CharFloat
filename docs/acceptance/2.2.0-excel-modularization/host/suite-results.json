@@ -1,0 +1,680 @@
+{
+  "fileName": "CharFloat_M1H_20261012.xlsx",
+  "results": [
+    {
+      "name": "混合值公式与非法维度保护",
+      "status": "passed",
+      "detail": {
+        "values": [
+          [
+            10,
+            "保留值"
+          ]
+        ],
+        "invalidWritePreserved": true
+      },
+      "startUTC": "2026-10-11T16:53:48.608Z",
+      "endUTC": "2026-10-11T16:53:48.675Z"
+    },
+    {
+      "name": "审计与回滚",
+      "status": "passed",
+      "detail": {
+        "auditId": "c0d633c1-1ba6-42a6-a7ee-74b13d7247b6",
+        "restored": true
+      },
+      "startUTC": "2026-10-11T16:53:48.675Z",
+      "endUTC": "2026-10-11T16:53:48.724Z"
+    },
+    {
+      "name": "格式写入、行高与样式读回",
+      "status": "passed",
+      "detail": {
+        "fontSize": 14,
+        "bold": true,
+        "fontColor": "#FFFFFF",
+        "backgroundColor": "#1F4E78",
+        "verticalAlignment": "top",
+        "rowHeight": 28
+      },
+      "startUTC": "2026-10-11T16:53:48.725Z",
+      "endUTC": "2026-10-11T16:53:48.758Z"
+    },
+    {
+      "name": "富文本片段",
+      "status": "passed",
+      "detail": {
+        "result": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "验收数据",
+          "address": "$H$1",
+          "cellText": "保留值",
+          "segmentStart": 1,
+          "segmentLength": 2,
+          "segmentText": "保留",
+          "requested": {
+            "bold": true,
+            "fontColor": "#0066FF"
+          },
+          "readBack": {
+            "segmentText": "保留",
+            "bold": true,
+            "fontColor": "#0066FF"
+          },
+          "message": "已将 [验收数据] H1 的第 1 个字符起 2 个字符「保留」设置为指定格式，并读回核对通过"
+        },
+        "back": {
+          "text": "保留值",
+          "bold": true,
+          "color": 16737792
+        }
+      },
+      "startUTC": "2026-10-11T16:53:48.758Z",
+      "endUTC": "2026-10-11T16:53:48.785Z"
+    },
+    {
+      "name": "数据有效性写后读回与拒绝保护",
+      "status": "passed",
+      "detail": {
+        "list": {
+          "type": 3,
+          "typeName": "xlValidateList",
+          "operator": 1,
+          "formula1": "通过,不通过",
+          "formula2": "",
+          "ignoreBlank": true,
+          "inCellDropdown": true,
+          "prompt": "请选择验收状态",
+          "errorMessage": ""
+        },
+        "invalidWritePreserved": true,
+        "check": {
+          "rangeAddress": "$E$2:$E$6",
+          "scannedCells": 5,
+          "totalCells": 5,
+          "truncated": false,
+          "validatedCells": 5,
+          "skippedBlankCells": 0,
+          "blankWithUnknownIgnoreBlank": 0,
+          "readErrorCells": 0,
+          "ruleCount": 1,
+          "rules": [
+            {
+              "ruleKey": "R1",
+              "type": 3,
+              "typeName": "list",
+              "operator": 1,
+              "operatorName": "between",
+              "formula1": "通过,不通过",
+              "formula2": "",
+              "ignoreBlank": true,
+              "inCellDropdown": true,
+              "cellCount": 5,
+              "sampleCells": [
+                "E2",
+                "E3",
+                "E4",
+                "E5",
+                "E6"
+              ],
+              "expectation": "必须是列表中的一项: 通过 / 不通过"
+            }
+          ],
+          "violations": [],
+          "violationCount": 0,
+          "violationsTruncated": false,
+          "unevaluated": [],
+          "unevaluatedCount": 0,
+          "warnings": [],
+          "message": "已比对 [验收数据] $E$2:$E$6：5 个带校验的单元格中 0 个取值越界"
+        }
+      },
+      "startUTC": "2026-10-11T16:53:48.786Z",
+      "endUTC": "2026-10-11T16:53:48.819Z"
+    },
+    {
+      "name": "条件格式与设计语言读取",
+      "status": "passed",
+      "detail": {
+        "rules": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "验收数据",
+          "areaCount": 1,
+          "ruleCount": 1,
+          "areas": [
+            {
+              "address": "$D$2:$D$6",
+              "rules": [
+                {
+                  "index": 1,
+                  "type": "cell_value",
+                  "typeCode": 1,
+                  "operator": "greater_than",
+                  "formula1": "=100",
+                  "formula2": null,
+                  "priority": 1,
+                  "stopIfTrue": false,
+                  "fillColor": "#FFE8E5",
+                  "fontColor": "#000000",
+                  "fontBold": false,
+                  "iconSet": "undefined",
+                  "showIconOnly": false,
+                  "barColor": "#000000",
+                  "text": null
+                }
+              ]
+            }
+          ],
+          "warnings": [],
+          "message": "工作表 [验收数据] 上 1 个区域共 1 条条件格式规则",
+          "auditId": "9f9725fa-5d2b-4108-a446-c5586fcc5517",
+          "rollbackable": false,
+          "rollbackScope": {
+            "values": false,
+            "formulas": false,
+            "styles": false,
+            "charts": false,
+            "structure": false
+          },
+          "auditNote": "条件格式只留痕、不可回滚；清除需用宿主脚本或后续工具。"
+        },
+        "designKeys": [
+          "success",
+          "workbookName",
+          "sheetName",
+          "sampleAddress",
+          "sampledCell",
+          "fontName",
+          "titleFontName",
+          "sampleFontSize",
+          "sampleBold",
+          "fontColor",
+          "headerBackgroundColor",
+          "titleCell",
+          "fonts",
+          "palette",
+          "census",
+          "tableStyles",
+          "conditionalFormatStyles",
+          "probes",
+          "unavailable",
+          "warnings",
+          "message"
+        ]
+      },
+      "startUTC": "2026-10-11T16:53:48.819Z",
+      "endUTC": "2026-10-11T16:53:48.877Z"
+    },
+    {
+      "name": "列宽、隐藏行与冻结窗格",
+      "status": "passed",
+      "detail": {
+        "hidden": {
+          "rows": [
+            true,
+            true
+          ],
+          "width": 6.307692527770996
+        },
+        "frozen": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "验收数据",
+          "frozen": true,
+          "freezeRowIndex": 16,
+          "freezeColumnIndex": 14,
+          "splitRow": 15,
+          "splitColumn": 13,
+          "warnings": [],
+          "message": "工作表 [验收数据] 已冻结：第 15 行之上的 15 行、第 13 列之左的 13 列保持不动",
+          "auditId": "b8161dfe-f2aa-42dd-9bfe-7828ee9b9e23",
+          "rollbackable": false,
+          "rollbackScope": {
+            "values": false,
+            "formulas": false,
+            "styles": false,
+            "charts": false,
+            "structure": false
+          },
+          "auditNote": "冻结窗格只留痕、不可回滚。"
+        }
+      },
+      "startUTC": "2026-10-11T16:53:48.877Z",
+      "endUTC": "2026-10-11T16:53:48.933Z"
+    },
+    {
+      "name": "复制、命名区域与超链接",
+      "status": "passed",
+      "detail": {
+        "copiedRows": 6,
+        "names": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "count": 1,
+          "names": [
+            {
+              "index": 1,
+              "name": "M1H_Data",
+              "refersTo": "=验收数据!$A$1:$E$6",
+              "visible": false,
+              "comment": ""
+            }
+          ],
+          "warnings": [],
+          "message": "工作簿 [CharFloat_M1H_20261012.xlsx] 共 1 个命名区域"
+        },
+        "links": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "验收数据",
+          "count": 1,
+          "hyperlinks": [
+            {
+              "index": 1,
+              "address": "https://example.com",
+              "subAddress": "",
+              "text": "验收链接",
+              "tooltip": "",
+              "anchor": "$H$3",
+              "type": 0
+            }
+          ],
+          "warnings": [],
+          "message": "工作表 [验收数据] 共 1 个超链接"
+        }
+      },
+      "startUTC": "2026-10-11T16:53:48.933Z",
+      "endUTC": "2026-10-11T16:53:49.016Z"
+    },
+    {
+      "name": "批注写入与读回",
+      "status": "passed",
+      "detail": {
+        "success": true,
+        "workbookName": "CharFloat_M1H_20261012.xlsx",
+        "sheetName": "验收数据",
+        "comments": [
+          {
+            "address": "$E$2",
+            "text": "独立CLI验收批注",
+            "author": "jolin"
+          }
+        ],
+        "totalComments": 1
+      },
+      "startUTC": "2026-10-11T16:53:49.016Z",
+      "endUTC": "2026-10-11T16:53:49.051Z"
+    },
+    {
+      "name": "筛选排序与越界保护",
+      "status": "passed",
+      "detail": {
+        "amounts": [
+          50,
+          80,
+          120,
+          150,
+          200
+        ],
+        "state": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "验收数据",
+          "autoFilterOn": true,
+          "filterRange": "$A$1:$E$6",
+          "columnCount": 5,
+          "filters": [],
+          "warnings": [],
+          "message": "工作表 [验收数据] 筛选范围 $A$1:$E$6，其中 0 列设有条件",
+          "auditId": "7161af9f-3d0c-4cf1-9cf6-9e095ed287d8",
+          "rollbackable": false,
+          "rollbackScope": {
+            "values": false,
+            "formulas": false,
+            "styles": false,
+            "charts": false,
+            "structure": false
+          },
+          "auditNote": "筛选与排序只留痕、不可回滚（排序不可逆地改变了行顺序，值快照无法安全恢复）。"
+        }
+      },
+      "startUTC": "2026-10-11T16:53:49.052Z",
+      "endUTC": "2026-10-11T16:53:49.122Z"
+    },
+    {
+      "name": "结构化表与工作表生命周期",
+      "status": "passed",
+      "detail": {
+        "tables": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "对象验收",
+          "count": 1,
+          "tables": [
+            {
+              "name": "M1H_Table",
+              "range": "$A$1:$C$4",
+              "rowCount": 3,
+              "colCount": 3,
+              "hasHeaders": true,
+              "totalsRow": false,
+              "style": "TableStyleMedium2",
+              "columns": [
+                "项目",
+                "数量",
+                "金额"
+              ]
+            }
+          ],
+          "warnings": [],
+          "message": "工作表 [对象验收] 共 1 个结构化表格"
+        },
+        "outline": {
+          "sheetName": "对象副本_验收",
+          "isEmpty": false,
+          "usedRangeAddress": "$A$1:$C$4",
+          "startRow": 1,
+          "startColumn": 1,
+          "rowCount": 4,
+          "columnCount": 3,
+          "headerPreview": [
+            [
+              "项目",
+              "数量",
+              "金额"
+            ],
+            [
+              "测试A",
+              1,
+              10
+            ],
+            [
+              "测试B",
+              2,
+              20
+            ]
+          ],
+          "sheetState": {
+            "protection": {
+              "protectContents": false,
+              "protectDrawingObjects": false,
+              "protectionMode": false
+            },
+            "tabColor": "#000000",
+            "autoFilter": {
+              "filterMode": false,
+              "range": null
+            },
+            "freezePanes": {
+              "available": true,
+              "freezePanes": false,
+              "splitRow": 0,
+              "splitColumn": 0
+            },
+            "conditionalFormats": {
+              "count": 0,
+              "scanned": 0,
+              "rules": []
+            }
+          }
+        }
+      },
+      "startUTC": "2026-10-11T16:53:49.122Z",
+      "endUTC": "2026-10-11T16:53:49.227Z"
+    },
+    {
+      "name": "透视表创建与字段读回",
+      "status": "passed",
+      "detail": {
+        "pivot": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "pivotTableName": "PivotTable_1791737629383",
+          "destSheetName": "透视验收",
+          "destCell": "A1",
+          "rowCount": 1,
+          "colCount": 0,
+          "dataCount": 1,
+          "refreshedBy": "pivotTable.RefreshTable",
+          "recordCount": null,
+          "tableRange": "$A$1:$B$4",
+          "warnings": [],
+          "message": "已成功在 [透视验收] A1 生成数据透视表并完成刷新",
+          "auditId": "63e09569-90d0-4fa6-92c6-fd59d39f95af",
+          "rollbackable": false,
+          "rollbackScope": {
+            "values": false,
+            "formulas": false,
+            "styles": false,
+            "charts": false,
+            "structure": false
+          },
+          "auditNote": "创建透视表只留痕、不可回滚。"
+        },
+        "back": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "count": 1,
+          "pivotTables": [
+            {
+              "sheetName": "透视验收",
+              "name": "PivotTable_1791737629383",
+              "sourceData": "=验收数据!R1C1:R6C5",
+              "rowRange": "default",
+              "tableRange1": "$A$1:$B$4",
+              "refreshDate": "1900-01-08T23:54:17.000Z",
+              "version": "1",
+              "fieldCount": 5,
+              "fields": [
+                {
+                  "name": "类别",
+                  "orientation": 1,
+                  "position": 1,
+                  "function": 0,
+                  "subtotals": true
+                },
+                {
+                  "name": "项目",
+                  "orientation": 0,
+                  "position": 0,
+                  "function": 0,
+                  "subtotals": true
+                },
+                {
+                  "name": "数量",
+                  "orientation": 0,
+                  "position": 0,
+                  "function": 0,
+                  "subtotals": true
+                },
+                {
+                  "name": "金额",
+                  "orientation": 0,
+                  "position": 0,
+                  "function": 0,
+                  "subtotals": true
+                },
+                {
+                  "name": "状态",
+                  "orientation": 0,
+                  "position": 0,
+                  "function": 0,
+                  "subtotals": true
+                }
+              ]
+            }
+          ],
+          "warnings": [],
+          "message": "工作簿 [CharFloat_M1H_20261012.xlsx] 共 1 个数据透视表",
+          "auditId": "6be6ccf7-7c69-41bb-bad8-ca0796d463d4",
+          "rollbackable": false,
+          "rollbackScope": {
+            "values": false,
+            "formulas": false,
+            "styles": false,
+            "charts": false,
+            "structure": false
+          },
+          "auditNote": "创建透视表只留痕、不可回滚。"
+        },
+        "values": [
+          [
+            "类别",
+            "求和项:金额",
+            null
+          ],
+          [
+            "甲",
+            350,
+            null
+          ],
+          [
+            "乙",
+            250,
+            null
+          ],
+          [
+            "总计",
+            600,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "startUTC": "2026-10-11T16:53:49.228Z",
+      "endUTC": "2026-10-11T16:53:49.424Z"
+    },
+    {
+      "name": "统计图表创建、更新、读回与导图",
+      "status": "failed",
+      "error": "新图表必须能按标题读回",
+      "startUTC": "2026-10-11T16:53:49.424Z",
+      "endUTC": "2026-10-11T16:53:49.607Z"
+    },
+    {
+      "name": "矢量形状、编组、层级与图片",
+      "status": "failed",
+      "error": "wps_group_shapes 未声明参数 names",
+      "startUTC": "2026-10-11T16:53:49.608Z",
+      "endUTC": "2026-10-11T16:53:49.655Z"
+    },
+    {
+      "name": "工作簿属性与自定义视图",
+      "status": "failed",
+      "error": "自定义视图 [M1H_View] 创建后读不回",
+      "startUTC": "2026-10-11T16:53:49.655Z",
+      "endUTC": "2026-10-11T16:53:49.717Z"
+    },
+    {
+      "name": "变更检测与目标选择事件",
+      "status": "passed",
+      "detail": {
+        "diff": {
+          "success": true,
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "sheetName": "验收数据",
+          "action": "diff",
+          "baselineAt": "2026-10-11T16:53:49.722Z",
+          "baselineRange": "A1:R6",
+          "currentRange": "A1:R6",
+          "changedCount": 1,
+          "addedCount": 0,
+          "removedCount": 0,
+          "totalChanged": 1,
+          "changed": [
+            {
+              "address": "G3",
+              "before": null,
+              "after": "M1-H落盘标记"
+            }
+          ],
+          "added": [],
+          "removed": [],
+          "truncated": false,
+          "warnings": [],
+          "message": "[验收数据] 自基线以来有 1 处变化（改 1 / 增 0 / 删 0）"
+        },
+        "selection": {
+          "workbookName": "CharFloat_M1H_20261012.xlsx",
+          "address": "$B$4"
+        }
+      },
+      "startUTC": "2026-10-11T16:53:49.718Z",
+      "endUTC": "2026-10-11T16:53:49.764Z"
+    },
+    {
+      "name": "打印设置与真实PDF导出",
+      "status": "failed",
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(JSON.stringify(readback).includes('A1'))\n",
+      "startUTC": "2026-10-11T16:53:49.764Z",
+      "endUTC": "2026-10-11T16:53:49.932Z"
+    },
+    {
+      "name": "真实区域预览",
+      "status": "passed",
+      "detail": {
+        "success": true,
+        "workbookName": "CharFloat_M1H_20261012.xlsx",
+        "sheetName": "验收数据",
+        "address": "$A$1:$S$28",
+        "imageMimeType": "image/png",
+        "imageSizeBytes": 140758,
+        "message": "已成功生成 [验收数据] 区域 $A$1:$S$28 的高保真渲染图（大小: 137.5 KB）",
+        "previewArtifact": "166-capture_sheet_preview-0.png"
+      },
+      "startUTC": "2026-10-11T16:53:49.933Z",
+      "endUTC": "2026-10-11T16:53:51.143Z"
+    },
+    {
+      "name": "保存、关闭重开与对象持久化",
+      "status": "passed",
+      "detail": {
+        "pre": {
+          "name": "CharFloat_M1H_20261012.xlsx",
+          "fullName": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx",
+          "saved": true,
+          "sheetCount": 4,
+          "shapeCount": 4,
+          "namesCount": 3
+        },
+        "post": {
+          "sheetCount": 4,
+          "shapeCount": 4,
+          "namesCount": 3
+        },
+        "valuesAndFormulasPersisted": true,
+        "fileSize": 26596,
+        "sha256": "8311c65431bbb81ed1ff4628887d90e0058f36bd4f07f9c63c0206d29c3871cb"
+      },
+      "startUTC": "2026-10-11T16:53:51.144Z",
+      "endUTC": "2026-10-11T16:53:51.431Z"
+    }
+  ],
+  "stoppedOnUnknownOutcome": false,
+  "summary": {
+    "passed": 15,
+    "failed": 4
+  },
+  "scope": "macOS WPS 12.1.28496，独立 CLI，专属测试工作簿"
+}

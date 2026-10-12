@@ -1,0 +1,151 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "component": "excel",
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "readOnly": true,
+    "code": "const s=wb.Worksheets.Item('验收数据');return {saved:Boolean(wb.Saved),data:s.Range('A1:H6').Value2,formulas:s.Range('A1:H6').Formula,shapes:s.Shapes.Count,sheets:wb.Worksheets.Count,validationType:s.Range('E2:E6').Validation.Type,conditionCount:s.Range('D2:D6').FormatConditions.Count,names:wb.Names.Count,links:s.Hyperlinks.Count};"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 1,
+    "returnValue": {
+      "saved": true,
+      "data": [
+        [
+          "类别",
+          "项目",
+          "数量",
+          "金额",
+          "状态",
+          null,
+          10,
+          "保留值"
+        ],
+        [
+          "乙",
+          "项目2",
+          2,
+          50,
+          "不通过",
+          null,
+          null,
+          null
+        ],
+        [
+          "甲",
+          "项目3",
+          3,
+          80,
+          "通过",
+          null,
+          "M1-H落盘标记",
+          "验收链接"
+        ],
+        [
+          "甲",
+          "项目1",
+          0,
+          120,
+          "通过",
+          null,
+          null,
+          null
+        ],
+        [
+          "甲",
+          "项目5",
+          4,
+          150,
+          "不通过",
+          null,
+          null,
+          null
+        ],
+        [
+          "乙",
+          "项目4",
+          1,
+          200,
+          "通过",
+          null,
+          null,
+          null
+        ]
+      ],
+      "formulas": [
+        [
+          "类别",
+          "项目",
+          "数量",
+          "金额",
+          "状态",
+          "",
+          "=SUM(C2:C6)",
+          "保留值"
+        ],
+        [
+          "乙",
+          "项目2",
+          "2",
+          "50",
+          "不通过",
+          "",
+          "",
+          ""
+        ],
+        [
+          "甲",
+          "项目3",
+          "3",
+          "80",
+          "通过",
+          "",
+          "M1-H落盘标记",
+          "验收链接"
+        ],
+        [
+          "甲",
+          "项目1",
+          "0",
+          "120",
+          "通过",
+          "",
+          "",
+          ""
+        ],
+        [
+          "甲",
+          "项目5",
+          "4",
+          "150",
+          "不通过",
+          "",
+          "",
+          ""
+        ],
+        [
+          "乙",
+          "项目4",
+          "1",
+          "200",
+          "通过",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "shapes": 4,
+      "sheets": 4,
+      "validationType": 3,
+      "conditionCount": 1,
+      "names": 3,
+      "links": 1
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 1ms）"
+  },
+  "atUTC": "2026-10-11T17:33:27.484Z"
+}

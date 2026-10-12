@@ -1,0 +1,20 @@
+{
+  "tool": "wps_export_sheet_pdf",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "scope": "sheet"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "outputPath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/charfloat-m1h-previews/f58d5f48-9fa6-43ab-a0e4-e189b3d0d14d.pdf",
+    "scope": "sheet",
+    "elapsedMs": 287,
+    "hostCannotVerify": true,
+    "message": "已导出 PDF 并确认落盘（668454 字节）：<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/charfloat-m1h-previews/f58d5f48-9fa6-43ab-a0e4-e189b3d0d14d.pdf",
+    "verifiedOnDisk": true,
+    "fileSizeBytes": 668454
+  },
+  "atUTC": "2026-10-11T17:33:27.817Z"
+}

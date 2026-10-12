@@ -1,0 +1,33 @@
+{
+  "tool": "wps_duplicate_sheet",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sourceSheetName": "对象验收",
+    "newSheetName": "对象副本"
+  },
+  "startUTC": "2026-10-11T16:53:49.177Z",
+  "endUTC": "2026-10-11T16:53:49.188Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sourceSheetName": "对象验收",
+    "newSheetName": "对象副本",
+    "positionRequested": "after",
+    "positionApplied": "after:对象验收",
+    "actualIndex": 3,
+    "totalSheets": 3,
+    "warnings": [],
+    "message": "已将工作表 [对象验收] 克隆为 [对象副本]（位置 after:对象验收，第 3 位 / 共 3 张）",
+    "auditId": "5800a8ee-a8d2-4c0d-8533-cf265a70a0b7",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "克隆工作表只留痕、不可回滚（回滚不会删除新表）。"
+  }
+}

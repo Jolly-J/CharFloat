@@ -1,0 +1,24 @@
+{
+  "tool": "wps_copy_range",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "sourceRange": "A1:E6",
+    "destRange": "N1:R6",
+    "copyType": "values"
+  },
+  "startUTC": "2026-10-11T16:53:48.933Z",
+  "endUTC": "2026-10-11T16:53:48.955Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "source": "验收数据!A1:E6",
+    "dest": "验收数据!N1:R6",
+    "copyType": "values",
+    "readBackFirstCell": "类别",
+    "sourceFirstCell": "类别",
+    "warnings": [],
+    "message": "已把 [验收数据] A1:E6 复制到 [验收数据] N1:R6（values）"
+  }
+}

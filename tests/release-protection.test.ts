@@ -67,7 +67,7 @@ test('发布 Office 副本保留注册、零值读取、写入与未知方法错
 test('发布门禁拒绝源码、备份、旧入口和缺失的 Agent 使用资源', () => {
   const names = [...POLICY.files, 'package.json', 'protection-manifest.json'];
   for (const leak of ['dist/main/addon-installer.js', 'dist/preload/index.js', 'dist/bridge/cli-full.cjs',
-    'wps-addon/src/excel.js', 'skills/AGENTS.md', 'wps-addon/addon-core.js.map', 'wps-addon/addon-core.js.backup']) {
+    'wps-addon/src/excel/range.js', 'skills/AGENTS.md', 'wps-addon/addon-core.js.map', 'wps-addon/addon-core.js.backup']) {
     assert.ok(checkFiles([...names, leak], () => Buffer.from('')).some((e: string) => e.includes(leak)));
   }
   assert.ok(checkFiles(names.filter(n => n !== 'skills/charfloat/SKILL.md'), () => Buffer.from(''))

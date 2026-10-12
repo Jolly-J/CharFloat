@@ -1,0 +1,59 @@
+{
+  "tool": "wps_get_sheet_outline",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象副本_验收"
+  },
+  "startUTC": "2026-10-11T16:53:49.216Z",
+  "endUTC": "2026-10-11T16:53:49.227Z",
+  "isError": false,
+  "data": {
+    "sheetName": "对象副本_验收",
+    "isEmpty": false,
+    "usedRangeAddress": "$A$1:$C$4",
+    "startRow": 1,
+    "startColumn": 1,
+    "rowCount": 4,
+    "columnCount": 3,
+    "headerPreview": [
+      [
+        "项目",
+        "数量",
+        "金额"
+      ],
+      [
+        "测试A",
+        1,
+        10
+      ],
+      [
+        "测试B",
+        2,
+        20
+      ]
+    ],
+    "sheetState": {
+      "protection": {
+        "protectContents": false,
+        "protectDrawingObjects": false,
+        "protectionMode": false
+      },
+      "tabColor": "#000000",
+      "autoFilter": {
+        "filterMode": false,
+        "range": null
+      },
+      "freezePanes": {
+        "available": true,
+        "freezePanes": false,
+        "splitRow": 0,
+        "splitColumn": 0
+      },
+      "conditionalFormats": {
+        "count": 0,
+        "scanned": 0,
+        "rules": []
+      }
+    }
+  }
+}

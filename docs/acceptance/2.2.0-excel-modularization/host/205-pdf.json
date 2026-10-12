@@ -1,0 +1,17 @@
+{
+  "tool": "wps_export_sheet_pdf",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "scope": "sheet"
+  },
+  "startUTC": "2026-10-11T16:57:20.962Z",
+  "endUTC": "2026-10-11T16:57:21.241Z",
+  "isError": true,
+  "data": [
+    {
+      "type": "text",
+      "text": "A dynamic import callback was not specified."
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "tool": "wps_set_filter_and_sort",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "range": "A1:E6",
+    "enableAutoFilter": true,
+    "sortRules": [
+      {
+        "colIndex": 4,
+        "order": "asc"
+      }
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:49.083Z",
+  "endUTC": "2026-10-11T16:53:49.099Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "range": "A1:E6",
+    "enableAutoFilter": true,
+    "appliedFilterRange": "$A$1:$E$6",
+    "sortedRuleCount": 1,
+    "sortApplied": {
+      "changed": true,
+      "attempts": [
+        "sheet.Sort.SortFields:ok:已生效"
+      ]
+    },
+    "warnings": [],
+    "message": "已成功在 [验收数据] A1:E6 应用筛选与排序",
+    "auditId": "019feecd-61b1-4a7f-9dc5-123dd349b311",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "筛选与排序只留痕、不可回滚（排序不可逆地改变了行顺序，值快照无法安全恢复）。"
+  }
+}

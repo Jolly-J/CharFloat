@@ -1,0 +1,26 @@
+{
+  "tool": "wps_manage_hyperlink",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "add",
+    "address": "H3",
+    "url": "https://example.com",
+    "displayText": "验收链接"
+  },
+  "startUTC": "2026-10-11T16:53:48.990Z",
+  "endUTC": "2026-10-11T16:53:49.004Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "H3",
+    "url": "https://example.com",
+    "targetAddress": "",
+    "verified": true,
+    "readBackText": "验收链接",
+    "warnings": [],
+    "message": "已在 [验收数据] H3 添加超链接 → https://example.com"
+  }
+}

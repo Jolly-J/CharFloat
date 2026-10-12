@@ -1,0 +1,403 @@
+{
+  "tool": "bridge_get_capabilities",
+  "arguments": {},
+  "startUTC": "2026-10-11T16:53:48.603Z",
+  "endUTC": "2026-10-11T16:53:48.608Z",
+  "isError": false,
+  "data": {
+    "version": "2.2.0",
+    "platform": "darwin",
+    "preferredWorkflow": "在已打开的 Excel / WPS 表格中操作，先读后写，明确目标并核验结果",
+    "connection": {
+      "isWpsConnected": true,
+      "isMsOfficeConnected": false,
+      "components": {
+        "word": {
+          "connected": false
+        },
+        "excel": {
+          "connected": true,
+          "version": "2.2.0",
+          "lastHeartbeat": 1791737625705,
+          "connectedAt": 1791737625705,
+          "activeDocument": "工作簿1",
+          "activeSheet": "Sheet1",
+          "summary": {
+            "hostType": "excel",
+            "hasOpenWorkbook": true,
+            "workbookName": "工作簿1",
+            "fullName": "工作簿1",
+            "openWorkbooks": [
+              {
+                "name": "工作簿1",
+                "fullName": "工作簿1",
+                "isActive": false
+              },
+              {
+                "name": "CharFloat_M1H_20261012.xlsx",
+                "fullName": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx",
+                "isActive": true
+              }
+            ],
+            "activeSheetName": "Sheet1",
+            "sheetCount": 1,
+            "sheets": [
+              {
+                "index": 1,
+                "name": "Sheet1",
+                "visible": true
+              }
+            ],
+            "selection": {
+              "address": "$A$1",
+              "rowCount": 1,
+              "columnCount": 1
+            }
+          },
+          "buildFingerprint": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+          "lastDisconnect": {
+            "at": 1791737190554,
+            "code": 1001,
+            "kind": "clean-close",
+            "reason": "关闭码 1001",
+            "suspectCrash": false,
+            "reportedVersion": "2.2.0",
+            "activeDocument": "工作簿1",
+            "guidance": "加载项主动断开（正常关闭）。重新打开对应组件即可恢复连接。"
+          },
+          "versionStatus": {
+            "reportedVersion": "2.2.0",
+            "matchesBridgeVersion": true,
+            "staleSuspect": false
+          },
+          "buildStatus": {
+            "reportedBuild": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+            "resourceBuild": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+            "deployedBuilds": [
+              "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+              "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed"
+            ],
+            "runningMatchesResource": true,
+            "runningMatchesDeployed": true,
+            "staleSuspect": false,
+            "note": "进程内构建与磁盘构建一致。"
+          }
+        },
+        "ppt": {
+          "connected": false
+        },
+        "msExcel": {
+          "connected": false
+        }
+      },
+      "lastUpdated": 1791737625705,
+      "suspectedHostCrash": null,
+      "activeWorkbook": "工作簿1",
+      "activeSheet": "Sheet1",
+      "currentSelection": {
+        "address": "$A$1",
+        "rowCount": 1,
+        "columnCount": 1
+      },
+      "wpsClientVersion": "2.2.0",
+      "officeWorkbooks": [],
+      "addonNeedsUpgrade": false,
+      "build": {
+        "capturedAt": 1791737628589,
+        "bridgeVersion": "2.2.0",
+        "bridgeEntry": {
+          "role": "桥接入口产物",
+          "path": "<repo>/dist/bridge/cli.cjs",
+          "exists": true,
+          "sha256": "d3fd6dd137e24b856f599259389602803a513c479f2afb1c4c56acad3e190b31",
+          "sizeBytes": 1770,
+          "mtime": "2026-10-11T16:25:16.377Z"
+        },
+        "wpsAddon": {
+          "resource": {
+            "role": "WPS 加载项随包产物",
+            "path": "<repo>/wps-addon/addon-core.js",
+            "exists": true,
+            "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+            "sizeBytes": 317290,
+            "mtime": "2026-10-11T16:20:36.093Z"
+          },
+          "deployed": [
+            {
+              "role": "WPS 加载项已部署副本",
+              "path": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
+              "exists": true,
+              "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+              "sizeBytes": 317290,
+              "mtime": "2026-10-11T16:46:07.123Z"
+            },
+            {
+              "role": "WPS 加载项已部署副本",
+              "path": "<user-home>/Library/Containers/cn.wps.moffice_mac/Data/.local/share/Kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
+              "exists": true,
+              "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+              "sizeBytes": 317290,
+              "mtime": "2026-10-11T16:46:07.148Z"
+            }
+          ],
+          "deployedMatchesResource": true
+        },
+        "officeAddon": {
+          "resource": {
+            "role": "Office.js 任务窗格产物（由桥接托管）",
+            "path": "<repo>/office-addon/public/taskpane.js",
+            "exists": true,
+            "sha256": "27fb616e8b4bddb7bf6205b59db04c5ccd57d04dc6016c18ef442b505852ec11",
+            "sizeBytes": 86457,
+            "mtime": "2026-10-11T16:25:17.367Z"
+          }
+        },
+        "note": "指纹只证明**磁盘/部署副本**的构建身份；加载项目前不上报自身指纹，\"进程里加载的是哪一份字节\"无法由此证实（需宿主重载/重启后重新 register）。未实机验收。"
+      },
+      "mcpSessions": {
+        "active": 0,
+        "limit": 64,
+        "idleTimeoutMs": 900000,
+        "recycledTotal": 0
+      }
+    },
+    "hosts": {
+      "wps": {
+        "transport": "authenticated-addon",
+        "excel": {
+          "implemented": [
+            "get_workspace_summary",
+            "get_sheet_outline",
+            "read_range",
+            "get_range_styles",
+            "search_cells",
+            "create_sheet",
+            "delete_sheet",
+            "clear_range",
+            "patch_cells",
+            "format_cells",
+            "add_conditional_formatting",
+            "freeze_panes",
+            "modify_rows_columns",
+            "auto_fit_columns",
+            "get_charts",
+            "add_chart",
+            "update_chart",
+            "delete_chart",
+            "create_pivot_table",
+            "set_filter_and_sort",
+            "set_data_validation",
+            "manage_sheet",
+            "manage_rows_and_columns",
+            "manage_cell_comments",
+            "find_and_replace",
+            "duplicate_sheet",
+            "capture_sheet_preview",
+            "save_workbook",
+            "get_style_token",
+            "format_text_segment",
+            "configure_print_layout",
+            "export_sheet_pdf",
+            "set_sheet_view",
+            "create_workbook",
+            "export_chart_image",
+            "copy_range",
+            "manage_hyperlink",
+            "manage_named_range",
+            "manage_sheet_changes",
+            "manage_workbook_views",
+            "manage_document_properties",
+            "manage_table",
+            "manage_pictures",
+            "add_shape",
+            "list_shapes",
+            "update_shape",
+            "group_shapes",
+            "ungroup_shapes",
+            "set_shape_zorder"
+          ],
+          "declaredNotCallable": [
+            "insert_dimension",
+            "rollback_cells"
+          ],
+          "unimplementedOnHost": [
+            "export_shape_image"
+          ],
+          "validation": "既有功能曾在 macOS 使用；2.0 回归需实机确认"
+        },
+        "word": "有限支持：读取、编辑、保存；按实际工具清单使用",
+        "ppt": "有限支持：基础页面、文字、形状、表格；复杂图表与母版需实机验证，不保证高保真复刻"
+      },
+      "microsoft": {
+        "transport": "Office.js Web Add-in / WebSocket",
+        "excel": {
+          "implemented": [
+            "get_workspace_summary",
+            "get_sheet_outline",
+            "read_range",
+            "get_range_styles",
+            "search_cells",
+            "create_sheet",
+            "delete_sheet",
+            "clear_range",
+            "patch_cells",
+            "format_cells",
+            "add_conditional_formatting",
+            "freeze_panes",
+            "modify_rows_columns",
+            "auto_fit_columns",
+            "get_charts",
+            "add_chart",
+            "update_chart",
+            "delete_chart",
+            "create_pivot_table",
+            "set_filter_and_sort",
+            "set_data_validation",
+            "manage_sheet",
+            "manage_rows_and_columns",
+            "manage_cell_comments",
+            "find_and_replace",
+            "duplicate_sheet",
+            "capture_sheet_preview",
+            "save_workbook",
+            "export_chart_image",
+            "copy_range",
+            "add_shape",
+            "list_shapes",
+            "update_shape",
+            "group_shapes",
+            "ungroup_shapes",
+            "set_shape_zorder",
+            "export_shape_image"
+          ],
+          "declaredNotCallable": [
+            "insert_dimension",
+            "rollback_cells"
+          ],
+          "unimplementedOnHost": [
+            "get_style_token",
+            "format_text_segment",
+            "configure_print_layout",
+            "export_sheet_pdf",
+            "set_sheet_view",
+            "manage_hyperlink",
+            "manage_named_range",
+            "manage_document_properties",
+            "manage_table",
+            "manage_pictures",
+            "manage_workbook_views",
+            "manage_sheet_changes",
+            "create_workbook"
+          ],
+          "validation": "代码路径已实现，但本候选版本尚未在真实 Microsoft Excel 上做实机验收；静态与模拟通道不代表实机通过"
+        },
+        "word": "未提供 Microsoft 结构化通道：Word 工具为 WPS 专用；Microsoft Word 需改用 office_execute_script 原生脚本（Windows 分支待实机验收）",
+        "ppt": "未提供 Microsoft 结构化通道：PPT 工具为 WPS 专用；Microsoft PowerPoint 需改用 office_execute_script 原生脚本（Windows 分支待实机验收）"
+      }
+    },
+    "audit": {
+      "covered": [
+        "patch_cells 的值与公式（可回滚）"
+      ],
+      "loggedNotRollbackable": [
+        "样式/格式",
+        "条件格式",
+        "冻结窗格",
+        "行列结构（含列宽自适应）",
+        "图表增删改",
+        "数据有效性",
+        "筛选与排序",
+        "批注",
+        "工作表结构（新建/删除/克隆/改名等）",
+        "批量查找替换",
+        "数据透视表",
+        "保存工作簿"
+      ],
+      "uncovered": [
+        "Word/PPT 文档操作",
+        "原生脚本内部的细粒度改动（只登记一次脚本执行）"
+      ],
+      "rollback": "回滚前依次校验：① 目标工作表仍存在；② 同区域没有更晚的未回滚记录；③ 记录之后没有发生过未审计的身份类操作（脚本/清表/工作表增删/行列增删/批量替换）；④ 区域内内容与记录的修改后快照一致。任一不满足即拒绝覆盖，并给出用 patch_cells 显式写回旧快照的替代路径。",
+      "rollbackHelp": "wps_get_audit_history 的 summary 视图带 rollbackable 字段；wps_get_audit_record 可取回完整前后快照。"
+    },
+    "targetResolution": {
+      "order": [
+        "本次请求显式传入的 workbookName",
+        "本会话目标锁 wps_lock_target_document（可能来自更早的会话）",
+        "都不传时由宿主使用活动文稿 / 唯一打开的文稿"
+      ],
+      "note": "wps_get_workspace_summary 的 hasOpenWorkbook 表示\"宿主当前有没有打开的工作簿\"，lockTarget.missing 才表示\"本会话锁目标已不存在\"；两者原来混在一个字段里（ISS-02）。wps_get_locked_status 会列出真实打开的文稿，可用于自救。"
+    },
+    "sessionLifecycle": {
+      "mcp": "HTTP /mcp 会话默认上限 64、空闲 15 分钟自动回收（WPS_BRIDGE_MCP_MAX_SESSIONS / WPS_BRIDGE_MCP_IDLE_MS 可调）；也可用 DELETE /mcp 立即释放。",
+      "hostComponents": "加载项连接断开时会记录掉线原因；非正常断开（心跳超时/无关闭帧）标记为\"疑似宿主崩溃\"并给出恢复指引（见 connection 的 suspectedHostCrash 与 components.*.lastDisconnect）。"
+    },
+    "build": {
+      "capturedAt": 1791737628589,
+      "bridgeVersion": "2.2.0",
+      "bridgeEntry": {
+        "role": "桥接入口产物",
+        "path": "<repo>/dist/bridge/cli.cjs",
+        "exists": true,
+        "sha256": "d3fd6dd137e24b856f599259389602803a513c479f2afb1c4c56acad3e190b31",
+        "sizeBytes": 1770,
+        "mtime": "2026-10-11T16:25:16.377Z"
+      },
+      "wpsAddon": {
+        "resource": {
+          "role": "WPS 加载项随包产物",
+          "path": "<repo>/wps-addon/addon-core.js",
+          "exists": true,
+          "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+          "sizeBytes": 317290,
+          "mtime": "2026-10-11T16:20:36.093Z"
+        },
+        "deployed": [
+          {
+            "role": "WPS 加载项已部署副本",
+            "path": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
+            "exists": true,
+            "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+            "sizeBytes": 317290,
+            "mtime": "2026-10-11T16:46:07.123Z"
+          },
+          {
+            "role": "WPS 加载项已部署副本",
+            "path": "<user-home>/Library/Containers/cn.wps.moffice_mac/Data/.local/share/Kingsoft/wps/jsaddons/wps-bridge/addon-core.js",
+            "exists": true,
+            "sha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+            "sizeBytes": 317290,
+            "mtime": "2026-10-11T16:46:07.148Z"
+          }
+        ],
+        "deployedMatchesResource": true
+      },
+      "officeAddon": {
+        "resource": {
+          "role": "Office.js 任务窗格产物（由桥接托管）",
+          "path": "<repo>/office-addon/public/taskpane.js",
+          "exists": true,
+          "sha256": "27fb616e8b4bddb7bf6205b59db04c5ccd57d04dc6016c18ef442b505852ec11",
+          "sizeBytes": 86457,
+          "mtime": "2026-10-11T16:25:17.367Z"
+        }
+      },
+      "note": "指纹只证明**磁盘/部署副本**的构建身份；加载项目前不上报自身指纹，\"进程里加载的是哪一份字节\"无法由此证实（需宿主重载/重启后重新 register）。未实机验收。"
+    },
+    "lifecycle": "后台进程独立于窗口。stdio 自动启动或复用；HTTP 客户端需先启动 Bridge。停止服务会断开所有客户端。",
+    "repairs": [
+      "启动后台",
+      "检查版本与端口",
+      "重新部署本项目加载项",
+      "仅合并用户选择的客户端配置"
+    ],
+    "serviceErrors": "后台不可用时的错误统一给出\"服务名 + 地址 + 恢复动作\"；连接类原始错误单列在 error 字段中（ISS-50）。",
+    "limitations": [
+      "不承诺未实测的平台可用",
+      "写入超时结果未知，先读回，禁止自动重放",
+      "MCP 已连接不等于办公软件已连接",
+      "持久保存必须有明确保存结果",
+      "保存是工作簿级操作：会连同其他会话/任务的在途改动一起落盘（ISS-16）"
+    ]
+  }
+}

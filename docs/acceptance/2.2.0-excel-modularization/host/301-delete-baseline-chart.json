@@ -1,0 +1,31 @@
+{
+  "tool": "wps_delete_chart",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "chartName": "Chart 7"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "deletedCount": 1,
+    "deletedNames": [
+      "Chart 7"
+    ],
+    "matchedBy": "shapeName",
+    "message": "已成功在工作表 [验收数据] 中删除 1 张图表（匹配方式：shapeName）",
+    "auditId": "e9fcdabf-1a48-48cf-ab72-374728c99f78",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "删除图表只留痕、不可回滚（回滚不会重建图表）。"
+  },
+  "atUTC": "2026-10-11T17:13:15.196Z"
+}

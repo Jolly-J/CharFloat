@@ -1,0 +1,35 @@
+{
+  "tool": "wps_manage_cell_comments",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "E2",
+    "action": "add",
+    "text": "独立CLI验收批注"
+  },
+  "startUTC": "2026-10-11T16:53:49.016Z",
+  "endUTC": "2026-10-11T16:53:49.035Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$E$2",
+    "action": "add",
+    "commentText": "独立CLI验收批注",
+    "authorRequested": null,
+    "authorOnHost": "jolin",
+    "authorApplied": false,
+    "message": "已在单元格 $E$2 添加批注",
+    "auditId": "7f77af44-a640-4e3c-8801-f6a34cd78e6a",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "批注操作只留痕、不可回滚（回滚不会还原或删除批注）。"
+  }
+}

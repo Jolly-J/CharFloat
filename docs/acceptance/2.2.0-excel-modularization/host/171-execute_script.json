@@ -1,0 +1,27 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "component": "excel",
+    "readOnly": false,
+    "params": {
+      "filePath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx"
+    },
+    "code": "if(params.filePath.indexOf('CharFloat_M1H_20261012.xlsx')<0)throw Error('目标保护');const opened=app.Workbooks.Open(params.filePath);if(!opened)throw Error('宿主未打开测试文件');return {name:opened.Name,fullName:opened.FullName,sheetCount:opened.Worksheets.Count};"
+  },
+  "startUTC": "2026-10-11T16:53:51.272Z",
+  "endUTC": "2026-10-11T16:53:51.367Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 44,
+    "returnValue": {
+      "name": "CharFloat_M1H_20261012.xlsx",
+      "fullName": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx",
+      "sheetCount": 4
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 44ms）"
+  }
+}

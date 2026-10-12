@@ -1,0 +1,44 @@
+{
+  "tool": "wps_add_conditional_formatting",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "D2:D6",
+    "ruleType": "cell_value",
+    "operator": "greater_than",
+    "formula1": "100",
+    "backgroundColor": "#FFE8E5",
+    "clearExisting": true
+  },
+  "startUTC": "2026-10-11T16:53:48.820Z",
+  "endUTC": "2026-10-11T16:53:48.832Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$D$2:$D$6",
+    "ruleType": "cell_value",
+    "appliedConditionCount": 1,
+    "conditions": [
+      {
+        "index": 1,
+        "type": 1,
+        "enabled": null,
+        "priority": 1,
+        "formula1": "=100"
+      }
+    ],
+    "message": "已成功在 $D$2:$D$6 应用 cell_value 条件格式（该区域现有 1 条规则）",
+    "auditId": "001c19f5-c53c-4ee8-8385-685e529b3a22",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "条件格式只留痕、不可回滚；清除需用宿主脚本或后续工具。"
+  }
+}

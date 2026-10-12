@@ -1,0 +1,35 @@
+{
+  "tool": "wps_manage_table",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收",
+    "action": "list"
+  },
+  "startUTC": "2026-10-11T16:53:49.158Z",
+  "endUTC": "2026-10-11T16:53:49.177Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收",
+    "count": 1,
+    "tables": [
+      {
+        "name": "M1H_Table",
+        "range": "$A$1:$C$4",
+        "rowCount": 3,
+        "colCount": 3,
+        "hasHeaders": true,
+        "totalsRow": false,
+        "style": "TableStyleMedium2",
+        "columns": [
+          "项目",
+          "数量",
+          "金额"
+        ]
+      }
+    ],
+    "warnings": [],
+    "message": "工作表 [对象验收] 共 1 个结构化表格"
+  }
+}

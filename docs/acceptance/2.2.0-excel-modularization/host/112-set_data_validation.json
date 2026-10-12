@@ -1,0 +1,59 @@
+{
+  "tool": "wps_set_data_validation",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "E2:E6",
+    "validationType": "list",
+    "listItems": [
+      "通过",
+      "不通过"
+    ],
+    "promptMessage": "请选择验收状态"
+  },
+  "startUTC": "2026-10-11T16:53:48.786Z",
+  "endUTC": "2026-10-11T16:53:48.794Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "E2:E6",
+    "validationType": "list",
+    "requested": {
+      "listItems": [
+        "通过",
+        "不通过"
+      ]
+    },
+    "readBack": {
+      "type": 3,
+      "typeName": "list",
+      "operator": 1,
+      "operatorName": "between",
+      "formula1": "通过,不通过",
+      "formula2": "",
+      "inCellDropdown": true,
+      "ignoreBlank": true
+    },
+    "replacedPreviousRule": {
+      "type": 0,
+      "typeName": "unknown(0)",
+      "operator": 0,
+      "formula1": null,
+      "formula2": null
+    },
+    "warnings": [],
+    "message": "已在 [验收数据] E2:E6 配置数据有效性并读回核对通过",
+    "auditId": "48f474a8-7dd6-41da-a790-4ac2afa5f3b1",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "数据有效性只留痕、不可回滚；如需清除请用宿主脚本或覆盖设置。"
+  }
+}

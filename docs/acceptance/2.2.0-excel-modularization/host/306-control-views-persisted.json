@@ -1,0 +1,25 @@
+{
+  "tool": "wps_manage_workbook_views",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "action": "list"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "action": "list",
+    "viewCount": 1,
+    "views": [
+      {
+        "name": "M1H_NoTableView",
+        "index": 1
+      }
+    ],
+    "slicerCacheCount": 0,
+    "slicerCaches": [],
+    "warnings": [],
+    "message": "工作簿 [CharFloat_M1H_ViewControl_20261012.xlsx] 有 1 个自定义视图、0 个切片器缓存"
+  },
+  "atUTC": "2026-10-11T17:17:11.990Z"
+}

@@ -1,0 +1,15 @@
+{
+  "tool": "wps_set_data_validation",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "E2:E6",
+    "validationType": "list"
+  },
+  "startUTC": "2026-10-11T16:53:48.805Z",
+  "endUTC": "2026-10-11T16:53:48.806Z",
+  "isError": true,
+  "data": {
+    "error": "validationType='list' 必须提供非空的 listItems 数组（如 ['已通过','待复测']）：缺候选项时宿主会先清空该区域既有的数据有效性、再报错（先破坏后失败），已在调用宿主前拦截。想设数值区间请显式传 validationType='number_range' + minVal/maxVal；只读现有效验请传 action='read'。"
+  }
+}

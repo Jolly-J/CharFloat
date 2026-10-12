@@ -1,0 +1,29 @@
+{
+  "tool": "wps_manage_pictures",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "list"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "count": 1,
+    "pictures": [
+      {
+        "name": "M1H_Icon",
+        "kind": "picture",
+        "left": 734.4,
+        "top": 320.6,
+        "width": 48,
+        "height": 45.6,
+        "topLeftCell": "$R$20"
+      }
+    ],
+    "warnings": [],
+    "message": "工作表 [验收数据] 共 1 张图片（形状总数 4）"
+  },
+  "atUTC": "2026-10-11T17:13:15.817Z"
+}

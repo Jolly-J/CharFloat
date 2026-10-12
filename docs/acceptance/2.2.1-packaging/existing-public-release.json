@@ -1,0 +1,17 @@
+{
+  "url": "https://github.com/Jolly-J/CharFloat/releases/tag/v2.2.0",
+  "tag": "v2.2.0",
+  "publishedAt": "2026-09-24T07:37:37Z",
+  "assets": [
+    {
+      "name": "CharFloat-2.2.0-mac-arm64.zip",
+      "digest": "sha256:3bf53983e735771c663220a9b6dbfc1375c85e584b56d228032c2eccb92ab631",
+      "updatedAt": "2026-10-03T14:52:30Z"
+    },
+    {
+      "name": "CharFloat-2.2.0-win-x64.zip",
+      "digest": "sha256:b91aa567af68c543887b73fe2a2b5ef86a22e1d7703091ee57dedbe7466c2fca",
+      "updatedAt": "2026-10-03T14:52:33Z"
+    }
+  ]
+}

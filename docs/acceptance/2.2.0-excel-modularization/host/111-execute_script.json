@@ -1,0 +1,24 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "component": "excel",
+    "code": "const s=wb.Worksheets.Item('验收数据').Range('H1');const c=s.Characters(1,2);return {text:String(s.Value2),bold:Boolean(c.Font.Bold),color:Number(c.Font.Color)};",
+    "readOnly": true
+  },
+  "startUTC": "2026-10-11T16:53:48.770Z",
+  "endUTC": "2026-10-11T16:53:48.785Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 1,
+    "returnValue": {
+      "text": "保留值",
+      "bold": true,
+      "color": 16737792
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 1ms）"
+  }
+}

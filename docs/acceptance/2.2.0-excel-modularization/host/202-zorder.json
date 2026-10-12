@@ -1,0 +1,47 @@
+{
+  "tool": "wps_set_shape_zorder",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "name": "M1H_Group",
+    "zOrder": "bringToFront"
+  },
+  "startUTC": "2026-10-11T16:57:20.908Z",
+  "endUTC": "2026-10-11T16:57:20.924Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "applied": "bringToFront",
+    "shape": {
+      "name": "M1H_Group",
+      "type": 6,
+      "autoShapeType": -2,
+      "left": 415,
+      "top": 334.95,
+      "width": 300,
+      "height": 48,
+      "rotation": 0,
+      "visible": true,
+      "fillColor": "#000000",
+      "lineColor": "#2E54A1",
+      "lineWeight": 1,
+      "text": null,
+      "textAlign": null,
+      "textVAlign": null,
+      "topLeftCell": "$K$21",
+      "isGroup": true,
+      "groupItemCount": 2
+    },
+    "shapeNames": [
+      "Chart 1",
+      "M1H_Group",
+      "Comment 1"
+    ],
+    "warnings": [
+      "WPS 表格读不到 ZOrderPosition，无法直接回读层级；shapeNames 的顺序是 Shapes 集合顺序，可作为近似参考"
+    ],
+    "message": "已把形状「M1H_Group」调整为 bringToFront"
+  }
+}

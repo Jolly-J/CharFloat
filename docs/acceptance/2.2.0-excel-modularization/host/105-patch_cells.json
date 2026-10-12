@@ -1,0 +1,34 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "J1",
+    "values": [
+      [
+        "仅用于回滚"
+      ]
+    ],
+    "reason": "独立验收回滚"
+  },
+  "startUTC": "2026-10-11T16:53:48.675Z",
+  "endUTC": "2026-10-11T16:53:48.687Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 1 个单元格，已记录留痕",
+    "auditId": "c0d633c1-1ba6-42a6-a7ee-74b13d7247b6",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "modifiedCount": 1,
+    "diff": [
+      {
+        "cell": "$J$1",
+        "oldValue": null,
+        "newValue": "仅用于回滚",
+        "oldFormula": "",
+        "newFormula": "仅用于回滚"
+      }
+    ]
+  }
+}

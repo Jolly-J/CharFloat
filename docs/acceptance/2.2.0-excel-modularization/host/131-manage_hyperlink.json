@@ -1,0 +1,30 @@
+{
+  "tool": "wps_manage_hyperlink",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "list"
+  },
+  "startUTC": "2026-10-11T16:53:49.004Z",
+  "endUTC": "2026-10-11T16:53:49.015Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "count": 1,
+    "hyperlinks": [
+      {
+        "index": 1,
+        "address": "https://example.com",
+        "subAddress": "",
+        "text": "验收链接",
+        "tooltip": "",
+        "anchor": "$H$3",
+        "type": 0
+      }
+    ],
+    "warnings": [],
+    "message": "工作表 [验收数据] 共 1 个超链接"
+  }
+}

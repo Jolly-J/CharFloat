@@ -1,0 +1,24 @@
+{
+  "commit": "c04934b6d1de52800ab5a680e33bda36f3d22bc8",
+  "version": "2.2.0",
+  "priorChanges": [],
+  "recovery": "git show <commit>:<path>; commit is fixed above",
+  "files": {
+    "package.json": "78f6657e1c842f3081ff183d77f53bf79d41317c808ad674b421b8aac2e97645",
+    "package-lock.json": "3f7c1d44ab7acef4b47e80087929bc29c59d7df0bbf869191b2d121ced6b4f2b",
+    "scripts/build-wps-addon.mjs": "543d2222ec10d0f5824f17c8bbca988a5fbb8b8dcf6d151a9fb91e5d1fb3a73c",
+    "wps-addon/addon-core.js": "0b6369b9a13c280418e398aac9d46d6c8c74e4ae2c552346157eac8dbf3ef963",
+    "office-addon/public/taskpane.js": "27fb616e8b4bddb7bf6205b59db04c5ccd57d04dc6016c18ef442b505852ec11",
+    "wps-addon/src/bootstrap.js": "4b21a3b3056a0b35dd12726ef281f57db10f9764bd150a28c6dcfafde6998329",
+    "wps-addon/src/connection.js": "b3b85c65b446950175fdfbc040285f943cda8a44c6abd8f0c84bfddd99eff97f",
+    "wps-addon/src/dispatch.js": "b11cef3b5cf48d8706f658003788624fda2e1252de3c96767ea73cf18470c1ec",
+    "wps-addon/src/excel.js": "5b0fff41a2a285c03a3522c767c02cc94b90ae68b5f03d2b26b4d00fcec31893",
+    "wps-addon/src/panel.js": "67eb34eddce677b2911dbf15607e16320203d691eec32d11feb07c0509b88fbb",
+    "wps-addon/src/ppt-layout.js": "3569a33b3abbe6441dfab4d9664c2f799c7d2eaa63898e8835c7b231274f1b37",
+    "wps-addon/src/ppt.js": "e1fdc4e4d93fc9283ca83af2d58af8bba2be67ccf41d01bb5a18ef19b038cb94",
+    "wps-addon/src/ribbon.js": "aaaa1fa714fa86413fac36b3c29c8d20002a373676e313db8f411ebff6c09749",
+    "wps-addon/src/shared.js": "6ca9a8558f24639a52d1c8899066cc88aebf28005b196e9b7325e2fbc2ff1ab8",
+    "wps-addon/src/sheet-sort.js": "7ac87ca18b3932338d8810de20f62ba61c6c28535387fbe9b90a6367a9b8dc8f",
+    "wps-addon/src/word.js": "422303a36f2e276ad2af1f9737e543ff3aa11d25ac0f3e636ce41d7e118dc984"
+  }
+}

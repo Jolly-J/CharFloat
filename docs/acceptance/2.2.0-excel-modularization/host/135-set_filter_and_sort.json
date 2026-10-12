@@ -1,0 +1,21 @@
+{
+  "tool": "wps_set_filter_and_sort",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "range": "A1:E6",
+    "enableAutoFilter": true,
+    "sortRules": [
+      {
+        "colIndex": 9,
+        "order": "asc"
+      }
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:49.057Z",
+  "endUTC": "2026-10-11T16:53:49.075Z",
+  "isError": true,
+  "data": {
+    "error": "sortRules.colIndex=9 越界：目标区域 A1:E6 只有 5 列（1..5）；本次未做任何修改（未开启/关闭筛选，未排序）"
+  }
+}

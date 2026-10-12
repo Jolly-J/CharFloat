@@ -1,0 +1,30 @@
+{
+  "tool": "wps_read_range",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "J1",
+    "includeFormulas": true
+  },
+  "startUTC": "2026-10-11T16:53:48.714Z",
+  "endUTC": "2026-10-11T16:53:48.724Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$J$1",
+    "rowCount": 1,
+    "columnCount": 1,
+    "values": [
+      [
+        null
+      ]
+    ],
+    "formulas": [
+      [
+        ""
+      ]
+    ],
+    "numberFormats": null
+  }
+}

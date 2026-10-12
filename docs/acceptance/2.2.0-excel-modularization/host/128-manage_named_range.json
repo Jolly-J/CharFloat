@@ -1,0 +1,22 @@
+{
+  "tool": "wps_manage_named_range",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "action": "add",
+    "name": "M1H_Data",
+    "refersTo": "='验收数据'!$A$1:$E$6"
+  },
+  "startUTC": "2026-10-11T16:53:48.969Z",
+  "endUTC": "2026-10-11T16:53:48.980Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "name": "M1H_Data",
+    "requested": "='验收数据'!$A$1:$E$6",
+    "readBack": "=验收数据!$A$1:$E$6",
+    "verified": true,
+    "warnings": [],
+    "message": "已添加命名区域 M1H_Data → =验收数据!$A$1:$E$6"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "cleanBuildAndChecksPassed": true,
+  "repeatBuildByteIdentical": true,
+  "cliDriftRejections": {
+    "unlisted": 1,
+    "missing": 1,
+    "duplicate": 1
+  },
+  "currentWorkspaceUntouched": true,
+  "sha256": {
+    "wps-addon/addon-core.js": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+    "office-addon/public/taskpane.js": "27fb616e8b4bddb7bf6205b59db04c5ccd57d04dc6016c18ef442b505852ec11"
+  }
+}

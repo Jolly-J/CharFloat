@@ -1,13 +1,13 @@
 # 超大单体文件模块化拆分方案
 
-状态：方案已补齐，代码拆分尚未执行。
+状态：M0、M1 已完成静态、构建与模拟验证，M1-H 本机 macOS WPS 回归验收完成，Windows 待验；Word、PPT 和 Bridge 领域拆分后续批次尚未执行。
 范围：WPS Excel 为第一批；Word、PPT 分批推进；Bridge 定义与处理器为可选后续批次。
 
-本方案延续 [改造计划与执行台账](refactoring-plan.md) 的渐进模块化方向，不替代历史记录或真实宿主验收台账。文档修订不代表对应代码或验收已经完成。
+本方案延续 [改造计划与执行台账](refactoring-plan.md) 的渐进模块化方向，不替代历史记录或真实宿主验收台账。第一批证据见 [Excel 模块化验收记录](acceptance/2.2.0-excel-modularization/README.md)。
 
 ## 1. 现状与可行性
 
-以下为审阅时的源码规模，执行前重新记录指纹与统计：
+以下为迁移前的源码规模；Excel 已迁至 18 个领域片段，最大片段 703 行，其余文件保持原状：
 
 | 文件 | 行数 | 主要职责 |
 |---|---:|---|
@@ -26,7 +26,7 @@
 
 ### 必须补足的条件
 
-1. [WPS 构建器](../scripts/build-wps-addon.mjs) 目前只枚举 `src` 第一层，直接登记 `excel/xxx.js` 会被判定为缺失。先支持递归校验，再迁移源码。
+1. [WPS 构建器](../scripts/build-wps-addon.mjs) 原先只枚举 `src` 第一层。M0 已补齐递归清单校验及未登记、缺失、重复反向测试，再完成 Excel 迁移。
 2. 原拟议格式模块的相关函数体约 1,100 行，`table-pivot` 的主要函数体约 1,211 行，尚未包括全部辅助逻辑；原行数预算不能作为切分依据。
 3. 文件拆开后仍共享 IIFE 作用域，改善定位和编辑冲突，但不会自动获得模块作用域隔离或 Node 导入能力。
 4. [参数转发检查器](../scripts/check-param-forwarding.ts) 同样只扫描定义和处理器目录的第一层。Bridge 拆分前必须适配，防止扫描覆盖减少后仍报通过。
@@ -100,13 +100,15 @@ const MODULES = [
   "shared.js", "connection.js", "ribbon.js", "dispatch.js", "sheet-sort.js",
   "excel/pure.js", "excel/design.js", "excel/validation-read.js",
   "excel/styles.js", "excel/format.js", "excel/validation-write.js",
-  "excel/range.js", "excel/sheets.js", "excel/rows-columns.js",
-  "excel/chart-read.js", "excel/chart-write.js", "excel/shape.js",
+  "excel/shape.js", "excel/range.js", "excel/sheets.js", "excel/rows-columns.js",
+  "excel/chart-read.js", "excel/chart-write.js",
   "excel/table-pivot.js", "excel/filter-sort.js", "excel/comments-links.js",
   "excel/workbook.js", "excel/export.js", "excel/events.js",
   "word.js", "ppt-layout.js", "ppt.js", "panel.js", "bootstrap.js",
 ];
 ```
+
+实际迁移将 `shape.js` 放在 `range.js` 前，保留原文件全部 15 个初始化声明的相对顺序（STYLE → VALIDATION → SHAPE → CHANGE_BASELINES）；函数声明仍提升，调用发生在启动前初始化完成之后。
 
 纯函数采用现有的受保护测试导出，拼接前整块移除：
 
@@ -186,13 +188,13 @@ Excel 静态与模拟检查通过后再进入下一批。真实宿主验收未�
 
 ### 静态、构建与模拟检查
 
-以下是后续代码实施的命令；方案文档修订本身不运行构建或真实宿主操作：
+以下是代码实施的检查命令；M0/M1 的实际结果另记录在本批证据中：
 
 ```bash
 npm run build:wps-addon
 node scripts/build-wps-addon.mjs --check
 node --check wps-addon/addon-core.js
-node --import tsx --test tests/addon.test.ts tests/addon-lifecycle.test.ts tests/ppt-layout.test.ts tests/sheet-sort.test.ts tests/addon-freshness.test.ts tests/release-protection.test.ts
+node --import tsx --test tests/addon.test.ts tests/addon-lifecycle.test.ts tests/ppt-layout.test.ts tests/sheet-sort.test.ts tests/addon-freshness.test.ts tests/release-protection.test.ts tests/wps-addon-modules.test.ts tests/wps-excel-pure.test.ts tests/wps-excel-rpc.test.ts
 npm run typecheck
 npm run build
 npm test
@@ -206,7 +208,7 @@ npm run check:agents
 - 完整 `npm test` 前必须成功执行 `npm run build`，因为 stdio 测试执行 `dist/bridge/cli.cjs`，不能测试旧产物。
 - 参数检查如仅因 tsx CLI 本地管道权限失败，可用 `node --import tsx scripts/check-param-forwarding.ts` 执行同一脚本；保留原错误，不能以此忽略业务检查失败。
 - 不固定“56+ 项”历史数量，记录实际发现、通过、失败、跳过统计。必验项不得跳过，既有失败与环境限制分别登记。
-- 拆分前后各运行 `snapshot:tools`，保存到本次证据目录并比对；Bridge 阶段另比对带上下文的定义输出、注册映射及参数检查覆盖集合。
+- 拆分前后各运行 `snapshot:tools`，保存到本次证据目录并比对。M1 确认导出含 `capabilities.build` 和 `capabilities.connection.build` 的当前时间、磁盘更新时间及重建后 SHA；明确排除这两块构建诊断，其他契约/能力逐字节比对，产物指纹单独留证，不修改快照导出器。Bridge 阶段另比对带上下文的定义输出、注册映射及参数检查覆盖集合。
 
 ### 真实宿主验收
 
@@ -228,9 +230,9 @@ Word、PPT 按本批职责覆盖创建/读取/编辑/保存、主要对象、错
 
 ## 6. 待执行清单
 
-- [ ] M0：基线、函数/初始化清单、递归构建校验及反向夹具完成。
-- [ ] M1：Excel 迁移、纯函数导出、等价性、契约、构建与完整回归通过。
-- [ ] M1-H：Excel 本批真实宿主验收完成。
+- [x] M0：固定提交与文件指纹基线、函数/初始化归属清单、递归构建校验及 4 项反向/合法夹具完成；移动前生成物一致。
+- [x] M1：88 个函数、15 个初始化声明迁至 18 个片段，内容及初始化顺序不变；3 项纯函数与 21 项领域 RPC 测试、契约比对、完整构建、干净重建与重复构建通过；完整回归 152/152、无跳过。证据见本批验收记录。
+- [ ] M1-H：**本机项完成，跨平台项待验**。macOS WPS 12.1.28496 已经独立 CLI 验证部署/重载、运行指纹、业务、保存关闭重开、图片和 PDF；Windows 未验。既有问题与全部证据见 [本机宿主报告](acceptance/2.2.0-excel-modularization/host/README.md)。
 - [ ] M2-W：Word 独立迁移及静态/模拟回归完成。
 - [ ] M2-W-H：Word 本批真实宿主验收完成。
 - [ ] M2-P：PPT 独立迁移、测试路径同步及静态/模拟回归完成。
@@ -239,3 +241,5 @@ Word、PPT 按本批职责覆盖创建/读取/编辑/保存、主要对象、错
 - [ ] M3-H：Bridge 本批相关宿主链路验收完成。
 
 每批记录实际变更、验证证据、未完成事项和下一步。第一批代码执行范围为 M0、M1，真实宿主操作另按可用环境与测试文件授权执行。后续批次不因文档列出目标而视为已经实施或验收。
+
+第一批交接：后续已在本机部署/重载 WPS 候选，真实操作仅限新建测试文档，未提交或发布。M1-H 本机项完成，Windows 待验；Word/PPT/Bridge 领域拆分后续批次独立推进。真实 CLI 验收发现字节码运行时的 fs 动态导入失败，用户批准后改为两处静态依赖并完成实际字节码回归和真机导出复验；修复后完整回归 153/153、契约不变。首轮沙箱监听错误及宿主探针修正保留原始记录，不混作产品回归。

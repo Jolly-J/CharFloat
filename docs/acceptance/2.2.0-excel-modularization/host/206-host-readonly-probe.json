@@ -1,0 +1,18 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "component": "excel",
+    "readOnly": true,
+    "code": "const s=wb.Worksheets.Item('验收数据'),ch=s.Shapes.Item('Chart 1').Chart;const cv=wb.CustomViews;let views=[];for(let i=1;i<=Number(cv.Count);i++){let v=cv.Item(i);views.push({index:i,name:v?String(v.Name):null});}return {chart:{hasTitle:ch.HasTitle,title:ch.ChartTitle.Text},customViews:{count:cv.Count,views},tables:Array.from({length:wb.Worksheets.Count},(_,i)=>({sheet:wb.Worksheets.Item(i+1).Name,count:wb.Worksheets.Item(i+1).ListObjects.Count}))};"
+  },
+  "startUTC": "2026-10-11T16:57:21.242Z",
+  "endUTC": "2026-10-11T16:57:21.254Z",
+  "isError": true,
+  "data": [
+    {
+      "type": "text",
+      "text": "原生脚本执行异常: Cannot read properties of null (reading 'Text')\n堆栈: TypeError: Cannot read properties of null (reading 'Text')\n    at eval (eval at Mt (file://<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/%E5%AD%97%E6%B5%AE%20CharFloat%20(%E8%A1%A8%E6%A0%BC)_2.2.0/addon-core.js?v=0039a4bc695cc47a:76:6549), <anonymous>:4:267)\n    at Mt (file://<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/%E5%AD%97%E6%B5%AE%20CharFloat%20(%E8%A1%A8%E6%A0%BC)_2.2.0/addon-core.js?v=0039a4bc695cc47a:77:26)\n    at le.onmessage (file://<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons/%E5%AD%97%E6%B5%AE%20CharFloat%20(%E8%A1%A8%E6%A0%BC)_2.2.0/addon-core.js?v=0039a4bc695cc47a:4:10600)\n控制台输出: "
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "tool": "wps_manage_sheet_changes",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "diff",
+    "maxCells": 2000
+  },
+  "startUTC": "2026-10-11T16:53:49.738Z",
+  "endUTC": "2026-10-11T16:53:49.753Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "diff",
+    "baselineAt": "2026-10-11T16:53:49.722Z",
+    "baselineRange": "A1:R6",
+    "currentRange": "A1:R6",
+    "changedCount": 1,
+    "addedCount": 0,
+    "removedCount": 0,
+    "totalChanged": 1,
+    "changed": [
+      {
+        "address": "G3",
+        "before": null,
+        "after": "M1-H落盘标记"
+      }
+    ],
+    "added": [],
+    "removed": [],
+    "truncated": false,
+    "warnings": [],
+    "message": "[验收数据] 自基线以来有 1 处变化（改 1 / 增 0 / 删 0）"
+  }
+}

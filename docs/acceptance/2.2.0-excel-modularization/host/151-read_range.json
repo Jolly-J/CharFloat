@@ -1,0 +1,104 @@
+{
+  "tool": "wps_read_range",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "透视验收",
+    "address": "A1:C8",
+    "includeFormulas": true
+  },
+  "startUTC": "2026-10-11T16:53:49.413Z",
+  "endUTC": "2026-10-11T16:53:49.424Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "透视验收",
+    "address": "$A$1:$C$8",
+    "rowCount": 8,
+    "columnCount": 3,
+    "values": [
+      [
+        "类别",
+        "求和项:金额",
+        null
+      ],
+      [
+        "甲",
+        350,
+        null
+      ],
+      [
+        "乙",
+        250,
+        null
+      ],
+      [
+        "总计",
+        600,
+        null
+      ],
+      [
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null
+      ]
+    ],
+    "formulas": [
+      [
+        "类别",
+        "求和项:金额",
+        ""
+      ],
+      [
+        "甲",
+        "350",
+        ""
+      ],
+      [
+        "乙",
+        "250",
+        ""
+      ],
+      [
+        "总计",
+        "600",
+        ""
+      ],
+      [
+        "",
+        "",
+        ""
+      ],
+      [
+        "",
+        "",
+        ""
+      ],
+      [
+        "",
+        "",
+        ""
+      ],
+      [
+        "",
+        "",
+        ""
+      ]
+    ],
+    "numberFormats": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "tool": "wps_manage_workbook_views",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "action": "add",
+    "viewName": "M1H_View"
+  },
+  "startUTC": "2026-10-11T16:53:49.707Z",
+  "endUTC": "2026-10-11T16:53:49.717Z",
+  "isError": true,
+  "data": {
+    "error": "自定义视图 [M1H_View] 创建后读不回"
+  }
+}

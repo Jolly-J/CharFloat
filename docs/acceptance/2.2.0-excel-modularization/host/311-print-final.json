@@ -1,0 +1,55 @@
+{
+  "tool": "wps_configure_print_layout",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "read"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "read",
+    "applied": {},
+    "settings": {
+      "printArea": "$A$1:$S$28",
+      "printTitleRows": "",
+      "printTitleColumns": "",
+      "orientation": 2,
+      "paperSize": 9,
+      "zoom": 0,
+      "fitToPagesWide": 1,
+      "fitToPagesTall": 1,
+      "centerHorizontally": true,
+      "centerVertically": false,
+      "printGridlines": false,
+      "margins": {
+        "left": 54,
+        "right": 54,
+        "top": 72,
+        "bottom": 72,
+        "header": 36,
+        "footer": 36
+      },
+      "headers": {
+        "center": "M1-H 独立CLI验收",
+        "left": "",
+        "right": ""
+      },
+      "footers": {
+        "center": "",
+        "left": "",
+        "right": ""
+      },
+      "pageBreaks": {
+        "horizontal": 0,
+        "vertical": 0
+      },
+      "orientationName": "landscape"
+    },
+    "warnings": [],
+    "message": "已读回 [验收数据] 的打印设置（打印区域 $A$1:$S$28，landscape）"
+  },
+  "atUTC": "2026-10-11T17:13:15.860Z"
+}

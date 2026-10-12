@@ -1,0 +1,57 @@
+{
+  "tool": "wps_add_shape",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "name": "M1H_BoxA",
+    "shapeType": "rounded_rectangle",
+    "left": 410,
+    "top": 335,
+    "width": 145,
+    "height": 48,
+    "text": "模块化验收",
+    "fillColor": "#1F4E78",
+    "fontColor": "#FFFFFF",
+    "textAlign": "center",
+    "textVAlign": "middle"
+  },
+  "startUTC": "2026-10-11T16:53:49.608Z",
+  "endUTC": "2026-10-11T16:53:49.624Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "kind": "geometric",
+    "shape": {
+      "name": "M1H_BoxA",
+      "type": 1,
+      "autoShapeType": 5,
+      "left": 410,
+      "top": 335,
+      "width": 145,
+      "height": 48,
+      "rotation": 0,
+      "visible": true,
+      "fillColor": "#1F4E78",
+      "lineColor": "#2E54A1",
+      "lineWeight": 1,
+      "text": "模块化验收",
+      "textAlign": "center",
+      "textVAlign": "middle",
+      "topLeftCell": "$K$21",
+      "isGroup": false,
+      "groupItemCount": null
+    },
+    "requested": {
+      "kind": "geometric",
+      "left": 410,
+      "top": 335,
+      "width": 145,
+      "height": 48
+    },
+    "shapeCount": 3,
+    "warnings": [],
+    "message": "已在 [验收数据] 创建 geometric 形状「M1H_BoxA」（当前共 3 个形状）"
+  }
+}

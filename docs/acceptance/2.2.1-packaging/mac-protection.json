@@ -1,0 +1,9 @@
+{
+  "artifact": "app.asar",
+  "sha256": "358e58d6040da1b6de94c1f2cdb04d7b1e26ef802eddf252b64fa655342d039d",
+  "profile": "offline-addons-v1",
+  "files": 4856,
+  "protectedFiles": 59,
+  "runtimeVerified": false,
+  "hostVerified": false
+}

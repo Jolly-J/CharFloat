@@ -1,0 +1,34 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "G3",
+    "values": [
+      [
+        "M1-H落盘标记"
+      ]
+    ],
+    "reason": "变更检测与持久化标记"
+  },
+  "startUTC": "2026-10-11T16:53:49.723Z",
+  "endUTC": "2026-10-11T16:53:49.737Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 1 个单元格，已记录留痕",
+    "auditId": "94963c03-44dc-49c8-a09b-903bca8fd847",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "modifiedCount": 1,
+    "diff": [
+      {
+        "cell": "$G$3",
+        "oldValue": null,
+        "newValue": "M1-H落盘标记",
+        "oldFormula": "",
+        "newFormula": "M1-H落盘标记"
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "component": "excel",
+    "code": "if(wb.Name!=='CharFloat_M1H_20261012.xlsx')throw Error('目标保护');const s=wb.Worksheets.Item('验收数据');return {name:wb.Name,fullName:wb.FullName,saved:Boolean(wb.Saved),sheetCount:wb.Worksheets.Count,shapeCount:s.Shapes.Count,namesCount:wb.Names.Count};",
+    "readOnly": true
+  },
+  "startUTC": "2026-10-11T16:53:51.191Z",
+  "endUTC": "2026-10-11T16:53:51.197Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 1,
+    "returnValue": {
+      "name": "CharFloat_M1H_20261012.xlsx",
+      "fullName": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx",
+      "saved": true,
+      "sheetCount": 4,
+      "shapeCount": 4,
+      "namesCount": 3
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 1ms）"
+  }
+}

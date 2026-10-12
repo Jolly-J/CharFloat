@@ -1,0 +1,25 @@
+{
+  "tool": "wps_export_chart_image",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "chartName": "Chart 1",
+    "outputPath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_chart.png",
+    "format": "PNG"
+  },
+  "startUTC": "2026-10-11T17:11:06.013Z",
+  "endUTC": "2026-10-11T17:11:06.158Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "chartName": "Chart 1",
+    "outputPath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_chart.png",
+    "format": "PNG",
+    "fileWritten": true,
+    "warnings": [],
+    "message": "已导出图表 Chart 1 → <user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_chart.png（7056 字节）",
+    "fileSizeBytes": 7056
+  }
+}

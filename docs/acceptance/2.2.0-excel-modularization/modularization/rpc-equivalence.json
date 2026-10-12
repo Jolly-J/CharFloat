@@ -1,0 +1,13 @@
+{
+  "cases": 21,
+  "responsesAndHostCallsUnchanged": true,
+  "testProcessElapsedMs": {
+    "before": 220,
+    "after": 208
+  },
+  "timingScope": "整套模拟测试进程耗时，含启动与编译；不是宿主性能基准",
+  "excludedFields": [
+    "运行时构建指纹仅单独验证一致性；事件用例比对注册次数"
+  ],
+  "host": "内存模拟，无真实宿主操作"
+}

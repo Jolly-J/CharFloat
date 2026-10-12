@@ -1,0 +1,33 @@
+{
+  "tool": "wps_rollback",
+  "arguments": {
+    "auditId": "c0d633c1-1ba6-42a6-a7ee-74b13d7247b6"
+  },
+  "startUTC": "2026-10-11T16:53:48.687Z",
+  "endUTC": "2026-10-11T16:53:48.714Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "成功恢复区域 $J$1 的值与公式",
+    "restoredScope": {
+      "values": true,
+      "formulas": true,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "identityChecks": [
+      "无更晚的同区域记录",
+      "无未审计的身份变更操作",
+      "目标工作表仍存在",
+      "区域内内容与修改后快照一致"
+    ],
+    "result": {
+      "success": true,
+      "workbookName": "CharFloat_M1H_20261012.xlsx",
+      "address": "$J$1",
+      "restoredRows": 1,
+      "restoredCols": 1
+    }
+  }
+}

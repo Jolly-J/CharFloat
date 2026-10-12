@@ -1,0 +1,33 @@
+{
+  "tool": "wps_freeze_panes",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "read"
+  },
+  "startUTC": "2026-10-11T16:53:48.924Z",
+  "endUTC": "2026-10-11T16:53:48.933Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "frozen": true,
+    "freezeRowIndex": 16,
+    "freezeColumnIndex": 14,
+    "splitRow": 15,
+    "splitColumn": 13,
+    "warnings": [],
+    "message": "工作表 [验收数据] 已冻结：第 15 行之上的 15 行、第 13 列之左的 13 列保持不动",
+    "auditId": "b8161dfe-f2aa-42dd-9bfe-7828ee9b9e23",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "冻结窗格只留痕、不可回滚。"
+  }
+}

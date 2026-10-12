@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-12",
+  "scope": "macOS WPS 12.1.28496 / arm64，真实独立字节码 CLI",
+  "macOSRegression": "passed_with_known_issues",
+  "windows": "pending",
+  "initialGroups": {
+    "passed": 15,
+    "failed": 4
+  },
+  "knownExistingIssues": [
+    "部分图表首次创建未落标题，固定基线同参数复现",
+    "含结构化表时创建自定义视图失败；无表对照成功并持久化"
+  ],
+  "probeCorrections": [
+    "shapeNames 参数",
+    "打印区域 $ 地址归一",
+    "冻结分割起点及实际行列数",
+    "折线改用单系列双数据点"
+  ],
+  "cliFsCompatibilityFix": "用户批准，两处静态依赖；实际字节码及真机导出通过",
+  "completeRegressionTests": 153,
+  "toolsUnchanged": 142,
+  "finalReadback": "final-readback.json",
+  "liveCandidate": "224-fixed-cli-identity.json",
+  "pdf": "pdf-validation.json",
+  "xlsx": "xlsx-validation.json"
+}

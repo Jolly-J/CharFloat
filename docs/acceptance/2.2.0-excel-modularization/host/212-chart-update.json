@@ -1,0 +1,54 @@
+{
+  "tool": "wps_update_chart",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "chartName": "Chart 1",
+    "chartType": "line",
+    "title": "数量验收-已更新",
+    "position": {
+      "leftCell": "G5",
+      "width": 360,
+      "height": 220
+    }
+  },
+  "startUTC": "2026-10-11T17:00:32.935Z",
+  "endUTC": "2026-10-11T17:00:32.982Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "chartName": "Chart 1",
+    "applied": {
+      "title": "数量验收-已更新",
+      "chartType": 4,
+      "position": {
+        "Width": 360,
+        "Height": 220,
+        "leftCell": "G5"
+      }
+    },
+    "chart": {
+      "name": "Chart 1",
+      "chartType": 4,
+      "title": "数量验收-已更新",
+      "hasTitle": true,
+      "hasLegend": false,
+      "seriesCount": 5,
+      "dataLabels": false
+    },
+    "warnings": [],
+    "message": "已更新图表「Chart 1」3 项",
+    "auditId": "7fa885c0-a0d8-4f62-8e6d-0a7957da1377",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "图表更新只留痕、不可回滚。"
+  }
+}

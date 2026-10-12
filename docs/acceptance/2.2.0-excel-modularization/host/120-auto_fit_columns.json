@@ -1,0 +1,69 @@
+{
+  "tool": "wps_auto_fit_columns",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "A1:E6"
+  },
+  "startUTC": "2026-10-11T16:53:48.877Z",
+  "endUTC": "2026-10-11T16:53:48.886Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "mode": "usedRange",
+    "results": [
+      {
+        "colIndex": 1,
+        "finalWidth": 5.846153736114502,
+        "wrapped": true
+      },
+      {
+        "colIndex": 2,
+        "finalWidth": 6.307692527770996,
+        "wrapped": true
+      },
+      {
+        "colIndex": 3,
+        "finalWidth": 5.846153736114502,
+        "wrapped": true
+      },
+      {
+        "colIndex": 4,
+        "finalWidth": 5.846153736114502,
+        "wrapped": true
+      },
+      {
+        "colIndex": 5,
+        "finalWidth": 7.461538314819336,
+        "wrapped": true
+      },
+      {
+        "colIndex": 6,
+        "finalWidth": 8.538461685180664,
+        "wrapped": false
+      },
+      {
+        "colIndex": 7,
+        "finalWidth": 3,
+        "wrapped": false
+      },
+      {
+        "colIndex": 8,
+        "finalWidth": 7.307692527770996,
+        "wrapped": false
+      }
+    ],
+    "message": "已按已用区域自适应 8 列",
+    "auditId": "82359392-daeb-4be5-b33f-8a08d0c43300",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "列宽调整只留痕、不可回滚。"
+  }
+}

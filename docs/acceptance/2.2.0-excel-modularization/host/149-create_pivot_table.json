@@ -1,0 +1,48 @@
+{
+  "tool": "wps_create_pivot_table",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sourceSheetName": "验收数据",
+    "sourceRange": "A1:E6",
+    "destSheetName": "透视验收",
+    "destCell": "A1",
+    "rowFields": [
+      "类别"
+    ],
+    "dataFields": [
+      {
+        "fieldName": "金额",
+        "summaryFunction": "sum",
+        "caption": "金额汇总"
+      }
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:49.369Z",
+  "endUTC": "2026-10-11T16:53:49.393Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "pivotTableName": "PivotTable_1791737629383",
+    "destSheetName": "透视验收",
+    "destCell": "A1",
+    "rowCount": 1,
+    "colCount": 0,
+    "dataCount": 1,
+    "refreshedBy": "pivotTable.RefreshTable",
+    "recordCount": null,
+    "tableRange": "$A$1:$B$4",
+    "warnings": [],
+    "message": "已成功在 [透视验收] A1 生成数据透视表并完成刷新",
+    "auditId": "63e09569-90d0-4fa6-92c6-fd59d39f95af",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "创建透视表只留痕、不可回滚。"
+  }
+}

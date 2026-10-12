@@ -145,7 +145,7 @@ export const LiveWorkspaceCard: React.FC<LiveWorkspaceCardProps> = ({
                 <h4>WPS Office</h4>
                 <p className="sub-caption">
                   {wpsInstalled 
-                    ? `已就绪 · 加载项 v${env?.addon?.installedVersion || '2.0.0'}` 
+                    ? `已就绪 · 加载项 v${env?.addon?.installedVersion || '2.2.1'}`
                     : '尚未部署 WPS 加载项'}
                 </p>
               </div>

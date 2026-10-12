@@ -1,0 +1,36 @@
+{
+  "tool": "wps_manage_table",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收",
+    "action": "apply",
+    "address": "A1:C4",
+    "tableName": "M1H_Table",
+    "styleName": "TableStyleMedium2"
+  },
+  "startUTC": "2026-10-11T16:53:49.144Z",
+  "endUTC": "2026-10-11T16:53:49.158Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收",
+    "action": "apply",
+    "table": {
+      "name": "M1H_Table",
+      "range": "$A$1:$C$4",
+      "rowCount": 3,
+      "colCount": 3,
+      "hasHeaders": true,
+      "totalsRow": false,
+      "style": "TableStyleMedium2",
+      "columns": [
+        "项目",
+        "数量",
+        "金额"
+      ]
+    },
+    "warnings": [],
+    "message": "已在 [对象验收] $A$1:$C$4 创建结构化表格「M1H_Table」（3 行 × 3 列）"
+  }
+}

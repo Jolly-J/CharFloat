@@ -1,0 +1,34 @@
+{
+  "tool": "wps_format_text_segment",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "H1",
+    "find": "保留",
+    "bold": true,
+    "fontColor": "#0066FF"
+  },
+  "startUTC": "2026-10-11T16:53:48.758Z",
+  "endUTC": "2026-10-11T16:53:48.770Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$H$1",
+    "cellText": "保留值",
+    "segmentStart": 1,
+    "segmentLength": 2,
+    "segmentText": "保留",
+    "requested": {
+      "bold": true,
+      "fontColor": "#0066FF"
+    },
+    "readBack": {
+      "segmentText": "保留",
+      "bold": true,
+      "fontColor": "#0066FF"
+    },
+    "message": "已将 [验收数据] H1 的第 1 个字符起 2 个字符「保留」设置为指定格式，并读回核对通过"
+  }
+}

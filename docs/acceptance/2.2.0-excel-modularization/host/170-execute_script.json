@@ -1,0 +1,22 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "component": "excel",
+    "code": "if(wb.Name!=='CharFloat_M1H_20261012.xlsx')throw Error('目标保护');const name=wb.Name;wb.Close(false);return {closed:name};",
+    "readOnly": false
+  },
+  "startUTC": "2026-10-11T16:53:51.197Z",
+  "endUTC": "2026-10-11T16:53:51.271Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 65,
+    "returnValue": {
+      "closed": "CharFloat_M1H_20261012.xlsx"
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 65ms）"
+  }
+}

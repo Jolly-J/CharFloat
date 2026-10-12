@@ -1,0 +1,84 @@
+{
+  "tool": "wps_get_charts",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "detail": true
+  },
+  "startUTC": "2026-10-11T16:53:49.493Z",
+  "endUTC": "2026-10-11T16:53:49.607Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "totalChartCount": 1,
+    "chartCount": 1,
+    "detail": true,
+    "charts": [
+      {
+        "chartIndex": 1,
+        "shapeName": "Chart 1",
+        "title": "",
+        "chartType": 51,
+        "chartTypeName": "xlColumnClustered",
+        "hasLegend": false,
+        "left": 228,
+        "top": 76,
+        "width": 360,
+        "height": 220,
+        "leftCell": "$G$4",
+        "isDefaultPosition": false,
+        "seriesCount": 5,
+        "series": [
+          {
+            "seriesIndex": 1,
+            "name": "项目2",
+            "formula": "=SERIES(验收数据!$B$2,验收数据!$C$1,验收数据!$C$2,1)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#4874CB"
+          },
+          {
+            "seriesIndex": 2,
+            "name": "项目3",
+            "formula": "=SERIES(验收数据!$B$3,验收数据!$C$1,验收数据!$C$3,2)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#EE822F"
+          },
+          {
+            "seriesIndex": 3,
+            "name": "项目1",
+            "formula": "=SERIES(验收数据!$B$4,验收数据!$C$1,验收数据!$C$4,3)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#F2BA02"
+          },
+          {
+            "seriesIndex": 4,
+            "name": "项目5",
+            "formula": "=SERIES(验收数据!$B$5,验收数据!$C$1,验收数据!$C$5,4)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#75BD42"
+          },
+          {
+            "seriesIndex": 5,
+            "name": "项目4",
+            "formula": "=SERIES(验收数据!$B$6,验收数据!$C$1,验收数据!$C$6,5)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#30C0B4"
+          }
+        ],
+        "yAxis": {
+          "minimumScale": 0,
+          "maximumScale": 4.5,
+          "majorUnit": 0.5,
+          "numberFormat": "General",
+          "title": ""
+        }
+      }
+    ]
+  }
+}

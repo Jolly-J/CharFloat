@@ -1,0 +1,19 @@
+{
+  "tool": "wps_create_workbook",
+  "arguments": {
+    "savePath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据"
+  },
+  "startUTC": "2026-10-11T16:47:14.970Z",
+  "endUTC": "2026-10-11T16:47:15.230Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetCount": 1,
+    "firstSheetName": "验收数据",
+    "savedPath": "<user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx",
+    "warnings": [],
+    "message": "已新建工作簿 [CharFloat_M1H_20261012.xlsx]（1 张表，首表 验收数据）并保存到 <user-home>/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/CharFloat_M1H_20261012.xlsx"
+  }
+}

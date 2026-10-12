@@ -1,0 +1,57 @@
+{
+  "tool": "wps_set_data_validation",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "C2:C6",
+    "validationType": "number_range",
+    "operator": "between",
+    "minVal": 0,
+    "maxVal": 9
+  },
+  "startUTC": "2026-10-11T16:53:48.814Z",
+  "endUTC": "2026-10-11T16:53:48.819Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "C2:C6",
+    "validationType": "number_range",
+    "requested": {
+      "operator": "between",
+      "operatorCode": 1,
+      "formula1": "0",
+      "formula2": "9"
+    },
+    "readBack": {
+      "type": 2,
+      "typeName": "decimal",
+      "operator": 1,
+      "operatorName": "between",
+      "formula1": "0",
+      "formula2": "9",
+      "inCellDropdown": false,
+      "ignoreBlank": true
+    },
+    "replacedPreviousRule": {
+      "type": 0,
+      "typeName": "unknown(0)",
+      "operator": 0,
+      "formula1": null,
+      "formula2": null
+    },
+    "warnings": [],
+    "message": "已在 [验收数据] C2:C6 配置数据有效性并读回核对通过",
+    "auditId": "85d6b549-ffe9-403e-8fda-b456b1a4a91a",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "数据有效性只留痕、不可回滚；如需清除请用宿主脚本或覆盖设置。"
+  }
+}

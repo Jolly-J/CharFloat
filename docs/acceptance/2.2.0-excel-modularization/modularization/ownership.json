@@ -1,0 +1,704 @@
+{
+  "original": "wps-addon/src/excel.js",
+  "modules": [
+    "excel/pure.js",
+    "excel/design.js",
+    "excel/validation-read.js",
+    "excel/styles.js",
+    "excel/format.js",
+    "excel/validation-write.js",
+    "excel/shape.js",
+    "excel/range.js",
+    "excel/sheets.js",
+    "excel/rows-columns.js",
+    "excel/chart-read.js",
+    "excel/chart-write.js",
+    "excel/table-pivot.js",
+    "excel/filter-sort.js",
+    "excel/comments-links.js",
+    "excel/workbook.js",
+    "excel/export.js",
+    "excel/events.js"
+  ],
+  "declarations": [
+    {
+      "name": "STYLE_CENSUS_MAX_CELLS",
+      "kind": "initializer",
+      "module": "excel/design.js",
+      "sha256": "fdefe87f899134e502b0310636490052b94d741c88655be9809ba18cfe972565"
+    },
+    {
+      "name": "STYLE_CENSUS_MAX_ROWS",
+      "kind": "initializer",
+      "module": "excel/design.js",
+      "sha256": "d78d0c2355daef68d8530ce50c3ad1bc797c6ced8d1210343de948c4b2f14f11"
+    },
+    {
+      "name": "STYLE_CENSUS_MAX_COLS",
+      "kind": "initializer",
+      "module": "excel/design.js",
+      "sha256": "3362fda0093f0feade99145cdcede704978ad0f8d19771d17b9756cd0299a7a3"
+    },
+    {
+      "name": "STYLE_BLOCK_ADDRESS",
+      "kind": "initializer",
+      "module": "excel/design.js",
+      "sha256": "5afb7cde9880e646941ed438b3f5da4f10fd8c49c5f20d451528cf6c0c3e5668"
+    },
+    {
+      "name": "STYLE_CF_FORMAT_TYPES",
+      "kind": "initializer",
+      "module": "excel/design.js",
+      "sha256": "f3d80a78568182eb41b68fac9fde09fdb7bf58bf718379c4ef1ef0fae27af521"
+    },
+    {
+      "name": "styleRead",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "28f08cffc9f3e95f35024e49be6c90689eff2d10b5282d95f0691cb7228d0006"
+    },
+    {
+      "name": "readDesignSnapshot",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "667324ff39e7dd06684a347d71207b1f7e8612a057a0c7057dcb126586c0c9bb"
+    },
+    {
+      "name": "designSignature",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "de0cd7a914f885fd3733b404ca53fece69953f9bdbf6d20a1d8940d1b296d4a9"
+    },
+    {
+      "name": "censusDesignStyles",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "09601faad572956b78376ac25350723415a9e6e5766395b13f00ec3d1eb005a2"
+    },
+    {
+      "name": "deriveDesignHierarchy",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "e2825a1d63b77abe8b402d7b8d82897e722d6950acac0623f91a2795b363e668"
+    },
+    {
+      "name": "probeDesignPalette",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "c26eba59b226c9fc0811c5cc1274b17f5ae5c4f7d8bdf5b4e3ae376105c0c812"
+    },
+    {
+      "name": "readTableStyleTokens",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "cc4154596fc6a2c19be9afb9f9771960bad9a3b0d84bfc62ae6d97ac9969638f"
+    },
+    {
+      "name": "readConditionalFormatStyleTokens",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "d96c7da91dfed55412cf1988ee2b41c04e7fe7128d37fdc65e92ac33f7e438fc"
+    },
+    {
+      "name": "getStyleToken",
+      "kind": "function",
+      "module": "excel/design.js",
+      "sha256": "e9fee02e7c258553431010effd592a53a7563c0fa513551e463fa5fe7564affb"
+    },
+    {
+      "name": "createWorksheet",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "354bda90b5f4408f707fb0681c092e433217592e5b964eab0daf69420ecf69a3"
+    },
+    {
+      "name": "deleteWorksheet",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "27378a38b139998cd2e01eed324ecffb2c06814f81e793890880f8fc19123873"
+    },
+    {
+      "name": "clearRange",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "18b8f50b4d4a20acabed329d3888d6dc06fac760fcd04c1f64652333a1822797"
+    },
+    {
+      "name": "getSheetOutline",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "0730f784ab02651bc4e60ab790385e82d5ee0defcde19506545a394c65e7ba78"
+    },
+    {
+      "name": "readConditionEnabled",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "aedd3ef21310815a32a922fb6ee80cafbc9d12ab115b6751266ffaa2bd30d8d6"
+    },
+    {
+      "name": "readSheetState",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "adcad70c7d5c1b47e939c288b8d78606df295d8034984127add6a1e6a0efdd08"
+    },
+    {
+      "name": "readRangeData",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "90e835c5a27eba66188e28d3bfd7203cfe2206c566054bae631567f03b08a0b6"
+    },
+    {
+      "name": "safeRead",
+      "kind": "function",
+      "module": "excel/styles.js",
+      "sha256": "e67c08da14f8c8a7b487a0ddee39f582497e647075a11c978d7373e0031c020d"
+    },
+    {
+      "name": "alignmentName",
+      "kind": "function",
+      "module": "excel/styles.js",
+      "sha256": "beee693b2d7b6a82670544cb3eacc6bfbafc60faed38d7a5cc18dabd75d53fc1"
+    },
+    {
+      "name": "readBorders",
+      "kind": "function",
+      "module": "excel/styles.js",
+      "sha256": "c99959978ffae6021ceed50a21c286f459b3ced3f617c32b6883f01cdc8ea453"
+    },
+    {
+      "name": "readStyleFields",
+      "kind": "function",
+      "module": "excel/styles.js",
+      "sha256": "bf8b4ae32b80dccb27d23c62ff71005cf6d045fd8615881c4b604d05d6dac3ea"
+    },
+    {
+      "name": "VALIDATION_TYPE_NAMES",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "64b245de2545ceb71b977cd9cb8a39b9f50b88e65c3e42db3be0b98515d6372a"
+    },
+    {
+      "name": "VALIDATION_OPERATOR_NAMES",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "ab365ae51b3a5049ce2a514172754f6a3060b52372115d7bb34e4ee841558a5e"
+    },
+    {
+      "name": "VALIDATION_TYPE_NONE",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "47207598b4a2f807a14fca2ff38f0215194798b688ad0715c347df9501ed5659"
+    },
+    {
+      "name": "VALIDATION_SCAN_DEFAULT",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "f843846506f6f1e57c130661eee75a5077983f8809bc0f44443704a9eca7cfac"
+    },
+    {
+      "name": "VALIDATION_SCAN_MAX",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "8011034cac1fd7210b6e7e7886117f93e83cf2ae38a0d6b808fcd5cd700b5b15"
+    },
+    {
+      "name": "VALIDATION_REPORT_MAX",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "ba795ad09602b6c4ef54f07da15e0229ab1c0c21e1d858b84c240a8d3cb44248"
+    },
+    {
+      "name": "VALIDATION_RULE_CELLS_MAX",
+      "kind": "initializer",
+      "module": "excel/validation-read.js",
+      "sha256": "72bc0143cae4928f3438293855d6db4bffbd09ccd2a3635da18343d49b512b67"
+    },
+    {
+      "name": "excelColumnName",
+      "kind": "function",
+      "module": "excel/pure.js",
+      "sha256": "8f466cdda91667e9c94c4f28f13d853bce4b1727375f4b50408e8b6ad8f1f7ea"
+    },
+    {
+      "name": "readCellValidationRule",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "c5daffaf5089e84d08589ed1e09638c251d2b23d01720aa6ccd96270793f4ab0"
+    },
+    {
+      "name": "splitValidationListLiteral",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "cf0b292f5052cc401c9d6501f574b135555791aa0a9e978e1fb67fcaacbdafd5"
+    },
+    {
+      "name": "parseValidationListFormula",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "1bae72105f721752916602e3601456db81b6cf8fbb96de9f4abc5a71a4984013"
+    },
+    {
+      "name": "readValidationListReference",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "8b78d0776d4da0d679e05d1d367e0440ada34e3746751209672f556d73224dac"
+    },
+    {
+      "name": "excelSerialFromTimestamp",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "71989a3aeff0b3aae15be18aab2ac4142cc3aad0ca2d90b4429be17ba70e241e"
+    },
+    {
+      "name": "parseValidationBound",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "db68a3de1915211e60bf9ea6a596782be4f86c8e20b1e50e24e1aaaae52450ae"
+    },
+    {
+      "name": "coerceValidationNumber",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "2b0d59e0fe0e7f9f0aecb9108c1e61a0c959a17a88805b86c849f012684cbf35"
+    },
+    {
+      "name": "describeValidationRule",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "98193495ebb1e4ee24db3070c8425428b2c8b2f696d4cbf63f19c9f1beae5d1e"
+    },
+    {
+      "name": "resolveValidationListInfo",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "c497d677a33673214e956ceb3ea2d35e0dcdb63aaa7005ccde143eecc984f2c9"
+    },
+    {
+      "name": "evaluateValidationRule",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "bff16f257469cc0b9b8ebde2ca7818d0d684ddc90c663ebaaa36d32af298358c"
+    },
+    {
+      "name": "compareByOperator",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "60b63771a16009eaa407ea31cd6cc1b7f581ea5ca2fb8edb3f293ebd014b8918"
+    },
+    {
+      "name": "collectValidationViolations",
+      "kind": "function",
+      "module": "excel/validation-read.js",
+      "sha256": "dc35992337041b030100f161ee442b956aff4bf33e4da60874a94321f893626e"
+    },
+    {
+      "name": "getRangeStyles",
+      "kind": "function",
+      "module": "excel/styles.js",
+      "sha256": "edd1e6938dd0aa10a2c0bc159c4b56344491a307fb397a6d6c773e75f6d1521b"
+    },
+    {
+      "name": "searchCells",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "385615bdfcba176b650d0a46abee46f9f6e0970c9088cf975b7f6044fc0f882c"
+    },
+    {
+      "name": "patchCells",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "e8091d80221109dc61b6f7ee0dee4fca3b0c115844daf78aba651a0db2d10209"
+    },
+    {
+      "name": "formatCells",
+      "kind": "function",
+      "module": "excel/format.js",
+      "sha256": "8649919c71cbdc80c6fb91686b3b0842aa28ec11b32b0f4bb5f7ee3c4a0698ed"
+    },
+    {
+      "name": "formatTextSegment",
+      "kind": "function",
+      "module": "excel/format.js",
+      "sha256": "28b8efecceb50005228f7788cd5aefbb4e7f7923b7d5aebd7929880bf46c1db3"
+    },
+    {
+      "name": "addConditionalFormatting",
+      "kind": "function",
+      "module": "excel/format.js",
+      "sha256": "b0afbf844a37d88b7e6a4138def4464294ed4e9d87ac3e960d2aa33a9a5e7057"
+    },
+    {
+      "name": "freezePanes",
+      "kind": "function",
+      "module": "excel/rows-columns.js",
+      "sha256": "2df9717aba3074a1b2b9aadd63f6e1451ec848c762aaa63e16773278a63a4303"
+    },
+    {
+      "name": "configurePrintLayout",
+      "kind": "function",
+      "module": "excel/export.js",
+      "sha256": "6a28a38a8ad3c6dee63e2b0fb6d25f8dd82f95986fba2bb9cf017016f3aa70d0"
+    },
+    {
+      "name": "exportSheetPdf",
+      "kind": "function",
+      "module": "excel/export.js",
+      "sha256": "3dbb4d5a02df46a660c02b944e313c9316de401894533a7e61be69a84ccdb8ca"
+    },
+    {
+      "name": "AUTO_SHAPE_TYPES",
+      "kind": "initializer",
+      "module": "excel/shape.js",
+      "sha256": "263b584d777641f8743b1c5e68b0a88ef9fb24280d9160e6d4cf694baf243e56"
+    },
+    {
+      "name": "DEFAULT_SHAPE_FONT",
+      "kind": "initializer",
+      "module": "excel/shape.js",
+      "sha256": "61290574fd0bd1272dc5c89d77f731e3ebfd31fd532d1f00a75965dc507d4f44"
+    },
+    {
+      "name": "resolveShapeType",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "34cb34a0173757cba9580bb2b424e5cdb248373e71bb92991b4d8effebf861be"
+    },
+    {
+      "name": "isLightFill",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "0635723b487160915211934d209e4648cbcc65ac12f71a946c017084c2111c87"
+    },
+    {
+      "name": "shapeAddressOf",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "a01044586949aced2581ba33573038a13435a32d7ae42b96ecfb79bad0100543"
+    },
+    {
+      "name": "readShape",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "31cfcc2f94ef8bc080f6a3f32476d6794c84ca4ff8f610af729549fed67e55e5"
+    },
+    {
+      "name": "findShape",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "39354710c8696754f7caed323da6e867716286157dd87e26fb0261538b256bc9"
+    },
+    {
+      "name": "addShape",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "1adb3a52d6f23535a8b86ade25383b4b878e144bd9d578ee2a4a04f8cca89ca1"
+    },
+    {
+      "name": "listShapes",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "c3c7c16996621a6079fff8ced46cdf9157f94913a478f521b49f012551cd08dd"
+    },
+    {
+      "name": "updateShape",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "17050cb1a30da179cb019f62cc6b28c0e511285da59c31bd37e6426e83a79804"
+    },
+    {
+      "name": "groupShapes",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "3d3b34cbc195ab9f1e1c1e903c8d640baf56ffbce3123b430e28a91ed8725d74"
+    },
+    {
+      "name": "ungroupShapes",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "0ea26124f17519b04931ea11482eb609afebf087fba1f6012412637bd32e22e5"
+    },
+    {
+      "name": "setShapeZorder",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "d037a4b15d07a108d07f1f51640108a5951240a7ec27bf3b4a9d4bddb0011ed6"
+    },
+    {
+      "name": "modifyRowsColumns",
+      "kind": "function",
+      "module": "excel/rows-columns.js",
+      "sha256": "90d88c0ad57f127186769eda8ce179912df84cfac8823562782bc963d2c48eef"
+    },
+    {
+      "name": "manageCellComments",
+      "kind": "function",
+      "module": "excel/comments-links.js",
+      "sha256": "aa66de2dd1d971b24ddc163fe28269ccc0acccf4d46c160227a6b0bc5fc15372"
+    },
+    {
+      "name": "findAndReplace",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "9e45f75b00bec06ec16f42ff4577d9a6e2819873d9ac035eac3c17c4015ed1d8"
+    },
+    {
+      "name": "duplicateSheet",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "112f4404fbc71a9acabd32b409e139c43fe67da1d48f8c648ad02d51f9b57c3c"
+    },
+    {
+      "name": "saveWorkbook",
+      "kind": "function",
+      "module": "excel/workbook.js",
+      "sha256": "c1c167de4864dca51f57c20d1e250a7e14e4d71ff444c4c64fd8fc64ceaaaca7"
+    },
+    {
+      "name": "autoFitColumns",
+      "kind": "function",
+      "module": "excel/rows-columns.js",
+      "sha256": "d9e14144feb2092c38279a92f42219be821d8fb887edd2acc5f75a0c9f50dd1c"
+    },
+    {
+      "name": "rollbackCells",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "bbe158827f47e3788b4a2c1cab84531852b2d23876db8e3dca22338240dd2ad2"
+    },
+    {
+      "name": "insertDimension",
+      "kind": "function",
+      "module": "excel/rows-columns.js",
+      "sha256": "e77c903efd3c0f6698ae531e3702cf743b5a03260d94e64e9816d0359440882c"
+    },
+    {
+      "name": "normalize2DArray",
+      "kind": "function",
+      "module": "excel/pure.js",
+      "sha256": "cda5d0516a1b741e7ae0ea7e870f42553eb07407805572de45e0290ce9b17aaf"
+    },
+    {
+      "name": "hookWpsEvents",
+      "kind": "function",
+      "module": "excel/events.js",
+      "sha256": "a3426d6cf3fc5b8f63e29012fc2168e11320da6c94318d56b932cebfadf056d1"
+    },
+    {
+      "name": "onSelectionChange",
+      "kind": "function",
+      "module": "excel/events.js",
+      "sha256": "d4c77ae7464d4b8fcf0e55461cbff36976195d77da3a17c1e51396654e6b0284"
+    },
+    {
+      "name": "createWorkbook",
+      "kind": "function",
+      "module": "excel/workbook.js",
+      "sha256": "26775758437687c05594e514c4e6b81a4f08e669d0d52676c048cb79a910e78e"
+    },
+    {
+      "name": "exportChartImage",
+      "kind": "function",
+      "module": "excel/chart-read.js",
+      "sha256": "10baf3fb3e5bc00221f19bd4e213fb4133bd3fe79f1b9f63616d6c0530d0c8ab"
+    },
+    {
+      "name": "updateChart",
+      "kind": "function",
+      "module": "excel/chart-write.js",
+      "sha256": "8a8f2377094cc5d6fcb307a9fcbaa856d4e1a18411bed95f1a11677608e2ac5f"
+    },
+    {
+      "name": "copyRange",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "49af41a52a4f9f98f83f95e2dd12f56b851933ca21bff220eb6698e85e942b85"
+    },
+    {
+      "name": "manageHyperlink",
+      "kind": "function",
+      "module": "excel/comments-links.js",
+      "sha256": "6d6502e8b87c9dea478f2255bbfab418694dc50d80a4930d4866e390dc9da74b"
+    },
+    {
+      "name": "manageNamedRange",
+      "kind": "function",
+      "module": "excel/comments-links.js",
+      "sha256": "7d406e54565a997c9d196ddcdb03db6b8be0daf13cc2f8d4d18d08b635909c7a"
+    },
+    {
+      "name": "CHANGE_BASELINES",
+      "kind": "initializer",
+      "module": "excel/range.js",
+      "sha256": "d43f1dd4b67dae8c7d6ea867919c414d17803b09f6da11e6bbd588b9023918ec"
+    },
+    {
+      "name": "captureOrDiffChanges",
+      "kind": "function",
+      "module": "excel/range.js",
+      "sha256": "a3124f096eccd88859417456ca0c730d4c408211e8b90efbb3f2b90607a551e1"
+    },
+    {
+      "name": "manageWorkbookViews",
+      "kind": "function",
+      "module": "excel/workbook.js",
+      "sha256": "385f71cc1fffa678b6109b14d9fb2ce6c9697a975c3eac39f8e3e4a7b6d4bb55"
+    },
+    {
+      "name": "manageDocumentProperties",
+      "kind": "function",
+      "module": "excel/workbook.js",
+      "sha256": "2a13064d039895e1ebdb36db374f0ceab603c4f8b3af8d23365c6e9c1b549df7"
+    },
+    {
+      "name": "manageTable",
+      "kind": "function",
+      "module": "excel/table-pivot.js",
+      "sha256": "d6d7795276f238c5838fef4c51c1b7cfc8cb6b6e011bc8a8a43212fe238ab3c5"
+    },
+    {
+      "name": "managePictures",
+      "kind": "function",
+      "module": "excel/shape.js",
+      "sha256": "91db158fef13687b92c0e8a49baa217f211ee792a3de1746537b858fb15f79f3"
+    },
+    {
+      "name": "setSheetView",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "5f48f532af2fb0d10ff1fc1d8691f33a598df401f44714d81488f8dde115feb3"
+    },
+    {
+      "name": "captureSheetPreview",
+      "kind": "function",
+      "module": "excel/export.js",
+      "sha256": "64000ec7b32a9328aab92252b3809d35a02e4ef08d22e12df946af62524eb6da"
+    },
+    {
+      "name": "addChart",
+      "kind": "function",
+      "module": "excel/chart-write.js",
+      "sha256": "ca95bd4b55d8b178dee204b0ba70654dde5271c083065921cfd1395507581d07"
+    },
+    {
+      "name": "getChartOrdinal",
+      "kind": "function",
+      "module": "excel/chart-read.js",
+      "sha256": "69771b819666828577f9f3ad03642168091133fd6332b70137eb629ddf11cfe3"
+    },
+    {
+      "name": "getCharts",
+      "kind": "function",
+      "module": "excel/chart-read.js",
+      "sha256": "b918e15ed8907a6512068d621669bb94c554d94230963a8ebdb116080fd2bb6a"
+    },
+    {
+      "name": "deleteChart",
+      "kind": "function",
+      "module": "excel/chart-write.js",
+      "sha256": "f9952dc0dbecd6f2b5d737a39a02659cd2f37c78beb50729d8d8d89698a2db75"
+    },
+    {
+      "name": "createPivotTable",
+      "kind": "function",
+      "module": "excel/table-pivot.js",
+      "sha256": "f498615e21c704c1f910dd507e6a317a8b7b19884cf830bb5ab57b1f8a392d06"
+    },
+    {
+      "name": "setFilterAndSort",
+      "kind": "function",
+      "module": "excel/filter-sort.js",
+      "sha256": "dfb886ba19fdb9f524e35db53d3fde3139acba9bb8303a98d164fb090ecfa052"
+    },
+    {
+      "name": "buildDataValidationPlan",
+      "kind": "function",
+      "module": "excel/validation-write.js",
+      "sha256": "d0abb5a29844f697d90ce315ff4d2a43354123b5be1466dd017f643f04365917"
+    },
+    {
+      "name": "restoreValidationRule",
+      "kind": "function",
+      "module": "excel/validation-write.js",
+      "sha256": "17135cdb8c95231ad945dd9e92a9d7f09ef05d7c32e300bbc5b050d638ab2a96"
+    },
+    {
+      "name": "verifyDataValidationRule",
+      "kind": "function",
+      "module": "excel/validation-write.js",
+      "sha256": "1133cb60c4867f7d49774c95a1ebacdf001dfb6005aa780a56436ea0dda1b5a8"
+    },
+    {
+      "name": "setDataValidation",
+      "kind": "function",
+      "module": "excel/validation-write.js",
+      "sha256": "40b10e46ddc4a23d6779e567289f92fb7e44e18409156853953fb6d535ab3c9d"
+    },
+    {
+      "name": "manageSheet",
+      "kind": "function",
+      "module": "excel/sheets.js",
+      "sha256": "b3d8f1b02b1adc641cff1a48c3faf6799fe56287d3175b604809fe009a00a82e"
+    }
+  ],
+  "initializationOrder": [
+    "STYLE_CENSUS_MAX_CELLS",
+    "STYLE_CENSUS_MAX_ROWS",
+    "STYLE_CENSUS_MAX_COLS",
+    "STYLE_BLOCK_ADDRESS",
+    "STYLE_CF_FORMAT_TYPES",
+    "VALIDATION_TYPE_NAMES",
+    "VALIDATION_OPERATOR_NAMES",
+    "VALIDATION_TYPE_NONE",
+    "VALIDATION_SCAN_DEFAULT",
+    "VALIDATION_SCAN_MAX",
+    "VALIDATION_REPORT_MAX",
+    "VALIDATION_RULE_CELLS_MAX",
+    "AUTO_SHAPE_TYPES",
+    "DEFAULT_SHAPE_FONT",
+    "CHANGE_BASELINES"
+  ],
+  "crossFragmentDependencies": {
+    "excel/design.js": [
+      "excel/pure.js",
+      "excel/styles.js"
+    ],
+    "excel/sheets.js": [],
+    "excel/range.js": [
+      "excel/pure.js",
+      "excel/styles.js"
+    ],
+    "excel/styles.js": [
+      "excel/validation-read.js"
+    ],
+    "excel/pure.js": [],
+    "excel/validation-read.js": [
+      "excel/pure.js",
+      "excel/styles.js"
+    ],
+    "excel/format.js": [
+      "excel/sheets.js",
+      "excel/styles.js"
+    ],
+    "excel/rows-columns.js": [],
+    "excel/export.js": [],
+    "excel/shape.js": [],
+    "excel/comments-links.js": [],
+    "excel/workbook.js": [],
+    "excel/events.js": [],
+    "excel/chart-read.js": [
+      "excel/styles.js"
+    ],
+    "excel/chart-write.js": [
+      "excel/chart-read.js"
+    ],
+    "excel/table-pivot.js": [],
+    "excel/filter-sort.js": [
+      "excel/pure.js",
+      "excel/styles.js"
+    ],
+    "excel/validation-write.js": [
+      "excel/validation-read.js"
+    ]
+  },
+  "dependencyScope": "原 Excel 顶层绑定的静态引用；不包含根 shared.js 公共 helper 或宿主动态成员。函数均为声明提升，跨片段调用在初始化完成后发生。"
+}

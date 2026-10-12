@@ -1,0 +1,20 @@
+{
+  "tool": "wps_capture_sheet_preview",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "A1:S28"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$A$1:$S$28",
+    "imageMimeType": "image/png",
+    "imageSizeBytes": 177818,
+    "message": "已成功生成 [验收数据] 区域 $A$1:$S$28 的高保真渲染图（大小: 173.7 KB）",
+    "previewArtifact": "final-preview.png"
+  },
+  "atUTC": "2026-10-11T17:33:28.826Z"
+}

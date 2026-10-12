@@ -1,0 +1,27 @@
+{
+  "tool": "wps_create_sheet",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收"
+  },
+  "startUTC": "2026-10-11T16:53:49.122Z",
+  "endUTC": "2026-10-11T16:53:49.133Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收",
+    "isNew": true,
+    "sheetCount": 2,
+    "auditId": "55fb2b5f-ef3e-4cb1-895b-6405bee4f230",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "工作表结构操作只留痕、不可回滚（回滚不会删除已创建的工作表）。"
+  }
+}

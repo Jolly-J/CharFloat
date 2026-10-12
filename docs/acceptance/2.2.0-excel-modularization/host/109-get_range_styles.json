@@ -1,0 +1,36 @@
+{
+  "tool": "wps_get_range_styles",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "A1:E1",
+    "include": [
+      "fontSize",
+      "bold",
+      "fontColor",
+      "backgroundColor",
+      "verticalAlignment",
+      "rowHeight"
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:48.747Z",
+  "endUTC": "2026-10-11T16:53:48.758Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$A$1:$E$1",
+    "rowCount": 1,
+    "columnCount": 5,
+    "mode": "summary",
+    "styles": {
+      "fontSize": 14,
+      "bold": true,
+      "fontColor": "#FFFFFF",
+      "backgroundColor": "#1F4E78",
+      "verticalAlignment": "top",
+      "rowHeight": 28
+    },
+    "mixedOrUnavailableFields": []
+  }
+}

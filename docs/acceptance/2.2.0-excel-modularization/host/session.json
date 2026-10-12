@@ -1,0 +1,17 @@
+{
+  "expectedBuildFingerprint": "0039a4bc695cc47af94ed3ba0572da1246b90cc109309e614d6d6d150af8daed",
+  "artifactSha256": "345bbcc2be8d81e8e95a8099072be81658a6387297a0fb5c699d239e001c66db",
+  "runtime": "隔离临时目录，沿用现有凭据，不写默认安装记录",
+  "port": 19890,
+  "preview": "使用 WPS 可写容器目录",
+  "standaloneEntry": "dist/bridge/cli.cjs",
+  "startedAtUTC": "2026-10-11T16:40:10.136Z",
+  "clientDate": "2026-10-12",
+  "os": "27.0.1",
+  "arch": "arm64",
+  "wpsVersion": "12.1.28496",
+  "wpsBundleId": "com.kingsoft.wpsoffice.mac",
+  "testWorkbook": "CharFloat_M1H_20261012.xlsx",
+  "controlWorkbook": "CharFloat_M1H_ViewControl_20261012.xlsx",
+  "windowsAcceptance": "未运行，当前无 Windows WPS 实机证据"
+}

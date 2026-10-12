@@ -1,0 +1,43 @@
+{
+  "tool": "wps_manage_document_properties",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "action": "apply",
+    "properties": {
+      "Title": "M1-H 独立CLI验收",
+      "M1H_Candidate": "2.2.0-excel-modularization"
+    }
+  },
+  "startUTC": "2026-10-11T16:53:49.655Z",
+  "endUTC": "2026-10-11T16:53:49.688Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "action": "apply",
+    "applied": {
+      "Title": "M1-H 独立CLI验收",
+      "M1H_Candidate": "2.2.0-excel-modularization"
+    },
+    "after": {
+      "builtin": {
+        "Title": "M1-H 独立CLI验收",
+        "Subject": "",
+        "Author": "jolin",
+        "Keywords": "",
+        "Comments": "",
+        "Category": "",
+        "Company": "",
+        "Manager": ""
+      },
+      "custom": {
+        "ICV": "FD3198CD56041B7093BDCB6AA5CA9BD8_41",
+        "KSOProductBuildVer": "2052-12.1.28496.28496",
+        "CalculationRule": "1",
+        "M1H_Candidate": "2.2.0-excel-modularization"
+      }
+    },
+    "warnings": [],
+    "message": "已更新 2 项文档属性"
+  }
+}

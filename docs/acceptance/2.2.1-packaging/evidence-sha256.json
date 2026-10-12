@@ -1,0 +1,23 @@
+{
+  "mac-protection.json": "09ff44c4724e0bbaa2164223fd36594dddc1c704e1a180345776823be268b0f8",
+  "source-state.json": "a2631873dae502b53c495ef38a65fdba9e5b00a7af8a47c4a4ab564a27a23643",
+  "win-protection.json": "6ec6dcc8e6cef8ef512442202324d3d7c4ec195de6036cff939e33861123ae44",
+  "win-icon.log": "6bbb6b126cb3d8de966d08c2e9975d097ce2cac20e07d318d47f828d7edb5258",
+  "source.patch": "6daa32deeec0b4a98bb1f215f9690fe1d404950051837f27beaa19dcdd159b69",
+  "versioning-audit.md": "8b179ac59a23b53e62c6c7bd00a092de465b58c244bdd0a159f74b3d1d30d9aa",
+  "tools.json": "210c46dec83d10b7a987ad07e53b25615c46474a5b5d31ffcdcbd49e7395fa00",
+  "release-assets.log": "d1cc742605e79d923b79a7a1a0bdebaf8b05d7467f16e54efcb08fd8870a7366",
+  "win-build.log": "c0cb94ac128221af6da934f4d78dfffc2b00953de8da30d7cd0d486636f6a85a",
+  "versions.json": "bd096346bb63adb1807b80dc71c2361b44c6579b3497099e45070054845d828d",
+  "results.json": "44538762ae5f081283ebaba6e4345f02af34661fefed1a5eb6188bfb3cc9a28c",
+  "typecheck.log": "f794d8517b71ffcd91c7fc8cd1728df029b1c3f78fa432e07b978cc95221364c",
+  "mac-build.log": "7bd74f73122477a587e8782a5cd7bb22b1e0849b188d5697c91a5bc049505493",
+  "README.md": "31faa51d98eb44ae2322a60c08c724d46c2cbcc0ae5c86edabcb64dc1a1e8b4c",
+  "baseline.json": "ed65212684b7d25a7fff747ba92465fabe9024bcac27fb87b4d0a852f9a8a718",
+  "mac-identity.json": "213b6acd1649be4d919582ff3b889dab221d314d5db7721d75e58eee935d3862",
+  "tests.log": "67520483308524b6890256c5693fa410fffa545a4c383e2b68c7fcf8e7bf7db8",
+  "mac-runtime-probe.log": "473e7bed98c83026160c4715a8c99b33b4b8b8031b7141baf9333248ca7b0ab7",
+  "build-release.log": "50b5bf53f7fc426f3e4a8ce38481bfd467498ed05dbb72d080d480607b71da8d",
+  "existing-public-release.json": "5483353ed3b66a264df842b6e2b91e6457b660efd44d6366fa21a8090b1f07e8",
+  "renderer.log": "3e303b2abbe41b494f3c8b41d7d9f66197675b8dd6ffdc997407eecc3784c462"
+}

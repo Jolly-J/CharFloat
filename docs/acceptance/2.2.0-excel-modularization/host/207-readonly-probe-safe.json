@@ -1,0 +1,30 @@
+{
+  "tool": "wps_execute_script",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "component": "excel",
+    "readOnly": true,
+    "code": "const s=wb.Worksheets.Item('验收数据'),ch=s.Shapes.Item('Chart 1').Chart;const cv=wb.CustomViews;const views=[];for(let i=1;i<=Number(cv.Count);i++){const v=cv.Item(i);views.push({index:i,name:v?String(v.Name):null});}return {chart:{hasTitle:ch.HasTitle,title:ch.ChartTitle?ch.ChartTitle.Text:null},customViews:{count:cv.Count,views},tableCount:wb.Worksheets.Item('对象验收').ListObjects.Count};"
+  },
+  "startUTC": "2026-10-11T16:58:46.137Z",
+  "endUTC": "2026-10-11T16:58:46.155Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 3,
+    "returnValue": {
+      "chart": {
+        "hasTitle": false,
+        "title": null
+      },
+      "customViews": {
+        "count": 0,
+        "views": []
+      },
+      "tableCount": 1
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 3ms）"
+  }
+}

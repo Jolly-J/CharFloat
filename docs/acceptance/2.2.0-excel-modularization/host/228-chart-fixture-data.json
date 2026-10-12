@@ -1,0 +1,78 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "G31:H33",
+    "values": [
+      [
+        "项目",
+        "数量"
+      ],
+      [
+        "对照A",
+        1
+      ],
+      [
+        "对照B",
+        2
+      ]
+    ],
+    "reason": "图表更新使用单系列双数据点，避免单点折线无可见线段"
+  },
+  "startUTC": "2026-10-11T17:16:03.464Z",
+  "endUTC": "2026-10-11T17:16:03.634Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 6 个单元格，已记录留痕",
+    "auditId": "d3feec99-14ea-491a-9134-feaa3e510501",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "modifiedCount": 6,
+    "diff": [
+      {
+        "cell": "$G$31",
+        "oldValue": null,
+        "newValue": "项目",
+        "oldFormula": "",
+        "newFormula": "项目"
+      },
+      {
+        "cell": "$H$31",
+        "oldValue": null,
+        "newValue": "数量",
+        "oldFormula": "",
+        "newFormula": "数量"
+      },
+      {
+        "cell": "$G$32",
+        "oldValue": null,
+        "newValue": "对照A",
+        "oldFormula": "",
+        "newFormula": "对照A"
+      },
+      {
+        "cell": "$H$32",
+        "oldValue": null,
+        "newValue": 1,
+        "oldFormula": "",
+        "newFormula": "1"
+      },
+      {
+        "cell": "$G$33",
+        "oldValue": null,
+        "newValue": "对照B",
+        "oldFormula": "",
+        "newFormula": "对照B"
+      },
+      {
+        "cell": "$H$33",
+        "oldValue": null,
+        "newValue": 2,
+        "oldFormula": "",
+        "newFormula": "2"
+      }
+    ]
+  }
+}

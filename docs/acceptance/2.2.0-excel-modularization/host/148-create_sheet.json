@@ -1,0 +1,27 @@
+{
+  "tool": "wps_create_sheet",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "透视验收"
+  },
+  "startUTC": "2026-10-11T16:53:49.228Z",
+  "endUTC": "2026-10-11T16:53:49.369Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "透视验收",
+    "isNew": true,
+    "sheetCount": 4,
+    "auditId": "987a97e4-b77f-4751-b710-c3b13cd4d71a",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "工作表结构操作只留痕、不可回滚（回滚不会删除已创建的工作表）。"
+  }
+}

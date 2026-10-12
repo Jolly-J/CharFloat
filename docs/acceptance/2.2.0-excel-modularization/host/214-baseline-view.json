@@ -1,0 +1,31 @@
+{
+  "source": "固定基线函数，独立CLI实际宿主调用",
+  "tool": "wps_execute_script",
+  "arguments": {
+    "component": "excel",
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "readOnly": false,
+    "code": "function getWorkbook(){return wb;}\nfunction manageWorkbookViews(app, params) {\n    const { workbookName, action = \"list\", viewName } = params || {};\n    const wb = getWorkbook(app, workbookName);\n    const g = (fn, d = null) => { try { const x = fn(); return x === undefined ? d : x; } catch (e) { return d; } };\n\n    // 富值：本机宿主没有这个对象模型，直接如实拒绝，不要假装\n    if (action === \"read_rich_values\") {\n      return {\n        success: false, workbookName: wb.Name, action,\n        warnings: [\"本机 WPS 没有 LinkedDataTypes / HasRichDataType 对象模型，链接数据类型（富值）不可用\"],\n        message: \"本机宿主不支持链接数据类型（富值）：未找到 wb.LinkedDataTypes。可用脚本取单元格**显示文本**作为替代。\"\n      };\n    }\n\n    const listViews = () => {\n      const out = [];\n      const cv = g(() => wb.CustomViews, null);\n      if (!cv) return out;\n      const n = Number(g(() => cv.Count, 0));\n      for (let i = 1; i <= n; i++) {\n        const v = g(() => cv.Item(i), null);\n        if (v) out.push({ name: g(() => String(v.Name), null), index: i });\n      }\n      return out;\n    };\n\n    if (action === \"list\") {\n      const views = listViews();\n      const slicers = (() => {\n        const out = [];\n        const sc = g(() => wb.SlicerCaches, null);\n        if (!sc) return out;\n        for (let i = 1; i <= Number(g(() => sc.Count, 0)); i++) {\n          const c = g(() => sc.Item(i), null);\n          if (c) out.push({ name: g(() => String(c.Name), null), sourceName: g(() => String(c.SourceName), null), slicerCount: g(() => Number(c.Slicers.Count), null) });\n        }\n        return out;\n      })();\n      return { success: true, workbookName: wb.Name, action, viewCount: views.length, views, slicerCacheCount: slicers.length, slicerCaches: slicers,\n        warnings: [], message: `工作簿 [${wb.Name}] 有 ${views.length} 个自定义视图、${slicers.length} 个切片器缓存` };\n    }\n\n    if (action === \"add\") {\n      if (!viewName) throw new Error(\"add 需要 viewName（视图名）\");\n      const cv = g(() => wb.CustomViews, null);\n      if (!cv) return { success: false, workbookName: wb.Name, action, warnings: [\"本机宿主没有 wb.CustomViews\"], message: \"本机宿主不支持自定义视图\" };\n      let created = null;\n      try { created = cv.Add(String(viewName)); }\n      catch (e) { return { success: false, workbookName: wb.Name, action, hostError: e.message, warnings: [`创建失败：${e.message}（同名视图可能已存在）`], message: `自定义视图 [${viewName}] 创建失败` }; }\n      const back = listViews().find(v => v.name === String(viewName)) || null;\n      return { success: !!back, workbookName: wb.Name, action, viewName: String(viewName), readBack: back,\n        warnings: back ? [] : [\"创建后读不回该视图\"], views: listViews(),\n        message: back ? `已创建自定义视图 [${viewName}]` : `自定义视图 [${viewName}] 创建后读不回` };\n    }\n\n    if (action === \"show\") {\n      if (!viewName) throw new Error(\"show 需要 viewName\");\n      const v = g(() => wb.CustomViews.Item(String(viewName)), null);\n      if (!v) throw new Error(`找不到自定义视图 [${viewName}]。现有：${listViews().map(x => x.name).join(\" / \") || \"无\"}`);\n      try { v.Show(); } catch (e) { return { success: false, workbookName: wb.Name, action, hostError: e.message, warnings: [`切换失败：${e.message}`], message: `切换到视图 [${viewName}] 失败` }; }\n      return { success: true, workbookName: wb.Name, action, viewName: String(viewName), warnings: [], views: listViews(), message: `已切换到自定义视图 [${viewName}]` };\n    }\n\n    if (action === \"delete\") {\n      if (!viewName) throw new Error(\"delete 需要 viewName\");\n      const v = g(() => wb.CustomViews.Item(String(viewName)), null);\n      if (!v) return { success: true, workbookName: wb.Name, action, warning: undefined, views: listViews(), warnings: [], message: `自定义视图 [${viewName}] 不存在，无需删除` };\n      try { v.Delete(); } catch (e) { return { success: false, workbookName: wb.Name, action, hostError: e.message, warnings: [`删除失败：${e.message}`], message: `删除视图 [${viewName}] 失败` }; }\n      const still = listViews().some(x => x.name === String(viewName));\n      return { success: !still, workbookName: wb.Name, action, viewName: String(viewName), views: listViews(),\n        warnings: still ? [\"删除后仍能读到该视图\"] : [], message: still ? `视图 [${viewName}] 删除后仍在` : `已删除自定义视图 [${viewName}]` };\n    }\n\n    throw new Error(`未知的视图操作 action: ${action}（支持 list / add / show / delete / read_rich_values）`);\n  }\nreturn manageWorkbookViews(app,{workbookName:wb.Name,action:\"add\",viewName:\"M1H_Baseline_TableView\"});"
+  },
+  "isError": false,
+  "data": {
+    "success": true,
+    "executionTimeMs": 1,
+    "returnValue": {
+      "success": false,
+      "workbookName": "CharFloat_M1H_20261012.xlsx",
+      "action": "add",
+      "viewName": "M1H_Baseline_TableView",
+      "readBack": null,
+      "warnings": [
+        "创建后读不回该视图"
+      ],
+      "views": [],
+      "message": "自定义视图 [M1H_Baseline_TableView] 创建后读不回"
+    },
+    "truncated": false,
+    "logs": [],
+    "message": "WPS 原生图灵脚本执行完毕（耗时 1ms）"
+  },
+  "atUTC": "2026-10-11T17:02:40.371Z"
+}

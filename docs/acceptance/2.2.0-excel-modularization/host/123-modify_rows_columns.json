@@ -1,0 +1,34 @@
+{
+  "tool": "wps_modify_rows_columns",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "targetType": "row",
+    "action": "unhide",
+    "index": 30,
+    "count": 2
+  },
+  "startUTC": "2026-10-11T16:53:48.907Z",
+  "endUTC": "2026-10-11T16:53:48.913Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "targetType": "row",
+    "action": "unhide",
+    "index": 30,
+    "count": 2,
+    "message": "已成功对工作表 [验收数据] 的第 30 行（共 2 项）执行 unhide 操作",
+    "auditId": "612d578b-745d-4c99-a830-7179574ce07d",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "行列结构修改只留痕、不可回滚：值快照无法表达行列位移带来的整体变化。"
+  }
+}

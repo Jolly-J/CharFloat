@@ -1,0 +1,11 @@
+{
+  "validXlsx": true,
+  "frozenPaneOnDisk": {
+    "ySplit": "1",
+    "topLeftCell": "A2",
+    "activePane": "bottomLeft",
+    "state": "frozenSplit"
+  },
+  "containsChartXml": true,
+  "containsTableXml": true
+}

@@ -1,0 +1,127 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "对象验收",
+    "address": "A1:C4",
+    "values": [
+      [
+        "项目",
+        "数量",
+        "金额"
+      ],
+      [
+        "测试A",
+        1,
+        10
+      ],
+      [
+        "测试B",
+        2,
+        20
+      ],
+      [
+        "测试C",
+        3,
+        30
+      ]
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:49.133Z",
+  "endUTC": "2026-10-11T16:53:49.143Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 12 个单元格，已记录留痕",
+    "auditId": "60116fef-9f51-4fe2-8586-6e9d1741700a",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "modifiedCount": 12,
+    "diff": [
+      {
+        "cell": "$A$1",
+        "oldValue": null,
+        "newValue": "项目",
+        "oldFormula": "",
+        "newFormula": "项目"
+      },
+      {
+        "cell": "$B$1",
+        "oldValue": null,
+        "newValue": "数量",
+        "oldFormula": "",
+        "newFormula": "数量"
+      },
+      {
+        "cell": "$C$1",
+        "oldValue": null,
+        "newValue": "金额",
+        "oldFormula": "",
+        "newFormula": "金额"
+      },
+      {
+        "cell": "$A$2",
+        "oldValue": null,
+        "newValue": "测试A",
+        "oldFormula": "",
+        "newFormula": "测试A"
+      },
+      {
+        "cell": "$B$2",
+        "oldValue": null,
+        "newValue": 1,
+        "oldFormula": "",
+        "newFormula": "1"
+      },
+      {
+        "cell": "$C$2",
+        "oldValue": null,
+        "newValue": 10,
+        "oldFormula": "",
+        "newFormula": "10"
+      },
+      {
+        "cell": "$A$3",
+        "oldValue": null,
+        "newValue": "测试B",
+        "oldFormula": "",
+        "newFormula": "测试B"
+      },
+      {
+        "cell": "$B$3",
+        "oldValue": null,
+        "newValue": 2,
+        "oldFormula": "",
+        "newFormula": "2"
+      },
+      {
+        "cell": "$C$3",
+        "oldValue": null,
+        "newValue": 20,
+        "oldFormula": "",
+        "newFormula": "20"
+      },
+      {
+        "cell": "$A$4",
+        "oldValue": null,
+        "newValue": "测试C",
+        "oldFormula": "",
+        "newFormula": "测试C"
+      },
+      {
+        "cell": "$B$4",
+        "oldValue": null,
+        "newValue": 3,
+        "oldFormula": "",
+        "newFormula": "3"
+      },
+      {
+        "cell": "$C$4",
+        "oldValue": null,
+        "newValue": 30,
+        "oldFormula": "",
+        "newFormula": "30"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "G1:H1",
+    "values": [
+      [
+        9
+      ]
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:48.655Z",
+  "endUTC": "2026-10-11T16:53:48.666Z",
+  "isError": true,
+  "data": {
+    "error": "写入矩阵必须与目标区域尺寸一致"
+  }
+}

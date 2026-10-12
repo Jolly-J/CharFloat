@@ -1,0 +1,36 @@
+{
+  "tool": "wps_get_range_styles",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "E2:E6",
+    "include": [
+      "validation"
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:48.806Z",
+  "endUTC": "2026-10-11T16:53:48.814Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$E$2:$E$6",
+    "rowCount": 5,
+    "columnCount": 1,
+    "mode": "summary",
+    "styles": {
+      "validation": {
+        "type": 3,
+        "typeName": "xlValidateList",
+        "operator": 1,
+        "formula1": "通过,不通过",
+        "formula2": "",
+        "ignoreBlank": true,
+        "inCellDropdown": true,
+        "prompt": "请选择验收状态",
+        "errorMessage": ""
+      }
+    },
+    "mixedOrUnavailableFields": []
+  }
+}

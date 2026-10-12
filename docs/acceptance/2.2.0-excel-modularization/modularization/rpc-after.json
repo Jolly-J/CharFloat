@@ -1,0 +1,1275 @@
+{
+  "读区域保留零与公式": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "address": "$A$1:$B$1",
+        "rowCount": 1,
+        "columnCount": 2,
+        "values": [
+          [
+            0,
+            "旧B"
+          ]
+        ],
+        "formulas": [
+          [
+            0,
+            "旧B"
+          ]
+        ],
+        "numberFormats": null
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "混合值和公式不清空空公式位置": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "address": "$A$1:$B$1",
+        "modifiedCount": 2,
+        "diff": [
+          {
+            "cell": "$A$1",
+            "oldValue": 0,
+            "newValue": "=1+1",
+            "oldFormula": 0,
+            "newFormula": "=1+1"
+          },
+          {
+            "cell": "$B$1",
+            "oldValue": "旧B",
+            "newValue": "新B",
+            "oldFormula": "旧B",
+            "newFormula": "新B"
+          }
+        ],
+        "beforeSnapshot": {
+          "workbookName": "Exact.xlsx",
+          "sheetName": "Test",
+          "address": "$A$1:$B$1",
+          "rowCount": 1,
+          "columnCount": 2,
+          "values": [
+            [
+              0,
+              "旧B"
+            ]
+          ],
+          "formulas": [
+            [
+              0,
+              "旧B"
+            ]
+          ]
+        },
+        "afterSnapshot": {
+          "workbookName": "Exact.xlsx",
+          "sheetName": "Test",
+          "address": "$A$1:$B$1",
+          "rowCount": 1,
+          "columnCount": 2,
+          "values": [
+            [
+              "=1+1",
+              "新B"
+            ]
+          ],
+          "formulas": [
+            [
+              "=1+1",
+              "新B"
+            ]
+          ]
+        }
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ],
+      [
+        "set",
+        "range",
+        "Value2",
+        [
+          [
+            "新A",
+            "新B"
+          ]
+        ]
+      ],
+      [
+        "values.write",
+        [
+          [
+            "新A",
+            "新B"
+          ]
+        ]
+      ],
+      [
+        "cell.formula",
+        0,
+        "=1+1"
+      ]
+    ],
+    "values": [
+      "=1+1",
+      "新B"
+    ],
+    "formulas": [
+      "=1+1",
+      "新B"
+    ]
+  },
+  "非法矩阵执行前拒绝": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": null,
+      "error": "写入矩阵必须与目标区域尺寸一致"
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "样式跨模块写入与读回": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "warnings": [],
+        "success": true,
+        "address": "$A$1:$B$1",
+        "appliedStyles": {
+          "workbookName": "Exact.xlsx",
+          "sheetName": "Test",
+          "address": "A1:B1",
+          "fontSize": 18,
+          "bold": true,
+          "fontColor": "#FF0000",
+          "verticalAlignment": "top",
+          "rowHeight": 24
+        }
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ],
+      [
+        "set",
+        "font",
+        "Size",
+        18
+      ],
+      [
+        "set",
+        "font",
+        "Bold",
+        true
+      ],
+      [
+        "set",
+        "font",
+        "Color",
+        255
+      ],
+      [
+        "set",
+        "range",
+        "VerticalAlignment",
+        -4160
+      ],
+      [
+        "set",
+        "row.1",
+        "RowHeight",
+        24
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "设计语言读取不编造缺失字段": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "sampleAddress": "$A$1",
+        "sampledCell": {
+          "address": "$A$1",
+          "fontName": "微软雅黑",
+          "fontSize": 11,
+          "bold": false,
+          "italic": false,
+          "fontColor": "#000000",
+          "backgroundColor": "#FFFFFF",
+          "backgroundColorEffective": "#FFFFFF",
+          "hasFill": true,
+          "fillPattern": 1,
+          "numberFormat": "0",
+          "horizontalAlignment": "left",
+          "rowHeight": 15,
+          "columnWidth": 8,
+          "borderBottom": 1
+        },
+        "fontName": "微软雅黑",
+        "titleFontName": "微软雅黑",
+        "sampleFontSize": 11,
+        "sampleBold": false,
+        "fontColor": "#000000",
+        "headerBackgroundColor": "#FFFFFF",
+        "titleCell": {
+          "address": "$A$1",
+          "fontName": "微软雅黑",
+          "fontSize": 11,
+          "bold": false,
+          "italic": false,
+          "fontColor": "#000000",
+          "backgroundColor": "#FFFFFF",
+          "backgroundColorEffective": "#FFFFFF",
+          "hasFill": true,
+          "fillPattern": 1,
+          "numberFormat": "0",
+          "horizontalAlignment": "left",
+          "rowHeight": 15,
+          "columnWidth": 8,
+          "borderBottom": 1
+        },
+        "fonts": {
+          "title": {
+            "role": "title",
+            "signature": "微软雅黑|11|false|false|#000000|#FFFFFF|0",
+            "sampleAddress": "$A$1",
+            "sampleCells": [
+              "$A$1",
+              "$B$1"
+            ],
+            "sampleText": "0",
+            "cellCount": 2,
+            "contentCellCount": 2,
+            "fontName": "微软雅黑",
+            "fontSize": 11,
+            "bold": false,
+            "italic": false,
+            "fontColor": "#000000",
+            "backgroundColor": "#FFFFFF",
+            "hasFill": true,
+            "numberFormat": "0",
+            "horizontalAlignment": null
+          },
+          "header": null,
+          "body": {
+            "role": "body",
+            "signature": "微软雅黑|11|false|false|#000000|#FFFFFF|0",
+            "sampleAddress": "$A$1",
+            "sampleCells": [
+              "$A$1",
+              "$B$1"
+            ],
+            "sampleText": "0",
+            "cellCount": 2,
+            "contentCellCount": 2,
+            "fontName": "微软雅黑",
+            "fontSize": 11,
+            "bold": false,
+            "italic": false,
+            "fontColor": "#000000",
+            "backgroundColor": "#FFFFFF",
+            "hasFill": true,
+            "numberFormat": "0",
+            "horizontalAlignment": null
+          },
+          "caption": null,
+          "heuristic": "启发式判据：title=字号最大的一组；header=加粗且有底色中出现最多的一组；body=出现最多的一组；caption=字号最小的一组（等于 body 时为 null）"
+        },
+        "palette": {
+          "themeColors": null,
+          "themeColorsSource": null,
+          "workbookPalette": null,
+          "workbookPaletteSource": null,
+          "observed": [
+            {
+              "color": "#000000",
+              "kind": "font",
+              "cellCount": 2,
+              "sampleCells": [
+                "$A$1",
+                "$B$1"
+              ]
+            },
+            {
+              "color": "#FFFFFF",
+              "kind": "fill",
+              "cellCount": 2,
+              "sampleCells": [
+                "$A$1",
+                "$B$1"
+              ]
+            }
+          ]
+        },
+        "census": {
+          "scannedCells": 2,
+          "blockCells": 2,
+          "truncated": false,
+          "styleGroups": 1,
+          "styles": [
+            {
+              "signature": "微软雅黑|11|false|false|#000000|#FFFFFF|0",
+              "cellCount": 2,
+              "contentCellCount": 2,
+              "sampleCells": [
+                "$A$1",
+                "$B$1"
+              ],
+              "sampleText": "0",
+              "fontName": "微软雅黑",
+              "fontSize": 11,
+              "bold": false,
+              "fontColor": "#000000",
+              "backgroundColor": "#FFFFFF",
+              "hasFill": true,
+              "numberFormat": "0"
+            }
+          ]
+        },
+        "tableStyles": {
+          "ok": true,
+          "count": 0,
+          "tableCount": 0,
+          "returnedTables": 0,
+          "items": [],
+          "truncated": false,
+          "limit": 20
+        },
+        "conditionalFormatStyles": {
+          "scannedAreas": 3,
+          "areaCount": 0,
+          "areas": []
+        },
+        "probes": [
+          {
+            "target": "设计普查(已用区域左上角有界窗口)",
+            "ok": true,
+            "detail": "扫描 2 格，识别出 1 套不同样式"
+          },
+          {
+            "target": "Workbook.ThemeColorScheme",
+            "ok": false,
+            "detail": "返回 undefined"
+          },
+          {
+            "target": "Workbook.Theme",
+            "ok": false,
+            "detail": "返回 undefined"
+          },
+          {
+            "target": "Application.Theme",
+            "ok": false,
+            "detail": "返回 undefined"
+          },
+          {
+            "target": "Workbook.Colors",
+            "ok": false,
+            "detail": "读取为空（宿主可能不暴露该属性）"
+          },
+          {
+            "target": "observed(设计普查统计)",
+            "ok": true,
+            "detail": "统计到 2 个实际使用的颜色"
+          },
+          {
+            "target": "ListObjects(结构化表格样式)",
+            "ok": true,
+            "detail": "工作表中 0 个结构化表格"
+          },
+          {
+            "target": "FormatConditions(有界区域)",
+            "ok": false,
+            "detail": "尝试的 3 个区域都没有条件格式规则"
+          }
+        ],
+        "unavailable": [
+          "themeColors: 宿主的主题色入口（Workbook.ThemeColorScheme / Workbook.Theme / Application.Theme）在本机全部探测失败，见 probes；色板请参考 workbookPalette 与 observed",
+          "conditionalFormatStyles: 有界扫描未发现条件格式规则（工作表中仍可能存在，本工具不做全表枚举）"
+        ],
+        "warnings": [],
+        "message": "已读取 [Test] 的设计语言：取样格 $A$1，主样式 微软雅黑 11pt；3/8 项探测成功，2 项不可用（见 unavailable/probes）"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A3"
+      ],
+      [
+        "range",
+        "A1"
+      ],
+      [
+        "range",
+        "A1:L40"
+      ],
+      [
+        "range",
+        "A1:L1"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "验证读取跨模块运行": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "address": "$A$1:$B$1",
+        "rowCount": 1,
+        "columnCount": 2,
+        "mode": "summary",
+        "styles": {
+          "fontSize": 11,
+          "validation": {
+            "type": -4142,
+            "typeName": null,
+            "operator": 1,
+            "formula1": "",
+            "formula2": "",
+            "ignoreBlank": true,
+            "inCellDropdown": true,
+            "prompt": null,
+            "errorMessage": null
+          }
+        },
+        "mixedOrUnavailableFields": [],
+        "validationCheck": {
+          "rangeAddress": "$A$1:$B$1",
+          "scannedCells": 2,
+          "totalCells": 2,
+          "truncated": false,
+          "validatedCells": 0,
+          "skippedBlankCells": 0,
+          "blankWithUnknownIgnoreBlank": 0,
+          "readErrorCells": 0,
+          "ruleCount": 0,
+          "rules": [],
+          "violations": [],
+          "violationCount": 0,
+          "violationsTruncated": false,
+          "unevaluated": [],
+          "unevaluatedCount": 0,
+          "warnings": [],
+          "message": "已比对 [Test] $A$1:$B$1：0 个带校验的单元格中 0 个取值越界"
+        }
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "验证写后核对列表": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "address": "A1:B1",
+        "validationType": "list",
+        "requested": {
+          "listItems": [
+            "通过",
+            "不通过"
+          ]
+        },
+        "readBack": {
+          "type": 3,
+          "typeName": "list",
+          "operator": 1,
+          "operatorName": "between",
+          "formula1": "通过,不通过",
+          "formula2": "",
+          "inCellDropdown": true,
+          "ignoreBlank": true
+        },
+        "replacedPreviousRule": null,
+        "warnings": [],
+        "message": "已在 [Test] A1:B1 配置数据有效性并读回核对通过"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ],
+      [
+        "validation.delete"
+      ],
+      [
+        "set",
+        "validation",
+        "Type",
+        -4142
+      ],
+      [
+        "validation.add",
+        3,
+        1,
+        1,
+        "通过,不通过",
+        null
+      ],
+      [
+        "set",
+        "validation",
+        "Type",
+        3
+      ],
+      [
+        "set",
+        "validation",
+        "Operator",
+        1
+      ],
+      [
+        "set",
+        "validation",
+        "Formula1",
+        "通过,不通过"
+      ],
+      [
+        "set",
+        "validation",
+        "Formula2",
+        ""
+      ],
+      [
+        "set",
+        "validation",
+        "InCellDropdown",
+        true
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "工作表视图生效": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "before": {
+          "showGridlines": true,
+          "showHeadings": true,
+          "zoom": null
+        },
+        "after": {
+          "showGridlines": false,
+          "showHeadings": true,
+          "zoom": null
+        },
+        "warnings": [],
+        "message": "工作表 [Test] 视图：网格线 隐藏、行列标题 显示、缩放 NaN%"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "sheet.activate"
+      ],
+      [
+        "set",
+        "window",
+        "DisplayGridlines",
+        false
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "行隐藏逐行核对": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "targetType": "row",
+        "action": "hide",
+        "index": 1,
+        "count": 2,
+        "message": "已成功对工作表 [Test] 的第 1 行（共 2 项）执行 hide 操作"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "1:2"
+      ],
+      [
+        "set",
+        "row.1",
+        "Hidden",
+        true
+      ],
+      [
+        "set",
+        "row.2",
+        "Hidden",
+        true
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "图表清点": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "totalChartCount": 1,
+        "chartCount": 1,
+        "detail": false,
+        "charts": [
+          {
+            "chartIndex": 1,
+            "shapeName": "图表1",
+            "title": "原标题",
+            "chartType": 51,
+            "chartTypeName": "xlColumnClustered",
+            "hasLegend": true,
+            "left": 0,
+            "top": 0,
+            "width": 200,
+            "height": 100,
+            "leftCell": null,
+            "isDefaultPosition": false,
+            "seriesCount": 0
+          }
+        ]
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "图表更新写后核对": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "chartName": "图表1",
+        "applied": {
+          "title": "新标题",
+          "chartType": 4
+        },
+        "chart": {
+          "name": "图表1",
+          "chartType": 4,
+          "title": "新标题",
+          "hasTitle": true,
+          "hasLegend": true,
+          "seriesCount": 0,
+          "dataLabels": null
+        },
+        "warnings": [],
+        "message": "已更新图表「图表1」2 项"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "sheet.activate"
+      ],
+      [
+        "set",
+        "chart",
+        "HasTitle",
+        true
+      ],
+      [
+        "set",
+        "chart.title",
+        "Text",
+        "新标题"
+      ],
+      [
+        "set",
+        "chart",
+        "ChartType",
+        4
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "形状清点": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "count": 1,
+        "shapes": [
+          {
+            "name": "图表1",
+            "type": 3,
+            "autoShapeType": null,
+            "left": 0,
+            "top": 0,
+            "width": 200,
+            "height": 100,
+            "rotation": null,
+            "visible": true,
+            "fillColor": null,
+            "lineColor": null,
+            "lineWeight": null,
+            "text": null,
+            "textAlign": null,
+            "textVAlign": null,
+            "topLeftCell": "",
+            "isGroup": false,
+            "groupItemCount": null
+          }
+        ],
+        "message": "工作表 [Test] 上共有 1 个形状"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "结构化表清点": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "count": 0,
+        "tables": [],
+        "warnings": [],
+        "message": "工作表 [Test] 共 0 个结构化表格"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "透视表清点": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "count": 0,
+        "pivotTables": [],
+        "warnings": [],
+        "message": "工作簿 [Exact.xlsx] 共 0 个数据透视表"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "筛选越界在写操作前拒绝": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": null,
+      "error": "sortRules.colIndex=3 越界：目标区域 A1:B1 只有 2 列（1..2）；本次未做任何修改（未开启/关闭筛选，未排序）"
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "sheet.activate"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "批注保留作者与目标地址": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "address": "$A$1",
+        "action": "add",
+        "commentText": "批注正文",
+        "authorRequested": "审阅者",
+        "authorOnHost": "审阅者",
+        "authorApplied": true,
+        "message": "已在单元格 $A$1 添加批注"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1"
+      ],
+      [
+        "comment.add",
+        0,
+        "批注正文"
+      ],
+      [
+        "set",
+        "comment",
+        "Visible",
+        false
+      ],
+      [
+        "set",
+        "comment",
+        "Author",
+        "审阅者"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "保存定位目标工作簿": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": false,
+        "workbookName": "Exact.xlsx",
+        "fullName": "/tmp/Exact.xlsx",
+        "saved": false,
+        "warnings": [
+          "该工作簿从未保存过，Save() 未落盘；请用 save_as 指定路径"
+        ],
+        "message": "工作簿 [Exact.xlsx] 未确认落盘"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "workbook.save"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "打印设置写后读取": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": {
+        "success": true,
+        "workbookName": "Exact.xlsx",
+        "sheetName": "Test",
+        "action": "apply",
+        "applied": {
+          "printArea": "A1:B1",
+          "orientation": 2
+        },
+        "settings": {
+          "printArea": "A1:B1",
+          "printTitleRows": "",
+          "printTitleColumns": "",
+          "orientation": 2,
+          "paperSize": 9,
+          "zoom": 100,
+          "fitToPagesWide": null,
+          "fitToPagesTall": null,
+          "centerHorizontally": false,
+          "centerVertically": false,
+          "printGridlines": false,
+          "margins": {
+            "left": null,
+            "right": null,
+            "top": null,
+            "bottom": null,
+            "header": null,
+            "footer": null
+          },
+          "headers": {
+            "center": "",
+            "left": "",
+            "right": ""
+          },
+          "footers": {
+            "center": "",
+            "left": "",
+            "right": ""
+          },
+          "pageBreaks": {
+            "horizontal": 0,
+            "vertical": 0
+          },
+          "orientationName": "landscape"
+        },
+        "warnings": [],
+        "message": "已应用并读回核对 [Test] 的打印设置"
+      },
+      "error": null
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "set",
+        "page",
+        "PrintArea",
+        "A1:B1"
+      ],
+      [
+        "set",
+        "page",
+        "Orientation",
+        2
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "未知方法保持明确失败": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": null,
+      "error": "未知的 RPC 方法: no_such_method"
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ],
+    "formulas": [
+      0,
+      "旧B"
+    ]
+  },
+  "宿主写入异常": {
+    "response": {
+      "type": "rpc_response",
+      "id": "case",
+      "result": null,
+      "error": "写入失败，已恢复原值与公式：模拟宿主写入失败"
+    },
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ],
+      [
+        "range",
+        "A1:B1"
+      ],
+      [
+        "set",
+        "range",
+        "Value2",
+        [
+          [
+            "新A",
+            "新B"
+          ]
+        ]
+      ],
+      [
+        "values.write",
+        [
+          [
+            "新A",
+            "新B"
+          ]
+        ]
+      ],
+      [
+        "set",
+        "range",
+        "Formula",
+        [
+          [
+            0,
+            "旧B"
+          ]
+        ]
+      ],
+      [
+        "formulas.write",
+        [
+          [
+            0,
+            "旧B"
+          ]
+        ]
+      ]
+    ],
+    "values": [
+      0,
+      "旧B"
+    ]
+  },
+  "事件与心跳": {
+    "events": [
+      {
+        "type": "event",
+        "event": "selection_change",
+        "data": {
+          "sheetName": "Test",
+          "address": "$A$1:$B$1",
+          "rowCount": 1,
+          "columnCount": 2
+        }
+      }
+    ],
+    "trace": [
+      [
+        "event.register",
+        "SheetSelectionChange"
+      ]
+    ],
+    "registrationCount": 2
+  }
+}

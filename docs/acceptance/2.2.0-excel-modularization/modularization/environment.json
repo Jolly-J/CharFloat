@@ -1,0 +1,8 @@
+{
+  "node": "v25.9.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "version": "2.2.0",
+  "hostValidation": "未部署，未连接真实 WPS/Office，未修改办公文件",
+  "testEnvironment": "内存模拟；完整 HTTP/stdio 测试使用各自的临时目录与本机端口"
+}

@@ -1,0 +1,77 @@
+{
+  "tool": "wps_patch_cells",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "sheetName": "无表对照",
+    "address": "A1:B3",
+    "values": [
+      [
+        "项目",
+        "数量"
+      ],
+      [
+        "对照A",
+        1
+      ],
+      [
+        "对照B",
+        2
+      ]
+    ]
+  },
+  "startUTC": "2026-10-11T17:00:56.670Z",
+  "endUTC": "2026-10-11T17:00:56.691Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "message": "已成功修改 6 个单元格，已记录留痕",
+    "auditId": "82b04dc7-7ab0-4f4e-9bdd-924e50acbfae",
+    "rollbackable": true,
+    "workbookName": "CharFloat_M1H_ViewControl_20261012.xlsx",
+    "modifiedCount": 6,
+    "diff": [
+      {
+        "cell": "$A$1",
+        "oldValue": null,
+        "newValue": "项目",
+        "oldFormula": "",
+        "newFormula": "项目"
+      },
+      {
+        "cell": "$B$1",
+        "oldValue": null,
+        "newValue": "数量",
+        "oldFormula": "",
+        "newFormula": "数量"
+      },
+      {
+        "cell": "$A$2",
+        "oldValue": null,
+        "newValue": "对照A",
+        "oldFormula": "",
+        "newFormula": "对照A"
+      },
+      {
+        "cell": "$B$2",
+        "oldValue": null,
+        "newValue": 1,
+        "oldFormula": "",
+        "newFormula": "1"
+      },
+      {
+        "cell": "$A$3",
+        "oldValue": null,
+        "newValue": "对照B",
+        "oldFormula": "",
+        "newFormula": "对照B"
+      },
+      {
+        "cell": "$B$3",
+        "oldValue": null,
+        "newValue": 2,
+        "oldFormula": "",
+        "newFormula": "2"
+      }
+    ]
+  }
+}

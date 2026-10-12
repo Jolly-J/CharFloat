@@ -1,0 +1,55 @@
+{
+  "tool": "wps_add_conditional_formatting",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "D2:D6",
+    "action": "read"
+  },
+  "startUTC": "2026-10-11T16:53:48.832Z",
+  "endUTC": "2026-10-11T16:53:48.845Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "areaCount": 1,
+    "ruleCount": 1,
+    "areas": [
+      {
+        "address": "$D$2:$D$6",
+        "rules": [
+          {
+            "index": 1,
+            "type": "cell_value",
+            "typeCode": 1,
+            "operator": "greater_than",
+            "formula1": "=100",
+            "formula2": null,
+            "priority": 1,
+            "stopIfTrue": false,
+            "fillColor": "#FFE8E5",
+            "fontColor": "#000000",
+            "fontBold": false,
+            "iconSet": "undefined",
+            "showIconOnly": false,
+            "barColor": "#000000",
+            "text": null
+          }
+        ]
+      }
+    ],
+    "warnings": [],
+    "message": "工作表 [验收数据] 上 1 个区域共 1 条条件格式规则",
+    "auditId": "9f9725fa-5d2b-4108-a446-c5586fcc5517",
+    "rollbackable": false,
+    "rollbackScope": {
+      "values": false,
+      "formulas": false,
+      "styles": false,
+      "charts": false,
+      "structure": false
+    },
+    "auditNote": "条件格式只留痕、不可回滚；清除需用宿主脚本或后续工具。"
+  }
+}

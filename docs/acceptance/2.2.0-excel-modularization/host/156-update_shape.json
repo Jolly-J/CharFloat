@@ -1,0 +1,40 @@
+{
+  "tool": "wps_update_shape",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "name": "M1H_BoxA",
+    "left": 415
+  },
+  "startUTC": "2026-10-11T16:53:49.642Z",
+  "endUTC": "2026-10-11T16:53:49.654Z",
+  "isError": false,
+  "data": {
+    "success": true,
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "action": "update",
+    "shape": {
+      "name": "M1H_BoxA",
+      "type": 1,
+      "autoShapeType": 5,
+      "left": 415,
+      "top": 335,
+      "width": 145,
+      "height": 48,
+      "rotation": 0,
+      "visible": true,
+      "fillColor": "#1F4E78",
+      "lineColor": "#2E54A1",
+      "lineWeight": 1,
+      "text": "模块化验收",
+      "textAlign": "center",
+      "textVAlign": "middle",
+      "topLeftCell": "$K$21",
+      "isGroup": false,
+      "groupItemCount": null
+    },
+    "warnings": [],
+    "message": "已更新形状「M1H_BoxA」"
+  }
+}

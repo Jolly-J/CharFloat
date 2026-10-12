@@ -1,0 +1,180 @@
+{
+  "tool": "wps_get_charts",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "detail": true
+  },
+  "startUTC": "2026-10-11T17:06:02.578Z",
+  "endUTC": "2026-10-11T17:06:02.599Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "totalChartCount": 3,
+    "chartCount": 3,
+    "detail": true,
+    "charts": [
+      {
+        "chartIndex": 1,
+        "shapeName": "Chart 1",
+        "title": "数量验收-已更新",
+        "chartType": 4,
+        "chartTypeName": "xlLine",
+        "hasLegend": false,
+        "left": 230,
+        "top": 78,
+        "width": 359.95001220703125,
+        "height": 209.60000610351562,
+        "leftCell": "$G$5",
+        "isDefaultPosition": false,
+        "seriesCount": 5,
+        "series": [
+          {
+            "seriesIndex": 1,
+            "name": "项目2",
+            "formula": "=SERIES(验收数据!$B$2,验收数据!$C$1,验收数据!$C$2,1)",
+            "smooth": false,
+            "lineColor": "#4874CB",
+            "fillColor": "#000000"
+          },
+          {
+            "seriesIndex": 2,
+            "name": "项目3",
+            "formula": "=SERIES(验收数据!$B$3,验收数据!$C$1,验收数据!$C$3,2)",
+            "smooth": false,
+            "lineColor": "#EE822F",
+            "fillColor": "#000000"
+          },
+          {
+            "seriesIndex": 3,
+            "name": "项目1",
+            "formula": "=SERIES(验收数据!$B$4,验收数据!$C$1,验收数据!$C$4,3)",
+            "smooth": false,
+            "lineColor": "#F2BA02",
+            "fillColor": "#000000"
+          },
+          {
+            "seriesIndex": 4,
+            "name": "项目5",
+            "formula": "=SERIES(验收数据!$B$5,验收数据!$C$1,验收数据!$C$5,4)",
+            "smooth": false,
+            "lineColor": "#75BD42",
+            "fillColor": "#000000"
+          },
+          {
+            "seriesIndex": 5,
+            "name": "项目4",
+            "formula": "=SERIES(验收数据!$B$6,验收数据!$C$1,验收数据!$C$6,5)",
+            "smooth": false,
+            "lineColor": "#30C0B4",
+            "fillColor": "#000000"
+          }
+        ],
+        "yAxis": {
+          "minimumScale": 0,
+          "maximumScale": 4.5,
+          "majorUnit": 0.5,
+          "numberFormat": "General",
+          "title": ""
+        }
+      },
+      {
+        "chartIndex": 2,
+        "shapeName": "Chart 6",
+        "title": "固定基线非活动表",
+        "chartType": 51,
+        "chartTypeName": "xlColumnClustered",
+        "hasLegend": true,
+        "left": 228,
+        "top": 556,
+        "width": 300,
+        "height": 180,
+        "leftCell": "$G$34",
+        "isDefaultPosition": false,
+        "seriesCount": 1,
+        "series": [
+          {
+            "seriesIndex": 1,
+            "name": "甲",
+            "formula": "=SERIES(验收数据!$A$3,验收数据!$B$1:$B$2,验收数据!$B$3,1)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#4874CB"
+          }
+        ],
+        "yAxis": {
+          "minimumScale": 0,
+          "maximumScale": 1,
+          "majorUnit": 0.1,
+          "numberFormat": "General",
+          "title": ""
+        }
+      },
+      {
+        "chartIndex": 3,
+        "shapeName": "Chart 7",
+        "title": "",
+        "chartType": 51,
+        "chartTypeName": "xlColumnClustered",
+        "hasLegend": false,
+        "left": 228,
+        "top": 716,
+        "width": 360,
+        "height": 220,
+        "leftCell": "$G$44",
+        "isDefaultPosition": false,
+        "seriesCount": 5,
+        "series": [
+          {
+            "seriesIndex": 1,
+            "name": "项目2",
+            "formula": "=SERIES(验收数据!$B$2,验收数据!$C$1,验收数据!$C$2,1)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#4874CB"
+          },
+          {
+            "seriesIndex": 2,
+            "name": "项目3",
+            "formula": "=SERIES(验收数据!$B$3,验收数据!$C$1,验收数据!$C$3,2)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#EE822F"
+          },
+          {
+            "seriesIndex": 3,
+            "name": "项目1",
+            "formula": "=SERIES(验收数据!$B$4,验收数据!$C$1,验收数据!$C$4,3)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#F2BA02"
+          },
+          {
+            "seriesIndex": 4,
+            "name": "项目5",
+            "formula": "=SERIES(验收数据!$B$5,验收数据!$C$1,验收数据!$C$5,4)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#75BD42"
+          },
+          {
+            "seriesIndex": 5,
+            "name": "项目4",
+            "formula": "=SERIES(验收数据!$B$6,验收数据!$C$1,验收数据!$C$6,5)",
+            "smooth": false,
+            "lineColor": "#FFFFFF",
+            "fillColor": "#30C0B4"
+          }
+        ],
+        "yAxis": {
+          "minimumScale": 0,
+          "maximumScale": 4.5,
+          "majorUnit": 0.5,
+          "numberFormat": "General",
+          "title": ""
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "tool": "wps_get_range_styles",
+  "arguments": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "E2:E6",
+    "include": [
+      "validation",
+      "validationViolations"
+    ]
+  },
+  "startUTC": "2026-10-11T16:53:48.795Z",
+  "endUTC": "2026-10-11T16:53:48.804Z",
+  "isError": false,
+  "data": {
+    "workbookName": "CharFloat_M1H_20261012.xlsx",
+    "sheetName": "验收数据",
+    "address": "$E$2:$E$6",
+    "rowCount": 5,
+    "columnCount": 1,
+    "mode": "summary",
+    "styles": {
+      "validation": {
+        "type": 3,
+        "typeName": "xlValidateList",
+        "operator": 1,
+        "formula1": "通过,不通过",
+        "formula2": "",
+        "ignoreBlank": true,
+        "inCellDropdown": true,
+        "prompt": "请选择验收状态",
+        "errorMessage": ""
+      }
+    },
+    "mixedOrUnavailableFields": [],
+    "validationCheck": {
+      "rangeAddress": "$E$2:$E$6",
+      "scannedCells": 5,
+      "totalCells": 5,
+      "truncated": false,
+      "validatedCells": 5,
+      "skippedBlankCells": 0,
+      "blankWithUnknownIgnoreBlank": 0,
+      "readErrorCells": 0,
+      "ruleCount": 1,
+      "rules": [
+        {
+          "ruleKey": "R1",
+          "type": 3,
+          "typeName": "list",
+          "operator": 1,
+          "operatorName": "between",
+          "formula1": "通过,不通过",
+          "formula2": "",
+          "ignoreBlank": true,
+          "inCellDropdown": true,
+          "cellCount": 5,
+          "sampleCells": [
+            "E2",
+            "E3",
+            "E4",
+            "E5",
+            "E6"
+          ],
+          "expectation": "必须是列表中的一项: 通过 / 不通过"
+        }
+      ],
+      "violations": [],
+      "violationCount": 0,
+      "violationsTruncated": false,
+      "unevaluated": [],
+      "unevaluatedCount": 0,
+      "warnings": [],
+      "message": "已比对 [验收数据] $E$2:$E$6：5 个带校验的单元格中 0 个取值越界"
+    }
+  }
+}
