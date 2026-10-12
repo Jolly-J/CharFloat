@@ -38,7 +38,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_sheet_outline",
-        description: "按需获取指定工作表的数据边界(UsedRange)与前 3 行表头样本，用于在读取整表前判断结构与数据量。返回体还含 **sheetState**（工作表级读回，用于写完自检）：protection(保护状态)、tabColor(标签色)、autoFilter(筛选模式与实际范围)、freezePanes(冻结行列，**仅目标表处于活动状态时可读**，否则 available:false 并说明)、conditionalFormats(已用区域上的条件格式规则摘要，最多 50 条)。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "按需获取指定工作表的数据边界(UsedRange)与前 3 行表头样本，用于在读取整表前判断结构与数据量。【人机协同写前边界嗅探】字浮主打人机实时共享编辑活工作簿。多轮会话接管、追加数据或末行计算前，优先调用本工具快速获取最新 UsedRange 行列边界与行数，防止因用户手动增删行导致绝对行号错位。开销极低（仅读边界与表头），是写前核验的首选工具。返回体还含 **sheetState**（工作表级读回，用于写完自检）：protection(保护状态)、tabColor(标签色)、autoFilter(筛选模式与实际范围)、freezePanes(冻结行列，**仅目标表处于活动状态时可读**，否则 available:false 并说明)、conditionalFormats(已用区域上的条件格式规则摘要，最多 50 条)。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -86,7 +86,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_read_range",
-        description: "切片读取指定区域(如 A1:C10)的单元格值与公式。只读，不修改工作簿。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "切片读取指定区域(如 A1:C10)的单元格值与公式。只读，不修改工作簿。【人机协同防覆盖】准备更新已有数据单元格前，可先用本工具切片核验当前真值，确认未被用户手工微调，防止盲目覆盖导致更新丢失。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -129,7 +129,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_search_cells",
-        description: "按单元格的显示值与**公式文本**搜索包含指定关键字的单元格坐标（命中项用 matchedIn 标明是 value 还是 formula）。可选 address 限定检索范围，不传则搜整表已用区域。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "按单元格的显示值与**公式文本**搜索包含指定关键字的单元格坐标（命中项用 matchedIn 标明是 value 还是 formula）。可选 address 限定检索范围，不传则搜整表已用区域。【人机协同动态锚点】在人机实时编辑场景下，修改特定业务行（如“合计”、“小计”或关键指标）时，优先用本工具动态检索其最新坐标，避免因用户手动增删行列导致写死绝对行号发生错位。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -147,7 +147,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_patch_cells",
-        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。写入特性：写入文本会保留原有字体；若单元格原本是粗体字族（如 Microsoft YaHei Bold），写入后仍会显示为粗体。需要正文为常规时，可传入 fontName 规范化字族（如 'Microsoft YaHei'）或 bold: false，也可使用 format_cells 同时规范化 fontName 与 bold。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。【人机协同防错行与防覆盖】字浮为主打人机实时共享编辑的活工作簿环境。严禁盲目信任跨轮次历史记忆中的绝对行号！追加或修改数据前，若跨轮次或用户可能手工增删行列，应先用 get_sheet_outline 确认最新边界或 search_cells 锚点定位；更新已有单元格前建议用 read_range 核验目标当前真值，严禁因错行覆盖人类刚修改的内容。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。写入特性：写入文本会保留原有字体；若单元格原本是粗体字族（如 Microsoft YaHei Bold），写入后仍会显示为粗体。需要正文为常规时，可传入 fontName 规范化字族（如 'Microsoft YaHei'）或 bold: false，也可使用 format_cells 同时规范化 fontName 与 bold。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
