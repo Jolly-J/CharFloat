@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { DOMParser } from '@xmldom/xmldom';
 // @ts-ignore 构建脚本导出的只读 PNG 解码器。
 import { decodePng, resizeRgba, encodePng } from '../scripts/build-win-icon.mjs';
+const expectedVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const wpsCode = fs.readFileSync('wps-addon/addon-core.js', 'utf8');
@@ -73,7 +74,7 @@ test('WPS 侧栏使用单实例，隐藏后后台仍接收 RPC；面板不创建
   assert.equal(pane.Visible, true);
   assert.equal(host.created, 1);
   core.intervals[0]();
-  assert.equal(core.packets.at(-1).version, '2.2.0');
+  assert.equal(core.packets.at(-1).version, expectedVersion);
 });
 
 test('WPS 入口重载后复用旧侧栏，新构建导航已有侧栏而不是重复创建', () => {
@@ -145,7 +146,7 @@ test('Office 首次启用自动启动，收起侧栏后保持同一连接并可�
   host.sockets[0].onmessage({ data: JSON.stringify({ id: 'hidden-read', method: 'read_range', params: { address: 'A1' } }) });
   await tick();
   assert.equal(host.packets.find(p => p.id === 'hidden-read').result.values[0][0], 0);
-  assert.equal(host.packets.find(p => p.type === 'register' && p.summary.backgroundStartup === 'enabled').version, '2.2.0');
+  assert.equal(host.packets.find(p => p.type === 'register' && p.summary.backgroundStartup === 'enabled').version, expectedVersion);
   host.ready();
   assert.equal(host.sockets.length, 1);
   assert.equal(host.hooks, 1);

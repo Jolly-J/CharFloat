@@ -44,6 +44,8 @@
 
 ## 避坑
 
+Electron 字节码 CLI 的导出接口报 `A dynamic import callback was not specified`，或图表已落盘却返回未落盘 → 仅在系统 Node 的明文回退中测试会漏掉 → bytenode 加载的 V8 上下文没有该动态导入回调，桥接侧 `await import("node:fs")` 在宿主导出之后失败 → 文件系统依赖改为静态导入，先读回已生成文件再决定是否重试 → [实际字节码回归](../../tests/bytecode-exports.test.ts)、[真实宿主记录](../../docs/acceptance/2.2.0-excel-modularization/host/README.md)。
+
 Office 图标请求返回 no-store → 即使 PNG 正确仍被 Office 替换为默认图标 → 图标与脚本的缓存契约不同 → 图片响应不发送禁止缓存指令，HTML/JS/CSS 仍禁用缓存；升级图标换 URL → [资源 HTTP 回归](../../tests/service.test.ts)。
 
 工具声称绑定目标但 schema 缺少目标名称 → AI 无法显式传参 → 检查 schema 与执行分支是否都接受名称 → 用 [参数契约测试](../../tests/ppt-layout.test.ts) 核验。写入超时或 Office.js 异常 → 不直接假设未执行或安全重试 → 先读回；尤其修改自动回退策略时检查重复写入风险。

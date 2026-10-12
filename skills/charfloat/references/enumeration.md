@@ -42,22 +42,22 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 |---|---|---|---|
 | `Range.HorizontalAlignment` | 左 | `-4131` | **实测**（`'center'` 被吞后读回即此值） |
 | | 居中 | `-4108` | **实测** |
-| | 右 | `-4152` | **代码可证**（`wps-addon/src/excel.js:206` 读回映射） |
+| | 右 | `-4152` | **代码可证**（[styles.js](../../../wps-addon/src/excel/styles.js) 的 `alignmentName` 读回映射） |
 | | 常规 | `1` | **代码可证**（同上） |
-| `Range.VerticalAlignment` | 靠上 | `-4160` | **代码可证**（`excel.js:205`） |
-| | 居中 | `-4108` | **代码可证**；`excel.js:477` 直接使用 |
-| | 靠下 | `-4107` | **代码可证**（`excel.js:205`） |
+| `Range.VerticalAlignment` | 靠上 | `-4160` | **代码可证**（[styles.js](../../../wps-addon/src/excel/styles.js) 的 `alignmentName`） |
+| | 居中 | `-4108` | **代码可证**；[format.js](../../../wps-addon/src/excel/format.js) 的 `formatCells` 直接使用 |
+| | 靠下 | `-4107` | **代码可证**（[styles.js](../../../wps-addon/src/excel/styles.js) 的 `alignmentName`） |
 
-> 注意：`wps_format_cells` 的 `verticalAlignment` 只实现了 `center` 一个分支（[07-tool-gap.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/07-tool-gap.md) 已列），垂直靠上/靠下要走脚本并传整数。
+> `wps_format_cells` 的 `verticalAlignment` 已有 top / center / middle / bottom / justify 映射并读回核对，见 `formatCells`。直接操作宿主属性的脚本仍应传整数；历史缺口记录不代表当前限制。
 
 ### 1.2 边框线型与颜色
 
 | 用途 | 写法 | 取值 | 等级 |
 |---|---|---|---|
-| 线型 | `borders.LineStyle` | `1` = 连续实线（xlContinuous） | **代码可证**（`excel.js:501`） |
-| 颜色 | `Font.Color` / `Interior.Color` / `Format.Fill.ForeColor.RGB` | **BGR 字节序**：`(b<<16)\|(g<<8)\|r` | **代码可证**（`excel.js:1274` 起，变量名即 `bgr`） |
+| 线型 | `borders.LineStyle` | `1` = 连续实线（xlContinuous） | **代码可证**（[format.js](../../../wps-addon/src/excel/format.js) 的 `formatCells`） |
+| 颜色 | `Font.Color` / `Interior.Color` / `Format.Fill.ForeColor.RGB` | **BGR 字节序**：`(b<<16)\|(g<<8)\|r` | **代码可证**（[shared.js](../../../wps-addon/src/shared.js) 的 `hexToExcelColor`） |
 | 白色 | `Font.Color = 16777215` | `0xFFFFFF`（BGR 下对称，看不出顺序） | **代码可证** |
-| 颜色读回 | `get_range_styles` 返回的十六进制 | 已由实现反算回 `#RRGGBB` | **代码可证**（`excel.js:1425` `excelColorToHex`） |
+| 颜色读回 | `get_range_styles` 返回的十六进制 | 已由实现反算回 `#RRGGBB` | **代码可证**（[shared.js](../../../wps-addon/src/shared.js) 的 `excelColorToHex`） |
 
 > **与 Word 相反**：Excel 侧是 BGR，Word 侧 `Shading.BackgroundPatternColor` 是 **RGB**（见 §3.2）。两边都实测过，别互抄。
 

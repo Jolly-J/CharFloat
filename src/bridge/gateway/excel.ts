@@ -9,6 +9,7 @@
  * 正文承接原 switch 分支的内容，仅做逐行等量左移 4 个空格的纯缩进变换。
  */
 import type { Handler } from "./types.js";
+import { existsSync, statSync } from "node:fs";
 
 // 仅类型引用（纯类型，无运行时依赖）。
 
@@ -275,7 +276,9 @@ export const patchCells: Handler = async (ctx) => {
       address: args?.address,
       values: args?.values,
       formulas: args?.formulas,
-      workbookName: args?.workbookName
+      workbookName: args?.workbookName,
+      fontName: args?.fontName,
+      bold: args?.bold !== undefined ? Boolean(args.bold) : undefined
     });
 
     // 统一留痕入库
@@ -895,7 +898,6 @@ export const exportSheetPdf: Handler = async (ctx) => {
     if (!res?.success) throw new Error(`导出 PDF 失败：${res?.hostError || res?.error || "宿主未给出原因"}`);
     // 加载项没有文件系统访问：**落盘校验只能在桥接侧做**。
     // Word 预览的教训（ISS-111）：宿主返回成功但文件可能根本没写出。
-    const { existsSync, statSync } = await import("node:fs");
     if (!existsSync(outputPath)) {
       throw new Error(
         `导出 PDF 未落盘：宿主接受了请求，但 ${outputPath} 不存在。` +
@@ -1028,7 +1030,7 @@ export const exportChartImage: Handler = async (ctx) => {
   const p = typeof result?.outputPath === "string" ? result.outputPath : null;
   if (p) {
     try {
-      const st = await import("node:fs").then(fs => fs.statSync(p));
+      const st = statSync(p);
       result.fileWritten = true;
       result.fileSizeBytes = st.size;
       result.message = `已导出图表 ${result.chartName ?? ""} → ${p}（${result.fileSizeBytes} 字节）`;

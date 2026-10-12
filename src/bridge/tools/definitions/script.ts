@@ -14,7 +14,7 @@ export function scriptToolDefinitions(): GatewayToolDefinition[] {
       type: "function",
       function: {
         name: "wps_execute_script",
-        description: "直接向当前 WPS 运行实例执行原生 JavaScript。注入变量：app（WPS 宿主）、wb（当前 Excel 工作簿；Excel 场景用 wb，doc 在该场景为 null）、doc（当前 Word 文档）、pres（当前 PPT 演示文稿）、params（本工具 params 参数）。专用工具未覆盖时使用，例如 Excel 矢量形状、连接线、组合、已有图表属性修改与 PPT 精细布局。先用 wps_inspect_api 或只读脚本确认目标 API，再执行并读回验证；没有专用工具不等于宿主不支持。返回值需是可序列化的扁平 JSON（深层嵌套会丢属性），勿返回宿主对象。",
+        description: "直接向当前 WPS 运行实例执行原生 JavaScript。注入变量：app（WPS 宿主）、wb（当前 Excel 工作簿；Excel 场景用 wb，doc 在该场景为 null）、doc（当前 Word 文档）、pres（当前 PPT 演示文稿）、params（本工具 params 参数）。专用工具未覆盖时使用，例如 Excel 矢量形状、连接线、组合、已有图表属性修改与 PPT 精细布局。先用 wps_inspect_api 或只读脚本确认目标 API，再执行并读回验证；没有专用工具不等于宿主不支持。返回值需是可序列化的扁平 JSON（深层嵌套会丢属性），勿返回宿主对象。避坑：单元格写值（Range.Value2）仅写值并保留单元格原字体；若原单元格为粗体字族（如 Microsoft YaHei Bold），设 Font.Bold=false 无法消除粗体，必须显式改 Font.Name 换回常规字族；且改整格 Font.Name 会重置字符级格式，如有局部加粗须先改字体再施加局部格式。",
         parameters: {
           type: "object",
           properties: {

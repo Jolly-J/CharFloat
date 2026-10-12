@@ -8,6 +8,7 @@ import { WebSocket } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+const expectedVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'bridge-service-'));
 process.env.WPS_BRIDGE_HOME=root;process.env.WPS_BRIDGE_PORT=String(22000+Math.floor(Math.random()*10000));
 const {bridgeServer}=await import('../src/bridge/ws-server.js');
@@ -87,7 +88,7 @@ test('two stdio clients reuse service; exiting one preserves the other and daemo
     await Promise.all([a.connect(ta),b.connect(tb)]);
     const read=await a.callTool({name:'excel_get_workspace_summary',arguments:{host:'wps'}});assert.equal((read as any).isError,undefined);
     await a.close();
-    const next:any=await b.callTool({name:'bridge_get_capabilities',arguments:{}});assert.equal(JSON.parse(next.content[0].text).version,'2.2.0');
+    const next:any=await b.callTool({name:'bridge_get_capabilities',arguments:{}});assert.equal(JSON.parse(next.content[0].text).version,expectedVersion);
     assert.equal((await fetch(base+'/health')).status,200);
   }finally{await a.close();await b.close();}
 });

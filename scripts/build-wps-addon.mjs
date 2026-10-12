@@ -5,12 +5,12 @@
  * 把 wps-addon/src/** 的源码模块按固定顺序拼成一个 IIFE，写出 WPS 加载项部署入口
  * wps-addon/addon-core.js。
  *
- * 约定（与 wps-addon/src/*.js 的文件头说明一致）：
+ * 约定（与 wps-addon/src/** 的文件头说明一致）：
  *   1. 每个 src 模块都是"构建片段"，内部语句保留 2 空格基础缩进，文本按原样拼接，
  *      拼接结果就是 (function () { ... })() 的函数体，因此片段之间共享同一个闭包作用域。
- *   2. 不引入任何 npm 依赖、不使用打包器、不做语法转换、不做 tree-shaking、不做压缩。
+ *   2. 保留现有 esbuild 压缩与 es2018 目标，不新增打包依赖或运行时模块加载。
  *   3. 唯一的文本处理是移除 @build-strip:start / @build-strip:end 之间的内容块，
- *      该块仅用于让 ppt-layout.js 能被 Node 单元测试直接 import（见该文件末尾）。
+ *      该块用于让布局、排序和 Excel 纯函数能被 Node 单元测试直接 import。
  *   4. 输出完全由输入决定：同样的 src 内容必然得到逐字节相同的 addon-core.js。
  *
  * 用法：
@@ -46,15 +46,15 @@ const FINGERPRINT_VAR = "ADDON_BUILD_FINGERPRINT";
  *   - shared.js 必须最前：它初始化 const config / let ws / let isConnected 等运行态变量，
  *     后续模块的函数虽然会被提升，但这些 const/let 必须在 bootstrap 执行前完成初始化。
  *   - bootstrap.js 必须最后：它执行 initWebSocket()、注册心跳、挂载 DOM 监听，是启动副作用。
- *   - ppt-layout.js 必须紧跟 ppt.js 之前，保证 pptPageSize/fitGeneratedPptShapes 在产物里相邻
- *     （tests/ppt-layout.test.ts 按这两个函数名截取源码片段做纯几何验证）。
- *   - sheet-sort.js 必须紧跟 excel.js 之前：它是排序写完后"读回校验"用的纯函数，
+ *   - ppt-layout.js 在 ppt.js 前初始化，布局测试直接导入纯函数并单独加载宿主片段。
+ *   - sheet-sort.js 在 Excel 片段之前：它是排序写完后"读回校验"用的纯函数，
  *     由 tests/sheet-sort.test.ts 直接 import 验证（尤其是不得漏比较最后一行）。
  */
 
 import * as esbuild from "esbuild";
 import { buildWpsRibbonIcons, RIBBON_ICONS } from "./build-wps-ribbon-icons.mjs";
 import { syncAddonPanelStyle } from "./sync-addon-panel-style.mjs";
+import { assertWpsModuleManifest } from "./lib/wps-addon-modules.mjs";
 
 buildWpsRibbonIcons(ROOT, CHECK_ONLY);
 syncAddonPanelStyle(ROOT, CHECK_ONLY);
@@ -65,7 +65,24 @@ const MODULES = [
   "ribbon.js",
   "dispatch.js",
   "sheet-sort.js",
-  "excel.js",
+  "excel/pure.js",
+  "excel/design.js",
+  "excel/validation-read.js",
+  "excel/styles.js",
+  "excel/format.js",
+  "excel/validation-write.js",
+  "excel/shape.js",
+  "excel/range.js",
+  "excel/sheets.js",
+  "excel/rows-columns.js",
+  "excel/chart-read.js",
+  "excel/chart-write.js",
+  "excel/table-pivot.js",
+  "excel/filter-sort.js",
+  "excel/comments-links.js",
+  "excel/workbook.js",
+  "excel/export.js",
+  "excel/events.js",
   "word.js",
   "ppt-layout.js",
   "ppt.js",
@@ -112,25 +129,15 @@ if (!fs.existsSync(SRC_DIR)) {
 /**
  * 校验 src 目录与 MODULES 清单**双向**一致，避免新增模块被静默漏拼。
  *
- * 只做"清单里的文件是否存在"是单向检查：新加一个 src/*.js 而忘记登记，构建会照常成功，
+ * 只做"清单里的文件是否存在"是单向检查：src 任意层级新加 JS 而忘记登记，构建会照常成功，
  * 该模块的代码却不会进入部署入口——功能静默缺失，且测试与构建都不会报错。
  */
 function verifyModuleManifest() {
-  const onDisk = fs.readdirSync(SRC_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".js"))
-    .map((entry) => entry.name)
-    .sort();
-  const ordered = [...MODULES].sort();
-  const duplicates = MODULES.filter((name, index) => MODULES.indexOf(name) !== index);
-  const missing = ordered.filter((rel) => !onDisk.includes(rel));
-  const unlisted = onDisk.filter((rel) => !MODULES.includes(rel));
-  if (!duplicates.length && !missing.length && !unlisted.length) return;
-  const lines = ["src 目录与 MODULES 清单不一致，构建已中止："];
-  if (duplicates.length) lines.push(`  MODULES 中存在重复登记: ${[...new Set(duplicates)].join(", ")}`);
-  if (missing.length) lines.push(`  MODULES 列出但文件不存在: ${missing.join(", ")}`);
-  if (unlisted.length) lines.push(`  src 中存在未登记模块（其代码不会进入部署入口）: ${unlisted.join(", ")}`);
-  lines.push("  请同步 scripts/build-wps-addon.mjs 的 MODULES。");
-  fail(lines.join("\n"));
+  try {
+    assertWpsModuleManifest(SRC_DIR, MODULES);
+  } catch (error) {
+    fail(error.message);
+  }
 }
 
 verifyModuleManifest();

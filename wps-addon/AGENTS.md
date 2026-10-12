@@ -2,7 +2,8 @@
 
 ## 文件地图
 
-- [src/](src/)：**源码**（P3.2 逐类拆分）。`shared.js` 配置与公共工具、`connection.js` 连接握手、`ribbon.js` 侧栏入口与操作回调、`panel.js` 侧栏状态与交互、`dispatch.js` RPC 分发、`excel.js` / `word.js` / `ppt.js` 三类文档操作、`ppt-layout.js` **纯布局计算（无宿主 API，可 Node 直接 import）**、`bootstrap.js` 启动引导。
+- [src/](src/)：**源码**。`shared.js` 配置与跨组件公共工具、`connection.js` 连接握手、`ribbon.js` 侧栏入口与操作回调、`panel.js` 侧栏状态与交互、`dispatch.js` RPC 分发、`word.js` / `ppt.js` 文字和演示操作、`ppt-layout.js` **纯布局计算（无宿主 API，可 Node 直接 import）**、`bootstrap.js` 启动引导。
+- [src/excel/](src/excel/)：表格领域片段，仍共享同一个 IIFE。读写与变更检测 `range.js`；设计语言 `design.js`；样式读取 `styles.js`；格式写入 `format.js`；数据验证 `validation-read.js` / `validation-write.js`；工作表 `sheets.js`；行列 `rows-columns.js`；图表 `chart-read.js` / `chart-write.js`；形状及图片 `shape.js`；表/透视表 `table-pivot.js`；筛选排序 `filter-sort.js`；批注/链接/命名区域 `comments-links.js`；工作簿 `workbook.js`；打印与导出 `export.js`；选区事件 `events.js`；可直接导入的矩阵与列名纯函数 [pure.js](src/excel/pure.js)。
 - [addon-core.js](addon-core.js)：**构建生成物**（部署入口），由 `npm run build:wps-addon` 按固定顺序拼接 `src/**`。顶部有"请勿手改"声明。
 - [index.html](index.html)：宿主连接/RPC 的加载入口。
 - [panel.html](panel.html)：精简右侧任务窗格，保留工作区、状态、日志、收起与重连；面板模式只负责 UI，不创建连接。
@@ -14,7 +15,7 @@
 
 ## 定位与联动
 
-先在 `src/dispatch.js` 定位 RPC method，再读对应类文件里的函数，不需通读全文件。**改代码改 `src/**`，不要改 `addon-core.js`**。入参来源见 [gateway](../src/bridge/gateway.ts)。
+先在 `src/dispatch.js` 定位 RPC method，再到 `src/excel/` 对应领域或 Word/PPT 文件查函数，不需通读全部源码。`getWorksheet`、颜色转换等共同 helper 仍在根 `src/shared.js`。**改代码改 `src/**`，不要改 `addon-core.js`**。入参来源见 [gateway](../src/bridge/gateway.ts)。
 
 ## 修改边界
 
@@ -22,9 +23,11 @@
 
 ## 验证
 
-`npm run build:wps-addon`（重建部署入口；**会用 esbuild 压缩**去注释与局部变量名；`--check` 只校验不写文件）→ `node --check wps-addon/addon-core.js` → `node --import tsx --test tests/addon.test.ts tests/ppt-layout.test.ts`；视觉变化还需真实宿主预览。
+`npm run build:wps-addon`（重建部署入口；**会用 esbuild 压缩**去注释与局部变量名；`--check` 只校验不写文件）→ `node --check wps-addon/addon-core.js` → `node --import tsx --test tests/addon.test.ts tests/ppt-layout.test.ts tests/wps-excel-pure.test.ts tests/wps-excel-rpc.test.ts`；视觉变化还需真实宿主预览。
 
 ## 避坑
+
+向 `src` 子目录新增片段 → 仅登记构建清单或只扫描第一层会漏拼/误报缺失 → 清单必须与递归发现的全部 JS 一一对应 → 使用显式顺序，保留未登记、缺失与重复拒绝；测试导出放在 `@build-strip` 块内 → [清单回归](../tests/wps-addon-modules.test.ts)。
 
 图标路径存在但画面空白 → 只检查文件存在会漏掉全透明 PNG → 本次源图全部像素 alpha=0 → 加载项使用 `resources/icon.png` 的原始 App 图标，并检查非透明像素；图标纳入构建指纹 → [生命周期回归](../tests/addon-lifecycle.test.ts)。Mac 功能区自定义图标的宿主限制见 [后台连接说明](../docs/addon-background.md)。
 

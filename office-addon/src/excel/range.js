@@ -130,6 +130,13 @@
         }
       }
 
+      if (params.fontName) {
+        range.format.font.name = String(params.fontName);
+      }
+      if (params.bold !== undefined) {
+        range.format.font.bold = Boolean(params.bold);
+      }
+
       // 关键：在 sync 前必须显式 load 需要返回的属性，绝不裸读！
       range.load("address");
       sheet.load("name");

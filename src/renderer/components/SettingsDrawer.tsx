@@ -186,7 +186,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               <img src={appLogo} alt="Logo" className="about-logo" />
               <div>
                 <strong>字浮 CharFloat</strong>
-                <span className="version-tag">版本 v{appInfo?.version || '2.0.0'}</span>
+                <span className="version-tag">版本 v{appInfo?.version || '2.2.1'}</span>
               </div>
             </div>
             <p className="about-desc">

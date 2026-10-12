@@ -58,6 +58,10 @@ AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针�
 | `Cell.Formula("=SUM(ABOVE)")` / `AutoSum()` | **不生效**，返回 `null`、单元格文本不变（[03-word.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md) §3.1） | 脚本里算出结果写静态文本；不要因为"没抛异常"就判定成功 |
 | `ExportAsFixedFormat(path, 17)` | 不抛异常也**不落盘**（Word 侧实测） | 交付/预览不要依赖它；用带落盘校验的保存工具 |
 | `for (const k in v) v[k]` 全量反射 | **会让 WPS 进程崩溃**（[ISS-89](../../../docs/acceptance/2.1.0-p0p1/issues.md)：3 份崩溃报告、2 份栈逐帧一致：`kso → etcore → etapi → jsetapi → ksojscore`） | **不要自己写反射循环**，用 `wps_inspect_api`（默认只列名字、不求值）；危险成员清单见下节 |
+| `ws.Range("A1").Value2 = "..."` 写值 | **完全保留原单元格字体**；若原单元格是粗体字族（如 `Microsoft YaHei Bold`），写入后直接显示为粗体 | 写入后需常规正文时，显式将 `cell.Font.Name` 设为常规字族（如 `Microsoft YaHei`） |
+| `cell.Font.Bold = false` | **对粗体字族无效**：字族本身就是 Bold 变体，关掉 Bold 开关依然渲染粗体 | 必须同时将 `cell.Font.Name` 改回常规字族名称，不能只改 `Font.Bold` |
+| 先施加局部加粗，后改整格 `Font.Name` | **改字体名会清空字符级局部格式**：整格 `Font.Name` 赋值会重置所有 `Characters` 格式 | **顺序必须是**：先规范化整格 `Font.Name`，再调用 `format_text_segment` 或 `Characters` 施加局部格式 |
+| 用 `capture_sheet_preview` 验收字重 | **渲染通道会做字体替换或抗锯齿加粗**，预览图与真实属性可能不一致 | **预览图不可作为字重依据**；验收必须用 `get_range_styles` / 探针读回实际属性 |
 
 ### 反射的危险成员清单（ISS-89 取证结果）
 
