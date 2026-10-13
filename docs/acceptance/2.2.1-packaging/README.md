@@ -9,7 +9,7 @@
 | macOS arm64 | `release/2.2.1/mac/mac-arm64/字浮 CharFloat.app` | Info.plist 2.2.1、arm64；无开发者证书签名、未公证；实际 ASAR 与 unpacked 内容检查通过 |
 | Windows x64 | `release/2.2.1/win/字浮-CharFloat-2.2.1-win-x64.zip` | PE machine=0x8664、便携 ZIP；解包路径中有 CLI 兜底；未在 Windows 实机运行 |
 
-完整指纹与大小见 [results.json](results.json)，旧文件指纹见 [baseline.json](baseline.json)。mac 的 `app.asar` SHA-256 为 `358e58d6040da1b6de94c1f2cdb04d7b1e26ef802eddf252b64fa655342d039d`；Windows ZIP SHA-256 为 `6246812e046c697332608c10eda12e2d6c305f3d288d955a5deee92df4af35a8`。
+完整指纹与大小见 [results.json](results.json)，旧文件指纹见 [baseline.json](baseline.json)。mac 的 `app.asar` SHA-256 为 `87bf85cb4ed0781506420da65207bcc28f197797fb836aee6ec45102dd85403d`（上传 ZIP SHA-256 为 `cdb7abde4184cedc9db68951c462591f472da8d1a8ad1cec40ed5c24145cbdbf`）；Windows ZIP SHA-256 为 `4ca304f7a317a894e44aa4266f1682d43f937099155c536a1b6bf2c67d4210ac`。已上传并替换至 GitHub Releases `v2.2.1`。
 
 最终版本目录只保留 mac `.app` 和 Windows ZIP，未复制临时 mac ZIP、blockmap、Windows 解包目录或构建诊断文件。源码并未提交，实际来源是固定提交加工作区差异，不将 HEAD 当作唯一来源。
 

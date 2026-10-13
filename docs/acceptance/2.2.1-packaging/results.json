@@ -1,14 +1,17 @@
 {
   "version": "2.2.1",
-  "builtAtUTC": "2026-10-12T00:58:45.020286+00:00",
+  "builtAtUTC": "2026-10-13T03:47:00.000000+00:00",
+  "commit": "b895506",
   "mac": {
     "path": "release/2.2.1/mac/mac-arm64/字浮 CharFloat.app",
+    "zipName": "CharFloat-2.2.1-mac-arm64.zip",
     "arch": "arm64",
     "developerSigned": false,
     "notarized": false,
-    "appAsarSha256": "358e58d6040da1b6de94c1f2cdb04d7b1e26ef802eddf252b64fa655342d039d",
+    "appAsarSha256": "87bf85cb4ed0781506420da65207bcc28f197797fb836aee6ec45102dd85403d",
     "executableSha256": "7baba2344adeeb821ff779b6d0f932365872ade22d6390cfb4ee777eb2f3231a",
-    "bytecodeSha256": "14a7085074f6b2e94708a38d565023ef2739a05d5255d72a6fcde471536f53e5",
+    "zipSha256": "cdb7abde4184cedc9db68951c462591f472da8d1a8ad1cec40ed5c24145cbdbf",
+    "zipBytes": 111379861,
     "protectionCheck": "mac-protection.json",
     "runtimeProbe": "mac-runtime-probe.log",
     "runtimeVerified": true,
@@ -16,20 +19,22 @@
   },
   "win": {
     "path": "release/2.2.1/win/字浮-CharFloat-2.2.1-win-x64.zip",
+    "zipName": "CharFloat-2.2.1-win-x64.zip",
     "arch": "x64",
     "machine": "0x8664",
-    "sizeBytes": 125724978,
-    "sha256": "6246812e046c697332608c10eda12e2d6c305f3d288d955a5deee92df4af35a8",
+    "sizeBytes": 125732611,
+    "sha256": "4ca304f7a317a894e44aa4266f1682d43f937099155c536a1b6bf2c67d4210ac",
     "plainCliFallbackPresent": true,
     "realWindowsRuntimeVerified": false
   },
-  "uploaded": false,
+  "uploaded": true,
+  "releaseUrl": "https://github.com/Jolly-J/CharFloat/releases/tag/v2.2.1",
   "old2_2_0RetainedUnchanged": true,
   "validation": {
     "build": true,
     "typecheck": true,
     "tests": {
-      "passed": 153,
+      "passed": 160,
       "failed": 0,
       "skipped": 0
     },
