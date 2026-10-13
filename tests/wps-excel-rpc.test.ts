@@ -23,7 +23,14 @@ function load(failWrite = false) {
   const border = { LineStyle: 1, Weight: 1, Color: 0 };
   const cells: any[] = values.map((_v, i) => {
     const cell: any = { Row: 1, Column: i + 1, Address: () => i ? '$B$1' : '$A$1', Font: font, Interior: interior, NumberFormat: '0', Validation: validation, MergeCells: false, Comment: null,
-      AddComment(text: string) { trace.push(['comment.add', i, text]); let content = text; this.Comment = track('comment', { Visible: true, Author: '宿主', Text: (next?: string) => { if (next !== undefined) content = next; return content; } }); return this.Comment; }
+      AddComment(text: string) { trace.push(['comment.add', i, text]); let content = text; this.Comment = track('comment', { Visible: true, Author: '宿主', Text: (next?: string) => { if (next !== undefined) content = next; return content; } }); return this.Comment; },
+      Characters(start: number, length?: number) {
+        return {
+          Font: font,
+          Delete() { trace.push(['characters.delete', i, start, length]); },
+          Insert(text: string) { trace.push(['characters.insert', i, start, text]); }
+        };
+      }
     };
     Object.defineProperties(cell, { Value2: { get: () => values[i] }, Formula: { get: () => formulas[i], set: value => { trace.push(['cell.formula', i, value]); values[i] = value === '' || value === null || value === undefined ? null : value; formulas[i] = value === null || value === undefined ? '' : value; } } });
     return cell;
@@ -122,6 +129,27 @@ test('宿主写入异常不能伪装成功', async () => {
   const host = load(true); const response = await host.call('patch_cells', { address: 'A1:B1', values: [['新A', '新B']] });
   assert.match(response.error, /模拟宿主写入失败/); assert.deepEqual(host.values, [0, '旧B']);
   snapshots['宿主写入异常'] = clone({ response, trace: host.trace, values: host.values });
+});
+test('富文本单元格 find_and_replace 原位调用 Characters.Delete/Insert', async () => {
+  const host = load();
+  // 模拟单元格包含富文本（混合字重 Font.Bold === null）
+  host.font.Bold = null;
+  const res = await host.call('find_and_replace', { searchQuery: '旧B', replaceText: '替换后B' });
+  assert.ok(res.result, res.error);
+  assert.equal(res.result.results.length, 1);
+  assert.equal(res.result.results[0].replaced, true);
+  assert.ok(host.trace.some(x => x[0] === 'characters.delete'));
+  assert.ok(host.trace.some(x => x[0] === 'characters.insert'));
+});
+test('富文本单元格 patch_cells 写入纯文本时规范化为常规黑色正文', async () => {
+  const host = load();
+  // 模拟单元格为富文本（混合格式 Font.Bold === null）
+  host.font.Bold = null;
+  host.font.Color = null;
+  const res = await host.call('patch_cells', { address: 'A1:B1', values: [['纯正文A', '纯正文B']] });
+  assert.ok(res.result, res.error);
+  assert.equal(host.font.Bold, false);
+  assert.equal(host.font.Color, 0);
 });
 test('选区事件去重，注册与心跳指纹保持一致', () => {
   const host = load(); host.select(); host.heartbeat();

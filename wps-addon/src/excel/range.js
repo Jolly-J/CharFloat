@@ -131,6 +131,21 @@
       formulas: oldFormulas
     };
 
+    // 写入前探测：若原单元格是混合富文本（局部格式），写入纯文本后宿主底层会将首字符样式（如红粗标题）全格泛滥
+    const richCellIndices = [];
+    if (values !== undefined && values !== null && bold === undefined) {
+      for (let r = 0; r < rowCount; r++) {
+        for (let c = 0; c < colCount; c++) {
+          try {
+            const cell = range.Cells.Item(r + 1, c + 1);
+            if (cell && cell.Font && (cell.Font.Bold === null || cell.Font.Color === null)) {
+              richCellIndices.push({ r: r + 1, c: c + 1 });
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
     try {
       if (values !== undefined && values !== null) range.Value2 = values;
       if (formulas !== undefined && formulas !== null) {
@@ -158,6 +173,20 @@
       }
       if (bold !== undefined) {
         try { range.Font.Bold = !!bold; } catch (e) {}
+      }
+      // 若原单元格为混合富文本，写入纯文本后宿主底层会将首字符样式（如红色加粗）染遍整格；
+      // 若调用方本次未显式指定 bold，则将受影响单元格规范化为常规正文字体（非加粗、默认黑），
+      // 避免富文本被销毁时首字符的加粗/高亮样式全格泛滥。
+      if (richCellIndices.length > 0) {
+        for (let i = 0; i < richCellIndices.length; i++) {
+          try {
+            const cell = range.Cells.Item(richCellIndices[i].r, richCellIndices[i].c);
+            if (cell && cell.Font) {
+              if (bold === undefined) cell.Font.Bold = false;
+              cell.Font.Color = 0;
+            }
+          } catch (e) {}
+        }
       }
     } catch (writeError) {
       try { range.Formula = oldFormulas; }
@@ -271,8 +300,52 @@
             const newVal = matchEntireCell
               ? replaceText
               : source.replace(new RegExp(queryStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi'), replaceText);
-            // 命中在公式里就写回公式位，否则写值位
-            if (hitFormula) cell.Formula = newVal; else cell.Value2 = newVal;
+            // 命中在公式里就写回公式位
+            if (hitFormula) {
+              cell.Formula = newVal;
+            } else if (matchEntireCell) {
+              cell.Value2 = newVal;
+            } else {
+              // 探测该单元格是否为富文本（含有局部字符格式，如标题加粗标红）
+              let isRich = false;
+              try {
+                isRich = cell && cell.Font && (cell.Font.Bold === null || cell.Font.Color === null || cell.Font.Size === null);
+              } catch (e) {}
+
+              let replacedViaCharacters = false;
+              if (isRich && typeof cell.Characters === "function") {
+                try {
+                  const flags = matchCase ? "g" : "gi";
+                  const escapedQuery = queryStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  const regex = new RegExp(escapedQuery, flags);
+                  const occurrences = [];
+                  let m;
+                  while ((m = regex.exec(cellStr)) !== null) {
+                    occurrences.push({ start: m.index + 1, length: m[0].length });
+                    if (regex.lastIndex === m.index) regex.lastIndex++;
+                  }
+
+                  if (occurrences.length > 0) {
+                    // 倒序原位替换：避免前序文字长度变化影响后续偏移，同时 100% 保护其余文本的富文本格式
+                    for (let occIdx = occurrences.length - 1; occIdx >= 0; occIdx--) {
+                      const occ = occurrences[occIdx];
+                      const ch = cell.Characters(occ.start, occ.length);
+                      ch.Delete();
+                      if (replaceText !== "") {
+                        cell.Characters(occ.start, 0).Insert(replaceText);
+                      }
+                    }
+                    replacedViaCharacters = true;
+                  }
+                } catch (chErr) {
+                  replacedViaCharacters = false;
+                }
+              }
+
+              if (!replacedViaCharacters) {
+                cell.Value2 = newVal;
+              }
+            }
             isReplaced = true;
             replacedCount++;
           }
