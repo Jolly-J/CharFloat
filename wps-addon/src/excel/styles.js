@@ -33,7 +33,7 @@
     return result;
   }
 
-  function readCellRuns(range, maxChars = 500) {
+  function readCellRuns(range, maxChars = 2000) {
     let text = "";
     try { text = range.Value2 === null || range.Value2 === undefined ? "" : String(range.Value2); } catch (e) {}
     if (!text) return [];

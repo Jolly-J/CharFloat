@@ -105,7 +105,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_get_range_styles",
-        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。说明：混合格式（区域内或格内格式不一致）时 fontName/bold 等字段返回 null，代表格式不一致而非不支持；本工具默认读取单元格级样式，看不到单元格内 Characters 字符级的局部加粗。排查单元格内部字符级局部格式（rich text）可在 include 中传 'runs'（逐段返回起始位/长度/文本/字体/字重等，仅 WPS 实现）。可通过 include 追加：**validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效；**validationViolations**（数据有效性**违规定位**）——逐格比对规则并列出**取值越界的单元格**（地址+值+命中的规则+期望），同时给出规则清单与无法判定的单元格；区域大时只扫描前 maxCells 个（默认 300，上限 2000），截断时返回 truncated=true 并在 warnings 说明。判定不了的一律进 unevaluated，**不会当作通过**。**宿主差异**：runs / validation / validationViolations 仅在 WPS 表格侧实现（host=microsoft 会忽略这些扩展字段，只返回基础样式）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "读取指定区域的单元格样式。默认 summary 仅返回区域级样式摘要；cells 模式逐格返回并受 maxCells 限制。写入格式后用本工具读回验证。说明：混合格式（区域内或格内格式不一致）时 fontName/bold 等字段返回 null，代表格式不一致而非不支持；本工具默认读取单元格级样式，看不到单元格内 Characters 字符级的局部加粗。排查单元格内部字符级局部格式（rich text）可在 include 中传 'runs'（逐段返回起始位/长度/文本/字体/字重/颜色等，仅 WPS 实现）。【富文本修改指南】当单元格存在局部小标题加粗或标红等排版时，先用 runs 确认各段格式；后续部分文本改动时必须优先调用 find_and_replace 保持文本段落原本的格式，做精准修改。可通过 include 追加：**validation**（数据有效性读回：类型名/操作符/公式1-2/是否忽略空值/是否显示下拉/提示与报错文案）——检查下拉或范围校验是否真的生效；**validationViolations**（数据有效性**违规定位**）——逐格比对规则并列出**取值越界的单元格**（地址+值+命中的规则+期望），同时给出规则清单与无法判定的单元格；区域大时只扫描前 maxCells 个（默认 300，上限 2000），截断时返回 truncated=true 并在 warnings 说明。判定不了的一律进 unevaluated，**不会当作通过**。**宿主差异**：runs / validation / validationViolations 仅在 WPS 表格侧实现（host=microsoft 会忽略这些扩展字段，只返回基础样式）。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -147,7 +147,7 @@ export function excelToolDefinitions(ctx: DefinitionContext): GatewayToolDefinit
       type: "function",
       function: {
         name: "wps_patch_cells",
-        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。【人机协同防错行与防覆盖】字浮为主打人机实时共享编辑的活工作簿环境。严禁盲目信任跨轮次历史记忆中的绝对行号！追加或修改数据前，若跨轮次或用户可能手工增删行列，应先用 get_sheet_outline 确认最新边界或 search_cells 锚点定位；更新已有单元格前建议用 read_range 核验目标当前真值，严禁因错行覆盖人类刚修改的内容。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。写入特性：写入文本会保留原有字体；若单元格原本是粗体字族（如 Microsoft YaHei Bold），写入后仍会显示为粗体。需要正文为常规时，可传入 fontName 规范化字族（如 'Microsoft YaHei'）或 bold: false，也可使用 format_cells 同时规范化 fontName 与 bold。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "原地修改表格中的数值或公式，返回 auditId（可用 wps_rollback 回滚值/公式）。【人机协同防错行与防覆盖】字浮为主打人机实时共享编辑的活工作簿环境。严禁盲目信任跨轮次历史记忆中的绝对行号！追加或修改数据前，若跨轮次或用户可能手工增删行列，应先用 get_sheet_outline 确认最新边界或 search_cells 锚点定位；更新已有单元格前建议用 read_range 核验目标当前真值，严禁因错行覆盖人类刚修改的内容。约束：可同时传 values 与 formulas——values 先写、formulas 中的**非空项**随后覆盖对应单元格；formulas 中的空项(''/null)表示**不动该单元格**（不会清空）。清空单元格请传 values 的 null 矩阵（本工具没有 clear_range）。字符串日期如 '2026-01' 会被宿主转成日期序列号，需要保持文本时另行设置 numberFormat。【富文本与局部格式特性】写入纯文本会重置单元格内字符级局部格式（Characters）；若单元格原本为混合富文本（如带红粗标题），系统会自动将整格正文规范化为常规黑色正文，防止首字符高亮样式泛滥整格。若需保留局部高亮格式，请优先使用 find_and_replace 原位精准修改；若重写全格后需要局部强调小标题，请配合使用 wps_format_text_segment。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
@@ -826,7 +826,7 @@ export function excelToolDefinitionsAfterAudit(ctx: DefinitionContext): GatewayT
       type: "function",
       function: {
         name: "wps_find_and_replace",
-        description: "在工作表中查找并可选批量替换。searchQuery 必传；同时匹配单元格显示值与**公式文本**（results[].matchedIn 标明命中在哪一侧；命中公式时写回公式位）。返回的 results[].row/col 是相对 searchRange 的偏移量，不是工作表绝对行列号。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
+        description: "在工作表中查找并可选批量替换。searchQuery 必传；同时匹配单元格显示值与**公式文本**（results[].matchedIn 标明命中在哪一侧；命中公式时写回公式位）。【富文本保真特性】单元格若包含标题加粗、标红等字符级富文本局部格式，修改部分正文时**强烈优先使用本工具**：底层采用 Characters 原位精准替换，完整保留未变动部分的加粗、标红等样式，绝不会将整格退化或误染为首字符样式。返回的 results[].row/col 是相对 searchRange 的偏移量，不是工作表绝对行列号。选型：同名 wps_* 与 excel_* 二选一——wps_* 只走 WPS 表格（不传 host），excel_* 跨宿主（必传 host）。",
         parameters: {
           type: "object",
           properties: {
