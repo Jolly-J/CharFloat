@@ -84,14 +84,30 @@ export function ensureService(entry: string) {
     });
     fs.closeSync(log);
     let launchError: Error | undefined;
+    let childExited = false;
+    let exitCode: number | null = null;
     child.on('error', error => { launchError = error; });
+    child.on('exit', code => { childExited = true; exitCode = code; });
     child.unref();
-    for (let n = 0; n < 40; n++) {
+    const readLogTail = () => {
+      try {
+        if (fs.existsSync(logPath)) {
+          return fs.readFileSync(logPath, 'utf8').trim().split('\n').slice(-5).join(' ');
+        }
+      } catch {}
+      return '';
+    };
+    for (let n = 0; n < 80; n++) {
       await new Promise(r => setTimeout(r, 150));
       if (launchError) throw launchError;
+      if (childExited) {
+        const tail = readLogTail();
+        throw new Error(`后台进程过早退出（退出码 ${exitCode}）。${tail ? `日志: ${tail}` : `查看 ${logPath}`}`);
+      }
       if ((await probeService()).ready) return;
     }
-    throw new Error(`后台启动失败。查看 ${logPath}，不要反复启动多个实例。`);
+    const tail = readLogTail();
+    throw new Error(`后台启动超时。${tail ? `日志: ${tail}` : `查看 ${logPath}，不要反复启动多个实例。`}`);
   })().finally(() => { starting = undefined; });
   return starting;
 }

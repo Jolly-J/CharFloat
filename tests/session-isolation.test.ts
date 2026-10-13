@@ -21,7 +21,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { WebSocket } from 'ws';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-session-'));
-const port = String(45000 + Math.floor(Math.random() * 8000));
+const port = String(16000 + Math.floor(Math.random() * 5000));
 const env = { ...process.env, WPS_BRIDGE_HOME: dir, WPS_BRIDGE_PORT: port, WPS_BRIDGE_RESOURCES: process.cwd() } as Record<string, string>;
 const base = `http://127.0.0.1:${port}`;
 
@@ -29,7 +29,17 @@ let a: Client, b: Client;
 
 async function connect(name: string): Promise<Client> {
   const client = new Client({ name, version: '1' });
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [path.resolve('dist/bridge/cli.cjs')], env, stderr: 'pipe' }));
+  const transport = new StdioClientTransport({ command: process.execPath, args: [path.resolve('dist/bridge/cli.cjs')], env, stderr: 'pipe' });
+  let stderr = '';
+  transport.stderr?.on('data', chunk => { stderr += chunk.toString(); });
+  try {
+    await client.connect(transport);
+  } catch (err: any) {
+    if (stderr.trim()) {
+      err.message = `${err.message} (stderr: ${stderr.trim()})`;
+    }
+    throw err;
+  }
   return client;
 }
 
