@@ -10,7 +10,7 @@
 | WPS 执行、Word/PPT、矢量绘图 | [WPS](wps-addon/AGENTS.md) | src/dispatch.js（RPC 分支）→ src/excel/ 或 src/{word,ppt}.js → 部署入口 addon-core.js（**生成物**） |
 | Microsoft 表格请求及宿主差异 | [Bridge](src/bridge/AGENTS.md)、[Office.js](office-addon/AGENTS.md) | office/adapter.ts → normalizer.ts → src/rpc.js → 部署入口 public/taskpane.js（**生成物**）；Windows 回退见原生驱动 |
 | Windows 原生 Office 操作 | [原生 Office](resources/office/AGENTS.md) | runner.ps1 → excel.ps1/common.ps1 |
-| 安装、客户端配置、桌面生命周期 | [主进程](src/main/AGENTS.md) | installer-engine.ts、addon-installer.ts、index.ts |
+| 安装、客户端配置、桌面生命周期 | [主进程](src/main/AGENTS.md) | installer-engine.ts、client-registry.ts、mcp-adapters.ts、addon-installer.ts、index.ts |
 | 桌面交互与状态显示 | [界面](src/renderer/AGENTS.md)、[IPC](src/preload/AGENTS.md) | App.tsx → 相关组件 → 对应 IPC |
 | AI 不会调用已有能力 | [技能](skills/AGENTS.md) | 对应 SKILL.md → gateway 工具说明 → 宿主实现 |
 | 测试失败与验收 | [测试](tests/AGENTS.md) | 对应测试文件，不先运行真实宿主脚本 |

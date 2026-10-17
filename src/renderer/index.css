@@ -1227,6 +1227,74 @@ h2, h3, h4 {
   background: var(--primary-hover);
 }
 
+/* 客户端分类切换器：国内 / 国外 */
+.agent-region-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.agent-region-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.region-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s var(--ease-smooth);
+}
+
+.region-tab:hover {
+  color: var(--text-primary);
+}
+
+.region-tab.active {
+  color: var(--text-primary);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.region-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+}
+
+.region-tab.active .region-count {
+  color: var(--primary-text);
+  background: var(--primary);
+}
+
+.agent-grid-empty {
+  grid-column: 1 / -1;
+  padding: 18px 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .agent-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1274,15 +1342,19 @@ h2, h3, h4 {
   min-width: 0;
 }
 
+/* 品牌图标底板：固定浅色，不随主题变暗。
+   Kimi 的纯黑图标、Codex 的深色图标在暗色主题下会与卡片底色融成一片，
+   因此图标位始终保留一块浅色底板，保证任意主题下都能辨认。 */
 .agent-logo-box {
   width: 26px;
   height: 26px;
   border-radius: 5px;
-  background: var(--surface-base);
-  border: 1px solid var(--border-subtle);
+  background: #ffffff;
+  border: 1px solid #dcdfe4;
   display: grid;
   place-items: center;
   padding: 3px;
+  flex-shrink: 0;
 }
 
 .agent-logo-img {
@@ -1291,10 +1363,11 @@ h2, h3, h4 {
   object-fit: contain;
 }
 
+/* 底板固定浅色，缺省文字的颜色也只能固定，不能跟随暗色主题变浅 */
 .agent-logo-fallback {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: #4b5563;
 }
 
 .agent-card-title {
@@ -1408,6 +1481,42 @@ h2, h3, h4 {
 
 .feedback-item span {
   flex: 1;
+}
+
+.feedback-item.error {
+  color: var(--danger);
+}
+
+/* 结果汇总小标签：成功 / 需手动 / 失败 */
+.feedback-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+}
+
+.feedback-summary > span {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+}
+
+.feedback-summary .ok {
+  color: var(--success);
+  background: var(--success-light);
+}
+
+.feedback-summary .manual {
+  color: var(--warning);
+  background: var(--warning-light);
+}
+
+.feedback-summary .fail {
+  color: var(--danger);
+  background: var(--danger-light);
 }
 
 /* 高级 MCP 配置折叠 */
@@ -2273,8 +2382,25 @@ h2, h3, h4 {
   color: var(--text-primary);
 }
 
+.floating-toast.warning {
+  border-color: var(--warning-border);
+  color: var(--warning);
+}
+
 .floating-toast.error {
   border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.floating-toast.success svg {
+  color: var(--success);
+}
+
+.floating-toast.warning svg {
+  color: var(--warning);
+}
+
+.floating-toast.error svg {
   color: var(--danger);
 }
 

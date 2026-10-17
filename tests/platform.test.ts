@@ -172,3 +172,74 @@ test('native runner handles Unicode and shell metacharacters without interpolati
   assert.equal(await runProcess(process.execPath,['-e','process.stdin.pipe(process.stdout)'],input),input);
   await assert.rejects(runProcess(process.execPath,['-e','setTimeout(()=>{},1000)'],'',30),/超时/);
 });
+
+// ===== 多客户端接入：格式适配器与注册表 =====
+const { mergeCodexToml, isCodexTomlConfigured, mergeOpencodeConfig, isOpencodeConfigured } = await import('../src/main/mcp-adapters.js');
+const { CLIENT_DEFINITIONS, clientPathContext } = await import('../src/main/client-registry.js');
+
+test('Codex config.toml 合并：保留其他段落、幂等，并可被状态检测识别', () => {
+  const file = path.join(root, 'codex-config.toml');
+  fs.writeFileSync(file, ['# 用户自己的配置', 'model = "gpt-5"', '', '[mcp_servers]', '', '[mcp_servers.playwright]', 'command = "npx"', 'args = ["x"]', ''].join('\n'));
+  const entry = { command: '/A.app/bin', args: ['/A.app/cli.cjs'], env: { ELECTRON_RUN_AS_NODE: '1', CHARFLOAT_HOME: '/tmp/home' } };
+  mergeCodexToml(file, entry);
+  const first = fs.readFileSync(file, 'utf8');
+  assert.match(first, /\[mcp_servers\.charfloat\]/);
+  assert.match(first, /\[mcp_servers\.charfloat\.env\]/);
+  assert.match(first, /model = "gpt-5"/);
+  assert.match(first, /\[mcp_servers\.playwright\]/);
+  assert.equal(isCodexTomlConfigured(file), true);
+  mergeCodexToml(file, { ...entry, env: { ELECTRON_RUN_AS_NODE: '1' } });
+  const second = fs.readFileSync(file, 'utf8');
+  // 幂等：重复写入不会堆出第二份 charfloat 段
+  assert.equal((second.match(/\[mcp_servers\.charfloat\]/g) || []).length, 1);
+  assert.equal((second.match(/\[mcp_servers\.charfloat\.env\]/g) || []).length, 1);
+  assert.match(second, /\[mcp_servers\.playwright\]/);
+  assert.match(second, /# 用户自己的配置/);
+});
+test('opencode 配置合并：保留 schema 与其他服务，按 local 结构写入', () => {
+  const file = path.join(root, 'opencode.json');
+  fs.writeFileSync(file, JSON.stringify({ $schema: 'https://opencode.ai/config.json', mcp: { other: { type: 'remote', url: 'https://example.test' } } }));
+  const entry = { command: '/A/bin', args: ['/A/cli.cjs'], env: { ELECTRON_RUN_AS_NODE: '1' } };
+  mergeOpencodeConfig(file, entry);
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(config.$schema, 'https://opencode.ai/config.json');
+  assert.equal(config.mcp.other.type, 'remote');
+  assert.deepEqual(config.mcp.charfloat, { type: 'local', command: ['/A/bin', '/A/cli.cjs'], environment: { ELECTRON_RUN_AS_NODE: '1' }, enabled: true });
+  assert.equal(isOpencodeConfigured(file), true);
+  fs.writeFileSync(file, '{broken');
+  assert.throws(() => mergeOpencodeConfig(file, entry));
+  assert.equal(fs.readFileSync(file, 'utf8'), '{broken');
+});
+test('客户端注册表：分类、格式与配置路径完整', () => {
+  const ctx = clientPathContext({ home: '/tmp/regression-home', appData: '/tmp/regression-appdata', platform: 'darwin' });
+  const ids = CLIENT_DEFINITIONS.map(def => def.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const def of CLIENT_DEFINITIONS) {
+    assert.ok(def.region === 'cn' || def.region === 'global', `${def.id} 缺少分类`);
+    assert.ok(['json-mcp', 'toml-codex', 'json-opencode', 'manual'].includes(def.configKind), `${def.id} 配置格式非法`);
+    const paths = def.paths(ctx);
+    assert.ok(paths.detectPaths.length > 0, `${def.id} 缺少检测路径`);
+    if (def.configKind === 'manual') continue;
+    assert.ok(paths.configPath && path.isAbsolute(paths.configPath), `${def.id} 缺少配置路径`);
+  }
+  assert.deepEqual([...new Set(CLIENT_DEFINITIONS.map(def => def.region))].sort(), ['cn', 'global']);
+  assert.ok(CLIENT_DEFINITIONS.filter(def => def.region === 'cn').length >= 4);
+  assert.ok(CLIENT_DEFINITIONS.filter(def => def.region === 'global').length >= 6);
+});
+test('空配置文件与 BOM 视为未配置，可正常写入（Antigravity 生成的 0 字节文件）', () => {
+  const file = path.join(root, 'antigravity-empty.json');
+  fs.writeFileSync(file, '');
+  const entry = { command: '/A/bin', args: ['/A/cli.cjs'], env: {} };
+  mergeMcpConfig(file, entry);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).mcpServers.charfloat, entry);
+  // 纯空白同样按空配置处理，不再是"JSON 损坏"
+  fs.writeFileSync(file, '  \n\t');
+  mergeMcpConfig(file, entry);
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).mcpServers.charfloat);
+  // 带 BOM 的合法 JSON 也能解析
+  fs.writeFileSync(file, '\uFEFF{"mcpServers":{"other":{"command":"x"}}}');
+  mergeMcpConfig(file, entry);
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(config.mcpServers.other);
+  assert.ok(config.mcpServers.charfloat);
+});

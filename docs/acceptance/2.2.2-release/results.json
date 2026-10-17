@@ -1,0 +1,65 @@
+{
+  "version": "2.2.2",
+  "candidate": "2.2.2-release",
+  "versionDecision": "项目负责人指定按 PATCH 2.2.2 发布（新增能力向后兼容；非按语义化版本自动推导的 MINOR）",
+  "buildTime": "2026-10-17T22:36:16+08:00",
+  "platform": "macOS 27.0.1 (26A434)，arm64 构建主机",
+  "electron": "35.7.5",
+  "node": "v25.9.0",
+  "dependencies": "按 package-lock.json 用 npm ci 恢复（@modelcontextprotocol/sdk 1.30.0 / zod 3.25.76），锁文件未改动",
+  "mac": {
+    "appPath": "release/2.2.2/mac/mac-arm64/字浮 CharFloat.app",
+    "sizeBytes": 288804864,
+    "mainExecutableSha256": "7baba2344adeeb821ff779b6d0f932365872ade22d6390cfb4ee777eb2f3231a",
+    "appAsarSha256": "18b90a7c3590288b7a488a79af0b8aa0272a571f51e7b972c43a7ab2e2c8e9ab",
+    "infoPlistVersion": "2.2.2",
+    "bundleId": "com.antigravity.charfloat",
+    "arch": "Mach-O 64-bit executable arm64",
+    "signature": "adhoc / linker-signed，无开发者证书、未公证",
+    "uploadZip": {
+      "path": "/tmp/release-2.2.2/CharFloat-2.2.2-mac-arm64.zip",
+      "sizeBytes": 115341769,
+      "sha256": "34973a5f70638f2ec21509a9ca79e0dedcf0c51afbfce6d02c661f6a90d6e9ef"
+    }
+  },
+  "win": {
+    "zipPath": "release/2.2.2/win/字浮-CharFloat-2.2.2-win-x64.zip",
+    "sizeBytes": 125924137,
+    "sha256": "3a5fa2937143a6b56af51276cae2830a253b56f3a438cce3af424643449150ae",
+    "arch": "PE32+ x86-64",
+    "exeMetadata": {
+      "productName": "字浮 CharFloat",
+      "productVersion": "2.2.2.0",
+      "company": "Antigravity"
+    },
+    "icon": {
+      "rtGroupIconEntries": 7,
+      "sizes": [
+        16,
+        24,
+        32,
+        48,
+        64,
+        96,
+        256
+      ],
+      "format": "<256 为 32bpp DIB，256 为 PNG 内嵌"
+    },
+    "signature": "未签名（无 Authenticode 证书，SmartScreen 会提示未知发布者）"
+  },
+  "protection": {
+    "protectedFiles": 68,
+    "manifestSha256": "9232c3db31f3f62c19c10a52d989bbadee2f6a2bc7b2a374842b47f99af5c950"
+  },
+  "runtimeProbe": {
+    "toolCount": 142,
+    "contractMatches": true,
+    "bytecodeOnly": true,
+    "realOfficeHostVerified": false
+  },
+  "baseline": {
+    "previousVersion": "2.2.1",
+    "previousWinZipSha256": "4ca304f7a317a894e44aa4266f1682d43f937099155c536a1b6bf2c67d4210ac",
+    "previousAppAsarSha256": "87bf85cb4ed0781506420da65207bcc28f197797fb836aee6ec45102dd85403d"
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Cable, 
   CheckCircle2, 
@@ -11,21 +11,46 @@ import {
 } from 'lucide-react';
 import appLogo from '../assets/app-logo.png';
 import brandGreeting from '../assets/brand-greeting.png';
-import doubaoLogo from '../assets/doubao-color.svg';
+import doubaoLogo from '../assets/doubao-work.png';
 import workbuddyLogo from '../assets/workbuddy.svg';
-import qwenLogo from '../assets/qwen-color.svg';
+import qwenLogo from '../assets/qwen.png';
 import kimiLogo from '../assets/kimi.webp';
 import claudeLogo from '../assets/claude-color.svg';
-import openaiLogo from '../assets/openai.svg';
+import claudeDesktopLogo from '../assets/claude-desktop.png';
+import codexLogo from '../assets/codex.png';
+import traeLogo from '../assets/trae.png';
+import lingmaLogo from '../assets/lingma.png';
+import cursorLogo from '../assets/cursor.png';
+import windsurfLogo from '../assets/windsurf.svg';
+import geminiLogo from '../assets/gemini.png';
+import antigravityLogo from '../assets/antigravity.png';
+import opencodeLogo from '../assets/opencode.png';
+import vscodeLogo from '../assets/vscode.png';
 
 const agentLogos: Record<string, string> = {
+  // 国内
   doubao: doubaoLogo,
   workbuddy: workbuddyLogo,
   qwen: qwenLogo,
   kimi: kimiLogo,
+  'trae-cn': traeLogo,
+  lingma: lingmaLogo,
+  // 国外
   'claude-code': claudeLogo,
-  codex: openaiLogo,
+  codex: codexLogo,
+  'claude-desktop': claudeDesktopLogo,
+  cursor: cursorLogo,
+  windsurf: windsurfLogo,
+  'gemini-cli': geminiLogo,
+  antigravity: antigravityLogo,
+  opencode: opencodeLogo,
+  vscode: vscodeLogo,
 };
+
+const REGIONS = [
+  { id: 'cn' as const, label: '国内' },
+  { id: 'global' as const, label: '国外' },
+];
 
 interface AgentHubProps {
   agents: any[];
@@ -56,7 +81,31 @@ export const AgentHub: React.FC<AgentHubProps> = ({
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [copiedType, setCopiedType] = useState<'prompt' | 'json' | null>(null);
+  const [activeRegion, setActiveRegion] = useState<'cn' | 'global'>('cn');
+  const regionDefaultedRef = useRef(false);
   const isInstalling = busy === 'install';
+  const logStats = installLogs.reduce(
+    (acc: { success: number; manual: number; error: number }, log: any) => {
+      if (log?.status === 'success') acc.success += 1;
+      else if (log?.status === 'manual') acc.manual += 1;
+      else acc.error += 1;
+      return acc;
+    },
+    { success: 0, manual: 0, error: 0 },
+  );
+
+  const regionOf = (agent: any): 'cn' | 'global' => (agent?.region === 'cn' ? 'cn' : 'global');
+  const regionAgents = (region: 'cn' | 'global') => agents.filter((agent: any) => regionOf(agent) === region);
+  const visibleAgents = regionAgents(activeRegion);
+
+  // 默认停在「国内」；只有国内一个都没配置、国外已有配置时才自动切到国外。用户手动切换后不再自动跳转
+  useEffect(() => {
+    if (regionDefaultedRef.current || agents.length === 0) return;
+    regionDefaultedRef.current = true;
+    const configuredCount = (region: 'cn' | 'global') =>
+      regionAgents(region).filter((agent: any) => agent.status === 'configured').length;
+    if (configuredCount('cn') === 0 && configuredCount('global') > 0) setActiveRegion('global');
+  }, [agents]);
 
   const getAiPrompt = () => {
     const jsonStr = JSON.stringify(mcpConfig, null, 2);
@@ -95,7 +144,7 @@ ${jsonStr}
           </div>
           <div>
             <h3>AI 助手授权中心</h3>
-            <p className="sub-caption">选择你需要打通的 AI 桌面客户端，一键授权 Bridge 办公工具集</p>
+            <p className="sub-caption">选择你需要打通的 AI 客户端，一键授权 Bridge 办公工具集</p>
           </div>
         </div>
 
@@ -111,9 +160,33 @@ ${jsonStr}
         </div>
       </div>
 
-      {/* AI 客户端网格 */}
+      {/* 分类切换器：国内 / 国外 */}
+      <div className="agent-region-bar">
+        <div className="agent-region-switch" role="tablist" aria-label="AI 客户端分类">
+          {REGIONS.map(region => {
+            const list = regionAgents(region.id);
+            const configured = list.filter((agent: any) => agent.status === 'configured').length;
+            return (
+              <button
+                key={region.id}
+                type="button"
+                role="tab"
+                aria-selected={activeRegion === region.id}
+                className={`region-tab ${activeRegion === region.id ? 'active' : ''}`}
+                title={`${region.label}客户端 ${list.length} 个，已配置 ${configured} 个`}
+                onClick={() => setActiveRegion(region.id)}
+              >
+                <span>{region.label}</span>
+                <span className="region-count">{list.length}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* AI 客户端网格（按分类切换） */}
       <div className="agent-grid">
-        {agents.map((agent) => {
+        {visibleAgents.map((agent) => {
           const isSelected = selectedAgents.includes(agent.id);
           const isConfigured = agent.status === 'configured';
           const isDetected = agent.detected;
@@ -205,6 +278,10 @@ ${jsonStr}
                       <CheckCircle2 size={10} />
                       <span>已配置</span>
                     </span>
+                  ) : agent.manual ? (
+                    <span className="agent-badge gray">
+                      <span>需手动</span>
+                    </span>
                   ) : isDetected ? (
                     <span className="agent-badge pending">
                       <span>待授权</span>
@@ -222,18 +299,32 @@ ${jsonStr}
             </div>
           );
         })}
+        {visibleAgents.length === 0 && (
+          <div className="agent-grid-empty">该分类下暂无客户端</div>
+        )}
       </div>
 
       {/* 安装反馈结果面板 */}
       {installLogs.length > 0 && (
         <div className="install-feedback-panel">
           <div className="feedback-title">
-            <CheckCircle2 size={13} className="text-emerald-500" />
+            {logStats.error > 0 ? (
+              <AlertCircle size={13} className="text-rose-500" />
+            ) : logStats.manual > 0 ? (
+              <AlertCircle size={13} className="text-amber-500" />
+            ) : (
+              <CheckCircle2 size={13} className="text-emerald-500" />
+            )}
             <span>配置更新结果</span>
+            <span className="feedback-summary">
+              {logStats.success > 0 && <span className="ok">成功 {logStats.success}</span>}
+              {logStats.manual > 0 && <span className="manual">需手动 {logStats.manual}</span>}
+              {logStats.error > 0 && <span className="fail">失败 {logStats.error}</span>}
+            </span>
           </div>
           <div className="feedback-list">
             {installLogs.map((log, idx) => (
-              <div className="feedback-item" key={idx}>
+              <div className={`feedback-item ${log.status === 'error' ? 'error' : ''}`} key={idx}>
                 {log.status === 'success' ? (
                   <CheckCircle2 size={12} className="text-emerald-500" />
                 ) : (

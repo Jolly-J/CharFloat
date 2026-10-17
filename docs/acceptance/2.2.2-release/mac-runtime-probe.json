@@ -1,0 +1,10 @@
+{
+  "toolCount": 142,
+  "contractMatches": true,
+  "capabilitiesResource": true,
+  "promptMatches": true,
+  "toolCall": true,
+  "unknownToolError": true,
+  "bytecodeOnly": true,
+  "realOfficeHostVerified": false
+}

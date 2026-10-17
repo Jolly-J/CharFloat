@@ -1,0 +1,9 @@
+{
+  "artifact": "CharFloat-2.2.2-mac-arm64.zip",
+  "sha256": "34973a5f70638f2ec21509a9ca79e0dedcf0c51afbfce6d02c661f6a90d6e9ef",
+  "profile": "offline-addons-v1",
+  "files": 4865,
+  "protectedFiles": 68,
+  "runtimeVerified": false,
+  "hostVerified": false
+}

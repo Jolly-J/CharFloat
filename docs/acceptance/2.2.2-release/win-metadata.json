@@ -1,0 +1,13 @@
+{
+  "exe": "字浮 CharFloat.exe",
+  "rtGroupIcon": "7 entries (16/24/32/48/64/96/256)",
+  "iconFormat": "<256: DIB(BMP) 32bpp; 256: PNG embedded",
+  "versionStringsUtf16le": [
+    "字浮 CharFloat",
+    "2.2.2.0",
+    "Antigravity",
+    "Universal Bridge between AI Agents",
+    "Copyright © 2026"
+  ],
+  "verifiedBy": "docs/acceptance/2.1.0-p0p1/p5/inspect-pe-icons.mjs + UTF-16LE 字节搜索"
+}

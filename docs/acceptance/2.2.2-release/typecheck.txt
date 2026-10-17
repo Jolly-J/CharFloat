@@ -1,0 +1,4 @@
+
+> charfloat@2.2.2 typecheck
+> tsc --noEmit
+

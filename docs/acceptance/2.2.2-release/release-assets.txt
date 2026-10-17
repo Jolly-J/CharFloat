@@ -1,0 +1,142 @@
+
+> charfloat@2.2.2 build:release
+> npm run build && npm run build:release-assets
+
+
+> charfloat@2.2.2 prebuild
+> npm run check:version && npm run check:brand
+
+
+> charfloat@2.2.2 check:version
+> node scripts/check-version.mjs
+
+版本一致性检查通过：2.2.2（锁文件、Bridge、加载项、清单、界面及变更日志）。
+
+> charfloat@2.2.2 check:brand
+> node scripts/check-brand.mjs
+
+字浮品牌检查通过：source，21220 个文本文件，旧品牌标识零命中。
+
+> charfloat@2.2.2 build
+> npm run build:renderer && npm run build:main && npm run build:bytecode && npm run build:addons
+
+
+> charfloat@2.2.2 build:renderer
+> vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2327 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/renderer/index.html                            0.40 kB │ gzip:   0.28 kB
+dist/renderer/assets/wps-logo-mpy-KSNU.png          4.16 kB
+dist/renderer/assets/workbuddy-BujKiC6G.svg         4.17 kB │ gzip:   1.96 kB
+dist/renderer/assets/cursor-m6lVa2Dt.png            5.82 kB
+dist/renderer/assets/gemini-znimWEwx.png            5.86 kB
+dist/renderer/assets/kimi-B4TFwE1N.webp            11.02 kB
+dist/renderer/assets/app-logo-Bzep8v3U.png         16.68 kB
+dist/renderer/assets/lingma-C8pf5ISu.png           17.06 kB
+dist/renderer/assets/vscode-B0DhOts_.png           18.38 kB
+dist/renderer/assets/antigravity-Bu7qyaHG.png      19.17 kB
+dist/renderer/assets/claude-desktop-B768ZlLk.png   21.19 kB
+dist/renderer/assets/qwen-CLuqR2iO.png             21.48 kB
+dist/renderer/assets/codex-Dc9skm8h.png            35.81 kB
+dist/renderer/assets/doubao-work-y_fxOMJf.png      40.68 kB
+dist/renderer/assets/brand-greeting-CCA5IISr.png  122.16 kB
+dist/renderer/assets/brand-working-BBWYEYre.png   123.68 kB
+dist/renderer/assets/brand-ok-CnUW-ZsQ.png        848.77 kB
+dist/renderer/assets/index-jXndEIjE.css            50.64 kB │ gzip:   9.76 kB
+dist/renderer/assets/index-C0yTDFGl.js            444.01 kB │ gzip: 143.67 kB
+✓ built in 1.37s
+
+> charfloat@2.2.2 build:main
+> tsup
+
+CLI Building entry: {"main/index":"src/main/index.ts"}
+CLI Using tsconfig: tsconfig.json
+CLI Building entry: {"preload/index":"src/preload/index.ts"}
+CLI Using tsconfig: tsconfig.json
+CLI Building entry: {"bridge/cli":"src/bridge/cli.ts"}
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/Python/字浮/tsup.config.ts
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/Python/字浮/tsup.config.ts
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/Python/字浮/tsup.config.ts
+CLI Target: node20
+ESM Build start
+CLI Target: node20
+CJS Build start
+CLI Target: node20
+CJS Build start
+CJS dist/preload/index.cjs     1.55 KB
+CJS dist/preload/index.cjs.map 3.26 KB
+CJS ⚡️ Build success in 26ms
+ESM dist/main/index.js     50.72 KB
+ESM dist/main/index.js.map 144.43 KB
+ESM ⚡️ Build success in 38ms
+CJS dist/bridge/cli.cjs     1.28 MB
+CJS dist/bridge/cli.cjs.map 2.55 MB
+CJS ⚡️ Build success in 110ms
+
+> charfloat@2.2.2 build:bytecode
+> node scripts/build-cli-bytecode.mjs
+
+[build:bytecode] cli.jsc 1.85 MB（编译时 V8 = 13.4.114.21-electron.0）
+[build:bytecode] cli.cjs 加载器 1770 字节
+[build:bytecode] cli-full.cjs 1.28 MB —— 发布时必须排除
+
+> charfloat@2.2.2 build:addons
+> npm run build:wps-addon && npm run build:office-addon
+
+
+> charfloat@2.2.2 build:wps-addon
+> node scripts/build-wps-addon.mjs
+
+[build:wps-addon] 拼接顺序: shared.js -> connection.js -> ribbon.js -> dispatch.js -> sheet-sort.js -> excel/pure.js -> excel/design.js -> excel/validation-read.js -> excel/styles.js -> excel/format.js -> excel/validation-write.js -> excel/shape.js -> excel/range.js -> excel/sheets.js -> excel/rows-columns.js -> excel/chart-read.js -> excel/chart-write.js -> excel/table-pivot.js -> excel/filter-sort.js -> excel/comments-links.js -> excel/workbook.js -> excel/export.js -> excel/events.js -> word.js -> ppt-layout.js -> ppt.js -> panel.js -> bootstrap.js
+[build:wps-addon]   shared.js          485 行
+[build:wps-addon]   connection.js      108 行
+[build:wps-addon]   ribbon.js          336 行
+[build:wps-addon]   dispatch.js        583 行
+[build:wps-addon]   sheet-sort.js       46 行（另移除 2 行 @build-strip 测试导出）
+[build:wps-addon]   excel/pure.js       24 行（另移除 2 行 @build-strip 测试导出）
+[build:wps-addon]   excel/design.js    479 行
+[build:wps-addon]   excel/validation-read.js   458 行
+[build:wps-addon]   excel/styles.js    213 行
+[build:wps-addon]   excel/format.js    578 行
+[build:wps-addon]   excel/validation-write.js   346 行
+[build:wps-addon]   excel/shape.js     458 行
+[build:wps-addon]   excel/range.js     559 行
+[build:wps-addon]   excel/sheets.js    435 行
+[build:wps-addon]   excel/rows-columns.js   229 行
+[build:wps-addon]   excel/chart-read.js   158 行
+[build:wps-addon]   excel/chart-write.js   703 行
+[build:wps-addon]   excel/table-pivot.js   381 行
+[build:wps-addon]   excel/filter-sort.js   215 行
+[build:wps-addon]   excel/comments-links.js   364 行
+[build:wps-addon]   excel/workbook.js   283 行
+[build:wps-addon]   excel/export.js    225 行
+[build:wps-addon]   excel/events.js     36 行
+[build:wps-addon]   word.js           2819 行
+[build:wps-addon]   ppt-layout.js       47 行（另移除 2 行 @build-strip 测试导出）
+[build:wps-addon]   ppt.js            1673 行
+[build:wps-addon]   panel.js            80 行
+[build:wps-addon]   bootstrap.js        40 行
+[build:wps-addon] 产物未变化（逐字节一致，跳过写入） wps-addon/addon-core.js，共 84 行
+
+> charfloat@2.2.2 build:office-addon
+> node scripts/build-office-addon.mjs
+
+内容一致，已重写: office-addon/public/taskpane.js（19 个模块，86556 字节，语法校验通过）
+
+> charfloat@2.2.2 postbuild
+> node scripts/check-brand.mjs --generated
+
+字浮品牌检查通过：generated，21 个文本文件，旧品牌标识零命中。
+
+> charfloat@2.2.2 build:release-assets
+> node scripts/build-release-assets.mjs
+
+发布副本已生成：dist/release-app，69 个文件；技能和提示词逐字保留。

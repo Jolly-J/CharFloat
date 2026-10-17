@@ -1,0 +1,11 @@
+  • electron-builder  version=25.1.8 os=27.0.0
+  • loaded configuration  file=package.json ("build" field)
+[before-pack] Windows：已附带明文兜底 cli-full.cjs（1.28 MB）；Windows 侧为 minify 保护、无字节码
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=win32 arch=x64 electron=35.7.5 appOutDir=/tmp/release-2.2.2/build-win/win-unpacked
+  • updating asar integrity executable resource  executablePath=/tmp/release-2.2.2/build-win/win-unpacked/字浮 CharFloat.exe
+[protection] 包内检查通过，68 个发布资源；不代表真实宿主验收。
+  • signing with signtool.exe  path=/tmp/release-2.2.2/build-win/win-unpacked/字浮 CharFloat.exe
+  • no signing info identified, signing is skipped  signHook=false cscInfo=null
+  • building        target=zip arch=x64 file=/tmp/release-2.2.2/build-win/字浮-CharFloat-2.2.2-win-x64.zip
+[protection] ZIP 检查通过，SHA-256 3a5fa2937143a6b56af51276cae2830a253b56f3a438cce3af424643449150ae

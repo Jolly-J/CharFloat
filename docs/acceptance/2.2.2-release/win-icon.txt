@@ -1,0 +1,12 @@
+
+> charfloat@2.2.2 build:win-icon
+> node scripts/build-win-icon.mjs
+
+已生成 build/icon.ico：7 个尺寸，130305 字节
+   16x16  DIB(BMP) 自下而上 BGRA + AND 掩码  1128 字节
+   24x24  DIB(BMP) 自下而上 BGRA + AND 掩码  2440 字节
+   32x32  DIB(BMP) 自下而上 BGRA + AND 掩码  4264 字节
+   48x48  DIB(BMP) 自下而上 BGRA + AND 掩码  9640 字节
+   64x64  DIB(BMP) 自下而上 BGRA + AND 掩码  16936 字节
+   96x96  DIB(BMP) 自下而上 BGRA + AND 掩码  38056 字节
+  256x256 PNG 内嵌  57723 字节

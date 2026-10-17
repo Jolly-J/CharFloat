@@ -1,0 +1,11 @@
+{
+  "packageJson": "2.2.2",
+  "packageLock": "2.2.2",
+  "bridgeVersion": "2.2.2",
+  "addonVersionWps": "2.2.2",
+  "addonVersionOffice": "2.2.2",
+  "wpsManifest": "2.2.2",
+  "officeManifest": "2.2.2.0",
+  "rendererFallback": "2.2.2",
+  "toolCount": 142
+}
