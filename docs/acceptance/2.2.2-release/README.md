@@ -1,6 +1,6 @@
 # 2.2.2 多客户端接入与发布验收
 
-日期：2026-10-17。状态：两平台发布包构建、内容校验与包内 CLI 契约探针完成，待提交/打标签/上传；上传后在本文件追加发布记录。
+日期：2026-10-17。状态：**正式发布**（v2.2.2）。两平台发布包构建、内容校验、包内 CLI 契约探针与远端附件 digest 对账均完成。
 
 ## 元数据
 
@@ -9,7 +9,7 @@
 | 产品版本 / 候选标识 | 2.2.2 / `2.2.2-release` |
 | 交付范围及升版理由 | 15 客户端分类接入能力与多项接入正确性修复；**版本由项目负责人指定为 PATCH 2.2.2**（新增能力向后兼容，未按语义化版本自动推导 MINOR） |
 | 平台 / 系统 / 宿主 / Electron | macOS 27.0.1 (26A434) arm64 构建主机；Electron 35.7.5；未在真实 WPS/Office 宿主验收（见限制） |
-| 源码完整提交 SHA | 见本次提交（发布后追加记录） |
+| 源码完整提交 SHA | `c398d4723c946b30a566db3e96908dfab9f60960`（标签 `v2.2.2` 指向该提交） |
 | 构建输入指纹 | `dist/release-app/protection-manifest.json` SHA-256 `9232c3db31f3f62c19c10a52d989bbadee2f6a2bc7b2a374842b47f99af5c950` |
 | 工具契约快照 | [tools.json](tools.json)，142 个对外工具（与 2.2.1 相同契约，未增删工具） |
 | 构建依赖口径 | 构建前按 `package-lock.json` 执行 `npm ci` 恢复依赖（`@modelcontextprotocol/sdk` 1.30.0 / `zod` 3.25.76）；锁文件未改动。此前工作区曾被 `pnpm install` 改成 pnpm 布局并解析出 `@modelcontextprotocol/sdk` 1.32.1（要求 zod ≥3.25），导致构建失败；按锁文件恢复后通过 |
@@ -67,4 +67,19 @@
 
 ## 正式发布记录
 
-待上传后追加：标签、完整提交 SHA、Release URL、附件名/大小/`digest`、对账结果与时间。
+| 项 | 内容 |
+|---|---|
+| Release URL | https://github.com/Jolly-J/CharFloat/releases/tag/v2.2.2 |
+| 标签 | `v2.2.2`（annotated）→ 提交 `c398d4723c946b30a566db3e96908dfab9f60960` |
+| 发布时间 | 2026-10-17T14:47:26Z（22:47:26 +08:00） |
+| 发布状态 | 已发布（非 Draft、非 Pre-release） |
+| 对账结果 | 远端两个附件的 `digest` 与本地 SHA-256 完全一致 |
+
+| 附件 | 大小（远端=本地） | 远端 digest = 本地 SHA-256 | 说明 |
+|---|---|---|---|
+| `CharFloat-2.2.2-mac-arm64.zip` | 115,341,769 字节 | `34973a5f70638f2ec21509a9ca79e0dedcf0c51afbfce6d02c661f6a90d6e9ef` | 由本次验收的 `.app` 制作（来源 `app.asar` SHA-256 `18b90a7c3590288b7a488a79af0b8aa0272a571f51e7b972c43a7ab2e2c8e9ab`） |
+| `CharFloat-2.2.2-win-x64.zip` | 125,924,137 字节 | `3a5fa2937143a6b56af51276cae2830a253b56f3a438cce3af424643449150ae` | 与 `release/2.2.2/win/` 内同名 ZIP 一致 |
+
+发布记录副本见 [publication.json](publication.json)。上传链路：本地代理上行仅约 150–265 KB/s，改用直连（绕过代理）后 GitHub uploads 约 330–350 KB/s 完成；包内容与哈希不受链路影响。
+
+2.2.1 及更早正式版本未改动，仍可在 Releases 页面回退下载。

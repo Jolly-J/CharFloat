@@ -1,0 +1,24 @@
+{
+  "url": "https://github.com/Jolly-J/CharFloat/releases/tag/v2.2.2",
+  "tag": "v2.2.2",
+  "publishedAt": "2026-10-17T14:47:26Z",
+  "sourceCommit": "c398d4723c946b30a566db3e96908dfab9f60960",
+  "assets": [
+    {
+      "name": "CharFloat-2.2.2-mac-arm64.zip",
+      "size": 115341769,
+      "digest": "sha256:34973a5f70638f2ec21509a9ca79e0dedcf0c51afbfce6d02c661f6a90d6e9ef",
+      "localSha256": "34973a5f70638f2ec21509a9ca79e0dedcf0c51afbfce6d02c661f6a90d6e9ef",
+      "sourceAppAsarSha256": "18b90a7c3590288b7a488a79af0b8aa0272a571f51e7b972c43a7ab2e2c8e9ab",
+      "verified": true
+    },
+    {
+      "name": "CharFloat-2.2.2-win-x64.zip",
+      "size": 125924137,
+      "digest": "sha256:3a5fa2937143a6b56af51276cae2830a253b56f3a438cce3af424643449150ae",
+      "localSha256": "3a5fa2937143a6b56af51276cae2830a253b56f3a438cce3af424643449150ae",
+      "verified": true
+    }
+  ],
+  "uploadChannel": "直连（绕过本地代理）；代理节点上行仅 ~150–265 KB/s，直连 GitHub uploads 约 330–350 KB/s"
+}
