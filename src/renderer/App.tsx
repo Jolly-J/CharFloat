@@ -19,11 +19,11 @@ const api = (window as any).api;
 export default function App() {
   // 核心状态
   const [status, setStatus] = useState<any>({ online: false, components: {} });
-  const [info, setInfo] = useState<any>({ version: '2.2.1', port: 19890, theme: 'system' });
+  const [info, setInfo] = useState<any>({ version: '2.2.2', port: 19890, theme: 'system' });
   const [env, setEnv] = useState<any>(null);
   const [officeAddon, setOfficeAddon] = useState<any>(null);
   const [busy, setBusy] = useState('');
-  const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
+  const [toast, setToast] = useState<{ text: string; level: 'success' | 'warning' | 'error' } | null>(null);
 
   // Agent 接入状态
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
@@ -44,11 +44,11 @@ export default function App() {
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // 统一通知 Toast
-  const notify = (text: string, error = false) => {
+  // 统一通知 Toast：成功/警告/失败三态，颜色与停留时长不同
+  const notify = (text: string, level: 'success' | 'warning' | 'error' = 'success') => {
     clearTimeout(toastTimer.current);
-    setToast({ text, error });
-    toastTimer.current = setTimeout(() => setToast(null), error ? 7500 : 4000);
+    setToast({ text, level });
+    toastTimer.current = setTimeout(() => setToast(null), level === 'error' ? 7500 : level === 'warning' ? 6000 : 4000);
   };
 
   // 统一异步调用封装
@@ -64,7 +64,7 @@ export default function App() {
       if (successMsg && !result?.permissionIssue) notify(successMsg);
       return result;
     } catch (e: any) {
-      notify(e.message?.replace(/^Error invoking remote method '[^']+': Error: /, '') || '未知异常', true);
+      notify(e.message?.replace(/^Error invoking remote method '[^']+': Error: /, '') || '未知异常', 'error');
     } finally {
       setBusy('');
     }
@@ -83,7 +83,7 @@ export default function App() {
       // 默认选中已检测到或未配置的 agent
       if (e?.agents && selectedAgents.length === 0) {
         const autoSelected = e.agents
-          .filter((a: any) => a.status === 'configured' || a.detected)
+          .filter((a: any) => a.status === 'configured' || (a.detected && !a.manual))
           .map((a: any) => a.id);
         setSelectedAgents(autoSelected);
       }
@@ -117,16 +117,16 @@ export default function App() {
   // 初始化加载
   useEffect(() => {
     if (!api) {
-      notify('提示：请从桌面客户端打开以连接本地完整能力。', true);
+      notify('提示：请从桌面客户端打开以连接本地完整能力。', 'error');
       return;
     }
 
-    void api.getStatus().then(setStatus).catch((e: any) => notify(e.message, true));
+    void api.getStatus().then(setStatus).catch((e: any) => notify(e.message, 'error'));
     void api.getAppInfo().then(setInfo).catch(() => {});
     void api.detectEnvironment().then((e: any) => {
       setEnv(e);
       if (e?.agents) {
-        const auto = e.agents.filter((a: any) => a.status === 'configured' || a.detected).map((a: any) => a.id);
+        const auto = e.agents.filter((a: any) => a.status === 'configured' || (a.detected && !a.manual)).map((a: any) => a.id);
         setSelectedAgents(auto);
       }
     }).catch(() => {});
@@ -228,14 +228,17 @@ export default function App() {
     setSelectedAgents(selectedAgents.length === allIds.length ? [] : allIds);
   };
 
-  // 执行 Agent MCP 配置安装
-  const handleExecuteInstall = () => {
-    void run('install', async () => {
+  // 执行 Agent MCP 配置安装：按实际结果给成功/警告/失败三态提示
+  const handleExecuteInstall = async () => {
+    if (!api || busy) return;
+    setBusy('install');
+    try {
       const r = await api.executeInstall({
         agents: selectedAgents,
         skills: true,
       });
-      setInstallLogs(r.logs || []);
+      const logs: any[] = r.logs || [];
+      setInstallLogs(logs);
       await refreshAll();
       if (selectedAgents.includes('doubao')) {
         const nextEnv = await api.detectEnvironment();
@@ -246,8 +249,19 @@ export default function App() {
           setShowDoubaoGuide(true);
         }
       }
-      return r;
-    }, `所选 ${selectedAgents.length} 个 AI 客户端配置已更新`);
+      const stats = r.stats || {
+        success: logs.filter((log) => log.status === 'success').length,
+        manual: logs.filter((log) => log.status === 'manual').length,
+        error: logs.filter((log) => log.status === 'error').length,
+      };
+      if (stats.error > 0) notify(r.message || '配置未全部成功，请查看下方结果', 'error');
+      else if (stats.manual > 0) notify(r.message || '部分客户端需手动接入，请查看下方结果', 'warning');
+      else notify(r.message || '配置完成', 'success');
+    } catch (e: any) {
+      notify(e?.message?.replace(/^Error invoking remote method '[^']+': Error: /, '') || '配置失败', 'error');
+    } finally {
+      setBusy('');
+    }
   };
 
   // 复制文本剪贴板
@@ -402,8 +416,8 @@ export default function App() {
 
       {/* 5. 全局 Toast 提示 */}
       {toast && (
-        <div className={`floating-toast ${toast.error ? 'error' : 'success'}`} role="status">
-          {toast.error ? <CircleAlert size={16} /> : <CheckCircle2 size={16} />}
+        <div className={`floating-toast ${toast.level}`} role="status">
+          {toast.level === 'success' ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}
           <span className="toast-message">{toast.text}</span>
           <button className="toast-close" onClick={() => setToast(null)} aria-label="关闭">
             <X size={14} />

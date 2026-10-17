@@ -1,87 +1,95 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import crypto from 'node:crypto';
 import { atomicWrite, resourcePath, runtimeHome, runtimePort } from '../bridge/runtime.js';
 import { AddonInstaller } from './addon-installer.js';
 import { legacyServerKey, legacyToolPrefix, legacySkillNames } from './legacy-brand.js';
+import { CLIENT_DEFINITIONS, clientPathContext, findClient, type ClientConfigKind, type ClientRuntimePaths } from './client-registry.js';
+import { applyMcpEntry, isMcpConfigured, mergeMcpConfig, type McpServerEntry } from './mcp-adapters.js';
 
-export function mergeMcpConfig(file: string, entry: unknown) {
-  let config: any = {};
-  if (fs.existsSync(file)) {
-    const raw = fs.readFileSync(file, 'utf8');
-    try { config = JSON.parse(raw); } catch { throw new Error('现有 JSON 无法解析，未覆盖。请先修复原配置。'); }
-    if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('现有配置不是 JSON 对象，未覆盖');
-  }
-  if (config.mcpServers !== undefined && (!config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers))) throw new Error('mcpServers 格式无效，未覆盖');
-  // 只写当前品牌名称 charfloat。
-  // 迁移规则：只清掉确属本产品的遗留条目（命令/参数与原条目一致），
-  // 别人的同名条目（若有）一律保留——安全性质与"合并写入、不覆盖他人"保持一致。
-  const LEGACY_KEYS = [legacyServerKey, 'wps-bridge'];
-  const next: Record<string, unknown> = { ...(config.mcpServers || {}) };
-  for (const leg of LEGACY_KEYS) {
-    const prev = next[leg];
-    const legacyIsOurs = prev
-      && typeof prev === 'object'
-      && !Array.isArray(prev)
-      && Boolean(entry && typeof entry === 'object'
-        && (prev as any).command === (entry as any).command
-        && JSON.stringify((prev as any).args) === JSON.stringify((entry as any).args));
-    if (legacyIsOurs) delete next[leg];
-  }
-  next['charfloat'] = entry;
-  config.mcpServers = next;
-  atomicWrite(file, JSON.stringify(config, null, 2) + '\n', true);
+// 兼容既有调用方与测试：JSON mcpServers 合并仍从本模块导出
+export { mergeMcpConfig } from './mcp-adapters.js';
+
+export interface AgentRuntimeInfo {
+  id: string;
+  name: string;
+  vendor: string;
+  region: 'cn' | 'global';
+  configPath: string | undefined;
+  configPaths: string[];
+  skillsPath: string | undefined;
+  configKind: ClientConfigKind;
+  detected: boolean;
+  status: 'configured' | 'installed' | 'not_found';
+  detail: string;
+  recommended: boolean;
+  manual: boolean;
+  manualHint?: string;
 }
+
 export class InstallerEngine {
   static runtimeEntry = '';
   static getSystemTargetDir() { return runtimeHome(); }
-  static configEntry() {
-    return { command: process.execPath, args: [this.runtimeEntry || resourcePath('dist/bridge/cli.cjs')], env: { ELECTRON_RUN_AS_NODE: '1', CHARFLOAT_HOME: runtimeHome(), WPS_BRIDGE_HOME: runtimeHome(), WPS_BRIDGE_PORT: String(runtimePort()), WPS_BRIDGE_RESOURCES: resourcePath('package.json').replace(/[\\/]package\.json$/, '') } };
+  static configEntry(): McpServerEntry {
+    return {
+      command: process.execPath,
+      args: [this.runtimeEntry || resourcePath('dist/bridge/cli.cjs')],
+      env: {
+        ELECTRON_RUN_AS_NODE: '1',
+        CHARFLOAT_HOME: runtimeHome(),
+        WPS_BRIDGE_HOME: runtimeHome(),
+        WPS_BRIDGE_PORT: String(runtimePort()),
+        WPS_BRIDGE_RESOURCES: resourcePath('package.json').replace(/[\\/]package\.json$/, ''),
+      },
+    };
   }
+
+  /** 按注册表生成各客户端的接入状态；读取状态不会写入任何配置。 */
   static detectEnvironment() {
-    const home = os.homedir();
-    const appData = process.platform === 'darwin' ? path.join(home, 'Library/Application Support') : process.env.APPDATA || path.join(home, 'AppData/Roaming');
-
-    // 豆包工作（Doubao Work）桌面端配置与技能目录适配
-    // macOS: ~/Library/Application Support/DoubaoWork/Default/.doubaowork
-    // Windows: %APPDATA%/DoubaoWork/Default/.doubaowork
-    const doubaoWorkBase = path.join(appData, 'DoubaoWork');
-    const doubaoWorkDir = path.join(doubaoWorkBase, 'Default/.doubaowork');
-    const doubaoWorkDetected = fs.existsSync(doubaoWorkDir) || fs.existsSync(doubaoWorkBase);
-    const doubaoConfigPath = doubaoWorkDetected
-      ? path.join(doubaoWorkDir, 'mcp.json')
-      : path.join(home, '.doubao/mcp.json');
-    const doubaoSkillsPath = doubaoWorkDetected
-      ? path.join(doubaoWorkDir, 'agent_mode/workspace/.user_skills')
-      : path.join(home, '.doubao/skills');
-
-    const entries: [string, string, string, string, boolean?][] = [
-      ['workbuddy', 'WorkBuddy', path.join(home, '.workbuddy/mcp.json'), path.join(home, '.workbuddy/skills'), true],
-      ['doubao', '豆包工作', doubaoConfigPath, doubaoSkillsPath],
-      ['qwen', '千问办公', path.join(home, '.qwen/mcp.json'), path.join(home, '.qwen/skills')],
-      ['kimi', 'Kimi', path.join(home, '.kimi-code/mcp.json'), path.join(home, '.kimi-code/skills')],
-      ['claude-code', 'Claude Code', path.join(home, '.claude.json'), path.join(home, '.claude/skills')],
-      ['codex', 'Codex', path.join(home, '.codex/mcp.json'), path.join(home, '.codex/skills')]
-    ];
-    const agents = entries.map(([id, name, configPath, skillsPath, recommended]) => {
-      let configured = false, detail = '';
-      try {
-        if (id === 'doubao') {
-          configured = this.isDoubaoConfigured(doubaoWorkDir);
-          if (configured) {
-            detail = '豆包工作连接器已配置成功并就绪';
+    const ctx = clientPathContext();
+    const agents: AgentRuntimeInfo[] = CLIENT_DEFINITIONS.map(def => {
+      const paths: ClientRuntimePaths = def.paths(ctx);
+      const { configPath, configPaths, skillsPath, detectPaths } = paths;
+      const targets = configPaths?.length ? configPaths : configPath ? [configPath] : [];
+      const detected = detectPaths.some(p => fs.existsSync(p));
+      const manual = def.configKind === 'manual';
+      const configKind = def.configKind;
+      let configured = false;
+      let detail = '';
+      if (configKind === 'manual') {
+        detail = def.manualHint || '该客户端只能在应用内添加 MCP 服务，需手动接入';
+      } else if (def.id === 'doubao' && configPath) {
+        configured = this.isDoubaoConfigured(path.dirname(configPath));
+        if (configured) detail = '豆包工作连接器已配置成功并就绪';
+      } else if (targets.length) {
+        for (const file of targets) {
+          try {
+            if (isMcpConfigured(configKind, file)) { configured = true; break; }
+          } catch {
+            detail = '配置 JSON 无法解析，修复前不会覆盖';
           }
-        } else if (fs.existsSync(configPath)) {
-          const srv = JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers;
-          configured = Boolean(srv?.['charfloat'] || srv?.[legacyServerKey] || srv?.['wps-bridge']);
         }
-      } catch { detail = '配置 JSON 无法解析，修复前不会覆盖'; }
-      const detected = fs.existsSync(path.dirname(configPath));
-      return { id, name, configPath, skillsPath, detected, status: configured ? 'configured' : detected ? 'installed' : 'not_found', detail, recommended: Boolean(recommended) };
+      }
+      return {
+        id: def.id,
+        name: def.name,
+        vendor: def.vendor,
+        region: def.region,
+        configPath,
+        configPaths: targets,
+        skillsPath,
+        configKind: def.configKind,
+        detected,
+        status: configured ? 'configured' : detected ? 'installed' : 'not_found',
+        detail,
+        recommended: Boolean(def.recommended),
+        manual,
+        manualHint: def.manualHint,
+      };
     });
     return { platform: process.platform, systemTargetDir: runtimeHome(), addon: AddonInstaller.checkStatus(), agents };
   }
+
   static isDoubaoConfigured(doubaoWorkDir: string): boolean {
     try {
       // 1. 检查桌面端持久化偏好 desktop.json 是否记录了已配置
@@ -116,6 +124,7 @@ export class InstallerEngine {
     } catch {}
     return false;
   }
+
   static autoApproveWorkbuddy(configDir: string, entry: any, serverName: string) {
     try {
       const approvalsFile = path.join(configDir, 'mcp-approvals.json');
@@ -133,14 +142,22 @@ export class InstallerEngine {
       atomicWrite(approvalsFile, JSON.stringify(approvals, null, 2) + '\n', true);
     } catch {}
   }
+
   static async executeInstall(options: { agents?: string[]; addon?: boolean; skills?: boolean } = {}) {
     const logs: { step: string; status: string; detail: string }[] = [];
     if (options.addon) { const r = AddonInstaller.install(); logs.push({ step: 'WPS 加载项', status: r.success ? 'success' : 'error', detail: r.message }); }
     for (const agent of this.detectEnvironment().agents.filter(a => options.agents?.includes(a.id))) {
+      const def = findClient(agent.id);
+      if (!def) continue;
+      const configKind = def.configKind;
+      if (configKind === 'manual' || agent.configPaths.length === 0) {
+        logs.push({ step: agent.name, status: 'manual', detail: agent.manualHint || `${agent.name} 的 MCP 配置只能在客户端应用内添加，本次未写入文件。` });
+        continue;
+      }
       try {
-        mergeMcpConfig(agent.configPath, this.configEntry());
+        for (const target of agent.configPaths) applyMcpEntry(configKind, target, this.configEntry());
         if (agent.id === 'workbuddy') {
-          this.autoApproveWorkbuddy(path.dirname(agent.configPath), this.configEntry(), 'charfloat');
+          this.autoApproveWorkbuddy(path.dirname(agent.configPaths[0]), this.configEntry(), 'charfloat');
         }
         const shouldSyncSkills = options.skills !== false;
         if (shouldSyncSkills && agent.skillsPath) {
@@ -158,17 +175,31 @@ export class InstallerEngine {
             if (fs.existsSync(path.join(dir, 'SKILL.md'))) this.copySkills(dir, path.join(agent.skillsPath, name));
           }
         }
-        logs.push({ 
-          step: agent.name, 
-          status: 'success', 
-          detail: agent.skillsPath 
-            ? '已合并 MCP 配置并完成安全授信；专属技能库已自动同步就绪。' 
-            : '已合并 MCP 配置并完成安全授信。' 
+        logs.push({
+          step: agent.name,
+          status: 'success',
+          detail: agent.skillsPath
+            ? '已合并 MCP 配置并完成安全授信；专属技能库已自动同步就绪。'
+            : '已合并 MCP 配置并完成安全授信。',
         });
       } catch (e: any) { logs.push({ step: agent.name, status: 'error', detail: e.message }); }
     }
-    return { success: logs.every(l => l.status === 'success'), message: logs.length ? '所选配置处理完成，请查看每项结果。' : '未选择需要安装的项目。', logs };
+    const successCount = logs.filter(l => l.status === 'success').length;
+    const manualCount = logs.filter(l => l.status === 'manual').length;
+    const errorCount = logs.filter(l => l.status === 'error').length;
+    const message = logs.length === 0
+      ? '未选择需要安装的项目。'
+      : errorCount > 0
+        ? `${successCount ? `${successCount} 个成功、` : ''}${errorCount} 个失败${manualCount ? `、${manualCount} 个需手动` : ''}，请查看每项结果。`
+        : successCount > 0
+          ? manualCount
+            ? `已为 ${successCount} 个客户端完成配置，${manualCount} 个需在客户端内手动接入。`
+            : `已为 ${successCount} 个客户端完成配置。`
+          : `${manualCount} 个客户端需在应用内手动接入，本次未写入配置。`;
+    // 「需手动」不算失败：只有真正写入出错才降低整体成功标记
+    return { success: errorCount === 0, message, logs, stats: { success: successCount, manual: manualCount, error: errorCount } };
   }
+
   private static copySkills(source: string, dest: string) {
     for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
       if (entry.isSymbolicLink()) continue;

@@ -3,7 +3,9 @@
 ## 文件地图
 
 - [index.ts](index.ts)：窗口、托盘、IPC 与服务控制。
-- [installer-engine.ts](installer-engine.ts)：客户端检测及 MCP/skill 安装。
+- [installer-engine.ts](installer-engine.ts)：客户端检测、状态判定与 MCP/skill 安装编排。
+- [client-registry.ts](client-registry.ts)：AI 客户端注册表（国内/国外分类、配置格式、路径、检测路径、手动接入说明）；加客户端只改这一处。
+- [mcp-adapters.ts](mcp-adapters.ts)：按客户端格式合并 MCP 配置（`json-mcp` / `toml-codex` / `json-opencode`），只改本产品条目，解析失败不覆盖。
 - [legacy-brand.ts](legacy-brand.ts)：集中维护旧配置/加载项的识别与迁移标识，不用于用户文案或新条目。
 - [addon-installer.ts](addon-installer.ts)：办公加载项部署；Office 清单按内容核对更新与状态，兼容同版本品牌变更；写入失败时返回结构化 `permissionIssue` 而非裸错误。
 - [addon-autoupgrade.ts](addon-autoupgrade.ts)：启动时对齐加载项构建——比对**构建指纹**（版本号在多次构建间不变，不可作依据），不一致则重新部署并触发加载项重载，免重启 WPS。
@@ -13,7 +15,7 @@
 
 ## 定位与联动
 
-窗口行为从 index.ts 开始；客户端接入从 installer-engine.ts 开始；加载项状态从 addon-installer.ts 开始。IPC 联动 [preload](../preload/AGENTS.md) 与 [界面](../renderer/AGENTS.md)。
+窗口行为从 index.ts 开始；客户端接入从 installer-engine.ts 开始（客户端清单见 client-registry.ts，写入格式见 mcp-adapters.ts）；加载项状态从 addon-installer.ts 开始。IPC 联动 [preload](../preload/AGENTS.md) 与 [界面](../renderer/AGENTS.md)。
 
 ## 修改边界
 
@@ -44,6 +46,10 @@ dev 与打包版的授权对象不同 → 引导里显示错 App，用户拖了�
 升级加载项后不触发重载 → 磁盘是新的、WPS 进程里跑的还是旧 JS（ISS-59），用户以为修好了 → 部署完调桥接的 `wps_reload_addon`；且该工单必须**逐个组件**发送（只发一次实测只送达一个组件，word/ppt 仍是旧构建） → 配合部署时写入 `index.html` 的 `<script src="./addon-core.js?v=<指纹>">`，重载才会真正取到新文件（否则 WPS 只重跑缓存） → `ensureAddonUpToDate()`。
 
 部署失败仍去重载 → 重载只会再次加载旧文件，制造"已修复"的假象 → 安装器返回 `success: false` 时**不触发重载**并如实报告 → 同上测试的"部署失败时不触发重载"用例。
+
+给新客户端写 MCP 时假定格式都是 `mcpServers` → Codex 只读 `~/.codex/config.toml` 的 `[mcp_servers.*]`，VS Code 用户级旧格式的顶层键是 `servers`（新推荐 `~/.copilot/mcp-config.json` 才是 `mcpServers`），opencode 用的是 `mcp.<name>.command` 数组。写错键名或写错文件**不会报错，只会静默无效**，卡片还可能显示"已配置" → 按注册表 `configKind` 走 `mcp-adapters.ts` 的对应适配器，状态判定用同一格式读回 → 回归见 [platform.test.ts](../../tests/platform.test.ts) 的 Codex/opencode 用例；Codex 可现场用 `codex mcp list` 核对。
+
+给"配置存在但官方只支持应用内操作"的客户端猜全局配置文件路径 → Trae 只文档化项目级 `.trae/mcp.json`（需开"项目级 MCP"开关）与 `trae://` 导入链接，通义灵码（现 Qoder CN）只支持 IDE 内"个人设置 > MCP 服务"、配置随账号同步；猜出来的路径写完也没客户端读 → 在注册表里标 `configKind: 'manual'` 并给 `manualHint`，安装时如实返回"需手动接入"，不写文件 → 依据 docs.trae.ai/ide/add-mcp-servers、help.aliyun.com/zh/lingma/mcp-servers。
 
 ## 同步维护
 

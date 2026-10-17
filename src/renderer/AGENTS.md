@@ -4,7 +4,7 @@
 
 - [App.tsx](App.tsx)：状态与操作编排。
 - [index.css](index.css)：公共样式。
-- [components/AgentHub.tsx](components/AgentHub.tsx)：客户端接入。
+- [components/AgentHub.tsx](components/AgentHub.tsx)：客户端接入；按「国内 / 国外」分类切换（切换器带数量，选中跨分类保留），卡片状态取自主进程 `env.agents`（含 `region`、`manual`）。
 - [components/LiveWorkspaceCard.tsx](components/LiveWorkspaceCard.tsx)：工作区显示。
 - [components/SafetyTimeMachine.tsx](components/SafetyTimeMachine.tsx)：审计界面。
 - [components/DiffModal.tsx](components/DiffModal.tsx)：差异详情。

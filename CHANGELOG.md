@@ -5,6 +5,43 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 格式，
 版本号采用 [Semantic Versioning](https://semver.org/lang/zh-CN/) 语义化版本规范。
 
+## [2.2.2] - 2026-10-17
+
+### Added (新增)
+- AI 助手授权中心从 6 个客户端扩展到 15 个，并新增「国内 / 国外」分类切换器：切换器带各分类数量，选中状态跨分类保留，默认停在国内；手动接入的客户端不参与自动勾选。
+  - 国内（6）：WorkBuddy、豆包工作、千问办公、Kimi、Trae CN、通义灵码；
+  - 国外（9）：Claude Code、Codex、Claude Desktop、Cursor、Windsurf、Gemini CLI、Antigravity、opencode、VS Code。
+- 新增客户端注册表 `src/main/client-registry.ts`：每个客户端一行（区域、厂商、配置格式、配置/技能/检测路径、手动接入说明），后续新增客户端只改这一处。
+- 新增 MCP 配置适配器 `src/main/mcp-adapters.ts`，按客户端真实格式写入并读回判定状态：
+  - 标准 `mcpServers` JSON（多数客户端，保留其他条目、解析失败不覆盖）；
+  - Codex `~/.codex/config.toml` 的 `[mcp_servers.charfloat]` 与 `.env` 子表（只替换本产品段、保留注释与其他段落、重复执行为幂等）；
+  - opencode `~/.config/opencode/opencode.json` 的 `mcp.charfloat`（`type: "local"`、命令数组、`environment`）。
+- 支持多配置目录客户端：Windsurf 同时写 Codeium 与 Devin 两套配置，Antigravity 同时写主版与 IDE 两套目录（存在即写）。
+- 为新增客户端补充官方图标：Cursor、Windsurf、opencode、Trae、通义灵码取自各产品官网，Antigravity、VS Code 取自本机已装应用包，Claude Desktop 取自 claude.ai 官方应用图标，Claude Desktop 与 Claude Code 使用不同图标以便区分。
+
+### Changed (变更)
+- 授权中心图标底板改为固定浅色，不再跟随主题变暗，暗色主题下 Kimi、Codex 等深色图标保持可辨。
+- 替换为当前官方产品标识：Codex 改用官方 Codex 图标（原为 OpenAI 公司结形 logo）、豆包工作改用官方蓝色环状标（原为旧版豆包彩色标）、千问办公改用 Qwen 新蓝色标（原为通义千问旧紫色标）。
+- Codex 接入改为写 `~/.codex/config.toml`（原写 `~/.codex/mcp.json`，Codex CLI 不读取该文件）。
+- 千问办公配置落点改为官方 `~/.qwen/settings.json`（原为 `~/.qwen/mcp.json`）。
+- VS Code 用户级配置使用 `~/.copilot/mcp-config.json`（顶层 `mcpServers`，VS Code 与 Copilot CLI 共用）；未写入官方已标记 deprecated 且键名为 `servers` 的 `Code/User/mcp.json`。
+- 「一键配置」结果提示改为三态：全部成功为绿色、仅需手动为琥珀色、存在写入失败为红色；结果面板增加「成功 N / 需手动 N / 失败 N」汇总标签，失败行标红，标题图标随结果变化。「需手动」不再计入失败。
+- Trae CN 与通义灵码（现 Qoder CN）官方只支持应用内添加 MCP 服务，标记为「需手动」并给出说明，不写配置文件。
+- 版本同步到 2.2.2：`package.json`、`package-lock.json`、Bridge `VERSION`、WPS/Office 加载项 `ADDON_VERSION` 与清单（Office 清单 2.2.2.0）、三处界面版本兜底；依赖版本未升级。
+
+### Fixed (修复)
+- 修复 Codex 配置写入无效文件、卡片「已配置」与 Codex 实际可用状态不一致的问题。
+- 修复千问办公配置路径与官方不一致的问题。
+- 修复 Antigravity 的 0 字节配置文件被判定为「JSON 无法解析」、导致同一客户端的整条接入记录失败的问题；空文件、纯空白与带 BOM 的配置现按「尚未配置」处理。
+- 修复「一键配置」无论实际结果如何都弹出红色失败提示、用户无法判断成功与否的问题。
+- 修复暗色主题下 Codex、Kimi 图标与卡片底色融合导致不可辨的问题。
+- 修复豆包工作、千问办公仍使用旧版官方标识的问题。
+
+### 兼容性与验收限制
+- 新增能力均为向后兼容：不删除、不改名既有 MCP 工具与参数，配置写入仍遵循「只改本产品条目、其他条目保留、解析失败不覆盖」。
+- Trae CN、通义灵码（Qoder CN）不提供文件写入，仅检测与手动接入说明；需要用户在其客户端内完成添加。
+- 旧版 2.2.x 客户端写入的 `~/.codex/mcp.json`、`~/.qwen/mcp.json` 不会被自动清理，如存在可手动删除。
+
 ## [Unreleased]
 
 ## [2.2.1] - 2026-10-12
