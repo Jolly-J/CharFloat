@@ -39,7 +39,7 @@ async function fixture(t: any) {
 }
 test('用户目录解压、中文路径、逐文件哈希和真实字节进度；重复配置保留额外数据',async t=>{
   const f=await fixture(t), progress:any[]=[]; const result=await install({...f.options,onProgress:(p:any)=>progress.push(p)});
-  assert.ok(result.directory.startsWith(path.join(fs.realpathSync(f.local),'Programs','CharFloat'))); await verifyInstallation(result.directory,f.manifest);
+  assert.equal(path.dirname(result.directory),path.join(await fs.promises.realpath(f.local),'Programs','CharFloat')); await verifyInstallation(result.directory,f.manifest);
   assert.equal(fs.readFileSync(path.join(result.directory,'resources/中文.txt'),'utf8'),'合成内容');
   assert.deepEqual(progress.filter(p=>p.phase==='extract').map(p=>p.bytes),[20,37,49]);
   assert.equal(progress.at(-1).bytes,f.manifest.totalBytes); assert.equal(f.shell.readShortcutLink(path.join(f.desktop,'字浮 CharFloat.lnk')).target,result.executable);
