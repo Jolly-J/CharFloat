@@ -45,6 +45,7 @@ function Save-Report {
     } catch { $report['logReadWarning'] = Protect-Text $_.Exception.Message }
   }
   $report['bootstrapEvents'] = @($events.ToArray())
+  $report['coverage']['bootstrapLifecycle'] = $(if ($events.Count -gt 0) { 'observed-events-see-report' } else { 'not-observed-check-stderr-and-native-coverage-gap' })
   $finalFile = Join-Path $runDir 'bootstrap-final.json'
   if ([IO.File]::Exists($finalFile)) { try { $report['bootstrapFinal'] = [IO.File]::ReadAllText($finalFile) | ConvertFrom-Json } catch { } }
   $json = $report | ConvertTo-Json -Depth 14

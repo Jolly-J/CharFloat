@@ -6,10 +6,9 @@ const keys = new Set(['stage','phase','activity','file','bytes','verifiedBytes',
 export function createDiagnostics({ env = process.env, now = Date.now, maximumBytes = 2 * 1024 * 1024 } = {}) {
   const disabled = { enabled: false, record() {}, flush() {}, close() {} };
   const runId = env.CHARFLOAT_DIAGNOSTIC_RUN_ID, dir = env.CHARFLOAT_DIAGNOSTIC_DIR;
-  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(runId || '') || !env.LOCALAPPDATA || !dir) return disabled;
-  const expected = path.join(env.LOCALAPPDATA, 'CharFloatStartupDiagnostics', runId);
-  if (path.resolve(dir) !== path.resolve(expected)) return disabled;
-  let fd;
+  function unavailable(reason) { if (runId || dir) console.error(`CharFloat diagnostics unavailable: ${reason}.`); return { ...disabled, reason }; }
+  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(runId || '') || !env.LOCALAPPDATA || !dir) return unavailable('invalid-context');
+  let fd, physicalDir;
   try {
     let current = path.resolve(dir);
     for (let depth = 0; ; depth++) {
@@ -17,8 +16,14 @@ export function createDiagnostics({ env = process.env, now = Date.now, maximumBy
       const stat = fs.lstatSync(current); if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('diagnostic path link');
       const parent = path.dirname(current); if (parent === current) break; current = parent;
     }
-    fd = fs.openSync(path.join(dir, 'bootstrap.jsonl'), 'wx', 0o600);
-  } catch { return disabled; }
+    // 先解析同一物理目录，再比较；不能让 Win32 大小写/8.3 表示差异关闭日志。
+    const realpath = fs.realpathSync.native || fs.realpathSync;
+    physicalDir = realpath(dir);
+    const expected = realpath(path.join(env.LOCALAPPDATA, 'CharFloatStartupDiagnostics', runId));
+    const normalize = value => process.platform === 'win32' ? value.toLowerCase() : value;
+    if (normalize(physicalDir) !== normalize(expected)) return unavailable('directory-mismatch');
+    fd = fs.openSync(path.join(physicalDir, 'bootstrap.jsonl'), 'wx', 0o600);
+  } catch { return unavailable('unsafe-or-unavailable-directory'); }
   const start = now(); let sequence = 0, size = 0, closed = false, last = {}, failed = false, capped = false;
   const prefixes = [env.LOCALAPPDATA, env.APPDATA, env.USERPROFILE, env.TEMP, env.TMP].filter(Boolean).sort((a,b) => b.length-a.length);
   function text(value) {
@@ -48,7 +53,7 @@ export function createDiagnostics({ env = process.env, now = Date.now, maximumBy
     close(fields = {}) {
       if (closed) return;
       const value = { ...last, ...entry('process-exit', fields), logBytes: size, logCapped: capped, writeFailure: failed };
-      try { fs.writeFileSync(path.join(dir, 'bootstrap-final.json'), JSON.stringify(value), { flag: 'wx', mode: 0o600 }); fs.fsyncSync(fd); } catch { warn(); }
+      try { fs.writeFileSync(path.join(physicalDir, 'bootstrap-final.json'), JSON.stringify(value), { flag: 'wx', mode: 0o600 }); fs.fsyncSync(fd); } catch { warn(); }
       try { fs.closeSync(fd); } catch {} closed = true;
     }
   };

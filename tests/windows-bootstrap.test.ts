@@ -32,6 +32,15 @@ test('普通 Node 使用原生 fs；诊断默认关闭，显式日志白名单/�
   const final=JSON.parse(fs.readFileSync(path.join(dir,'bootstrap-final.json'),'utf8'));assert.equal(final.exitCode,1);assert.equal(final.logCapped,true);
   assert.equal(createDiagnostics({env:{...env,CHARFLOAT_DIAGNOSTIC_DIR:f.dir}}).enabled,false);
 });
+test('诊断用物理目录归属匹配等价路径表示，未知目录不会静默假称已采集',async t=>{
+  const f=await fixture(t), local=await fs.promises.realpath(f.local), alias=path.join(f.dir,'alias-local'), runId='87654321-1234-1234-1234-123456789abc';
+  fs.symlinkSync(local,alias,'junction');const dir=path.join(local,'CharFloatStartupDiagnostics',runId);fs.mkdirSync(dir,{recursive:true});
+  const log=createDiagnostics({env:{LOCALAPPDATA:alias,CHARFLOAT_DIAGNOSTIC_RUN_ID:runId,CHARFLOAT_DIAGNOSTIC_DIR:dir}});
+  assert.equal(log.enabled,true);log.record('main-start');log.close();assert.ok(fs.existsSync(path.join(dir,'bootstrap-final.json')));
+  const errors:string[]=[];t.mock.method(console,'error',(value:string)=>errors.push(value));
+  const disabled=createDiagnostics({env:{LOCALAPPDATA:local,CHARFLOAT_DIAGNOSTIC_RUN_ID:runId,CHARFLOAT_DIAGNOSTIC_DIR:f.dir}});
+  assert.equal(disabled.enabled,false);assert.match(disabled.reason,/directory/);assert.match(errors[0],/diagnostics unavailable/);
+});
 test('离线启动入口保留执行策略，先校验再启动，读取日志有上限，失败也保存报告',()=>{
   const cmd=fs.readFileSync('windows-bootstrap/Start-Local-Debug.cmd','utf8'), ps=fs.readFileSync('windows-bootstrap/Start-Local-Debug.ps1','utf8');
   assert.match(cmd,/-NoProfile -File/);assert.doesNotMatch(cmd+ps,/ExecutionPolicy\s+Bypass|Set-ExecutionPolicy|SetEnvironmentVariable|Set-ItemProperty|runAs\b/i);
