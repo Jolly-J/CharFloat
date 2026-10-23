@@ -857,8 +857,68 @@
     }
   }
 
+  // 所有扩展值均为普通 JSON；不可读/混合值不猜测为 0。
+  function pptReadShapeStyle(shp) {
+    const unavailable = [];
+    function read(key, getter) {
+      try {
+        const value = getter();
+        if (value === undefined || value === null || (typeof value === "number" && !Number.isFinite(value))) throw new Error("unknown");
+        if (!["string", "number", "boolean"].includes(typeof value)) throw new Error("non-scalar");
+        return value;
+      } catch (e) { unavailable.push(key); return null; }
+    }
+    const style = {};
+    const fields = {
+      "font.name": () => shp.TextFrame.TextRange.Font.Name,
+      "font.nameFarEast": () => shp.TextFrame.TextRange.Font.NameFarEast,
+      "font.size": () => shp.TextFrame.TextRange.Font.Size,
+      "font.bold": () => shp.TextFrame.TextRange.Font.Bold,
+      "font.colorRgb": () => shp.TextFrame.TextRange.Font.Color.RGB,
+      "fill.visible": () => shp.Fill.Visible,
+      "fill.type": () => shp.Fill.Type,
+      "fill.colorRgb": () => shp.Fill.ForeColor.RGB,
+      "fill.transparency": () => shp.Fill.Transparency,
+      "line.visible": () => shp.Line.Visible,
+      "line.colorRgb": () => shp.Line.ForeColor.RGB,
+      "line.weight": () => shp.Line.Weight,
+      "textFrame.marginLeft": () => shp.TextFrame.MarginLeft,
+      "textFrame.marginRight": () => shp.TextFrame.MarginRight,
+      "textFrame.marginTop": () => shp.TextFrame.MarginTop,
+      "textFrame.marginBottom": () => shp.TextFrame.MarginBottom,
+      "textFrame.autoSize": () => shp.TextFrame.AutoSize,
+      "textFrame.wordWrap": () => shp.TextFrame.WordWrap,
+      "textFrame.verticalAnchor": () => shp.TextFrame.VerticalAnchor,
+      "paragraph.alignment": () => shp.TextFrame.TextRange.ParagraphFormat.Alignment,
+      "paragraph.spaceWithin": () => shp.TextFrame.TextRange.ParagraphFormat.SpaceWithin,
+      "paragraph.lineRuleWithin": () => shp.TextFrame.TextRange.ParagraphFormat.LineRuleWithin,
+      "paragraph.spaceBefore": () => shp.TextFrame.TextRange.ParagraphFormat.SpaceBefore,
+      "paragraph.spaceAfter": () => shp.TextFrame.TextRange.ParagraphFormat.SpaceAfter,
+      "bounds.left": () => shp.TextFrame.TextRange.BoundLeft,
+      "bounds.top": () => shp.TextFrame.TextRange.BoundTop,
+      "bounds.width": () => shp.TextFrame.TextRange.BoundWidth,
+      "bounds.height": () => shp.TextFrame.TextRange.BoundHeight
+    };
+    for (const key of Object.keys(fields)) {
+      const parts = key.split(".");
+      if (!style[parts[0]]) style[parts[0]] = {};
+      style[parts[0]][parts[1]] = read(key, fields[key]);
+    }
+    return { values: style, unavailable, mixedValuePolicy: "宿主混合值原样返回（如 -2），不代表统一样式" };
+  }
+
   function pptGetSlideShapes(app, params) {
-    const { presentationName, slideIndex } = params || {};
+    const { presentationName, slideIndex, includeStyle, recursive } = params || {};
+    const extended = includeStyle === true || recursive === true;
+    function limit(value, fallback, low, high) {
+      if (value === undefined) return fallback;
+      if (!Number.isInteger(value) || value < low || value > high) throw new Error("扩展读取预算必须为有效整数");
+      return value;
+    }
+    const maxDepth = extended ? limit(params.maxDepth, 3, 0, 8) : 0;
+    const maxObjects = extended ? limit(params.maxObjects, 500, 1, 2000) : Infinity;
+    let visited = 0;
+    const readIssues = [];
     const pres = getPptPresentation(app, presentationName);
     const pptApp = getPptApp() || app;
     let idx = Number(slideIndex);
@@ -875,47 +935,99 @@
     const count = slide.Shapes ? slide.Shapes.Count : 0;
     const shapes = [];
 
+    let slideId = null;
+    if (extended) {
+      try { const v = slide.SlideID; if (typeof v === "number" && Number.isFinite(v)) slideId = v; } catch (e) {}
+      if (slideId === null) readIssues.push({ reason: "slideIdUnavailable" });
+    }
+    function visit(shp, s, parentIds, depth) {
+      visited++;
+      const errors = [];
+      function read(field, getter) {
+        try { const v = getter(); if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) throw new Error("unknown"); return v; }
+        catch (e) { errors.push({ field, reason: "unavailable" }); return null; }
+      }
+      function numeric(getter) {
+        const value = getter();
+        if (value === null || value === undefined || value === "") throw new Error("unknown");
+        const number = Number(value);
+        if (!Number.isFinite(number)) throw new Error("non-finite");
+        return number;
+      }
+      const hasText = read("hasText", () => {
+        if (shp.HasTextFrame === null || shp.HasTextFrame === undefined) throw new Error("unknown");
+        if (!shp.HasTextFrame) return false;
+        if (shp.TextFrame.HasText === null || shp.TextFrame.HasText === undefined) throw new Error("unknown");
+        return Boolean(shp.TextFrame.HasText);
+      });
+      const textContent = hasText === null ? null : hasText ? read("text", () => {
+        const value = shp.TextFrame.TextRange.Text;
+        if (extended && (value === null || value === undefined || typeof value !== "string")) throw new Error("unknown");
+        return (value || "").trim();
+      }) : "";
+      function booleanField(getter) {
+        const value = getter();
+        if (extended && (value === null || value === undefined)) throw new Error("unknown");
+        return Boolean(value);
+      }
+      const hasTable = read("hasTable", () => booleanField(() => shp.HasTable));
+      const tableMeta = hasTable ? read("table", () => ({ rows: shp.Table.Rows.Count, columns: shp.Table.Columns.Count })) : null;
+      const item = {
+        shapeIndex: s,
+        shapeId: read("shapeId", () => shp.Id),
+        name: read("name", () => shp.Name || `Shape_${s}`),
+        typeCode: read("typeCode", () => shp.Type),
+        typeName: read("typeName", () => getShapeTypeName(shp.Type)),
+        left: read("left", () => Math.round(numeric(() => shp.Left) * 10) / 10),
+        top: read("top", () => Math.round(numeric(() => shp.Top) * 10) / 10),
+        width: read("width", () => Math.round(numeric(() => shp.Width) * 10) / 10),
+        height: read("height", () => Math.round(numeric(() => shp.Height) * 10) / 10),
+        rotation: read("rotation", () => extended ? numeric(() => shp.Rotation) : shp.Rotation || 0),
+        zOrderPosition: read("zOrderPosition", () => extended ? numeric(() => shp.ZOrderPosition) : shp.ZOrderPosition || s),
+        hasText,
+        fontSize: hasText ? read("fontSize", () => numeric(() => shp.TextFrame.TextRange.Font.Size)) : undefined,
+        text: extended && textContent === null ? null : textContent ? (textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent) : undefined,
+        hasTable,
+        table: tableMeta || undefined,
+        hasChart: read("hasChart", () => booleanField(() => shp.HasChart))
+      };
+      if (extended) {
+        item.locator = { slideId, shapeIdPath: parentIds.concat([item.shapeId]) };
+        item.textTruncated = textContent === null ? null : textContent.length > 200;
+        if (includeStyle === true) item.style = pptReadShapeStyle(shp);
+        if (recursive === true && item.typeCode === 6) {
+          item.children = [];
+          try {
+            const n = numeric(() => shp.GroupItems.Count);
+            if (!Number.isInteger(n) || n < 0) throw new Error("无效组对象数量");
+            for (let j = 1; j <= n; j++) {
+              if (depth >= maxDepth || visited >= maxObjects) {
+                item.childrenTruncated = true;
+                readIssues.push({ locator: item.locator, reason: depth >= maxDepth ? "maxDepth" : "maxObjects" });
+                break;
+              }
+              try {
+                const child = visit(shp.GroupItems.Item(j), j, item.locator.shapeIdPath, depth + 1);
+                if (child) item.children.push(child);
+              } catch (e) { visited++; item.children.push({ shapeIndex: j, readErrors: [{ field: "object", reason: "unavailable" }] }); readIssues.push({ parent: item.locator, childIndex: j, reason: "unavailable" }); }
+            }
+          } catch (e) { item.childrenUnavailable = true; readIssues.push({ locator: item.locator, reason: "groupUnavailable" }); }
+        }
+      }
+      if (errors.length) {
+        item.readErrors = errors;
+        readIssues.push({ shapeIndex: s, parentIds, reason: "fieldsUnavailable", fields: errors.map(x => x.field) });
+      }
+      return item;
+    }
+
     for (let s = 1; s <= count; s++) {
-      try {
-        const shp = slide.Shapes.Item(s);
-        const hasText = Boolean(shp.HasTextFrame && shp.TextFrame.HasText);
-        let textContent = "";
-        if (hasText) {
-          textContent = (shp.TextFrame.TextRange.Text || "").trim();
-        }
-
-        const hasTable = Boolean(shp.HasTable);
-        let tableMeta = null;
-        if (hasTable && shp.Table) {
-          tableMeta = {
-            rows: shp.Table.Rows ? shp.Table.Rows.Count : 0,
-            columns: shp.Table.Columns ? shp.Table.Columns.Count : 0
-          };
-        }
-
-        const hasChart = Boolean(shp.HasChart);
-
-        shapes.push({
-          shapeIndex: s,
-          shapeId: shp.Id,
-          name: shp.Name || `Shape_${s}`,
-          typeCode: shp.Type,
-          typeName: getShapeTypeName(shp.Type),
-          left: Math.round(Number(shp.Left) * 10) / 10,
-          top: Math.round(Number(shp.Top) * 10) / 10,
-          width: Math.round(Number(shp.Width) * 10) / 10,
-          height: Math.round(Number(shp.Height) * 10) / 10,
-          rotation: shp.Rotation || 0,
-          zOrderPosition: shp.ZOrderPosition || s,
-          hasText,
-          fontSize: hasText ? Number(shp.TextFrame.TextRange.Font.Size) : undefined,
-          text: textContent ? (textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent) : undefined,
-          hasTable,
-          table: tableMeta || undefined,
-          hasChart
-        });
-      } catch (e) {
-        log(`读取第 ${idx} 页第 ${s} 个形状元数据失败: ${e.message}`);
+      if (visited >= maxObjects) { readIssues.push({ reason: "maxObjects", nextShapeIndex: s }); break; }
+      try { const item = visit(slide.Shapes.Item(s), s, [], 0); if (item) shapes.push(item); }
+      catch (e) {
+        visited++;
+        shapes.push({ shapeIndex: s, readErrors: [{ field: "object", reason: "unavailable" }] });
+        readIssues.push({ shapeIndex: s, reason: "unavailable" });
       }
     }
 
@@ -926,6 +1038,8 @@
       ...pptPageSize(pres),
       shapeCount: count,
       shapes,
+      ...(extended ? { slideId, readSummary: { visited, maxDepth, maxObjects, truncated: readIssues.some(x => x.reason === "maxDepth" || x.reason === "maxObjects"), issues: readIssues } } : {}),
+      ...(!extended && readIssues.length ? { readErrors: readIssues } : {}),
       // 版式与占位符读回（ISS-44）：宿主目前无法区分矩形/圆角/椭圆（typeCode 都是 1），
       // 但占位符（typeCode 14）与所在版式名可读，用于核对"是否套用了正确版式"。
       layout: (() => {
@@ -933,11 +1047,12 @@
           return {
             name: slide.CustomLayout ? slide.CustomLayout.Name : undefined,
             layoutIndex: Number(slide.Layout),
+            ...(extended ? { placeholdersUnavailable: "扩展读取不重复遍历占位符；见 shapes 和 readSummary" } : {}),
             placeholderCount: slide.Shapes.Placeholders ? slide.Shapes.Placeholders.Count : shapes.filter(s => s.typeCode === 14).length,
             placeholders: (() => {
               try {
                 const list = [];
-                const phCount = slide.Shapes.Placeholders.Count;
+                const phCount = extended ? 0 : slide.Shapes.Placeholders.Count;
                 for (let p = 1; p <= phCount; p++) {
                   const ph = slide.Shapes.Placeholders.Item(p);
                   list.push({
@@ -956,7 +1071,9 @@
           return { error: e.message };
         }
       })(),
-      message: `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
+      message: readIssues.length
+        ? `第 ${idx} 页共 ${count} 个顶层形状，返回 ${shapes.length} 个；读取有缺失或截断，请检查诊断`
+        : `已成功获取第 ${idx} 页幻灯片中全部 ${shapes.length} 个形状的几何与属性信息`
     };
   }
 

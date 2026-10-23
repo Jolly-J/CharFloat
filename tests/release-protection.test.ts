@@ -73,3 +73,11 @@ test('发布门禁拒绝源码、备份、旧入口和缺失的 Agent 使用资�
   assert.ok(checkFiles(names.filter(n => n !== 'skills/charfloat/SKILL.md'), () => Buffer.from(''))
     .some((e: string) => e.includes('缺少运行资源')));
 });
+
+test('发布的 PPT skill 本地文档引用必须随包交付',()=>{
+  const entry='skills/charfloat-ppt-design/SKILL.md';
+  const source=fs.readFileSync(entry,'utf8');
+  const targets=[...source.matchAll(/\]\(([^)]+\.md)\)/g)].map(m=>path.posix.normalize(path.posix.join(path.posix.dirname(entry),m[1])));
+  assert.ok(targets.includes('skills/charfloat-ppt-design/style-protocol.md'));
+  for(const target of targets){assert.ok(fs.existsSync(target),`missing source ${target}`);assert.ok(POLICY.files.includes(target),`not shipped: ${target}`);}
+});

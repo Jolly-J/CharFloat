@@ -158,3 +158,82 @@ export function routeOfficeFailure(method: string, failure: BridgeError, routing
   }
   return { action: 'fallback' };
 }
+
+/** 布局失败的实际宿主读回投影：只保留数值/已应用标记及已知告警类别。 */
+function projectPptLayoutFailure(result: Record<string, any>) {
+  function numbers(source: any, keys: string[]) {
+    const out: Record<string, number | null> = {};
+    if (source && typeof source === 'object') for (const key of keys) {
+      if (source[key] === null || (typeof source[key] === 'number' && Number.isFinite(source[key]))) out[key] = source[key];
+    }
+    return out;
+  }
+  const snapshotKeys = ['slideWidth', 'slideHeight', 'slideSize', 'slideOrientation', 'designCount', 'layoutCount', 'slideCount'];
+  const applied: Record<string, any> = numbers(result.applied, ['slideWidth', 'slideHeight', 'slideOrientation']);
+  if (typeof result.applied?.templatePath === 'string' || result.applied?.templateApplied === true) applied.templateApplied = true;
+  if (result.applied?.layout && typeof result.applied.layout === 'object') {
+    applied.layout = numbers(result.applied.layout, ['appliedPages']);
+  }
+  const categories: [RegExp, string, string, string][] = [
+    [/^设置页宽失败/, 'slideWidth', 'write_failed', '设置页宽失败'],
+    [/^设置页高失败/, 'slideHeight', 'write_failed', '设置页高失败'],
+    [/^设置页面方向失败/, 'slideOrientation', 'write_failed', '设置页面方向失败'],
+    [/^页宽未生效/, 'slideWidth', 'readback_mismatch', '页宽未生效'],
+    [/^页高未生效/, 'slideHeight', 'readback_mismatch', '页高未生效'],
+    [/^页面方向未生效/, 'slideOrientation', 'readback_mismatch', '页面方向未生效'],
+    [/^套用模板失败/, 'template', 'apply_failed', '套用模板失败'],
+    [/^(套用版式失败|版式对象已找到，但没有页面成功套用)/, 'layout', 'apply_failed', '套用版式失败'],
+    [/^(不认识的 preset|页面预设无效)/, 'preset', 'invalid_argument', '页面预设无效'],
+    [/^(不认识的 orientation|页面方向无效)/, 'slideOrientation', 'invalid_argument', '页面方向无效']
+  ];
+  const rawWarnings = Array.isArray(result.warnings) ? result.warnings : [];
+  const warningDetails = rawWarnings.slice(0, 200).map((warning: unknown) => {
+    const text = typeof warning === 'string' ? warning : '';
+    const category = categories.find(([pattern]) => pattern.test(text));
+    const reason = /host_rejected|permission|denied|权限|拒绝/i.test(text) ? 'host_rejected'
+      : /unsupported|不支持|不可写/i.test(text) ? 'unsupported'
+      : /not_found|找不到|未找到/i.test(text) ? 'not_found'
+      : /越界|invalid|无效|out.of.range/i.test(text) ? 'invalid_argument' : 'host_failure';
+    return { field: category?.[1] || 'unknown', code: category?.[2] || 'unclassified_warning', reason,
+      summary: category?.[3] || '未分类布局告警' };
+  });
+  return { diagnosticType: 'ppt_layout' as const,
+    applied, before: numbers(result.before, snapshotKeys), after: numbers(result.after, snapshotKeys),
+    warnings: warningDetails.map(x => `${x.summary}（${x.reason}）`), warningDetails,
+    warningsTruncated: rawWarnings.length > 200 || (result.diagnosticType === 'ppt_layout' && result.warningsTruncated === true),
+    recovery: '已有操作可能生效；先按 after 读回目标，不要重放整批布局操作。' };
+}
+
+/** 协议边界只导出经过审查的标量字段，绝不序列化 cause/stack/宿主对象。 */
+export function toolFailureResponse(value: unknown, toolName?: string) {
+  const result = value && typeof value === 'object' ? value as Record<string, any> : undefined;
+  const supplied = result?.errorDetails;
+  let failure = toBridgeError(value instanceof Error ? value : new Error(
+    typeof result?.error === 'string' ? result.error : typeof result?.message === 'string' ? result.message : '操作失败'
+  ), { channel: 'bridge' });
+  if (!(value instanceof BridgeError) && supplied && typeof supplied === 'object') {
+    const kind: BridgeErrorKind = ['unavailable', 'rejected', 'failed', 'unknown'].includes(supplied.kind) ? supplied.kind : 'unknown';
+    const channel: BridgeChannel = ['wps-addon', 'microsoft-officejs', 'microsoft-native', 'bridge'].includes(supplied.channel) ? supplied.channel : 'bridge';
+    failure = new BridgeError(kind, failure.message, {
+      channel, method: typeof supplied.method === 'string' ? supplied.method : undefined,
+      // 只有提供明确的 no 才透传未执行；不能由 kind 自动推断远端状态。
+      executed: supplied.executed === 'no' ? 'no' : 'unknown', unsafe: supplied.unsafe === true
+    });
+  }
+  const { kind, channel, method, executed, unsafe, message } = failure.toJSON();
+  const errorDetails = { kind, channel, method, executed, unsafe, message };
+  // 部分完成证据只接受对象 ID/计数；不把任意结果或文档文字带进错误响应。
+  const partial: Record<string, number | number[]> = {};
+  const source = result?.partial;
+  if (source && typeof source === 'object') {
+    for (const key of ['slideId', 'shapeId', 'completedCount', 'failedIndex']) {
+      if (typeof source[key] === 'number' && Number.isFinite(source[key])) partial[key] = source[key];
+    }
+    for (const key of ['completedShapeIds', 'completedSlideIds']) {
+      if (Array.isArray(source[key])) partial[key] = source[key].filter((x: unknown) => typeof x === 'number' && Number.isFinite(x)).slice(0, 2000);
+    }
+  }
+  const layout = result && (toolName === 'wps_ppt_configure_layout' || result.diagnosticType === 'ppt_layout')
+    ? projectPptLayoutFailure(result) : {};
+  return { success: false as const, error: message, errorDetails, ...(Object.keys(partial).length ? { partial } : {}), ...layout };
+}

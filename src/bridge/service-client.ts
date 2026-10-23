@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { toolFailureResponse } from './errors.js';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { getToken, runtimeHome, runtimePort, PROTOCOL } from './runtime.js';
@@ -38,11 +39,14 @@ export async function serviceRequest(route: string, body?: unknown) {
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(35000)
     });
   } catch (error: any) {
-    // fetch 只在"连不上/超时"时抛错，此时后台一定没有处理请求。
+    // 连接/超时不能证明后台未处理请求；保持 unknown，调用方先读回。
     throw new Error(describeUnreachable(error));
   }
   const result: any = await response.json().catch(() => ({}));
-  if (!response.ok || result.success === false) throw new Error(result.error || `${SERVICE_NAME} HTTP ${response.status}（地址 ${serviceAddress()}）`);
+  if (!response.ok || result.success === false) {
+    const failure = toolFailureResponse({ ...result, error: result.error || `${SERVICE_NAME} HTTP ${response.status}（地址 ${serviceAddress()}）` });
+    throw Object.assign(new Error(failure.error), failure);
+  }
   return result;
 }
 export async function probeService() {

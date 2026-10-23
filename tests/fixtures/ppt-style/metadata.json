@@ -1,0 +1,11 @@
+{
+  "baselineCommit": "968281789b5594494003292c1b68dcb6819f3e23",
+  "sources": {
+    "legacy-get-slide-shapes.js": "wps-addon/src/ppt.js:pptGetSlideShapes",
+    "ppt-tools.before.json": "src/bridge/tools/definitions/ppt.ts:pptToolDefinitions"
+  },
+  "sha256": {
+    "legacy-get-slide-shapes.js": "39a4ac72d376480991c61a607f2fe16f647169bb34db00961ef3b335bc94e06b",
+    "ppt-tools.before.json": "8729f1363a2a0358f38b2aea6b70954d769d5bc338a6fdf496609349efc4c6f3"
+  }
+}

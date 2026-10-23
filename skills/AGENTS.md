@@ -4,11 +4,12 @@
 
 - [charfloat/SKILL.md](charfloat/SKILL.md)：共享上下文、任务执行与恢复。
 - [charfloat-chart-style/SKILL.md](charfloat-chart-style/SKILL.md)：表格、图表与矢量。
+- [charfloat-ppt-design/style-protocol.md](charfloat-ppt-design/style-protocol.md)：现稿采样、约束清单、目标复核与双重验收。
 - [charfloat-ppt-design/SKILL.md](charfloat-ppt-design/SKILL.md)：页面批次与视觉验收。
 - [charfloat-word-batch-edit/SKILL.md](charfloat-word-batch-edit/SKILL.md)：结构定位与改稿。
 - [charfloat/references/native-scripting.md](charfloat/references/native-scripting.md)：脚本变量绑定、WPS JS API 与 VBA 差异、Excel 构图与 Word 示例。
 - [charfloat/references/enumeration.md](charfloat/references/enumeration.md)：枚举常量速查（对齐、形状、图表、线型、颜色、域类型），逐项标注证据等级。
-- [charfloat/scripts/bridge_client.py](charfloat/scripts/bridge_client.py)：本地 HTTP 辅助客户端。
+- [charfloat/scripts/bridge_client.py](charfloat/scripts/bridge_client.py)：本地 HTTP 辅助客户端，支持按需工具/schema 查询、UTF-8 参数文件、结果与 PNG 输出。
 
 ## 定位与联动
 

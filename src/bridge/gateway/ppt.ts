@@ -28,7 +28,11 @@ export const getSlideShapes: Handler = async (ctx) => {
   const { name, args, clientName, locks, callOffice, auditStore, MsOfficeDriver, TargetLockStore, bridgeServer, requestContext, currentHost, currentSession, previewPath, extractClipboardImageBase64 } = ctx;
     return await callOffice("ppt_get_slide_shapes", {
       presentationName: args?.presentationName,
-      slideIndex: args?.slideIndex
+      slideIndex: args?.slideIndex,
+      includeStyle: args?.includeStyle,
+      recursive: args?.recursive,
+      maxDepth: args?.maxDepth,
+      maxObjects: args?.maxObjects
     });
 };
 

@@ -18,7 +18,7 @@
 - [catalog.ts](catalog.ts)：共享工具清单、入参校验与能力描述。
 - [mcp-server.ts](mcp-server.ts)：MCP 协议、说明及响应；经注入的 `ToolService` 取工具，不引用 catalog。
 - [ws-server.ts](ws-server.ts)：HTTP/WebSocket、认证及加载项连接；Office 共享运行时按工作簿保留连接并定位目标，WPS 仍按组件隔离；经注入的 `ToolService` 取工具，不引用 catalog。
-- [errors.ts](errors.ts)：失败分类（不可用/拒绝/失败/未知）与跨通道回退策略；只依赖契约层。
+- [errors.ts](errors.ts)：失败分类（不可用/拒绝/失败/未知）、跨通道回退策略及协议错误白名单；HTTP/MCP/后台客户端共用 toolFailureResponse，保留 error 字符串与 errorDetails，partial 仅保留对象ID/计数；PPT布局失败另按专用投影保留数值 applied/before/after 和分类告警，不透传模板路径/名称/原始宿主报错；只依赖契约层。
 - [context.ts](context.ts)：请求会话与宿主上下文。
 - [office/adapter.ts](office/adapter.ts)：宿主队列和 Office.js/COM 路由。
 - [office/normalizer.ts](office/normalizer.ts)：Office.js 请求响应转换。

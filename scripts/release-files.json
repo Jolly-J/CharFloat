@@ -48,6 +48,7 @@
     "skills/charfloat/scripts/bridge_client.py",
     "skills/charfloat-chart-style/SKILL.md",
     "skills/charfloat-ppt-design/SKILL.md",
+    "skills/charfloat-ppt-design/style-protocol.md",
     "skills/charfloat-word-batch-edit/SKILL.md",
     "prompts/excel_aesthetic_system.md"
   ],

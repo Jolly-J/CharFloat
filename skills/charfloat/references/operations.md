@@ -48,7 +48,7 @@ GUI “安装 / 修复加载项”或 CLI `--repair-addon` 会更新本项目文
 
 只连接本机 `http://127.0.0.1:<port>/mcp`。从当前运行目录的 `token` 文件读取凭据，放入 `Authorization: Bearer ...` 请求头。加载项通过单独的认证 WebSocket 通道连接。不要将服务暴露到公网或把本机地址直接交给云端连接器当作可访问地址。
 
-Python helper 为每次调用使用唯一 sessionId；需要持续锁定目标的工作流优先使用原生 MCP 会话，或显式传递目标文档名。
+Python helper 默认每次生成独立 sessionId；多步 CLI 任务可显式传 `--session-id` 复用同一任务上下文，不同任务隔离，仍显式传目标文档名。
 
 ## 批注：两种批注不是一回事，别用错
 
@@ -113,3 +113,20 @@ WPS 宿主入口负责连接，侧栏只是界面；正常收起侧栏不会断�
 读取真实连接状态确认是否就绪；看到侧栏关闭不能直接判断已断线。没有连接时先确认字浮后台和当前工作簿的首次启用状态，不能反复启动多个 CLI 服务。
 
 多个 Excel 工作簿同时后台连接时，用状态中的 `officeWorkbooks` 选定目标，并显式传 `workbookName`；同名文件可传完整文档路径。没有唯一目标时请求会被拒绝，不要去掉目标参数或改走原生通道猜测。
+
+## CLI 按需查询与证据输出
+
+以下命令不启动服务；需要已有 Bridge。保留原有 `工具名 'JSON'` 调用。
+
+```sh
+python3 <技能目录>/scripts/bridge_client.py --list-tools wps_ppt_
+python3 <技能目录>/scripts/bridge_client.py --schema wps_ppt_get_slide_shapes
+python3 <技能目录>/scripts/bridge_client.py wps_ppt_get_slide_shapes --args-file target.json --output shapes.json --session-id task-demo-001
+python3 <技能目录>/scripts/bridge_client.py wps_ppt_capture_slide_preview --args-file target.json --output preview.json --preview-output preview.png --session-id task-demo-001
+```
+
+参数文件为 UTF-8 JSON 对象，如 `{"presentationName":"示例.pptx","slideIndex":1}`。结果和图片文件拒绝覆盖，父目录需已存在。旧位置参数调用保留原响应及 imageBase64；仅显式 `--preview-output` 才解码 PNG 并省略 base64；预览保存后仍需实际看图。工具列表仅输出名称/描述，`--schema` 返回单个工具真实定义，使用现有 `/api/v1/mcp-tools` 查询端点。
+
+PNG 输出只做 base64 与 PNG 签名检查，不等于完整图像有效性验收。宿主调用返回后（包括失败、超时）本地写图/写JSON失败时，返回 phase=local_output、hostCallReturnedSuccess（成功/失败）、doNotReplay=true，并在可用 stderr 保留原执行状态、部分完成ID及安全布局读回，诊断写到 stderr；不要重放已执行命令。
+
+失败输出保留服务提供的字段（包括 errorDetails 中的 kind/executed，以及经过协议白名单筛选的 partial 对象ID/计数，以及布局失败的数值 applied/before/after 与分类告警）；服务未给出的 executed 标为 unknown，不猜测是否已执行。超时/断线不自动重试，先读回目标。默认每次调用使用独立 sessionId；多步任务可显式传同一个 `--session-id task-demo-001` 复用会话锁，不同任务使用不同标识，勿用全局固定值。查询不创建锁，仍从同一 Bridge 查询 schema；执行须显式携带 presentationName。不能把这些 CLI 选项传给主应用生命周期 CLI。

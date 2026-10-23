@@ -10,7 +10,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createMcpServer } from './mcp-server.js';
 import { requestContext } from './context.js';
 import { VERSION, PROTOCOL, runtimePort, runtimeHttpsPort, getOrGenerateCerts, getToken, validToken, resourcePath, appendServiceLog } from './runtime.js';
-import { BridgeError } from './errors.js';
+import { BridgeError, toolFailureResponse } from './errors.js';
 import { collectBuildFingerprints, reportedVersionStatus, reportedAddonBuildStatus, officeManifestMatchesResource } from './build-fingerprint.js';
 import type { ToolService } from './contracts/tool-service.js';
 import type { ChannelParams, ToolResult } from './contracts/boundary.js';
@@ -326,7 +326,7 @@ export class WpsBridgeServer {
     }
     if (req.method === 'GET') {
       if (url.pathname === '/api/v1/status') return json({ ...this.getState(), service: { version: VERSION, pid: process.pid, port: this.port, background: true } });
-      if (url.pathname === '/api/v1/mcp-tools') return json(this.tools().list());
+      if (url.pathname === '/api/v1/mcp-tools') return json(await this.tools().list());
       if (url.pathname === '/api/v1/capabilities') return json(await this.tools().capabilities());
       if (url.pathname === '/openapi.json') {
         const { UniversalGateway } = await import('./gateway.js');
@@ -446,8 +446,8 @@ export class WpsBridgeServer {
       const sessionId = typeof body.sessionId === 'string' ? body.sessionId : 'http-local';
       try {
         const data = await this.tools().execute(name, args, { sessionId, clientName: body.clientName || 'HTTP Agent' });
-        return json({ success: true, data });
-      } catch (e: any) { return json({ success: false, error: e.message }, 422); }
+        return data && typeof data === 'object' && 'success' in data && data.success === false ? json(toolFailureResponse(data, name), 422) : json({ success: true, data });
+      } catch (e: any) { return json(toolFailureResponse(e, name), 422); }
     }
     if (url.pathname === '/api/v1/service/stop' && req.method === 'POST') {
       json({ success: true }); setTimeout(() => { this.stop(); process.exit(0); }, 100); return;

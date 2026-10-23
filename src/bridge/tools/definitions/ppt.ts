@@ -40,7 +40,11 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
           type: "object",
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
-            slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)，不传默认当前活动页" }
+            slideIndex: { type: "integer", description: "目标幻灯片页码(1-based)，不传默认当前活动页" },
+            includeStyle: { type: "boolean", description: "按需读取字体、颜色、填充边线、文本框与段落及真实文本边界；不可读字段以 unavailable 标记。默认 false，不增加响应字段。" },
+            recursive: { type: "boolean", description: "递归读取组内形状，返回 children 与对象 ID 路径；默认 false。路径用于读回定位，不构成写入前置校验。" },
+            maxDepth: { type: "integer", minimum: 0, maximum: 8, description: "recursive=true 时最大组深度，默认 3，顶层为 0" },
+            maxObjects: { type: "integer", minimum: 1, maximum: 2000, description: "扩展读取的对象总预算（含顶层），默认 500；达到预算返回截断标记" }
           },
           required: [],
           additionalProperties: false
@@ -128,8 +132,8 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
             targetIndex: { type: "integer", description: "移动操作的目标页码(1-based)" },
             layoutIndex: { type: "integer", description: "新增页使用的 ppLayout 版式枚举，不是母版 CustomLayouts 的 1..N 序号。常用值：1=标题幻灯片(标题+副标题占位符)、2=标题和文本、7=标题和图示或组织结构图、12=空白(默认)。取值越界时宿主不报错但版式不可预期；要精确套用本模板的自定义版式，请改用 wps_execute_script 操作 slide.CustomLayout。" },
             backgroundColor: { type: "string", description: "set_background 时的十六进制颜色，如 '#0F172A'" },
-            filePath: { type: "string", description: "保存/新建的目标完整路径（如 '/Users/.../方案.pptx' 或 '.pdf'）。注意：当前网关只向宿主转发 presentationName/action/slideIndex/targetIndex/layoutIndex/backgroundColor，filePath 尚未透传；在网关补齐前，带 filePath 的 save_as / new_presentation 只会退回原地保存或新建未保存文稿，需要指定落盘路径时请用 wps_execute_script 调 pres.SaveAs(path)。" },
-            format: { type: "string", enum: ["pptx", "pdf"], description: "保存格式，默认 'pptx'(另存为 pptx)；'pdf' 走导出。同样受 filePath 未透传的限制。" }
+            filePath: { type: "string", description: "保存/新建的目标完整路径，如绝对路径 '/path/方案.pptx'；网关透传 filePath 到宿主，保存结果须核对 savedPath 和保存状态。" },
+            format: { type: "string", enum: ["pptx", "pdf"], description: "保存格式，默认 'pptx'(另存为 pptx)；'pdf' 走导出。网关透传 format；核对实际导出结果。" }
           },
           required: ["action"],
           additionalProperties: false
@@ -296,7 +300,7 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
           properties: {
             presentationName: { type: "string", description: "目标文稿名称" },
             slideIndex: { type: "integer", description: "要截图的幻灯片页码(1-based)，不传默认第1页；越界时报错并给出当前总页数" },
-            outputPath: { type: "string", description: "可选的额外导出落盘路径（如 '/Users/.../slide3.png'）。宿主会把图片同时写到该路径；但桥接返回的 base64 仍读取它自己生成的临时预览文件，因此指定本参数只用于你自己取图，不代表工具会自动返回该路径的图片。" }
+            outputPath: { type: "string", description: "可选的预览 PNG 绝对路径；宿主导出与桥接读图使用此同一路径。不传则生成临时路径。DLP 加密等情况可能改用剪贴板或返回 imageUnavailable/warnings，不能仅凭路径判断预览成功。" }
           },
           required: [],
           additionalProperties: false

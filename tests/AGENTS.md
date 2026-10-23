@@ -15,6 +15,11 @@
 - [contracts-boundary.test.ts](contracts-boundary.test.ts)：契约层边界与依赖回环守卫。
 - [session-isolation.test.ts](session-isolation.test.ts)：两个 stdio 客户端的真实链路会话隔离与审计归属（模拟宿主，需先 `npm run build`）。
 - [contract-consistency.test.ts](contract-consistency.test.ts)：两类契约漂移与审计归属断言（只覆盖网关分支存在，不覆盖宿主实现与参数转换）。
+- [fixtures/ppt-style/](fixtures/ppt-style/)：固定SHA来源、带哈希的旧读取函数与工具契约夹具，测试不依赖Git历史；layout-failure.ts以假页面运行真实布局函数产生部分失败响应。
+- [ppt-read-style.test.ts](ppt-read-style.test.ts)：默认响应兼容、样式读取失败、有界递归与实际网关参数转发。
+- [bridge-client.test.ts](bridge-client.test.ts)、[bridge-client.test.py](bridge-client.test.py)：Python CLI 的假 HTTP、参数文件、会话隔离及 PNG 输出，无真实服务。
+- [tool-protocol.test.ts](tool-protocol.test.ts)：注入传输/runtime 执行真实 HTTP/MCP 回调，验证错误经 JSON 到 Python 不重放；不启动服务。
+- [tool-error-response.test.ts](tool-error-response.test.ts)：协议错误白名单和执行状态保守透传。
 - [ppt-layout.test.ts](ppt-layout.test.ts)：页面缩放、容量及脚本参数。
 - [win-icon.test.ts](win-icon.test.ts)：Windows 图标生成器的 PNG 解码/缩放/编码与 ICO 条目格式（含"小于 256 的条目必须是 DIB"的回归项）。
 - [office.test.ts](office.test.ts)：Office.js 参数转换。

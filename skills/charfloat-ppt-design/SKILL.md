@@ -7,6 +7,8 @@ description: 通过「字浮 CharFloat」在已打开的演示文稿中按页批
 
 复用 [共享流程](../charfloat/SKILL.md) 的宿主、目标和工具上下文；只有缺失时初始化。
 
+先按 [现稿样式协议](style-protocol.md) 采样用户参考页并记录约束，随后执行下述页面流程。
+
 ## 从结构到页面
 
 先用 `wps_ppt_read_presentation` 获取页面尺寸与全稿摘要，只对目标页使用 `wps_ppt_get_slide_shapes` 读取形状、字号与几何。已有足够信息时不反复读取全稿。读取接口的文本摘要可能截断；需要完整改稿时通过目标对象脚本读取完整文本。

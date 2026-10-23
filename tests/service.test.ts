@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { layoutFailure } from './fixtures/ppt-style/layout-failure.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -91,4 +92,59 @@ test('two stdio clients reuse service; exiting one preserves the other and daemo
     const next:any=await b.callTool({name:'bridge_get_capabilities',arguments:{}});assert.equal(JSON.parse(next.content[0].text).version,expectedVersion);
     assert.equal((await fetch(base+'/health')).status,200);
   }finally{await a.close();await b.close();}
+});
+
+test('async tool schema and failed/unknown evidence survive actual HTTP and MCP SDK',async()=>{
+  const original=(bridgeServer as any).tools();
+  const tools=[{name:'test_partial_failure',description:'synthetic failure',inputSchema:{type:'object',properties:{}}}];
+  let calls=0;
+  bridgeServer.setToolService({
+    list:async()=>tools,
+    capabilities:async()=>({}),
+    execute:async()=>{calls++;return {success:false,error:'synthetic partial failure',errorDetails:{kind:'failed',channel:'wps-addon',executed:'unknown'},partial:{completedShapeIds:[101],document:'must-not-leak'}};}
+  });
+  const client=new Client({name:'safe-failure-test',version:'1'});
+  const transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers:headers()}});
+  try{
+    const schemaResponse=await fetch(base+'/api/v1/mcp-tools',{headers:headers()});
+    assert.deepEqual(await schemaResponse.json(),tools);
+    const http=await call('test_partial_failure');
+    assert.equal(http.status,422);assert.equal(http.result.errorDetails.executed,'unknown');
+    assert.deepEqual(http.result.partial,{completedShapeIds:[101]});
+    await client.connect(transport);
+    const mcp:any=await client.callTool({name:'test_partial_failure',arguments:{}});
+    assert.equal(mcp.isError,true);
+    const failure=JSON.parse(mcp.content[1].text);
+    assert.equal(failure.errorDetails.kind,'failed');assert.equal(failure.errorDetails.executed,'unknown');
+    assert.deepEqual(failure.partial,{completedShapeIds:[101]});assert.doesNotMatch(JSON.stringify(failure),/must-not-leak/);
+    assert.equal(calls,2,'one explicit HTTP call and one explicit MCP call; no retry');
+  }finally{
+    await transport.terminateSession().catch(()=>{});await client.close();bridgeServer.setToolService(original);
+  }
+});
+
+
+test('actual host layout partial failure retains readback through HTTP and real MCP SDK',async()=>{
+  const original=(bridgeServer as any).tools();
+  let calls=0;
+  bridgeServer.setToolService({list:()=>[{name:'wps_ppt_configure_layout',description:'synthetic',inputSchema:{type:'object',properties:{}}}],capabilities:()=>({}),execute:async()=>{calls++;return layoutFailure();}});
+  const client=new Client({name:'layout-failure-test',version:'1'});
+  const stdio=new Client({name:'layout-failure-stdio',version:'1'});
+  const stdioTransport=new StdioClientTransport({command:process.execPath,args:[path.resolve('dist/bridge/cli.cjs')],env:{...process.env} as Record<string,string>,stderr:'pipe'});
+  const transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers:headers()}});
+  function verify(result:any){
+    assert.equal(result.errorDetails.executed,'unknown');assert.equal(result.applied.slideWidth,1000);
+    assert.equal(result.before.slideWidth,900);assert.equal(result.after.slideHeight,600);
+    assert.equal(result.warningDetails[0].field,'slideHeight');assert.equal(result.warningDetails[0].reason,'host_rejected');
+    assert.doesNotMatch(JSON.stringify(result),/token=secret|private-document/);
+  }
+  try{
+    const http=await call('wps_ppt_configure_layout');assert.equal(http.status,422);verify(http.result);
+    await client.connect(transport);
+    const result:any=await client.callTool({name:'wps_ppt_configure_layout',arguments:{}});assert.equal(result.isError,true);verify(JSON.parse(result.content[1].text));
+    await stdio.connect(stdioTransport);
+    const viaStdio:any=await stdio.callTool({name:'wps_ppt_configure_layout',arguments:{}});
+    assert.equal(viaStdio.isError,true);verify(JSON.parse(viaStdio.content[1].text));
+    assert.equal(calls,3,'HTTP, MCP HTTP and stdio each explicitly called once');
+  }finally{await stdio.close();await transport.terminateSession().catch(()=>{});await client.close();bridgeServer.setToolService(original);}
 });

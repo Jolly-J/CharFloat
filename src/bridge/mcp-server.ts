@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { toolFailureResponse } from './errors.js';
 import crypto from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -73,13 +74,19 @@ export function createMcpServer(
     const name = request.params.name, args = request.params.arguments || {};
     try {
       const result: any = await service.execute(name, args, { sessionId, clientName: resolveClientName() });
-      if (result?.success === false) throw new Error(result.error || result.message || '操作失败');
+      if (result?.success === false) {
+        const failure = toolFailureResponse(result, name);
+        return { isError: true, content: [{ type: 'text' as const, text: failure.error }, { type: 'text' as const, text: JSON.stringify(failure) }] };
+      }
       if (result?.imageBase64) {
         const { imageBase64, ...metadata } = result;
         return { content: [{ type: 'image' as const, data: imageBase64, mimeType: result.imageMimeType || 'image/png' }, { type: 'text' as const, text: JSON.stringify(metadata) }] };
       }
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
-    } catch (error: any) { return { isError: true, content: [{ type: 'text' as const, text: error.message }] }; }
+    } catch (error: any) {
+      const failure = toolFailureResponse(error, name);
+      return { isError: true, content: [{ type: 'text' as const, text: failure.error }, { type: 'text' as const, text: JSON.stringify(failure) }] };
+    }
   });
   return server;
 }

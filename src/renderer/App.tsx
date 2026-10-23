@@ -19,7 +19,7 @@ const api = (window as any).api;
 export default function App() {
   // 核心状态
   const [status, setStatus] = useState<any>({ online: false, components: {} });
-  const [info, setInfo] = useState<any>({ version: '2.2.2', port: 19890, theme: 'system' });
+  const [info, setInfo] = useState<any>({ version: '2.2.3', port: 19890, theme: 'system' });
   const [env, setEnv] = useState<any>(null);
   const [officeAddon, setOfficeAddon] = useState<any>(null);
   const [busy, setBusy] = useState('');
