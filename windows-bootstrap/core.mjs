@@ -1,5 +1,5 @@
 // 用户级解压引擎；不启动应用、不修改真实客户端配置。宿主操作通过适配器注入。
-import fs from 'node:fs';
+import fs from './physical-fs.mjs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
@@ -21,9 +21,19 @@ export function safeName(name) {
   if (parts.some(p => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p))) throw new Error('压缩包包含不安全文件名');
   return parts.join('/');
 }
-export async function fileHash(file) {
+const PROGRESS_INTERVAL_MS = 200;
+function progressReporter(onProgress) {
+  let last = -Infinity;
+  return (value, force = false) => {
+    const now = Date.now();
+    if (force || now - last >= PROGRESS_INTERVAL_MS) { last = now; onProgress(value); }
+  };
+}
+export async function fileHash(file, onBytes) {
   const hash = createHash('sha256');
-  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  const report = onBytes && progressReporter(onBytes); let bytes = 0;
+  for await (const chunk of fs.createReadStream(file)) { hash.update(chunk); bytes += chunk.length; report?.(bytes); }
+  report?.(bytes, true);
   return hash.digest('hex');
 }
 export function validateManifest(m) {
@@ -52,13 +62,18 @@ async function readOwned(dir, m) {
   const receipt = JSON.parse(await fs.promises.readFile(path.join(dir, MARKER), 'utf8'));
   if (receipt.product !== PRODUCT || (m && receipt.payloadSha256 !== m.payloadSha256)) throw new Error('目录不是本引导创建的安装，已保留原文件');
 }
-export async function verifyInstallation(dir, m) {
+export async function verifyInstallation(dir, m, onProgress = () => {}) {
   await readOwned(dir, m);
+  let bytes = 0;
   for (const f of m.files) {
+    const report = fileBytes => onProgress({ phase: 'verify-files', activity: 'read', file: f.name, bytes: bytes + fileBytes, verifiedBytes: bytes, totalBytes: m.totalBytes, fileBytes, fileTotalBytes: f.size });
+    report(0);
     const parts = f.name.split('/'); let current = dir;
     for (const part of parts.slice(0, -1)) { current = path.join(current, part); const st = await fs.promises.lstat(current); if (!st.isDirectory() || st.isSymbolicLink()) throw new Error('现有安装包含链接，未覆盖'); }
     const file = path.join(dir, ...parts), st = await regular(file);
-    if (st.size !== f.size || await fileHash(file) !== f.sha256) throw new Error('现有安装文件已改变或不完整，未覆盖；请保留文件并使用手动解压版');
+    if (st.size !== f.size || await fileHash(file, report) !== f.sha256) throw new Error('现有安装文件已改变或不完整，未覆盖；请保留文件并使用手动解压版');
+    bytes += f.size;
+    onProgress({ phase: 'verify-files', activity: 'file-verified', file: f.name, bytes, verifiedBytes: bytes, totalBytes: m.totalBytes, fileBytes: f.size, fileTotalBytes: f.size });
   }
 }
 export async function openZip(file) {
@@ -81,13 +96,23 @@ export async function extractPayload(file, destination, manifest, onProgress = (
       const f = expected.get(name);
       if (!f || seen.has(name) || f.size !== entry.uncompressedSize || (entry.generalPurposeBitFlag & 1)) throw new Error('压缩包条目与清单不符');
       seen.add(name); await fs.promises.mkdir(path.dirname(target), { recursive: true });
+      const report = progressReporter(onProgress);
+      const state = (fileBytes, activity = 'write') => ({ phase: 'extract', activity, file: name, bytes: bytes + fileBytes, verifiedBytes: bytes, totalBytes: manifest.totalBytes, fileBytes, fileTotalBytes: f.size });
+      // bytes 是写入回调已完成的字节，verifiedBytes 仅计入大小和哈希均通过的整文件。
+      report(state(0), true);
       const input = await new Promise((res, rej) => zip.openReadStream(entry, (e, s) => e ? rej(e) : res(s)));
       const hash = createHash('sha256'); let size = 0;
-      await pipeline(input, new Transform({ transform(chunk, _encoding, callback) {
-        size += chunk.length; hash.update(chunk); callback(null, chunk);
-      } }), fs.createWriteStream(target, { flags: 'wx' }));
+      const output = fs.createWriteStream(target, { flags: 'wx' });
+      const timer = setInterval(() => { try { report(state(output.bytesWritten)); } catch (error) { output.destroy(error); } }, PROGRESS_INTERVAL_MS);
+      try {
+        await pipeline(input, new Transform({ transform(chunk, _encoding, callback) {
+          size += chunk.length; hash.update(chunk); callback(null, chunk);
+        } }), output);
+      } finally { clearInterval(timer); }
+      report(state(output.bytesWritten, 'check-file'), true);
       if (size !== f.size || hash.digest('hex') !== f.sha256) throw new Error('解压文件校验失败');
-      bytes += size; onProgress({ phase: 'extract', bytes, totalBytes: manifest.totalBytes });
+      bytes += size;
+      report({ ...state(0, 'file-verified'), bytes, verifiedBytes: bytes, fileBytes: size }, true);
       zip.readEntry();
     })().catch(fail); });
     zip.readEntry();
@@ -125,13 +150,14 @@ export async function install({ localAppData, payload, manifest, shortcut, onPro
   const target = path.join(root, `${m.version}-${m.payloadSha256.slice(0, 12)}`);
   let staging;
   try {
-    onProgress({ phase: 'verify', bytes: 0, totalBytes: m.totalBytes });
-    await regular(payload);
-    if (await fileHash(payload) !== m.payloadSha256) throw new Error('安装包校验失败，请重新下载');
+    const payloadStat = await regular(payload);
+    const payloadProgress = bytes => onProgress({ phase: 'verify', bytes, verifiedBytes: 0, totalBytes: payloadStat.size });
+    payloadProgress(0);
+    if (await fileHash(payload, payloadProgress) !== m.payloadSha256) throw new Error('安装包校验失败，请重新下载');
     try {
       const stat = await fs.promises.lstat(target);
       if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('目标安装目录不安全');
-      await verifyInstallation(target, m);
+      await verifyInstallation(target, m, onProgress);
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
       // ENOENT 只能表示目标目录不存在；已有目录的缺失文件不允许覆盖。
@@ -139,7 +165,7 @@ export async function install({ localAppData, payload, manifest, shortcut, onPro
       staging = await fs.promises.mkdtemp(path.join(root, '.pending-'));
       await extractPayload(payload, staging, m, onProgress);
       await fs.promises.writeFile(path.join(staging, MARKER), JSON.stringify({ product: PRODUCT, payloadSha256: m.payloadSha256, version: m.version, sourceCommit: m.sourceCommit }), { flag: 'wx' });
-      await verifyInstallation(staging, m);
+      await verifyInstallation(staging, m, onProgress);
       await fs.promises.rename(staging, target); staging = undefined;
     }
     onProgress({ phase: 'shortcut', bytes: m.totalBytes, totalBytes: m.totalBytes });

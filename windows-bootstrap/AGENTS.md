@@ -2,9 +2,13 @@
 
 - `main.mjs`：独立 Electron 引导窗口、IPC、桌面快捷方式和显式启动；不进入主应用或办公宿主。
 - `core.mjs`：ZIP/逐文件 SHA-256、路径约束、有界解压、独立版本目录与锁；只接受调用方提供的用户目录，测试必须用临时目录。
+- `physical-fs.mjs`：Electron 中解压/核验使用 `original-fs` 操作物理 ASAR；普通 Node 保留内置 fs。不能全局设置 `process.noAsar`，引导自身仍从 ASAR 加载界面。
 - `preload.cjs`：沙箱 renderer 的最小 IPC 接口。
+- `progress.mjs`：主进程跨文件合并进度，最多每 200ms 刷新同阶段的最新值；阶段切换即时，错误或完成前销毁待发送状态，避免小文件突发或终态后回退。
+- `diagnostics.mjs`：仅诊断入口的 runId/用户目录启用，白名单与脱敏 JSONL、2MiB 上限、退出终态；主进程/渲染回执/异常与心跳。普通启动默认关闭，不把诊断变量传给已安装应用。
+- `Start-Local-Debug.cmd` / `.ps1`、`local-debug-README.txt`：离线调试入口，先核包内 `debug-package.json` 的 SHA/大小，再以普通用户启动本包并实时合并为一份报告。不改执行策略或全局环境；原生 NSIS 内部和已安装应用不在完整采集范围。
 - `shortcut.mjs`、`launch.mjs`、`stages.mjs`：安全快捷方式备份/读回、再次校验后启动、最低展示时间。
-- `index.html`、`style.css`、`renderer.js`：三个至少五秒的品牌阶段；工作进度来自已核验的实际写入字节，不按时间编造。
+- `index.html`、`style.css`、`renderer.js`：三个至少五秒的品牌阶段；分别显示包校验、实际写入与安装文件复核进度和当前文件，不按时间编造。`bytes` 是当前阶段实际处理字节，`verifiedBytes` 只计哈希通过的整文件，写入 100% 不代表安装成功。
 - 构建入口：`scripts/build-windows-bootstrap.mjs`，生成独立 `dist/windows-bootstrap`，不修改业务发布副本。输入必须为已校验的 Windows ZIP 和固定源码 SHA；品牌图选自 `website/public/character`，三张输入固定保存于 `windows-bootstrap/assets`，避免依赖被 Git 忽略的官网目录。
 
 默认仅写 `%LOCALAPPDATA%/Programs/CharFloat` 与 `app.getPath('desktop')` 当前用户桌面。保留旧版本、用户数据及陌生文件；不能请求管理员权限、结束其他进程、绕过企业策略或静默覆盖未知快捷方式。失败不能显示完成。
@@ -12,6 +16,12 @@
 验证：`node --import tsx --test tests/windows-bootstrap.test.ts`；实际 Electron UI、Windows Shell 快捷方式与最终 EXE 需分别报告，模拟测试不能替代实机。
 
 ## 避坑
+
+普通 Node 解压通过，但 Electron 卡在载荷 `app.asar` → 继续沿用 Electron 包装的 fs 会把物理档案当成虚拟目录 → 默认 fs 的 ASAR 拦截影响写入和大小/类型核验 → 安装引擎使用 Electron `original-fs`，保留引导自身的 ASAR 支持 → 必须用完整 Electron 主进程解压真实载荷；`ELECTRON_RUN_AS_NODE=1` 的测试不能覆盖此路径。
+
+品牌界面前显示黑色方块 → 只验 Electron 三态或 BMP 文件存在会漏掉 → `resizeRgba()` 返回 `{width,height,rgba}`，把对象当数组会让 NaN 写成黑色 → 构建读取 `.rgba` 并校验真实像素/透明合成，反解最终 EXE 检查开屏图 → `scripts/lib/bootstrap-splash.mjs` 与开屏回归。
+
+解压单个大文件或复核安装 → 只在整文件完成时刷新累计值，界面会长时间停在上一项 → 流仍可正常读写而用户看不到进展 → 每 200ms 读取输出流 `bytesWritten`，并明确区分写入、文件核验和全量复核；哈希未通过不能计入 `verifiedBytes` → 见真实 ZIP 慢写入与错误哈希回归 `tests/windows-bootstrap.test.ts`。
 
 `app-builder-lib` 25.1.8 的 `unpackDirName` 注释与实现相反 → 按注释设 false 会得到同构建共享临时目录 → 实际 `NsisTarget` 在 `true` 时才省略固定目录 define → 由打包入口断言真实编译参数没有 `UNPACK_DIR_NAME`，并用 splash 明确初始化每次启动独立的插件目录。升级 builder 后必须复核，不能盲用此兼容值。
 

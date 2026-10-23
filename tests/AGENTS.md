@@ -22,7 +22,8 @@
 - [tool-error-response.test.ts](tool-error-response.test.ts)：协议错误白名单和执行状态保守透传。
 - [ppt-layout.test.ts](ppt-layout.test.ts)：页面缩放、容量及脚本参数。
 - [win-icon.test.ts](win-icon.test.ts)：Windows 图标生成器的 PNG 解码/缩放/编码与 ICO 条目格式（含"小于 256 的条目必须是 DIB"的回归项）。
-- [windows-bootstrap.test.ts](windows-bootstrap.test.ts)：用户目录、真实 ZIP/逐文件哈希、越界与链接防护、未知文件保留、并发锁、失败读回、快捷方式适配器、最低五秒阶段和启动环境；只操作临时目录，Windows Shell 仍需实机验收。
+- [windows-bootstrap.test.ts](windows-bootstrap.test.ts)：用户目录、真实 ZIP/逐文件哈希、慢写入字节进度、全局合并、错误哈希不可计完成、原生开屏像素、诊断日志白名单/脱敏/上限与入口静态约束、越界与链接防护、未知文件保留、并发锁、快捷方式适配器、最低五秒阶段和启动环境；只操作临时目录，Windows Shell 与 PowerShell 启动入口仍需实机验收。
+- [windows-bootstrap-electron.cjs](windows-bootstrap-electron.cjs)：显式用完整 Electron 主进程与真实 ZIP/manifest 验证物理 `app.asar`、逐文件核验、重复配置和全局进度合并；只写独立临时目录，用无副作用快捷方式适配器，30 秒截止，不启动真实应用。此项不能以 Electron Node 模式或普通 Node 替代，运行命令见双平台构建文档。
 - [office.test.ts](office.test.ts)：Office.js 参数转换。
 - [office-background-routing.test.ts](office-background-routing.test.ts)：多工作簿后台连接、精确路由、歧义拒绝、改名和 WPS/Office 通道隔离。
 - [service.test.ts](service.test.ts)：HTTP/MCP、鉴权、审计。
