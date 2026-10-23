@@ -137,7 +137,12 @@ test('extended missing group count/table/chart/rotation are unknown while legacy
 
 test('baseline fixtures are pinned and require no git history',()=>{
   assert.equal(fixtureMetadata.baselineCommit,'968281789b5594494003292c1b68dcb6819f3e23');
-  for(const [name,hash] of Object.entries(fixtureMetadata.sha256))assert.equal(createHash('sha256').update(fs.readFileSync(fixtureRoot+name)).digest('hex'),hash);
+  for(const [name,hash] of Object.entries(fixtureMetadata.sha256)){
+    const text=fs.readFileSync(fixtureRoot+name,'utf8');
+    const normalized=(value:string)=>createHash('sha256').update(value.replace(/\r\n/g,'\n'),'utf8').digest('hex');
+    assert.equal(normalized(text),hash);
+    assert.equal(normalized(text.replace(/\r?\n/g,'\r\n')),hash,'Windows CRLF checkout preserves the same text fixture');
+  }
 });
 
 test('extended unknown text and z-order remain unknown rather than empty text/index',()=>{

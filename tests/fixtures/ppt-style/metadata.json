@@ -7,5 +7,6 @@
   "sha256": {
     "legacy-get-slide-shapes.js": "39a4ac72d376480991c61a607f2fe16f647169bb34db00961ef3b335bc94e06b",
     "ppt-tools.before.json": "8729f1363a2a0358f38b2aea6b70954d769d5bc338a6fdf496609349efc4c6f3"
-  }
+  },
+  "hashNormalization": "UTF-8 text, CRLF normalized to LF"
 }

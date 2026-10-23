@@ -41,7 +41,7 @@ class ClientTests(unittest.TestCase):
             args.write_text('{"presentationName":"示例.pptx","slideIndex":2}', encoding='utf-8')
             _, stdout, calls = self.run_cli(['wps_ppt_get_slide_shapes','--args-file',str(args),'--output',str(out),'--session-id','task-test'], {'success': True, 'data': {'slideId': 8}})
             self.assertEqual(stdout, '')
-            self.assertEqual(json.loads(out.read_text())['data']['slideId'], 8)
+            self.assertEqual(json.loads(out.read_text(encoding='utf-8'))['data']['slideId'], 8)
             self.assertEqual(calls[0][1]['arguments']['presentationName'], '示例.pptx')
             self.assertEqual(calls[0][1]['sessionId'], 'task-test')
 
@@ -100,7 +100,7 @@ class ClientTests(unittest.TestCase):
             output=Path(directory)/'error.json'
             code, stdout, calls=self.run_cli(['tool','--output',str(output)],{'success':True,'data':{'success':False,'error':'partial','partial':{'completedShapeIds':[4]}}})
             self.assertEqual(code,1);self.assertEqual(len(calls),1);self.assertEqual(stdout,'')
-            result=json.loads(output.read_text());self.assertEqual(result['executed'],'unknown');self.assertEqual(result['partial']['completedShapeIds'],[4])
+            result=json.loads(output.read_text(encoding='utf-8'));self.assertEqual(result['executed'],'unknown');self.assertEqual(result['partial']['completedShapeIds'],[4])
 
     def test_output_race_after_host_success_never_replays(self):
         for preview in [False, True]:
