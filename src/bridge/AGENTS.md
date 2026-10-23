@@ -1,5 +1,7 @@
 # MCP 与宿主路由
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 文件地图
 
 - [gateway.ts](gateway.ts)：**兼容门面**。`executeTool` 只做锁定注入 → 查 `HANDLERS` 注册表 → 组上下文 → 调用；`registeredGatewayBranches()` 导出真实注册表键供测试读取；工具定义已按类迁出（P2.3），此处 `getOpenAiTools(activeWbHint?)` 只委托 `tools/definitions/`；`getOpenApiSchema` 仍在此。
@@ -44,25 +46,25 @@
 
 ## 避坑
 
-Electron 字节码 CLI 的导出接口报 `A dynamic import callback was not specified`，或图表已落盘却返回未落盘 → 仅在系统 Node 的明文回退中测试会漏掉 → bytenode 加载的 V8 上下文没有该动态导入回调，桥接侧 `await import("node:fs")` 在宿主导出之后失败 → 文件系统依赖改为静态导入，先读回已生成文件再决定是否重试 → [实际字节码回归](../../tests/bytecode-exports.test.ts)、[真实宿主记录](../../docs/acceptance/2.2.0-excel-modularization/host/README.md)。
+Electron 字节码 CLI 的导出接口报 `A dynamic import callback was not specified`，或图表已落盘却返回未落盘 → 仅在系统 Node 的明文回退中测试会漏掉 → bytenode 加载的 V8 上下文没有该动态导入回调，桥接侧 `await import("node:fs")` 在宿主导出之后失败 → 文件系统依赖改为静态导入，先读回已生成文件再决定是否重试 → [实际字节码回归](../../tests/bytecode-exports.test.ts)、真实宿主记录（本地 `docs/acceptance/2.2.0-excel-modularization/host/README.md`）。
 
 Office 图标请求返回 no-store → 即使 PNG 正确仍被 Office 替换为默认图标 → 图标与脚本的缓存契约不同 → 图片响应不发送禁止缓存指令，HTML/JS/CSS 仍禁用缓存；升级图标换 URL → [资源 HTTP 回归](../../tests/service.test.ts)。
 
 工具声称绑定目标但 schema 缺少目标名称 → AI 无法显式传参 → 检查 schema 与执行分支是否都接受名称 → 用 [参数契约测试](../../tests/ppt-layout.test.ts) 核验。写入超时或 Office.js 异常 → 不直接假设未执行或安全重试 → 先读回；尤其修改自动回退策略时检查重复写入风险。
 
-Office.js 写入在“宿主已执行之后”才失败（超时、断连、宿主报错、响应转换失败）→ 旧实现对任何异常都回退 Windows 原生 COM → 同一次写入被执行两次，且第二次的成功掩盖第一次的失败，调用方拿到“成功” → 只有 `executed === 'no'`（通道未连接、参数在执行前被拒）或不改文档的方法才允许回退，其余报错并要求先读回 → [故障注入测试](../../tests/failure-routing.test.ts) 在 HEAD 版 adapter 上 2 项失败、修复后 10/10 通过（日志见 [evidence](../../docs/acceptance/2.1.0-p0p1/evidence/p1.4-prefix-failure.txt)）。
+Office.js 写入在“宿主已执行之后”才失败（超时、断连、宿主报错、响应转换失败）→ 旧实现对任何异常都回退 Windows 原生 COM → 同一次写入被执行两次，且第二次的成功掩盖第一次的失败，调用方拿到“成功” → 只有 `executed === 'no'`（通道未连接、参数在执行前被拒）或不改文档的方法才允许回退，其余报错并要求先读回 → [故障注入测试](../../tests/failure-routing.test.ts) 在 HEAD 版 adapter 上 2 项失败、修复后 10/10 通过（日志见 evidence（本地 `docs/acceptance/2.1.0-p0p1/evidence/p1.4-prefix-failure.txt`））。
 
-用 `npm run build` 退出码判断类型是否正确 → tsup 不做类型检查，基线曾出现 build 通过而 `typecheck` 4 处 TS2304 → 类型与构建是两层检查，必须分别执行 → 基线记录见 [baseline.md](../../docs/acceptance/2.1.0-p0p1/baseline.md) §3。
+用 `npm run build` 退出码判断类型是否正确 → tsup 不做类型检查，基线曾出现 build 通过而 `typecheck` 4 处 TS2304 → 类型与构建是两层检查，必须分别执行 → 基线记录见 baseline.md（本地 `docs/acceptance/2.1.0-p0p1/baseline.md`） §3。
 
-能力声明直接回显路由表（如 `implemented: [...EXCEL_METHODS]`、写死的“全量 N 项”）→ 声明与可调用工具数、宿主实现不符 → 路由表含没有 schema 的宿主方法，宿主加载项也可能缺 RPC 分支 → 声明按“可调用工具 ∩ 宿主实现”生成，缺口单列 `declaredNotCallable` / `unimplementedOnHost` → 差异清单见 [compatibility-diff.md](../../docs/acceptance/2.1.0-p0p1/compatibility-diff.md) §3。
+能力声明直接回显路由表（如 `implemented: [...EXCEL_METHODS]`、写死的“全量 N 项”）→ 声明与可调用工具数、宿主实现不符 → 路由表含没有 schema 的宿主方法，宿主加载项也可能缺 RPC 分支 → 声明按“可调用工具 ∩ 宿主实现”生成，缺口单列 `declaredNotCallable` / `unimplementedOnHost` → 差异清单见 compatibility-diff.md（本地 `docs/acceptance/2.1.0-p0p1/compatibility-diff.md`） §3。
 
 把“反射探测”当成只读工具 → `wps_inspect_api` 被同时标为只读和可安全重放 → 它执行调用方给出的**任意表达式**，表达式可取属性触发宿主求值、也可直接改文档（如 `app.ActiveWorkbook.Worksheets.Add()`），静态无法保证无副作用 → 既不得标 `readOnlyHint`，也不得进入跨通道重放白名单；只有确认未执行时才可回退 → [回归测试](../../tests/failure-routing.test.ts) 的“带副作用的表达式探测既不算只读，也不允许跨通道重放”。
 
-执行层需要契约数据时顺手 `import` 注册入口（catalog）→ 形成 `catalog → gateway → adapter → catalog` 回环 → 契约与执行层互相依赖，依赖方向无法单独理解，改动任一侧都可能影响初始化顺序 → 宿主方法标识等契约数据放 `contracts/`（`catalog` 保留同名兼容导出）；协议层改为通过**注入的** `ToolService` 取工具，由 `compose.ts` 装配 → [边界守卫测试](../../tests/contracts-boundary.test.ts)（证据见 [P2.1](../../docs/acceptance/2.1.0-p0p1/evidence/p2.1-prefix-adapter-catalog-cycle.txt)、[P2.2](../../docs/acceptance/2.1.0-p0p1/evidence/p2.2-prefix-scc.txt)）。
+执行层需要契约数据时顺手 `import` 注册入口（catalog）→ 形成 `catalog → gateway → adapter → catalog` 回环 → 契约与执行层互相依赖，依赖方向无法单独理解，改动任一侧都可能影响初始化顺序 → 宿主方法标识等契约数据放 `contracts/`（`catalog` 保留同名兼容导出）；协议层改为通过**注入的** `ToolService` 取工具，由 `compose.ts` 装配 → [边界守卫测试](../../tests/contracts-boundary.test.ts)（证据见 P2.1（本地 `docs/acceptance/2.1.0-p0p1/evidence/p2.1-prefix-adapter-catalog-cycle.txt`）、P2.2（本地 `docs/acceptance/2.1.0-p0p1/evidence/p2.2-prefix-scc.txt`））。
 
 用"已访问即跳过"的 DFS 判断依赖回环 → 只能发现回环、不能完整枚举 → 早到一个路径会把中间节点标记完成，通往同一节点的其它路径被跳过（例如先经 adapter 到达 ws-server，就看不到 gateway 直达 ws-server 这条边），漏报后容易误判"只剩两条回环" → 用**强连通分量（Tarjan）**做完整口径，台账为空才算真正无环 → [边界守卫测试](../../tests/contracts-boundary.test.ts) 的 SCC 断言。
 
-跨进程转发工具调用时把 `sessionId` 交给 `AsyncLocalStorage` → 跨 HTTP/进程边界不会自动携带 → 后台落回默认会话 `http-local`，不同 stdio 客户端的文档锁互相覆盖（A 锁定 A.xlsx、B 锁定 B.xlsx 后，A 查询到 B.xlsx），A 后续操作会误指向 B 的文件；改 `ToolService` 签名时最易漏 → `sessionId` 与 `clientName` 放进 `ToolCallContext` **随每次 execute 显式传递**，远程实现原样转发到后台 → [session-isolation.test.ts](../../tests/session-isolation.test.ts)（复现证据见 [evidence](../../docs/acceptance/2.1.0-p0p1/evidence/p2.2-session-isolation-regression.txt)）。
+跨进程转发工具调用时把 `sessionId` 交给 `AsyncLocalStorage` → 跨 HTTP/进程边界不会自动携带 → 后台落回默认会话 `http-local`，不同 stdio 客户端的文档锁互相覆盖（A 锁定 A.xlsx、B 锁定 B.xlsx 后，A 查询到 B.xlsx），A 后续操作会误指向 B 的文件；改 `ToolService` 签名时最易漏 → `sessionId` 与 `clientName` 放进 `ToolCallContext` **随每次 execute 显式传递**，远程实现原样转发到后台 → [session-isolation.test.ts](../../tests/session-isolation.test.ts)（复现证据见 evidence（本地 `docs/acceptance/2.1.0-p0p1/evidence/p2.2-session-isolation-regression.txt`））。
 
 契约层里放执行器或可变注册表 → 只是把回环换个位置，并引入依赖初始化顺序问题 → 契约层保持纯定义（类型/schema/能力元数据），实现绑定放 `tool-registry.ts`，装配放 `compose.ts` → 契约层依赖校验见 [边界守卫测试](../../tests/contracts-boundary.test.ts) 的"契约层不依赖执行层、协议层与服务实例"。
 
@@ -72,9 +74,9 @@ Office.js 写入在“宿主已执行之后”才失败（超时、断连、宿�
 
 测试从源码里正则抓 `case "..."` 统计分支 → 分支改成注册表后，测试实际只在**校验注释文本**，注释与真实执行映射脱节也不会失败（被削弱的检查） → 分支清单曾以注释保留在门面里，抓文本就会退化成"看注释通过" → 测试改读真实注册表（`registeredGatewayBranches()` 导出 `HANDLERS` 键），并在 `executeTool` 未知工具时抛错 → [契约一致性测试](../../tests/contract-consistency.test.ts) 的「注册工具缺少网关分支」与「实现了但未注册」两项；注册表 68 条。**不要为迁就测试而在源码里保留伪 `case` 注释清单**——那会让测试退化成校验注释，该清单已移除。
 
-回滚的“是否有后续修改”只比区域内容 → 别人删表重建并写回**完全相同**的内容时，旧 `auditId` 被放行、把这批新数据清空（真实数据破坏） → 内容相等不等于同一次修改 → 回滚前先判**身份**（同区域是否有更晚的未回滚记录、记录之后是否发生过未经快照记录的身份类操作、目标工作表是否仍存在），最后才比内容；任一不满足即拒绝并给出“读 `wps_get_audit_record` 的旧快照 + `patch_cells` 显式写回”的替代路径 → [修复记录](../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/12-bridge-fixes.md)；判据来源与残余缺口（绕过桥接的手工删表重建无信号）同页说明。
+回滚的“是否有后续修改”只比区域内容 → 别人删表重建并写回**完全相同**的内容时，旧 `auditId` 被放行、把这批新数据清空（真实数据破坏） → 内容相等不等于同一次修改 → 回滚前先判**身份**（同区域是否有更晚的未回滚记录、记录之后是否发生过未经快照记录的身份类操作、目标工作表是否仍存在），最后才比内容；任一不满足即拒绝并给出“读 `wps_get_audit_record` 的旧快照 + `patch_cells` 显式写回”的替代路径 → 修复记录（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/12-bridge-fixes.md`）；判据来源与残余缺口（绕过桥接的手工删表重建无信号）同页说明。
 
-跨宿主参数映射在桥接侧与宿主侧**各写一份** → 宿主侧补齐后桥接侧仍在抛错，把宿主已经能做的能力挡掉（本任务实测：`manage_sheet` move、行列 hide/set_size、`add_chart` 的 dataRanges/yAxis 都曾被桥接侧误拒） → 两层各自演进必然漂移 → 宿主已按 schema 字段名实现并读回校验的，桥接侧只做字段归一/别名，**不重复实现、不重复阻断**；真正映射不了的才显式报错或记入响应 `unsupportedFields` → [修复记录](../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/12-bridge-fixes.md) 的 ISS-93/ISS-99 两行。
+跨宿主参数映射在桥接侧与宿主侧**各写一份** → 宿主侧补齐后桥接侧仍在抛错，把宿主已经能做的能力挡掉（本任务实测：`manage_sheet` move、行列 hide/set_size、`add_chart` 的 dataRanges/yAxis 都曾被桥接侧误拒） → 两层各自演进必然漂移 → 宿主已按 schema 字段名实现并读回校验的，桥接侧只做字段归一/别名，**不重复实现、不重复阻断**；真正映射不了的才显式报错或记入响应 `unsupportedFields` → 修复记录（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/12-bridge-fixes.md`） 的 ISS-93/ISS-99 两行。
 
 响应转换用白名单重建对象 → 宿主新增的 `warnings` / `dataRangesApplied` / `seriesCount` / `yAxisApplied` / `kind` / `renderedBy` 等“如实提示”被静默丢掉，调用方以为参数都生效了 → 白名单只对新实现友好，宿主演进即失效 → 响应分支先铺开宿主原始响应再覆盖统一字段（`{...raw, ...}`），并在宿主已自行过滤/截断时不要重复处理 → 同上 ISS-99。
 

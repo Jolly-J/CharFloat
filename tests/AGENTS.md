@@ -1,5 +1,7 @@
 # 测试与验收
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 文件地图
 
 - [brand.test.ts](brand.test.ts)：品牌门禁的正反向夹具、历史例外与生成物检查；只操作临时目录。
@@ -44,13 +46,13 @@
 
 ## 验证
 
-`npm test`；局部使用 `node --import tsx --test tests/<文件>.test.ts`，不要将尖括号占位命令原样执行。`lifecycle.test.ts` 与 `session-isolation.test.ts` 通过 stdio 拉起 `dist/bridge/cli.cjs`，**运行前必须先 `npm run build`**，否则测的是旧产物。Windows 验收按 [validation.md](../docs/validation.md)。
+`npm test`；局部使用 `node --import tsx --test tests/<文件>.test.ts`，不要将尖括号占位命令原样执行。`lifecycle.test.ts` 与 `session-isolation.test.ts` 通过 stdio 拉起 `dist/bridge/cli.cjs`，**运行前必须先 `npm run build`**，否则测的是旧产物。Windows 验收按 validation.md（本地 `docs/validation.md`）。
 
 ## 避坑
 
 服务测试出现 listen EPERM → 沙箱拒绝本地监听而非业务断言失败 → 在授权环境重新运行 → 保留实际错误和结果。
 
-只测"客户端退出不误停服务"就以为覆盖了多客户端 → 跨客户端的**会话状态**（目标锁、审计归属）会串而不被发现 → 进程内 `AsyncLocalStorage` 只在单进程生效，经 HTTP 转发到后台时必须显式携带 `sessionId`，漏传会让后台把所有 stdio 客户端归入默认会话 `http-local` → 用两个独立 stdio 客户端进程分别锁定再互查 → [session-isolation.test.ts](session-isolation.test.ts)（复现证据见 [evidence](../docs/acceptance/2.1.0-p0p1/evidence/p2.2-session-isolation-regression.txt)）。
+只测"客户端退出不误停服务"就以为覆盖了多客户端 → 跨客户端的**会话状态**（目标锁、审计归属）会串而不被发现 → 进程内 `AsyncLocalStorage` 只在单进程生效，经 HTTP 转发到后台时必须显式携带 `sessionId`，漏传会让后台把所有 stdio 客户端归入默认会话 `http-local` → 用两个独立 stdio 客户端进程分别锁定再互查 → [session-isolation.test.ts](session-isolation.test.ts)（复现证据见 evidence（本地 `docs/acceptance/2.1.0-p0p1/evidence/p2.2-session-isolation-regression.txt`））。
 
 改了 `cli.ts` 之后只跑 `node --import tsx --test` 验证 → 实际执行的是 `dist/` 里的旧 CLI 产物，改动没生效却"测试通过" → stdio 类测试拉起的是构建产物 → 先 `npm run build` 再跑 → 见本页"验证"一节。
 

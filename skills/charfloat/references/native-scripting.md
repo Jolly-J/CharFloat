@@ -1,5 +1,7 @@
 # 原生脚本能力扩展
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 专用工具 → 只读探测 → 原生脚本 → 读回和预览。没有专用工具不能直接判定不支持。脚本是正常的扩展通道，无需仅因使用 JS 再次要求用户授权；操作仍须在用户任务范围内。
 
 WPS 使用 `wps_execute_script`，明确传 component 和精确 workbookName/documentName/presentationName。上下文为 app、wb、doc、pres、wps、params 和 console；支持 async/await。Microsoft 应使用实际工具清单中的脚本入口和对应对象模型，不可照搬 WPS 示例。
@@ -18,7 +20,7 @@ WPS 使用 `wps_execute_script`，明确传 component 和精确 workbookName/doc
 
 `wps` 是宿主注入的宿主全局（本机实测为 `undefined`；实现里只以 `typeof wps !== "undefined"` 的形式探测 `wps.EtApplication` / `wps.alert` 等成员）。**不要依赖它**，用 `app`、`wb`、`doc`、`pres` 就够了。
 
-> **已证实（[ISS-52](../../../docs/acceptance/2.1.0-p0p1/issues.md)）**：本文档旧版称 `doc`"已自动绑定"。真实宿主下 Excel 场景 `doc` 是 `null`，`doc.Worksheets` 直接抛 `原生脚本执行异常: Cannot read properties of null (reading 'Worksheets')`。**Excel 一律用 `wb`**。
+> **已证实（ISS-52（本地 `docs/acceptance/2.1.0-p0p1/issues.md`））**：本文档旧版称 `doc`"已自动绑定"。真实宿主下 Excel 场景 `doc` 是 `null`，`doc.Worksheets` 直接抛 `原生脚本执行异常: Cannot read properties of null (reading 'Worksheets')`。**Excel 一律用 `wb`**。
 
 每个批次开头加一句自检，缺变量时立刻报错，比在几十行之后抛空指针好定位：
 
@@ -29,7 +31,7 @@ params = params || {};
 
 ## 枚举必须传整数
 
-字符串枚举**不报错也不生效**：`range.HorizontalAlignment = 'center'` 被静默吞成左对齐（读回 `-4131`），居中必须传 `-4108`（[ISS-11](../../../docs/acceptance/2.1.0-p0p1/issues.md)：子代理首版所有居中文字跑到左上角，全量重绘一次才修好）。
+字符串枚举**不报错也不生效**：`range.HorizontalAlignment = 'center'` 被静默吞成左对齐（读回 `-4131`），居中必须传 `-4108`（ISS-11（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）：子代理首版所有居中文字跑到左上角，全量重绘一次才修好）。
 
 取值表（对齐、边框、颜色、条件格式、形状类型、箭头线型、PPT 图表与版式、Word 域与版式）见 **[枚举速查表](enumeration.md)**，每条都标了证据等级；取不到的标"未实测"，别猜。
 
@@ -44,7 +46,7 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 
 ## WPS JS API ≠ VBA 差异清单
 
-AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针或静默失真**。下面是已证实的差异（来源：[ISS-12/26](../../../docs/acceptance/2.1.0-p0p1/issues.md)、`p5/mcp-sweep/03-word.md`、本仓库实现）：
+AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针或静默失真**。下面是已证实的差异（来源：ISS-12/26（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）、`p5/mcp-sweep/03-word.md`、本仓库实现）：
 
 | VBA / 常见写法 | WPS JS API 实际 | 正确做法 |
 |---|---|---|
@@ -52,12 +54,12 @@ AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针�
 | `ParagraphFormat`（形状文本框段落格式） | **不存在**（反射为空成员表） | 用存在的那条路径并先只读探测；不要照抄 VBA |
 | `ws.Cells(r, c)` | **不是函数**：`ws.Cells is not a function` | 用字符串地址 `ws.Range("A1")`，或 `ws.Range("A1").Offset(r, c)` |
 | `AddChart2` + `SetSourceData` | **默认按行取系列**（一行一个系列），图表与预期不符 | 显式传 `PlotBy = 2`（按列），或逐个赋 `Series.Values` / `Series.XValues` |
-| `Shapes.Range([...]).Group()` | **不报错但产出损坏的分组对象**：名称错乱、`GroupItems` 不可枚举（[ISS-14](../../../docs/acceptance/2.1.0-p0p1/issues.md)） | 不要用分组做构图；用命名前缀 + 坐标对齐替代，或先探测确认可用性 |
-| `Range("5:6").Hidden = true` | 整行隐藏**静默 no-op**（列路径正常，行为不一致，[ISS-60](../../../docs/acceptance/2.1.0-p0p1/issues.md)） | 逐行 `sheet.Rows.Item(r).Hidden = want` 并逐行读回 |
-| `range.Sort(...)` 旧式排序 | 本机 WPS **静默 no-op** | 用 `sheet.Sort.SortFields.Clear()/Add()/SetRange()/Header/Apply()`，并读回校验（[ISS-38](../../../docs/acceptance/2.1.0-p0p1/issues.md)） |
-| `Cell.Formula("=SUM(ABOVE)")` / `AutoSum()` | **不生效**，返回 `null`、单元格文本不变（[03-word.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md) §3.1） | 脚本里算出结果写静态文本；不要因为"没抛异常"就判定成功 |
+| `Shapes.Range([...]).Group()` | **不报错但产出损坏的分组对象**：名称错乱、`GroupItems` 不可枚举（ISS-14（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）） | 不要用分组做构图；用命名前缀 + 坐标对齐替代，或先探测确认可用性 |
+| `Range("5:6").Hidden = true` | 整行隐藏**静默 no-op**（列路径正常，行为不一致，ISS-60（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）） | 逐行 `sheet.Rows.Item(r).Hidden = want` 并逐行读回 |
+| `range.Sort(...)` 旧式排序 | 本机 WPS **静默 no-op** | 用 `sheet.Sort.SortFields.Clear()/Add()/SetRange()/Header/Apply()`，并读回校验（ISS-38（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）） |
+| `Cell.Formula("=SUM(ABOVE)")` / `AutoSum()` | **不生效**，返回 `null`、单元格文本不变（03-word.md（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md`） §3.1） | 脚本里算出结果写静态文本；不要因为"没抛异常"就判定成功 |
 | `ExportAsFixedFormat(path, 17)` | 不抛异常也**不落盘**（Word 侧实测） | 交付/预览不要依赖它；用带落盘校验的保存工具 |
-| `for (const k in v) v[k]` 全量反射 | **会让 WPS 进程崩溃**（[ISS-89](../../../docs/acceptance/2.1.0-p0p1/issues.md)：3 份崩溃报告、2 份栈逐帧一致：`kso → etcore → etapi → jsetapi → ksojscore`） | **不要自己写反射循环**，用 `wps_inspect_api`（默认只列名字、不求值）；危险成员清单见下节 |
+| `for (const k in v) v[k]` 全量反射 | **会让 WPS 进程崩溃**（ISS-89（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）：3 份崩溃报告、2 份栈逐帧一致：`kso → etcore → etapi → jsetapi → ksojscore`） | **不要自己写反射循环**，用 `wps_inspect_api`（默认只列名字、不求值）；危险成员清单见下节 |
 | `ws.Range("A1").Value2 = "..."` 写值 | **完全保留原单元格字体**；若原单元格是粗体字族（如 `Microsoft YaHei Bold`），写入后直接显示为粗体 | 写入后需常规正文时，显式将 `cell.Font.Name` 设为常规字族（如 `Microsoft YaHei`） |
 | `cell.Font.Bold = false` | **对粗体字族无效**：字族本身就是 Bold 变体，关掉 Bold 开关依然渲染粗体 | 必须同时将 `cell.Font.Name` 改回常规字族名称，不能只改 `Font.Bold` |
 | 先施加局部加粗，后改整格 `Font.Name` | **改字体名会清空字符级局部格式**：整格 `Font.Name` 赋值会重置所有 `Characters` 格式 | **顺序必须是**：先规范化整格 `Font.Name`，再调用 `format_text_segment` 或 `Characters` 施加局部格式 |
@@ -84,7 +86,7 @@ AI 的默认先验多是 VBA / Office.js 文档，**直接照抄会抛空指针�
 
 另有两条与 API 无关、但同样会静默失真的行为：
 
-- **返回值嵌套过深会丢属性**（[ISS-56](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：原实现 `depth > 2` 直接 `String(val)`，三层以上属性静默变 `undefined`。**已修为**：上限放宽到 6 层，超限节点写成显式占位符并返回 `truncated: true` 与 `truncatedPaths`（不再静默丢数据）。稳妥做法仍是**返回扁平的字符串/数字数组**，或自己 `JSON.stringify` 成字符串再返回。
+- **返回值嵌套过深会丢属性**（ISS-56（本地 `docs/acceptance/2.1.0-p0p1/issues.md`））：原实现 `depth > 2` 直接 `String(val)`，三层以上属性静默变 `undefined`。**已修为**：上限放宽到 6 层，超限节点写成显式占位符并返回 `truncated: true` 与 `truncatedPaths`（不再静默丢数据）。稳妥做法仍是**返回扁平的字符串/数字数组**，或自己 `JSON.stringify` 成字符串再返回。
 - **脚本成功 ≠ 写入生效**：Bridge 的包装层可能返回 `success`。调用方必须同时检查 `returnValue` 里的读回值和 `failed`/`pendingCount`，本文档末尾给了约定结构。
 
 ## Excel / 表格：矢量绘图（优先用工具，不要手写脚本）
@@ -141,13 +143,13 @@ return { name: shape.Name, left: shape.Left, top: shape.Top,
 
 `AddShape` 首参是形状类型枚举（矩形 `= 1`），见 [枚举速查表](enumeration.md)。`TextFrame.Characters()` 是 Excel 侧已验证的取文本路径，**没有 `TextFrame.TextRange`**。
 
-连接线、自由曲线可继续探测 `AddConnector`、`BuildFreeform` 等宿主 API（**未实测**；本项目实现里从未调用过 `AddConnector`，见 [07-tool-gap.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/07-tool-gap.md)）。**分组（`Range(...).Group`）不要用于构图**（见上表 ISS-14）。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
+连接线、自由曲线可继续探测 `AddConnector`、`BuildFreeform` 等宿主 API（**未实测**；本项目实现里从未调用过 `AddConnector`，见 07-tool-gap.md（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/07-tool-gap.md`））。**分组（`Range(...).Group`）不要用于构图**（见上表 ISS-14）。不要把截图当作可编辑矢量。样式、文字接口可能随宿主版本不同；创建后若后续设置失败，先检查已创建对象再继续，不能重新创建整套。
 
 ## Excel：画布换算与多元素构图范例
 
 ### 画布换算
 
-**已证实**（[ISS-15](../../../docs/acceptance/2.1.0-p0p1/issues.md)，WPS 默认列宽/行高实测）：默认列宽 **48pt**、行高 **16pt**；`A1:U42`（21 列 × 42 行）= **1008 × 672pt**。行列号与 pt 的换算是线性的：
+**已证实**（ISS-15（本地 `docs/acceptance/2.1.0-p0p1/issues.md`），WPS 默认列宽/行高实测）：默认列宽 **48pt**、行高 **16pt**；`A1:U42`（21 列 × 42 行）= **1008 × 672pt**。行列号与 pt 的换算是线性的：
 
 ```
 x(col)  = anchor.Left + (col   - 1) * 48        // col 从 1 起
@@ -171,7 +173,7 @@ return { left: area.Left, top: area.Top, width: area.Width, height: area.Height,
 
 ### 信息图 / 流程图范例（标题条 + 分组框 + 流程带 + 应用卡 + KPI 条）
 
-下面这套布局对应已交付成品 `sweep图形_钙钛矿产业信息图` 的元素构成——**134 个矢量元素**：标题条 + 三栏分组 + 5 段流程带箭头 + 4 应用卡 + 3 技术路线箭形块 + 4 格 KPI 条 + 页脚（见 [mcp-sweep/README.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/README.md)，渲染图 [shapes-infographic-final.png](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/shapes-infographic-final.png)）。
+下面这套布局对应已交付成品 `sweep图形_钙钛矿产业信息图` 的元素构成——**134 个矢量元素**：标题条 + 三栏分组 + 5 段流程带箭头 + 4 应用卡 + 3 技术路线箭形块 + 4 格 KPI 条 + 页脚（见 mcp-sweep/README.md（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/README.md`），渲染图 shapes-infographic-final.png（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/shapes-infographic-final.png`））。
 
 > **口径**：结构与元素数量来自已交付成品；下面给出的坐标是"按 1008×672 推算的起始值"，**本轮未在真实宿主复跑**。实测读数只有卡片的 `190.67 × 346.67`（`.scratch/ppt3/03-existing-deck-scan.json`，PPT 卡片）与画布的 48/16。请按内容体量微调，不要当成硬约束。
 
@@ -236,7 +238,7 @@ return { canvas: { l: L, t: T, w: W, h: Number(canvas.Height) }, completed: done
 
 PPT 使用 `pres.PageSetup.SlideWidth/SlideHeight` 获取真实尺寸（本机实测 **960×540**）。按页面比例计算几何，所有结果转为 pt 后写入；字体与版面一起考虑。先读现有形状，设置文本框内边距、换行和字号，读回后检查真实预览。需要拆页或改动内容时结合用户目标判断，不用无限缩小字体掩盖溢出。
 
-要点（来自 `p5/mcp-sweep/02-ppt.md` 与 [ISS-53/55/82](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：
+要点（来自 `p5/mcp-sweep/02-ppt.md` 与 ISS-53/55/82（本地 `docs/acceptance/2.1.0-p0p1/issues.md`））：
 
 - `wps_ppt_generate_deck` 的内部坐标基准是 **720×405 设计基准**，宿主再按页面尺寸换算；返回体里的 `pageWidth`/`layoutWarnings` 是判断"是否真的换算过"的指纹。自己用脚本排版时，**要么全用设计基准交给缩放，要么全用真实尺寸自己算，不要混用**。
 - `layoutIndex` 是 **`ppLayout` 枚举**（`1` 标题幻灯片 / `2` 标题和文本 / `7` 标题和图示），不是"第几个版式"；越界（如 `12`）不报错。见枚举表 §2.3。
@@ -244,7 +246,7 @@ PPT 使用 `pres.PageSetup.SlideWidth/SlideHeight` 获取真实尺寸（本机�
 
 ## Word：分节、横向页、书签、域、样式
 
-Word 侧的样式、书签、内容控件、交叉引用、分节、表格行列尺寸、文档属性**都没有专用工具**，只能走脚本（[03-word.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md) §11）。下面每个片段都在真实宿主验证过，写到"读回断言"为止才停。
+Word 侧的样式、书签、内容控件、交叉引用、分节、表格行列尺寸、文档属性**都没有专用工具**，只能走脚本（03-word.md（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md`） §11）。下面每个片段都在真实宿主验证过，写到"读回断言"为止才停。
 
 ### 样式：新建、应用、判定口径
 
@@ -285,7 +287,7 @@ return { count: D.Sections.Count,
 ```
 
 **已证实**：横向节读回 `orientation=1, pageWidth=841.9, pageHeight=595.3`，纵向节仍是 `0` / `595.3×841.9`；**没断开链接时节 1 会被连带改**，所以要同时读回两节的页眉来断言隔离成立。
-**另注**：`wps_word_page_layout_and_watermark` 的页眉/页脚**逐节写入文档全部节**（返回 `appliedSections`，每节写了什么一目了然；[ISS-72](../../../docs/acceptance/2.1.0-p0p1/issues.md) 已修，不要沿用"只作用于第 1 节"的旧说法）；**水印写入（`watermarkText`）已在源码层禁用**——传非空值会**直接报错且不修改文档**，因为在当前宿主上写水印会让 WPS 主进程崩溃（[ISS-125](../../../docs/acceptance/2.1.0-p0p1/issues.md)）。需要水印请在 WPS 内「插入 → 水印」手动添加，或走 Windows/COM 通道的 `Section.Headers.Shapes`；`action="read"` 仍可读回现有页眉页脚与水印状况。
+**另注**：`wps_word_page_layout_and_watermark` 的页眉/页脚**逐节写入文档全部节**（返回 `appliedSections`，每节写了什么一目了然；ISS-72（本地 `docs/acceptance/2.1.0-p0p1/issues.md`） 已修，不要沿用"只作用于第 1 节"的旧说法）；**水印写入（`watermarkText`）已在源码层禁用**——传非空值会**直接报错且不修改文档**，因为在当前宿主上写水印会让 WPS 主进程崩溃（ISS-125（本地 `docs/acceptance/2.1.0-p0p1/issues.md`））。需要水印请在 WPS 内「插入 → 水印」手动添加，或走 Windows/COM 通道的 `Section.Headers.Shapes`；`action="read"` 仍可读回现有页眉页脚与水印状况。
 
 ### 书签与交叉引用域
 

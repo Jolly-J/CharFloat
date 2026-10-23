@@ -1,5 +1,7 @@
 # 项目协作导航
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 从任务找入口
 
 先读本文件，再读目标目录 AGENTS.md，随后只搜索该目录和下表关联文件。局部证据不足、入口不存在或问题跨模块时再扩大搜索，并说明新的调查范围。不要以全项目扫描、读取全部规范作为默认起点。局部规范补充本文件，不重复共性规则。
@@ -16,11 +18,11 @@
 | AI 不会调用已有能力 | [技能](skills/AGENTS.md) | 对应 SKILL.md → gateway 工具说明 → 宿主实现 |
 | 测试失败与验收 | [测试](tests/AGENTS.md) | 对应测试文件，不先运行真实宿主脚本 |
 | 开发、检查、构建脚本 | [脚本](scripts/AGENTS.md) | 对应脚本和 package.json |
-| 版本管理、验收放行、打包发布 | [版本与发布制度](docs/release-policy.md)、[脚本](scripts/AGENTS.md) | [验收清单](docs/release-checklist.md) → check-version.mjs → release/AGENTS.md（产物细则） |
+| 版本管理、验收放行、打包发布 | 版本与发布制度（本地 `docs/release-policy.md`）、[脚本](scripts/AGENTS.md) | 验收清单（本地 `docs/release-checklist.md`） → check-version.mjs → release/AGENTS.md（产物细则） |
 | 官网内容和交互 | [官网](website/AGENTS.md) | website/src/App.tsx → components |
 | 宣传片剧本、录制环境与道具 | [宣传片](promo/AGENTS.md) | README.md（拍摄台本）→ 01/02 剧本 → [施工/plan.json](promo/施工/plan.json) |
 
-其他目录：[docs](docs/) 放架构和验证说明；[prompts](prompts/) 放运行时提示词；[build](build/) 和 resources 的图片为打包素材。它们沿用根规范。发布包的代码保护（sourcemap 排除、V8 字节码、验证脚本）见 [code-protection.md](docs/code-protection.md)；发布专用副本由 [build-release-assets.mjs](scripts/build-release-assets.mjs) 生成到 `dist/release-app/`，只在该副本做混淆，业务源码和技能原稿保留。品牌声明与检查范围见 [branding.md](docs/branding.md)，插件侧栏与后台运行范围见 [addon-background.md](docs/addon-background.md)。当前架构参考 [architecture.md](docs/architecture.md)，主入口配置为 [package.json](package.json) 和 [tsup.config.ts](tsup.config.ts)。
+其他目录：`docs/` 仅在本地保存架构和验证说明；[prompts](prompts/) 放运行时提示词；[build](build/) 和 resources 的图片为打包素材。它们沿用根规范。发布包的代码保护（sourcemap 排除、V8 字节码、验证脚本）见 code-protection.md（本地 `docs/code-protection.md`）；发布专用副本由 [build-release-assets.mjs](scripts/build-release-assets.mjs) 生成到 `dist/release-app/`，只在该副本做混淆，业务源码和技能原稿保留。品牌声明与检查范围见 branding.md（本地 `docs/branding.md`），插件侧栏与后台运行范围见 addon-background.md（本地 `docs/addon-background.md`）。当前架构参考 architecture.md（本地 `docs/architecture.md`），主入口配置为 [package.json](package.json) 和 [tsup.config.ts](tsup.config.ts)。
 
 阶段验收证据按候选标识存放在 `docs/acceptance/<候选标识>/`，至少包含基线指纹、工具契约快照、环境清单与兼容性差异；只写"已完成"而没有对应证据的条目视为未完成。
 
@@ -32,7 +34,7 @@
 
 ## 改造任务入口
 
-涉及模块化、契约统一及双平台验收的改造，先读 [改造计划与执行台账](docs/refactoring-plan.md)，按当前阶段与任务 ID 继续；WPS 领域分片的进一步拆分见 [模块化方案与执行清单](docs/modularization-plan.md)。计划内保留完成清单、验收标准和交接备忘。
+涉及模块化、契约统一及双平台验收的改造，已有本地资料时先读改造计划与执行台账（本地 `docs/refactoring-plan.md`），按当前阶段与任务 ID 继续；WPS 领域分片的进一步拆分见模块化方案与执行清单（本地 `docs/modularization-plan.md`）。计划内保留完成清单、验收标准和交接备忘。
 
 ## 协作与变更边界
 
@@ -50,7 +52,7 @@
 
 ## 验证与交付
 
-按修改范围选择检查：[package.json](package.json) 中的 `npm run typecheck`、`npm test`、`npm run build`；官网使用 `npm run build:website`；导航使用 `npm run check:agents`，品牌使用 `npm run check:brand`，版本一致性使用 `npm run check:version`（构建、打包与 CI 门禁）。发布统一遵循 [版本与发布制度](docs/release-policy.md)，已正式发布版本不得覆盖包或移动标签。局部测试见模块规范，不为纯文档改动启动办公软件。
+按修改范围选择检查：[package.json](package.json) 中的 `npm run typecheck`、`npm test`、`npm run build`；官网使用 `npm run build:website`；导航使用 `npm run check:agents`，品牌使用 `npm run check:brand`，版本一致性使用 `npm run check:version`（构建、打包与 CI 门禁）。发布统一遵循 版本与发布制度（本地 `docs/release-policy.md`），已正式发布版本不得覆盖包或移动标签。局部测试见模块规范，不为纯文档改动启动办公软件。
 
 模拟测试、构建、真实宿主验证分别报告，不能互相替代。失败时区分本次回归、既有缺陷与环境限制，保留原始证据；不为通过检查顺手改无关模块。最终说明完成内容、主要文件、验证及遗留问题。
 
@@ -58,6 +60,6 @@
 
 新增/移动/删除关键文件，改变职责、调用链、接口、命令或验证路径时，在同一次修改中更新根导航或最近的 AGENTS.md。普通函数内部变化无需制造文档更新。收尾检查：导航是否仍能定位、联动是否完整、避坑条目是否仍成立，再运行导航检查。
 
-避坑条目格式为“触发条件 → 错误做法 → 已证实原因 → 正确做法 → 验证/证据”。高频关键条目就近写在模块规范，长案例才放 docs 并链接。只记录已证实且可复用的经验；猜测留在调查结果里。能回归的问题优先补测试，文档解释原因。修复使旧限制失效时更新或删除条目，不保留永久禁令。
+避坑条目格式为“触发条件 → 错误做法 → 已证实原因 → 正确做法 → 验证/证据”。高频关键条目就近写在模块规范，长案例才放本地 `docs/` 并注明本地资料路径，不生成公开失效链接。只记录已证实且可复用的经验；猜测留在调查结果里。能回归的问题优先补测试，文档解释原因。修复使旧限制失效时更新或删除条目，不保留永久禁令。
 
 不要记录凭据、用户文档内容、临时版本状态、个人路径或易失效行号。检查脚本只能确认导航结构与路径，职责和经验是否正确仍需修改者核对。跨模块并行工作只有获准后开展，先分配文件归属与接口边界。

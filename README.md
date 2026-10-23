@@ -22,14 +22,6 @@
 </p>
 
 <p align="center">
-  <a href="https://charfloat.online/">
-    <img src="docs/images/hero-showcase.gif" alt="字浮 CharFloat · 交互效果演示" width="800" style="border-radius: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.12);" />
-  </a>
-  <br />
-  <sub>🎬 <strong>交互演示</strong>：直接让 AI 读当前工作表、补齐数据、条件标色并绘制原生图表</sub>
-</p>
-
-<p align="center">
   🌐 <strong>个人官网 / 在线主页</strong>：<a href="https://charfloat.online/">https://charfloat.online/</a>
 </p>
 
@@ -56,12 +48,6 @@
 - **改到哪儿，看到哪儿**：通过本地长连接与软件进程交互，AI 执行的每一步，你都能在当前窗口实时肉眼看到变化，不用盲猜。
 - **原生图表与条件标色**：支持在当前工作表右下角就地画好关联数据源的原生图表，或者按口语化规则柔和标色。
 - **本地修改历史与秒级撤回**：每次 AI 动手改单元格前，本地都会预先保留一份快照。万一 AI 算偏了或者你想恢复，随时一键还原，不怕文件被改坏。
-
-<div align="center">
-  <img src="docs/images/client-topology.jpg" width="32%" alt="本地连接拓扑" />
-  <img src="docs/images/client-timemachine.jpg" width="32%" alt="快照对比与秒级还原" />
-  <img src="docs/images/client-auth.jpg" width="32%" alt="AI 助手快速配置" />
-</div>
 
 ---
 
@@ -149,7 +135,7 @@ flowchart TD
 - **macOS**：支持 macOS 12+（Apple Silicon M 系列及 Intel）
 - **Windows**：支持 Windows 10 / 11 64 位
 
-> 💡 提示：WPS 安装后可从“开始”功能区打开“字浮侧栏”，收起侧栏不影响后台连接；Office 首次打开需要启动一次加载项。详见[插件后台运行说明](docs/addon-background.md)。
+> 💡 提示：WPS 安装后可从“开始”功能区打开“字浮侧栏”，收起侧栏不影响后台连接；Office 首次打开需要启动一次加载项。连接状态以字浮客户端显示为准；首次连接失败时，先保存文档再重新打开办公软件。
 
 ### 方式二：让你的 AI 自己把配置加上
 
@@ -196,7 +182,9 @@ node dist/bridge/cli.cjs --stop           # 停止服务
 - **WPS 加载项**：[wps-addon/AGENTS.md](wps-addon/AGENTS.md)
 - **Office.js 插件**：[office-addon/AGENTS.md](office-addon/AGENTS.md)
 - **配套 Agent 技能**：[skills/charfloat/SKILL.md](skills/charfloat/SKILL.md)
-- **官网主页工程**：[website/AGENTS.md](website/AGENTS.md)（在线访问：[charfloat.online](https://charfloat.online/)）
+- **官网主页**：[charfloat.online](https://charfloat.online/)
+
+`docs/` 为维护者本地笔记与验收资料，不随公开仓库提供；源码构建与自动化测试不依赖该目录。
 
 欢迎提 Issue、交流折腾心得，或者一起提 PR 改进！
 

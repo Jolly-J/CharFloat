@@ -1,6 +1,8 @@
 # 枚举常量速查表
 
-本表回答"该传哪个整数"。`wps_inspect_api` **只反射成员名与方法名，不返回枚举常量**（[issues.md ISS-13](../../../docs/acceptance/2.1.0-p0p1/issues.md)），所以这些值只能靠文档固定下来。**不要用字符串枚举猜**——见下一节。
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
+本表回答"该传哪个整数"。`wps_inspect_api` **只反射成员名与方法名，不返回枚举常量**（issues.md ISS-13（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）），所以这些值只能靠文档固定下来。**不要用字符串枚举猜**——见下一节。
 
 ## 铁律：枚举一律传整数
 
@@ -13,7 +15,7 @@ range.HorizontalAlignment = 'center';
 range.HorizontalAlignment = -4108;
 ```
 
-已证实（2026-09-22 真实宿主实测，[ISS-11](../../../docs/acceptance/2.1.0-p0p1/issues.md)）：传字符串 `'center'` **既不抛异常也不生效**，赋值被吞成左对齐 `-4131`；子代理首版全部居中文字跑到左上角，只能全量重绘一次。所以要**写完立刻读回断言**：
+已证实（2026-09-22 真实宿主实测，ISS-11（本地 `docs/acceptance/2.1.0-p0p1/issues.md`））：传字符串 `'center'` **既不抛异常也不生效**，赋值被吞成左对齐 `-4131`；子代理首版全部居中文字跑到左上角，只能全量重绘一次。所以要**写完立刻读回断言**：
 
 ```js
 const want = -4108;
@@ -71,7 +73,7 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 | | `AddDatabar()` | 数据条规则 `type=4` | **实测**（`type=4`） |
 | 运算符 | `Operator` | `6` = xlLessThan | **实测**（`Operator=6`，公式 `"=0.9"`） |
 
-> 脚本通道才有的能力：公式规则、图标集。MCP 工具的 `ruleType` 枚举只有 `cell_value` / `color_scale` / `data_bar`（[04-sheet-advanced.md](../../../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/04-sheet-advanced.md)）。
+> 脚本通道才有的能力：公式规则、图标集。MCP 工具的 `ruleType` 枚举只有 `cell_value` / `color_scale` / `data_bar`（04-sheet-advanced.md（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/04-sheet-advanced.md`））。
 
 ### 1.4 排序 / 图表
 
@@ -80,7 +82,7 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 | 排序字段 | `sheet.Sort.SortFields.Add(range, Order, Key)` | `0` = 升序、`1` = 降序 | **实测**（`.scratch/sheet3/sort_fix.js`，对应 ISS-38 修复后唯一有效路径） |
 | 表头 | `sort.Header` | `2`（含表头）；修复实现用 `1` | **实测**（探针脚本 `Header = 2`） |
 | 图表类型 | `Shapes.AddChart2(-1, Type, ...)` | `51` 簇状柱 / `57` 簇状条 / `4` 折线 / `-4120` 环形 / `-4169` 散点 | **实测**（`p5/mcp-sweep/README.md` 成品读回：条形 57 / 折线 4 / 环形 -4120 / 散点 -4169 / 柱状 51） |
-| 散点必须走脚本 | `AddChart2(201, -4169, ...)` | `201` = xlXYScatter | **实测**（[ISS-17](../../../docs/acceptance/2.1.0-p0p1/issues.md)：工具侧 `scatter` 会被降级成 51） |
+| 散点必须走脚本 | `AddChart2(201, -4169, ...)` | `201` = xlXYScatter | **实测**（ISS-17（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）：工具侧 `scatter` 会被降级成 51） |
 
 > `AddChart2` + `SetSourceData` 的用法见 [native-scripting.md](native-scripting.md) §差异清单：**`SetSourceData` 默认按行取系列，必须显式 `PlotBy=2`**。
 
@@ -119,7 +121,7 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 | 复合条饼图 | `68` | **代码可证**（`ppt.js:131`） |
 
 > ⚠️ **PPT 的 `4`/`5` 与 Excel 的 `4`/`5` 语义不同，`51`/`57` 才重合**——跨组件拷贝脚本时逐个核对。
-> ⚠️ `wps_ppt_insert_native_chart` 在本机 **100% 失败**（[ISS-80](../../../docs/acceptance/2.1.0-p0p1/issues.md)：`AddChart/AddChart2/AddOLEObject` 返回 `null` 且不建形状）；PPT 原生图表要走 `generate_deck` 的 `chart` 布局，且其数值写入另有缺陷（[ISS-75](../../../docs/acceptance/2.1.0-p0p1/issues.md)）。
+> ⚠️ `wps_ppt_insert_native_chart` 在本机 **100% 失败**（ISS-80（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）：`AddChart/AddChart2/AddOLEObject` 返回 `null` 且不建形状）；PPT 原生图表要走 `generate_deck` 的 `chart` 布局，且其数值写入另有缺陷（ISS-75（本地 `docs/acceptance/2.1.0-p0p1/issues.md`））。
 
 ### 2.3 版式枚举（`layoutIndex` 实为 `ppLayout`，不是版式序号）
 
@@ -128,7 +130,7 @@ if (got !== want) throw new Error(`对齐未生效：期望 ${want}，读回 ${g
 | `1` | 标题幻灯片 | **实测**（`.scratch/ppt3/21-layoutindex-align.json` 读回 `layout=1 clName=标题幻灯片`） |
 | `2` | 标题和文本 | **实测**（同上，`layout=2`） |
 | `7` | 标题和图示或组织结构图 | **实测**（同上，`layout=7`） |
-| `12` | 越界但**不报错**（[ISS-82](../../../docs/acceptance/2.1.0-p0p1/issues.md)） | **实测** |
+| `12` | 越界但**不报错**（ISS-82（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）） | **实测** |
 
 > 其余 `ppLayout` 取值**未实测**；`21-layoutindex-align.json` 里只验证了 1/2/7 与越界 12。
 
@@ -180,7 +182,7 @@ cell.Shading.BackgroundPatternColor = 0xE8EEF7;   // 读回 15265527 = 0xE8EEF7
 | 新增一节 | `doc.Sections.Add(doc.Content.End - 1)` | **实测**（§4.1） |
 | 断开与上节的页眉链接 | `sec.Headers.Item(1).LinkToPrevious = false` | **实测**（§4.2） |
 | 节内页眉/页脚 | `sec.Headers.Item(1).Range.Text` / `sec.Footers.Item(1).Range.Text` | **实测**（§4.2；`DifferentFirstPageHeaderFooter` 由工具的 `differentFirstPage` 打开） |
-| 跨页水印（宿主工具只落第 1 节正文层） | 删正文层 WordArt 后在 `sec.Headers.Item(1)` 重建 | **实测**（§7.1，见 [ISS-58](../../../docs/acceptance/2.1.0-p0p1/issues.md)） |
+| 跨页水印（宿主工具只落第 1 节正文层） | 删正文层 WordArt 后在 `sec.Headers.Item(1)` 重建 | **实测**（§7.1，见 ISS-58（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）） |
 
 ---
 
@@ -194,4 +196,4 @@ const s = wb.Worksheets.Item(params.sheetName).Shapes.Item(1);
 return { type: Number(s.Type), lineVisible: !!s.Line.Visible, weight: Number(s.Line.Weight) };
 ```
 
-**必须避免**：对每一个成员逐个求值的"全量反射"（`for (const k in v) v[k]`）。已证实这会让 **WPS 进程崩溃**（[ISS-89](../../../docs/acceptance/2.1.0-p0p1/issues.md)：3 份崩溃报告、2 份栈逐帧一致，`jsetapi → etcore`），崩溃后组件掉线且桥接不会主动报"疑似崩溃"。**具体哪些成员危险目前没有安全清单**——所以只探你真正要用的那一个属性，并把它写进批次返回里复用。
+**必须避免**：对每一个成员逐个求值的"全量反射"（`for (const k in v) v[k]`）。已证实这会让 **WPS 进程崩溃**（ISS-89（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）：3 份崩溃报告、2 份栈逐帧一致，`jsetapi → etcore`），崩溃后组件掉线且桥接不会主动报"疑似崩溃"。**具体哪些成员危险目前没有安全清单**——所以只探你真正要用的那一个属性，并把它写进批次返回里复用。

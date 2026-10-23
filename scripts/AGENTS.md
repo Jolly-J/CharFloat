@@ -1,5 +1,7 @@
 # 辅助脚本与副作用
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 文件地图
 
 - [dev.ts](dev.ts)：启动 Vite 和 Electron；启动前依次构建主进程与**加载项部署入口**（`build:main` + `build:addons`）。
@@ -9,16 +11,16 @@
 - [build_beautified_sheet.ts](build_beautified_sheet.ts)：真实表格写入与排版。
 - [create-icons.mjs](create-icons.mjs)：生成图标文件。
 - [check-agents.mjs](check-agents.mjs)：只读检查协作导航。
-- [check-version.mjs](check-version.mjs)：以 package.json 为基准，只读核对锁文件、Bridge、加载项源码/清单、界面默认值和 CHANGELOG；`npm run check:version` 已接入 prebuild、beforePack 与 CI，不同步版本或执行发布。制度见 [release-policy.md](../docs/release-policy.md)。
-- [check-brand.mjs](check-brand.mjs)：只读检查当前文本与相对路径中的旧品牌标识；历史验收及既有发布包例外，构建输出和发布副本分别检查。范围见 [品牌声明](../docs/branding.md)。
+- [check-version.mjs](check-version.mjs)：以 package.json 为基准，只读核对锁文件、Bridge、加载项源码/清单、界面默认值和 CHANGELOG；`npm run check:version` 已接入 prebuild、beforePack 与 CI，不同步版本或执行发布。制度见 release-policy.md（本地 `docs/release-policy.md`）。
+- [check-brand.mjs](check-brand.mjs)：只读检查当前文本与相对路径中的旧品牌标识；历史验收及既有发布包例外，构建输出和发布副本分别检查。范围见 品牌声明（本地 `docs/branding.md`）。
 - [snapshot-tools.ts](snapshot-tools.ts)：只读导出工具契约与能力快照（`npm run snapshot:tools`）。
 - [check-capability-claims.ts](check-capability-claims.ts)：只读核对 skill、官网与**加载项页面**中的能力数量表述与元数据源（`npm run check:claims`）。
 - [check-param-forwarding.ts](check-param-forwarding.ts)：只读核对"**schema 声明了参数、网关处理器却没读取**"的静默丢参（`npm run check:params`）；带自检，证明能抓到未转发参数且读过的不误报。
 - [build-win-icon.mjs](build-win-icon.mjs)：由 `build/icon.png` 生成 Windows 用的**多尺寸** `build/icon.ico`（`npm run build:win-icon`）；纯 Node 实现（自带 PNG 解码/缩放/编码与 DIB 封装），写完自检格式，不通过不落盘。
-- [build-windows-bootstrap.mjs](build-windows-bootstrap.mjs)、[pack-windows-bootstrap.mjs](pack-windows-bootstrap.mjs)：Windows 专属；从已验收 ZIP、应用源码完整 SHA、引导源码完整 SHA 生成独立 Electron 引导，再由 portable NSIS 打成用户权限 EXE。品牌输入固定在 windows-bootstrap/assets（源自 website/public/character）；不运行安装、不改 Mac、不部署。详细命令和产物见 [双平台发布路径](../docs/windows-bootstrap.md)。
+- [build-windows-bootstrap.mjs](build-windows-bootstrap.mjs)、[pack-windows-bootstrap.mjs](pack-windows-bootstrap.mjs)：Windows 专属；从已验收 ZIP、应用源码完整 SHA、引导源码完整 SHA 生成独立 Electron 引导，再由 portable NSIS 打成用户权限 EXE。品牌输入固定在 windows-bootstrap/assets（源自 website/public/character）；不运行安装、不改 Mac、不部署。详细命令和产物见 双平台发布路径（本地 `docs/windows-bootstrap.md`）。
 - [lib/windows-portable.mjs](lib/windows-portable.mjs)：锁定 builder 25.1.8 和 portable 模板指纹，在本次编译输入 `.onInit` 中显式初始化插件目录，无外壳 splash；适配器仅在 pack 进程临时挂接并在 finally 恢复，不修改 node_modules。模板或编译接口变化须停止重审。
-- [dist-parallel.mjs](dist-parallel.mjs)：现有双平台并行入口（`dist:all` / `dist:fast`）；两平台虽输出到不同目录，beforePack 仍增删共享发布副本的 CLI 回退文件。副本隔离前正式验收构建须串行，见 [发布制度](../docs/release-policy.md)；不要把输出目录不同当作共享输入安全的证明。
-- [build-cli-bytecode.mjs](build-cli-bytecode.mjs)：把 `dist/bridge/cli.cjs` 编译成 **V8 字节码** `cli.jsc`，并把 `cli.cjs` 就地替换为加载器（`npm run build:bytecode`，已串进 `npm run build`）。**必须用 Electron 的 Node 编译**（V8 版本与运行时锁死）。详见 [code-protection.md](../docs/code-protection.md)。
+- [dist-parallel.mjs](dist-parallel.mjs)：现有双平台并行入口（`dist:all` / `dist:fast`）；两平台虽输出到不同目录，beforePack 仍增删共享发布副本的 CLI 回退文件。副本隔离前正式验收构建须串行，见 发布制度（本地 `docs/release-policy.md`）；不要把输出目录不同当作共享输入安全的证明。
+- [build-cli-bytecode.mjs](build-cli-bytecode.mjs)：把 `dist/bridge/cli.cjs` 编译成 **V8 字节码** `cli.jsc`，并把 `cli.cjs` 就地替换为加载器（`npm run build:bytecode`，已串进 `npm run build`）。**必须用 Electron 的 Node 编译**（V8 版本与运行时锁死）。详见 code-protection.md（本地 `docs/code-protection.md`）。
 - [check-cli-protection.mjs](check-cli-protection.mjs)：旧命令兼容入口，委托包级检查，不移动开发文件或连接默认用户服务。
 - [build-release-assets.mjs](build-release-assets.mjs)：仅生成 `dist/release-app/` 发布副本；输入白名单见 [release-files.json](release-files.json)，保护策略与过期校验见 [lib/release-protection.mjs](lib/release-protection.mjs)。
 - [check-release-protection.mjs](check-release-protection.mjs)：校验最终 ZIP/ASAR，底层见 [lib/check-release.mjs](lib/check-release.mjs)。
@@ -34,6 +36,15 @@
 ## 定位与联动
 
 先看脚本入口、目标、连接地址和写操作，再决定能否运行。命令入口见 [package.json](../package.json)。
+
+## 双平台构建入口
+
+公开仓库不提供本地 `docs/`，平台构建以本节和实际脚本为准：
+
+- **macOS arm64**：`npm run dist:mac` 生成 `release/<版本>/mac/` 内的 ZIP 和解包应用；发布前用 `node scripts/check-release-protection.mjs <实际ZIP路径>` 核验。不能套用 Windows 引导命令。
+- **Windows x64 载荷**：`npm run dist:win` 先生成 `release/<版本>/win/` 内的应用 ZIP；它是引导的载荷和明确标注的备用交付，不包含品牌配置界面。
+- **Windows 当前用户引导**：在隔离构建目录中执行 `node scripts/build-windows-bootstrap.mjs <已验证WindowsZIP> <应用源码完整SHA> <引导源码完整SHA>`，再执行 `node scripts/pack-windows-bootstrap.mjs`。输入 ZIP 必须先通过包级检查；产物为 `dist/windows-bootstrap/artifacts/CharFloat-<版本>-win-x64.exe`。脚本使用 `windows-bootstrap/assets/`，不依赖本地官网或 `docs/`。必须重新生成 stage，不能复用旧 `main.cjs`。
+- **验证与发布**：分别运行版本、导航、能力声明、类型、构建与单测门禁；Windows 引导另用完整 Electron 执行 `tests/windows-bootstrap-electron.cjs <payload.zip> <manifest.json> <新report.json>`，并单独验证 UI、外壳、普通用户路径和 Windows 实机行为。模拟测试不能代替实机；不得自动发布、覆盖正式版本或移动标签。发布需有用户授权，并记录两个源码 SHA、产物哈希与验证范围；本地诊断包和用户日志不得上传。
 
 ## 修改边界
 

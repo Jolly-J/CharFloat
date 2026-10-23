@@ -1,5 +1,7 @@
 # Office.js 加载项
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 文件地图
 
 - [src/](src/)：**源码**（P3.3 逐类拆分）。`state.js` / `ui.js` / `lifecycle.js`（共享运行时与每工作簿自动启动）/ `connection.js` / `rpc.js`（含 `dispatchExcelTool` 全部分支）/ `bootstrap.js`，以及 `src/excel/` 下按域细分的操作实现。
@@ -26,7 +28,7 @@ Office.js 与 WPS/COM 对象模型不同。读取先 load/sync，写入完成后
 
 侧栏图标正常但工具栏仍显示占位图，且 `/assets/icon-32.png` 实际返回 401 → 仅核对磁盘源码或重新构建不能证明后台已更新 → 独立后台会继续运行旧构建，侧栏与工具栏还使用不同的静态路径 → 核对 `/health` 的 PID 与进程启动时间，重启字浮后台后验证清单全部图标 URL 返回正确 PNG 且未禁止缓存；原生功能区仍未刷新时保存文件后重开 Excel → [静态路由实现](../src/bridge/ws-server.ts)、[HTTP 回归](../tests/service.test.ts)。
 
-未打开侧栏就调用 Office.js → 宿主没有启动加载项运行时，CLI 无法收到连接 → 普通任务窗格的运行生命周期依附页面 → 配置长生命周期共享运行时，首次激活后为当前工作簿启用自动启动；不支持的版本明确提示保持侧栏 → [生命周期测试](../tests/addon-lifecycle.test.ts)、[范围与官方依据](../docs/addon-background.md)。
+未打开侧栏就调用 Office.js → 宿主没有启动加载项运行时，CLI 无法收到连接 → 普通任务窗格的运行生命周期依附页面 → 配置长生命周期共享运行时，首次激活后为当前工作簿启用自动启动；不支持的版本明确提示保持侧栏 → [生命周期测试](../tests/addon-lifecycle.test.ts)、范围与官方依据（本地 `docs/addon-background.md`）。
 
 照搬 WPS 脚本 → Office.js 使用 context/Excel 且需同步 → 使用当前执行器约定 → 核对 taskpane.js 的 execute_script 与 normalizer，并实机读回。
 

@@ -30,4 +30,4 @@ Windows 写日志期间读取快照 → `ReadAllLines` 的默认共享会与已�
 
 ## 同步维护
 
-构建入口或产物变化同步根导航、scripts/AGENTS.md 与 docs/release-policy.md；不把旧源码标签误当新引导源码，分别保存应用载荷 SHA 与引导提交。
+构建入口或产物变化同步根导航、scripts/AGENTS.md 与本地 `docs/release-policy.md`（不随 GitHub clone 提供）；不把旧源码标签误当新引导源码，分别保存应用载荷 SHA 与引导提交。

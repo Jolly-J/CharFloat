@@ -1,5 +1,7 @@
 # WPS 宿主执行
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 文件地图
 
 - [src/](src/)：**源码**。`shared.js` 配置与跨组件公共工具、`connection.js` 连接握手、`ribbon.js` 侧栏入口与操作回调、`panel.js` 侧栏状态与交互、`dispatch.js` RPC 分发、`word.js` / `ppt.js` 文字和演示操作、`ppt-layout.js` **纯布局计算（无宿主 API，可 Node 直接 import）**、`bootstrap.js` 启动引导。
@@ -29,19 +31,19 @@
 
 向 `src` 子目录新增片段 → 仅登记构建清单或只扫描第一层会漏拼/误报缺失 → 清单必须与递归发现的全部 JS 一一对应 → 使用显式顺序，保留未登记、缺失与重复拒绝；测试导出放在 `@build-strip` 块内 → [清单回归](../tests/wps-addon-modules.test.ts)。
 
-图标路径存在但画面空白 → 只检查文件存在会漏掉全透明 PNG → 本次源图全部像素 alpha=0 → 加载项使用 `resources/icon.png` 的原始 App 图标，并检查非透明像素；图标纳入构建指纹 → [生命周期回归](../tests/addon-lifecycle.test.ts)。Mac 功能区自定义图标的宿主限制见 [后台连接说明](../docs/addon-background.md)。
+图标路径存在但画面空白 → 只检查文件存在会漏掉全透明 PNG → 本次源图全部像素 alpha=0 → 加载项使用 `resources/icon.png` 的原始 App 图标，并检查非透明像素；图标纳入构建指纹 → [生命周期回归](../tests/addon-lifecycle.test.ts)。Mac 功能区自定义图标的宿主限制见 后台连接说明（本地 `docs/addon-background.md`）。
 
-侧栏再次加载整个部署入口 → 两条 WebSocket 互相替换、关闭 UI 后断线 → 面板与宿主入口是独立上下文 → 面板标识禁用连接、心跳和事件注册；只从 HTTP 获取状态 → [生命周期测试](../tests/addon-lifecycle.test.ts)，设计见 [后台连接](../docs/addon-background.md)。
+侧栏再次加载整个部署入口 → 两条 WebSocket 互相替换、关闭 UI 后断线 → 面板与宿主入口是独立上下文 → 面板标识禁用连接、心跳和事件注册；只从 HTTP 获取状态 → [生命周期测试](../tests/addon-lifecycle.test.ts)，设计见 后台连接（本地 `docs/addon-background.md`）。
 
 改了 `src/**` 但忘记重新构建 → 测试与部署仍跑旧 `addon-core.js`，改动看着"没生效"或"已生效"都是假的 → 生成物必须由构建刷新 → `npm run build:wps-addon --check` 漂移即报错；[ppt-layout.test.ts](../tests/ppt-layout.test.ts) 也断言生成物与源码一致。
 
 PPT 在大页面集中左上角 → 固定 720×405 坐标直接用于所有页面 → 布局未换算真实尺寸 → 按实际宽高映射并检查字号容量 → [ppt-layout.test.ts](../tests/ppt-layout.test.ts) 加真实预览。公式结果为 0 → 用真假判断空值会丢数据 → 区分 null/undefined 与 0 → [addon.test.ts](../tests/addon.test.ts)。
 
-写脚本读回 Word/表格文本、想清掉段落标记与单元格标记 → 用 `.replace(/[\r\n\a]/g, "")`——**JS 正则里 `\a` 是恒等转义、等于字母 `a`**（`\a` = BEL `0x07` 是 C/PCRE/.NET 的语义）→ 于是探针**先把读回文本里所有小写 `a` 删掉再比对**，得出"宿主吞掉了所有小写字母 `a`"的假报警：ISS-67 据此被记成"高严重度静默改坏内容"，实际宿主写入一直正确（原始输出 `strippedMatch:[148]`／共 149 段，恰好证明内容写到了文末），差点去改正常的写入路径 → 控制符一律写 `\x07`（本文件已有的读回代码就是这么写的），**看到"宿主行为诡异"先逐行回读探针自己的清洗/比较/断言逻辑** → 证据：[03-word.md §10 撤稿记录](../docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md)、[issues.md 撤稿记录](../docs/acceptance/2.1.0-p0p1/issues.md)；同类"测试工具出错却指向产品"本轮已 4 次。
+写脚本读回 Word/表格文本、想清掉段落标记与单元格标记 → 用 `.replace(/[\r\n\a]/g, "")`——**JS 正则里 `\a` 是恒等转义、等于字母 `a`**（`\a` = BEL `0x07` 是 C/PCRE/.NET 的语义）→ 于是探针**先把读回文本里所有小写 `a` 删掉再比对**，得出"宿主吞掉了所有小写字母 `a`"的假报警：ISS-67 据此被记成"高严重度静默改坏内容"，实际宿主写入一直正确（原始输出 `strippedMatch:[148]`／共 149 段，恰好证明内容写到了文末），差点去改正常的写入路径 → 控制符一律写 `\x07`（本文件已有的读回代码就是这么写的），**看到"宿主行为诡异"先逐行回读探针自己的清洗/比较/断言逻辑** → 证据：03-word.md §10 撤稿记录（本地 `docs/acceptance/2.1.0-p0p1/p5/mcp-sweep/03-word.md`）、issues.md 撤稿记录（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）；同类"测试工具出错却指向产品"本轮已 4 次。
 
-`watermarkText` 与 `AddTextEffect` → 以为只是"水印落在正文层、只在第 1 页"这种效果问题 → 真机实测该调用会让 **WPS 主进程 SIGSEGV 崩溃**（崩溃报告已核实：`wpsapi` 栈帧连续重复 6 帧＝无限递归；Word/PPT/Excel 同时掉线，可能带走用户未保存数据）→ **该参数已在源码层硬禁用**：`wordPageLayoutAndWatermark` 在任何宿主写操作之前拒绝、已删除 `AddTextEffect` 实现、`action:"read"` 读回通路保留；解除禁用前必须换宿主版本并在**独立测试文档**上单独验证不再崩 → 证据：[issues.md ISS-125](../docs/acceptance/2.1.0-p0p1/issues.md)、[agent-tests/word-fixes.md §2](../docs/acceptance/2.1.0-p0p1/agent-tests/word-fixes.md)。
+`watermarkText` 与 `AddTextEffect` → 以为只是"水印落在正文层、只在第 1 页"这种效果问题 → 真机实测该调用会让 **WPS 主进程 SIGSEGV 崩溃**（崩溃报告已核实：`wpsapi` 栈帧连续重复 6 帧＝无限递归；Word/PPT/Excel 同时掉线，可能带走用户未保存数据）→ **该参数已在源码层硬禁用**：`wordPageLayoutAndWatermark` 在任何宿主写操作之前拒绝、已删除 `AddTextEffect` 实现、`action:"read"` 读回通路保留；解除禁用前必须换宿主版本并在**独立测试文档**上单独验证不再崩 → 证据：issues.md ISS-125（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）、agent-tests/word-fixes.md §2（本地 `docs/acceptance/2.1.0-p0p1/agent-tests/word-fixes.md`）。
 
-`app.Workbooks.Add()` 返回 null、工作簿数不变 → 以为是自己代码的 bug 去改代码 → 真机复现：**WPS 长会话（高频调用累积）后会进入拒绝新建文档的状态**，`Add()` 返回 null 且 `Workbooks.Count` 不变（`DisplayAlerts=true`，不是对话框阻塞）；**重启 WPS 后立即恢复** → 建簿路径必须**校验返回值**并明说「宿主拒绝 + 建议重启 WPS」，不要报成「已新建工作簿 [null]」（那文案会被误读成代码 bug，把排查方向带偏）；**此类问题的排查顺序是「先重启宿主、再怀疑代码」** → 证据见 [issues.md ISS-131](../docs/acceptance/2.1.0-p0p1/issues.md)。
+`app.Workbooks.Add()` 返回 null、工作簿数不变 → 以为是自己代码的 bug 去改代码 → 真机复现：**WPS 长会话（高频调用累积）后会进入拒绝新建文档的状态**，`Add()` 返回 null 且 `Workbooks.Count` 不变（`DisplayAlerts=true`，不是对话框阻塞）；**重启 WPS 后立即恢复** → 建簿路径必须**校验返回值**并明说「宿主拒绝 + 建议重启 WPS」，不要报成「已新建工作簿 [null]」（那文案会被误读成代码 bug，把排查方向带偏）；**此类问题的排查顺序是「先重启宿主、再怀疑代码」** → 证据见 issues.md ISS-131（本地 `docs/acceptance/2.1.0-p0p1/issues.md`）。
 
 构建产物**会做 esbuild 压缩**（`minify: true`，`target: es2018`）→ 用它去注释、缩短局部变量名，避免宿主适配实现随加载项明文外发；`addon-core.js` 从 12,020 行降到 84 行。**压缩不改动字符串字面量**，所以产品名、能力数量、错误文案等运行时可见文本不受影响。
 ⚠️ **构建指纹必须留在文件最前面**：桥接只读**前 4096 字节**匹配 `ADDON_BUILD_FINGERPRINT: <hex>`（见 [build-fingerprint.ts](../src/bridge/build-fingerprint.ts)）。压缩会剥掉头部注释，所以构建脚本在压缩后**重新注入**头部，并断言指纹串仍在、且确实以头部开头，否则中止写出。

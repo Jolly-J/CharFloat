@@ -1,5 +1,7 @@
 # Windows 原生 Office
 
+> `docs/` 为维护者本地资料，不随 GitHub 仓库提供；下文本地资料路径仅供已有资料时参考，不是构建或使用前提。
+
 ## 文件地图
 
 - [runner.ps1](runner.ps1)：JSON 输入与 action 分发。
@@ -16,7 +18,7 @@
 
 ## 验证
 
-Windows 下检查 [native-contracts.ps1](../../tests/native-contracts.ps1)；实机要求见 [windows-office.ps1](../../tests/windows-office.ps1) 和 [验证文档](../../docs/validation.md)。先读脚本再运行。
+Windows 下检查 [native-contracts.ps1](../../tests/native-contracts.ps1)；实机要求见 [windows-office.ps1](../../tests/windows-office.ps1) 和 验证文档（本地 `docs/validation.md`）。先读脚本再运行。
 
 ## 避坑
 

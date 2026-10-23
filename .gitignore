@@ -76,3 +76,6 @@ __pycache__/
 # 本地依赖缓存/包管理器产物（pnpm 本地 store、构建缓存）
 .pnpm-store/
 .build/
+
+# 仅本地保留的内部资料
+/docs/
