@@ -13,16 +13,16 @@ function render(state) {
   if (currentStage !== stage) {
     currentStage = stage;
     const content = {
-      hello: ['hello', '字浮向你打招呼', '你好，很高兴见到你', '字浮，马上就绪。', '稍等片刻，我来为你准备好一切。', '01 / 打个招呼'],
-      work: ['work', '字浮正在工作', '交给我，正在准备中', '把一切安排妥当。', '正在准备应用文件，并为你创建桌面快捷方式。', '02 / 配置中'],
-      done: ['done', '字浮开心地庆祝', '准备完成，现在就出发', '一切就绪，开始吧。', '字浮已准备好，桌面快捷方式也已经就位。', '03 / 准备好了'],
-      error: ['hello', '字浮等待重试', '还差一步，我们慢慢来', '配置暂未完成。', '已有应用和文件已保留，请关闭引导后重试。', '配置遇到问题']
+      hello: ['hello', '字浮向你打招呼', '你好，很高兴见到你', '字浮，马上就绪。', '稍等片刻，我来为你准备好一切。'],
+      work: ['work', '字浮正在工作', '交给我，正在准备中', '把一切安排妥当。', '正在准备应用文件，并为你创建桌面快捷方式。'],
+      done: ['done', '字浮开心地庆祝', '准备完成，现在就出发', '一切就绪，开始吧。', '字浮已准备好，桌面快捷方式也已经就位。'],
+      error: ['hello', '字浮等待重试', '还差一步，我们慢慢来', '配置暂未完成。', '已有应用和文件已保留，请关闭引导后重试。']
     }[stage];
     if (!content) return;
-    const [asset, alt, eyebrow, title, description, step] = content;
+    const [asset, alt, eyebrow, title, description] = content;
     byId('character').src = `assets/${asset}.png`; byId('character').alt = alt;
     byId('eyebrow').textContent = eyebrow; byId('title').textContent = title;
-    byId('description').textContent = description; byId('step').textContent = step;
+    byId('description').textContent = description;
   }
   byId('close').disabled = stage === 'hello' || stage === 'work' || (stage === 'done' && !state.enabled);
   byId('progress-area').hidden = stage !== 'work'; byId('launch').hidden = stage !== 'done';
@@ -39,7 +39,7 @@ function render(state) {
 }
 byId('close').onclick = () => window.setup?.close();
 byId('launch').onclick = async () => {
-  byId('launch').disabled = true; byId('launch').textContent = '正在启动…';
+  byId('launch').disabled = true; byId('launch').textContent = '正在启动';
   const result = await window.setup.launch();
   if (!result.ok) { byId('launch').textContent = '重新启动'; byId('launch').disabled = false; byId('description').textContent = result.message || '启动未完成，请重试。'; }
 };

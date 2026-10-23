@@ -24,6 +24,8 @@
 - [win-icon.test.ts](win-icon.test.ts)：Windows 图标生成器的 PNG 解码/缩放/编码与 ICO 条目格式（含"小于 256 的条目必须是 DIB"的回归项）。
 - [windows-bootstrap.test.ts](windows-bootstrap.test.ts)：用户目录、真实 ZIP/逐文件哈希、慢写入字节进度、全局合并、错误哈希不可计完成、原生开屏像素、诊断日志白名单/脱敏/上限与入口静态约束、越界与链接防护、未知文件保留、并发锁、快捷方式适配器、最低五秒阶段和启动环境；只操作临时目录，Windows Shell 与 PowerShell 启动入口仍需实机验收。
 - [windows-bootstrap-electron.cjs](windows-bootstrap-electron.cjs)：显式用完整 Electron 主进程与真实 ZIP/manifest 验证物理 `app.asar`、逐文件核验、重复配置和全局进度合并；只写独立临时目录，用无副作用快捷方式适配器，30 秒截止，不启动真实应用。此项不能以 Electron Node 模式或普通 Node 替代，运行命令见双平台构建文档。
+- [windows-bootstrap-sharing.ps1](windows-bootstrap-sharing.ps1)：由 Windows 条件单测启动，验证真实 Node 写句柄打开时共享读取、UTF-8 半行、去重、暂态失败保留与恢复；只访问测试临时文件，不改执行策略。非 Windows 明确跳过。
+- [windows-bootstrap-ui.cjs](windows-bootstrap-ui.cjs)：完整 Electron 静态四态截图、关闭图标中心与标注/按钮断言；按指定 zoom 同比例放大窗口模拟显示缩放，记录实际 devicePixelRatio，不把模拟写成 Windows DPI 实测。无 preload、无安装操作，输出拒绝覆盖。
 - [office.test.ts](office.test.ts)：Office.js 参数转换。
 - [office-background-routing.test.ts](office-background-routing.test.ts)：多工作簿后台连接、精确路由、歧义拒绝、改名和 WPS/Office 通道隔离。
 - [service.test.ts](service.test.ts)：HTTP/MCP、鉴权、审计。

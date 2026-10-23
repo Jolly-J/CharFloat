@@ -16,7 +16,7 @@
 - [check-param-forwarding.ts](check-param-forwarding.ts)：只读核对"**schema 声明了参数、网关处理器却没读取**"的静默丢参（`npm run check:params`）；带自检，证明能抓到未转发参数且读过的不误报。
 - [build-win-icon.mjs](build-win-icon.mjs)：由 `build/icon.png` 生成 Windows 用的**多尺寸** `build/icon.ico`（`npm run build:win-icon`）；纯 Node 实现（自带 PNG 解码/缩放/编码与 DIB 封装），写完自检格式，不通过不落盘。
 - [build-windows-bootstrap.mjs](build-windows-bootstrap.mjs)、[pack-windows-bootstrap.mjs](pack-windows-bootstrap.mjs)：Windows 专属；从已验收 ZIP、应用源码完整 SHA、引导源码完整 SHA 生成独立 Electron 引导，再由 portable NSIS 打成用户权限 EXE。品牌输入固定在 windows-bootstrap/assets（源自 website/public/character）；不运行安装、不改 Mac、不部署。详细命令和产物见 [双平台发布路径](../docs/windows-bootstrap.md)。
-- [lib/bootstrap-splash.mjs](lib/bootstrap-splash.mjs)：将吉祥物 PNG 的 `.rgba` 像素合成到 24 位开屏 BMP 的纯函数；测试透明混色和真实素材颜色，最终 EXE 反解后仍须检查开屏，不能只验 Electron 三态。
+- [lib/windows-portable.mjs](lib/windows-portable.mjs)：锁定 builder 25.1.8 和 portable 模板指纹，在本次编译输入 `.onInit` 中显式初始化插件目录，无外壳 splash；适配器仅在 pack 进程临时挂接并在 finally 恢复，不修改 node_modules。模板或编译接口变化须停止重审。
 - [dist-parallel.mjs](dist-parallel.mjs)：现有双平台并行入口（`dist:all` / `dist:fast`）；两平台虽输出到不同目录，beforePack 仍增删共享发布副本的 CLI 回退文件。副本隔离前正式验收构建须串行，见 [发布制度](../docs/release-policy.md)；不要把输出目录不同当作共享输入安全的证明。
 - [build-cli-bytecode.mjs](build-cli-bytecode.mjs)：把 `dist/bridge/cli.cjs` 编译成 **V8 字节码** `cli.jsc`，并把 `cli.cjs` 就地替换为加载器（`npm run build:bytecode`，已串进 `npm run build`）。**必须用 Electron 的 Node 编译**（V8 版本与运行时锁死）。详见 [code-protection.md](../docs/code-protection.md)。
 - [check-cli-protection.mjs](check-cli-protection.mjs)：旧命令兼容入口，委托包级检查，不移动开发文件或连接默认用户服务。

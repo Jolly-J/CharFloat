@@ -30,24 +30,24 @@ $report = [ordered]@{ runId=$runId; startedAt=[DateTime]::UtcNow.ToString('o'); 
   process64Bit=[Environment]::Is64BitProcess; os64Bit=[Environment]::Is64BitOperatingSystem;
   coverage=[ordered]@{ nativeNSIS='Process path/hash/pid/exit and available stdout/stderr only; native MessageBox and Win32 calls are not traced.'; application='Bootstrap lifecycle only; installed application and Office documents are not monitored.'; networkUpload=$false; screenRecording=$false } }
 $utf8 = New-Object Text.UTF8Encoding($false)
+$snapshotState = $null
 function Save-Report {
   if ($outText) { $report['stdout']=Protect-Text $outText.ToString() }
   if ($errText) { $report['stderr']=Protect-Text $errText.ToString() }
   $report['updatedAt'] = [DateTime]::UtcNow.ToString('o')
   $report['bootstrapLogPresent'] = [IO.File]::Exists((Join-Path $runDir 'bootstrap.jsonl'))
-  $events = New-Object Collections.Generic.List[object]
-  if ($report['bootstrapLogPresent']) {
-    try {
-      foreach ($line in [IO.File]::ReadAllLines((Join-Path $runDir 'bootstrap.jsonl'))) {
-        if ($events.Count -ge 10000) { break }
-        try { $item = $line | ConvertFrom-Json; if ($item.runId -eq $runId) { $events.Add($item) } } catch { }
-      }
-    } catch { $report['logReadWarning'] = Protect-Text $_.Exception.Message }
+  $events = @()
+  if ($snapshotState) {
+    if ($report['bootstrapLogPresent']) { Update-DiagnosticSnapshot (Join-Path $runDir 'bootstrap.jsonl') $runId $snapshotState }
+    $events = @($snapshotState.cache.Values | Sort-Object sequence)
+    if ($snapshotState.currentWarning) { $report['logReadWarning']=Protect-Text $snapshotState.currentWarning }
+    elseif ($report.Contains('logReadWarning')) { $report.Remove('logReadWarning') }
+    $report['logReadDiagnostics'] = [ordered]@{ readErrors=$snapshotState.readErrors; recoveredReadErrors=$snapshotState.recoveredReadErrors; lastReadErrorAt=$snapshotState.lastReadErrorAt; lastRecoveryAt=$snapshotState.lastRecoveryAt; incompleteTail=$snapshotState.incompleteTail; invalidCompleteLines=$snapshotState.invalidCompleteLines; eventLimitReached=$snapshotState.eventLimitReached }
   }
-  $report['bootstrapEvents'] = @($events.ToArray())
+  $report['bootstrapEvents'] = @($events)
   $report['coverage']['bootstrapLifecycle'] = $(if ($events.Count -gt 0) { 'observed-events-see-report' } else { 'not-observed-check-stderr-and-native-coverage-gap' })
   $finalFile = Join-Path $runDir 'bootstrap-final.json'
-  if ([IO.File]::Exists($finalFile)) { try { $report['bootstrapFinal'] = [IO.File]::ReadAllText($finalFile) | ConvertFrom-Json } catch { } }
+  if ($snapshotState -and [IO.File]::Exists($finalFile)) { try { $report['bootstrapFinal'] = (Read-SharedDiagnosticText $finalFile 65536) | ConvertFrom-Json } catch { } }
   $json = $report | ConvertTo-Json -Depth 14
   [IO.File]::WriteAllText($reportPath, $json, $utf8)
 }
@@ -64,6 +64,8 @@ try {
   if ($report['elevated']) { throw 'Please close this window and run the diagnostic normally, without administrator privileges.' }
   Assert-SafeDirectory $runDir
   [void][IO.Directory]::CreateDirectory($runDir)
+  . (Join-Path $PSScriptRoot 'Read-DiagnosticSnapshot.ps1')
+  $snapshotState = New-DiagnosticSnapshotState
   Write-Host ('Report (also updated while running): ' + $reportPath)
   $report['temp'] = [ordered]@{ tmp=Protect-Text ([string]$env:TMP); temp=Protect-Text ([string]$env:TEMP); dotNet=Protect-Text ([IO.Path]::GetTempPath()) }
   $package = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'debug-package.json')) | ConvertFrom-Json

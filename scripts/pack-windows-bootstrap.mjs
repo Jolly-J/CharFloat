@@ -3,17 +3,28 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { build, Platform, Arch } from 'electron-builder';
+import { NsisTarget } from 'app-builder-lib/out/targets/nsis/NsisTarget.js';
+import { assertPortableDefines, installPortableCompileHook, PORTABLE_TEMPLATE_SHA256 } from './lib/windows-portable.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config=JSON.parse(fs.readFileSync(path.join(root,'dist/windows-bootstrap/builder.json'),'utf8'));
-let checked=false;
-await build({ projectDir:root,targets:Platform.WINDOWS.createTarget('portable',Arch.x64),config:path.join(root,'dist/windows-bootstrap/builder.json'),publish:'never',
+const require = createRequire(import.meta.url);
+const builderRoot = path.dirname(require.resolve('app-builder-lib/package.json'));
+const version = JSON.parse(fs.readFileSync(path.join(builderRoot,'package.json'),'utf8')).version;
+const template = fs.readFileSync(path.join(builderRoot,'templates/nsis/portable.nsi'),'utf8');
+let checked=false, compiled=false;
+const restore = installPortableCompileHook(NsisTarget, { template, version, onCompiled: script => {
+  compiled=true;
+  fs.writeFileSync(path.join(root,'dist/windows-bootstrap/nsis-check.json'),JSON.stringify({requestExecutionLevel:'user',uniquePerLaunchTemp:true,splash:false,explicitInitBeforeSilent:true,unpackDirNameDefined:false,templateSha256:PORTABLE_TEMPLATE_SHA256,compilerInputSha256:createHash('sha256').update(script).digest('hex')},null,2)+'\n');
+  fs.writeFileSync(path.join(root,'dist/windows-bootstrap/nsis-input.nsi'),script);
+} });
+try { await build({ projectDir:root,targets:Platform.WINDOWS.createTarget('portable',Arch.x64),config:path.join(root,'dist/windows-bootstrap/builder.json'),publish:'never',
   effectiveOptionComputed: async ([defines]) => {
-    assert.equal(defines.REQUEST_EXECUTION_LEVEL,'user','外壳不得请求管理员权限');
-    assert.ok(!('UNPACK_DIR_NAME' in defines),'必须使用每次启动独立的临时目录');
-    assert.ok(defines.SPLASH_IMAGE,'须显式初始化插件临时目录');
+    assertPortableDefines(defines);
     checked=true;
-    fs.writeFileSync(path.join(root,'dist/windows-bootstrap/nsis-check.json'),JSON.stringify({requestExecutionLevel:defines.REQUEST_EXECUTION_LEVEL,uniquePerLaunchTemp:true,splash:true,unpackDirNameDefined:false},null,2)+'\n');
     return false;
-  } });
+  } }); } finally { restore(); }
 assert.ok(checked,'没有实际执行 NSIS 参数检查');
+assert.ok(compiled,'没有实际编译已核查的静默外壳脚本');

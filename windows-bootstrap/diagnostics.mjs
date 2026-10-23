@@ -22,6 +22,7 @@ export function createDiagnostics({ env = process.env, now = Date.now, maximumBy
     const expected = realpath(path.join(env.LOCALAPPDATA, 'CharFloatStartupDiagnostics', runId));
     const normalize = value => process.platform === 'win32' ? value.toLowerCase() : value;
     if (normalize(physicalDir) !== normalize(expected)) return unavailable('directory-mismatch');
+    // wx 是独占创建而非独占共享；libuv 的 Win32 默认允许 Read/Write/Delete 共享。
     fd = fs.openSync(path.join(physicalDir, 'bootstrap.jsonl'), 'wx', 0o600);
   } catch { return unavailable('unsafe-or-unavailable-directory'); }
   const start = now(); let sequence = 0, size = 0, closed = false, last = {}, failed = false, capped = false;

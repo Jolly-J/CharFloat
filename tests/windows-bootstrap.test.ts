@@ -13,13 +13,59 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { deflateRawSync } from 'node:zlib';
-import { buildSplashBitmap } from '../scripts/lib/bootstrap-splash.mjs';
-import { encodePng } from '../scripts/build-win-icon.mjs';
 import { createProgressSender } from '../windows-bootstrap/progress.mjs';
 import { createDiagnostics } from '../windows-bootstrap/diagnostics.mjs';
 import physicalFs from '../windows-bootstrap/physical-fs.mjs';
+import { preparePortableScript, assertPortableDefines, installPortableCompileHook } from '../scripts/lib/windows-portable.mjs';
+import { spawn } from 'node:child_process';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+const builderRequire=createRequire(import.meta.url);
+const portableTemplate=fs.readFileSync(path.join(path.dirname(builderRequire.resolve('app-builder-lib/package.json')),'templates/nsis/portable.nsi'),'utf8');
+test('静默portable在onInit先建独立插件目录；载荷提取与ExecWait保持原模板',()=>{
+  const script=preparePortableScript('header\n'+portableTemplate,portableTemplate,'25.1.8');
+  const init=script.slice(script.indexOf('Function .onInit'),script.indexOf('FunctionEnd',script.indexOf('Function .onInit')));
+  assert.ok(init.indexOf('InitPluginsDir')<init.indexOf('SetSilent silent'));
+  assert.equal((script.match(/^  InitPluginsDir$/gm)||[]).length,1);
+  assert.equal(script.slice(script.indexOf('\nSection\n')),portableTemplate.slice(portableTemplate.indexOf('\nSection\n')));
+  assertPortableDefines({REQUEST_EXECUTION_LEVEL:'user'});
+  for(const d of [{REQUEST_EXECUTION_LEVEL:'admin'},{REQUEST_EXECUTION_LEVEL:'user',SPLASH_IMAGE:'old.bmp'},{REQUEST_EXECUTION_LEVEL:'user',UNPACK_DIR_NAME:'fixed'}])assert.throws(()=>assertPortableDefines(d));
+  assert.throws(()=>preparePortableScript(portableTemplate,portableTemplate,'26.0.0'));
+  assert.throws(()=>preparePortableScript(portableTemplate+'changed',portableTemplate,'25.1.8'));
+  assert.throws(()=>preparePortableScript(portableTemplate,portableTemplate+'changed','25.1.8'));
+});
+test('实际编译适配器传递已初始化脚本，成功/失败均可恢复原方法',async()=>{
+  let received='';class Target{isPortable=true;async executeMakensis(_d:any,_c:any,s:string){received=s;}}
+  const original=Target.prototype.executeMakensis;let compiled=0;
+  assert.throws(()=>installPortableCompileHook(Target,{template:portableTemplate,version:'26.0.0'}));assert.equal(Target.prototype.executeMakensis,original);
+  const restore=installPortableCompileHook(Target,{template:portableTemplate,version:'25.1.8',onCompiled:()=>compiled++});
+  try{await new Target().executeMakensis({REQUEST_EXECUTION_LEVEL:'user'},{},portableTemplate);}finally{restore();}
+  assert.match(received,/Function \.onInit\n[^]*?InitPluginsDir[^]*?SetSilent silent/);assert.equal(compiled,1);assert.equal(Target.prototype.executeMakensis,original);
+  const restoreFailure=installPortableCompileHook(Target,{template:portableTemplate,version:'25.1.8'});
+  try{await assert.rejects(new Target().executeMakensis({REQUEST_EXECUTION_LEVEL:'admin'},{},portableTemplate));}finally{restoreFailure();}
+  assert.equal(Target.prototype.executeMakensis,original);
+});
+test('引导界面移除边角文字和按钮符号，关闭按钮保留可访问SVG',()=>{
+  const html=fs.readFileSync('windows-bootstrap/index.html','utf8'),code=fs.readFileSync('windows-bootstrap/renderer.js','utf8');
+  assert.match(html,/<button id="close" aria-label="关闭"><svg[^>]*aria-hidden="true"/);assert.match(html,/<button id="launch" hidden disabled>开始使用<\/button>/);
+  assert.doesNotMatch(html,/<footer|id="step"|↗|给你的 AI/);assert.doesNotMatch(code,/byId\('step'\)/);
+});
+test('Windows真实Node写句柄与PowerShell共享快照、UTF8半行、去重和暂态恢复', {skip:process.platform!=='win32'}, async t=>{
+  const f=await fixture(t), log=path.join(f.dir,'shared.jsonl'), ready=path.join(f.dir,'reader-ready'),gate=path.join(f.dir,'continue'),result=path.join(f.dir,'snapshot.json'),runId='12345678-1234-1234-1234-123456789abc';
+  const fd=fs.openSync(log,'wx');let child:any, timer:any;
+  try {
+  const second=Buffer.from(JSON.stringify({runId,sequence:2,message:'合成内容'})), split=second.indexOf(Buffer.from('合'))+1;
+  fs.writeSync(fd,JSON.stringify({runId,sequence:1,event:'first'})+'\n');fs.writeSync(fd,second.subarray(0,split));
+  child=spawn('powershell.exe',['-NoLogo','-NoProfile','-File',path.resolve('tests/windows-bootstrap-sharing.ps1'),log,runId,ready,gate,result],{stdio:['ignore','pipe','pipe']});
+  let stderr='';child.stderr.on('data',b=>stderr=(stderr+b).slice(-16384));
+  const exited=new Promise<number|null>((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});
+  timer=setTimeout(()=>child.kill(),15000);
+  const deadline=Date.now()+10000;while(!fs.existsSync(ready)){assert.ok(Date.now()<deadline&&child.exitCode===null,stderr||'PowerShell reader did not start');await new Promise(r=>setTimeout(r,20));}
+  fs.writeSync(fd,second.subarray(split));fs.writeSync(fd,'\n'+second.toString()+'\n');fs.writeFileSync(gate,'continue');
+  const code=await exited;assert.equal(code,0,stderr);const data=JSON.parse(fs.readFileSync(result,'utf8'));
+  assert.equal(data.legacyBlocked,true);assert.equal(data.firstCount,1);assert.equal(data.firstIncomplete,true);assert.equal(data.secondCount,2);assert.equal(data.secondIncomplete,false);assert.equal(data.failurePreserved,true);assert.equal(data.recovered,1);assert.equal(data.warningCleared,true);assert.equal(data.message,'合成内容');
+  } finally { clearTimeout(timer);if(child&&child.exitCode===null)child.kill();fs.closeSync(fd); }
+});
 test('普通 Node 使用原生 fs；诊断默认关闭，显式日志白名单/脱敏/大小上限与终态落盘',async t=>{
   assert.equal(physicalFs,fs);assert.equal(createDiagnostics({env:{}}).enabled,false);
   const f=await fixture(t), runId='12345678-1234-1234-1234-123456789abc', local=await fs.promises.realpath(f.local), dir=path.join(local,'CharFloatStartupDiagnostics',runId);
@@ -61,16 +107,7 @@ test('跨小文件全局合并进度，保留最新值与阶段切换；终态�
   progress.push({phase:'verify-files',bytes:10});const afterFailure=[...timers.values()][0];progress.dispose();
   afterFailure();progress.push({phase:'extract',bytes:999});assert.equal(sent.length,4);assert.equal(timers.size,0);
 });
-test('原生开屏 BMP 包含真实吉祥物像素，RGBA 合成不能静默变成纯黑方块',()=>{
-  const pixel=(b:Buffer,x:number,y:number)=>[...b.subarray(54+(259-y)*1200+x*3,57+(259-y)*1200+x*3)].reverse();
-  const png=encodePng({width:1,height:1,rgba:Buffer.from([100,120,160,128])}), synthetic=buildSplashBitmap(png);
-  assert.equal(synthetic.toString('ascii',0,2),'BM');assert.equal(synthetic.readUInt32LE(2),312054);assert.equal(synthetic.readInt32LE(18),400);assert.equal(synthetic.readInt32LE(22),260);assert.equal(synthetic.readUInt16LE(28),24);
-  assert.deepEqual(pixel(synthetic,0,0),[233,244,255]);
-  assert.deepEqual(pixel(synthetic,200,100),[166,182,207]);
-  const real=buildSplashBitmap(fs.readFileSync('windows-bootstrap/assets/hello.png')), colors=new Set(); let black=0;
-  for(let y=20;y<240;y++)for(let x=90;x<310;x++){const p=pixel(real,x,y);colors.add(p.join(','));if(p.every(v=>v===0))black++;}
-  assert.ok(colors.size>200,`吉祥物需保留颜色与轮廓，实际 ${colors.size} 色`);assert.ok(black<220*220/10,'不能生成整块黑色');
-});
+
 function crc32(b: Buffer) { let c = 0xffffffff; for (const value of b) { c ^= value; for (let i=0;i<8;i++) c=(c>>>1)^((c&1)?0xedb88320:0); } return (c^0xffffffff)>>>0; }
 function zip(entries: [string,Buffer][]) {
   const locals: Buffer[] = [], centers: Buffer[] = []; let offset=0;
