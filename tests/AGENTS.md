@@ -22,6 +22,7 @@
 - [tool-error-response.test.ts](tool-error-response.test.ts)：协议错误白名单和执行状态保守透传。
 - [ppt-layout.test.ts](ppt-layout.test.ts)：页面缩放、容量及脚本参数。
 - [win-icon.test.ts](win-icon.test.ts)：Windows 图标生成器的 PNG 解码/缩放/编码与 ICO 条目格式（含"小于 256 的条目必须是 DIB"的回归项）。
+- [windows-bootstrap.test.ts](windows-bootstrap.test.ts)：用户目录、真实 ZIP/逐文件哈希、越界与链接防护、未知文件保留、并发锁、失败读回、快捷方式适配器、最低五秒阶段和启动环境；只操作临时目录，Windows Shell 仍需实机验收。
 - [office.test.ts](office.test.ts)：Office.js 参数转换。
 - [office-background-routing.test.ts](office-background-routing.test.ts)：多工作簿后台连接、精确路由、歧义拒绝、改名和 WPS/Office 通道隔离。
 - [service.test.ts](service.test.ts)：HTTP/MCP、鉴权、审计。
