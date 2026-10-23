@@ -7,6 +7,7 @@
 - `progress.mjs`：主进程跨文件合并进度，最多每 200ms 刷新同阶段的最新值；阶段切换即时，错误或完成前销毁待发送状态，避免小文件突发或终态后回退。
 - `diagnostics.mjs`：仅诊断入口的 runId/用户目录启用，白名单与脱敏 JSONL、2MiB 上限、退出终态；主进程/渲染回执/异常与心跳。普通启动默认关闭，不把诊断变量传给已安装应用。
 - `Start-Local-Debug.cmd` / `.ps1`、`local-debug-README.txt`：离线调试入口，先核包内 `debug-package.json` 的 SHA/大小，再以普通用户启动本包并实时合并为一份报告。不改执行策略或全局环境；原生 NSIS 内部和已安装应用不在完整采集范围。
+- `diagnose-startup.cmd` / `.ps1`、`diagnose-startup-README.txt`：不启动 EXE 的原生临时目录诊断工具，普通用户运行，策略阻止即停止；预置哈希仅识别早期故障样本，不是当前发布包的验收标准。报告仅本地保存，不纳入 Git。
 - `Read-DiagnosticSnapshot.ps1`：共享读写快照，按 runId/sequence 去重并保留未完成行供下次完整重读；暂态读取失败保留已有事件，恢复后清除当前告警，累计恢复次数另报。
 - `shortcut.mjs`、`launch.mjs`、`stages.mjs`：安全快捷方式备份/读回、再次校验后启动、最低展示时间。
 - `index.html`、`style.css`、`renderer.js`：三个至少五秒的品牌阶段；分别显示包校验、实际写入与安装文件复核进度和当前文件，不按时间编造。`bytes` 是当前阶段实际处理字节，`verifiedBytes` 只计哈希通过的整文件，写入 100% 不代表安装成功。
