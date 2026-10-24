@@ -4,6 +4,8 @@
 
 - [index.ts](index.ts)：window.api 的受控方法与状态订阅。
 
+更新仅暴露状态、检查/下载/取消、重启更新及定位更新区域，不暴露路径或下载地址；`onUpdateChange` 与 `onStatusChange` 均返回解绑函数。
+
 ## 定位与联动
 
 查 index.ts 中暴露方法，再查 [主进程](../main/index.ts) 同名 IPC 和 [调用方](../renderer/App.tsx)。

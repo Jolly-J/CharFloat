@@ -13,13 +13,24 @@ import { DiffModal } from './components/DiffModal.js';
 import { DoubaoGuideModal } from './components/DoubaoGuideModal.js';
 import { ShieldAlert } from 'lucide-react';
 import { SettingsDrawer } from './components/SettingsDrawer.js';
+import type { UpdateState } from '../main/update-service.js';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import type { DesktopDiagnostics } from '../main/desktop-diagnostics.js';
 
 const api = (window as any).api;
 
 export default function App() {
+  const reducedMotion = useReducedMotion();
   // 核心状态
   const [status, setStatus] = useState<any>({ online: false, components: {} });
-  const [info, setInfo] = useState<any>({ version: '2.2.3', port: 19890, theme: 'system' });
+  const [info, setInfo] = useState<any>({ version: '2.2.4', port: 19890, theme: 'system' });
+  const [update, setUpdate] = useState<UpdateState>();
+  const [updateAction, setUpdateAction] = useState('');
+  const updateActionRef = useRef(false);
+  const [updateError, setUpdateError] = useState('');
+  const [updateFocus, setUpdateFocus] = useState(0);
+  const [diagnostics, setDiagnostics] = useState<DesktopDiagnostics>();
+  const [diagnosticError, setDiagnosticError] = useState('');
   const [env, setEnv] = useState<any>(null);
   const [officeAddon, setOfficeAddon] = useState<any>(null);
   const [busy, setBusy] = useState('');
@@ -43,6 +54,14 @@ export default function App() {
   const [showDoubaoGuide, setShowDoubaoGuide] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const openUpdates = () => { setIsSettingsOpen(true); setUpdateFocus(n => n + 1); };
+  const runUpdate = async (name: string, action: () => Promise<any>) => {
+    if (updateActionRef.current) return;
+    updateActionRef.current = true; setUpdateAction(name); setUpdateError('');
+    try { await action(); }
+    catch (e: any) { setUpdateError(e.message?.replace(/^Error invoking remote method '[^']+': Error: /, '') || '更新操作未完成，请重试。'); }
+    finally { updateActionRef.current = false; setUpdateAction(''); }
+  };
 
   // 统一通知 Toast：成功/警告/失败三态，颜色与停留时长不同
   const notify = (text: string, level: 'success' | 'warning' | 'error' = 'success') => {
@@ -123,6 +142,10 @@ export default function App() {
 
     void api.getStatus().then(setStatus).catch((e: any) => notify(e.message, 'error'));
     void api.getAppInfo().then(setInfo).catch(() => {});
+    void api.updateStatus().then(setUpdate).catch(() => {});
+    const unsubscribeUpdate = api.onUpdateChange(setUpdate);
+    const unsubscribeUpdateOpen = api.onUpdateOpen(() => { openUpdates(); void api.takeUpdateFocus().catch(() => {}); });
+    void api.takeUpdateFocus().then((pending: boolean) => { if (pending) openUpdates(); }).catch(() => {});
     void api.detectEnvironment().then((e: any) => {
       setEnv(e);
       if (e?.agents) {
@@ -139,9 +162,20 @@ export default function App() {
 
     return () => {
       unsubscribe?.();
+      unsubscribeUpdate();
+      unsubscribeUpdateOpen();
       clearTimeout(toastTimer.current);
     };
   }, []);
+
+  // Startup deployment finishes after the initial environment read. Refresh once
+  // when its result is ready, without resetting the user's selected AI clients.
+  useEffect(() => {
+    if (!api || !status?.addonStartupChecked) return;
+    let active = true;
+    void api.detectEnvironment().then((value: any) => { if (active) setEnv(value); }).catch(() => {});
+    return () => { active = false; };
+  }, [status?.addonStartupChecked]);
 
   // 监听主题变化并应用到 html dataset
   useEffect(() => {
@@ -310,6 +344,7 @@ export default function App() {
     <div className={`app-shell ${api?.platform === 'darwin' ? 'mac-os' : ''}`}>
       {/* 1. 顶部控制栏 */}
       <TopBar
+        version={info.version}
         online={status.online}
         connectedCount={connectedCount}
         busy={busy}
@@ -323,8 +358,16 @@ export default function App() {
       {/* 2. 主体工作区 (一体化协同大盘) */}
       <main className="app-main-viewport">
         <div className="dashboard-scroll-content">
+          <AnimatePresence initial={false}>{update?.availableVersion && (
+            <motion.div key="update-notice" className="global-notice-bar update-notice" role="status"
+              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.25 }}>
+              <span>有新版本 {update.availableVersion}{update.phase === 'downloading' ? ` · 下载中 ${Math.floor((update.bytes || 0) * 100 / (update.totalBytes || 1))}%` : update.phase === 'ready' ? ' · 已下载，可重启更新' : ''}</span>
+              <button className="drawer-action-btn" onClick={openUpdates}>查看更新</button>
+            </motion.div>
+          )}</AnimatePresence>
           {/* 异常警示条 */}
-          {!status.online && status.notice && (
+          {status.notice && (
             <div className="global-notice-bar warning">
               <CircleAlert size={16} />
               <span>{status.notice}</span>
@@ -333,6 +376,7 @@ export default function App() {
 
           {/* 模块 A: 三段式连通拓扑与新手 3 步开箱引导 */}
           <TopologyView
+            port={info.port}
             online={status.online}
             connectedCount={connectedCount}
             activeWorkbook={status.activeWorkbook}
@@ -371,7 +415,8 @@ export default function App() {
               onExecuteInstall={handleExecuteInstall}
               onCopyText={handleCopyText}
               onOpenDoubaoGuide={() => setShowDoubaoGuide(true)}
-              onOpenAgentApp={(id: string) => { void (api as any).openAgentApp?.(id); }}
+              onOpenAgentApp={(id: string) => { void run('open-client', () => api.openAgentApp(id)); }}
+              onOpenDocumentation={(id: string) => { void run('client-doc', () => api.openClientDocumentation(id)); }}
             />
           </div>
 
@@ -395,10 +440,10 @@ export default function App() {
       <footer className="app-footer-bar">
         <div className="footer-left">
           <span className={`status-pill-dot ${status.online ? 'active' : ''}`} />
-          <span>{status.online ? `本地加密通道已监听端口 ${info.port}` : '后台服务未启动'}</span>
+          <span>{status.online ? `本机端口 ${info.port}` : '后台服务未启动'}</span>
         </div>
         <div className="footer-right">
-          <span>字浮 CharFloat · 本地高保真办公引擎</span>
+          <span>字浮 CharFloat</span>
           <span className="footer-divider">/</span>
           <span>{info.platform === 'darwin' ? 'macOS 客户端' : 'Windows 客户端'}</span>
         </div>
@@ -438,12 +483,29 @@ export default function App() {
 
       {/* 6. 高级设置与系统体检抽屉 */}
       <SettingsDrawer
+        update={update}
+        updateAction={updateAction}
+        updateError={updateError}
+        updateFocus={updateFocus}
+        onCheckUpdate={() => { void runUpdate('check', async () => { setUpdate(await api.checkUpdate()); }); }}
+        onDownloadUpdate={() => { void runUpdate('download', async () => { setUpdate(await api.downloadUpdate()); }); }}
+        onCancelUpdate={() => { void api.cancelUpdate().catch((e: any) => setUpdateError(e.message)); }}
+        onInstallUpdate={() => { void runUpdate('install', api.installUpdate); }}
         isOpen={isSettingsOpen}
         theme={info.theme || 'system'}
         login={Boolean(info.login)}
         appInfo={info}
         online={status.online}
         busy={busy}
+        diagnostics={diagnostics}
+        diagnosticError={diagnosticError}
+        onExit={() => { void api.exitApp(); }}
+        onDiagnosticAction={action => {
+          if (action === 'start') { void run('start', async () => { const result = await api.startService(); if (result?.success === false) return result; await refreshAll(); setDiagnostics(await api.diagnose()); return result; }); }
+          else if (action === 'wps') { setIsSettingsOpen(false); void handleInstallWps(); }
+          else if (action === 'office') { setIsSettingsOpen(false); void handleInstallOffice(); }
+          else { setIsSettingsOpen(false); document.getElementById('agent-hub-section')?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth' }); }
+        }}
         onClose={() => setIsSettingsOpen(false)}
         onChangeTheme={(th: 'system' | 'light' | 'dark') => {
           void run('theme', async () => {
@@ -459,9 +521,12 @@ export default function App() {
         }}
         onRunDiagnose={() => {
           void run('doctor', async () => {
-            const r = await api.diagnose();
-            const conn = r?.checks?.filter((c: any) => c.status === 'connected')?.length || 0;
-            notify(`体检完毕：后台正常，${conn} 个办公通道就绪`);
+            setDiagnosticError('');
+            try {
+              const result = await api.diagnose();
+              if (!Array.isArray(result?.checks) || !result.checks.length || !Array.isArray(result?.clients) || typeof result.checkedAt !== 'number' || typeof result.attention !== 'number') throw new Error('未收到完整检查结果，请重试。');
+              setDiagnostics(result);
+            } catch (error: any) { setDiagnosticError(error.message?.replace(/^Error invoking remote method '[^']+': Error: /, '') || '连接检查未完成，请重试。'); }
           });
         }}
         onOpenLog={() => {

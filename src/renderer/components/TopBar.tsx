@@ -11,6 +11,7 @@ import {
 import appLogo from '../assets/app-logo.png';
 
 interface TopBarProps {
+  version: string;
   online: boolean;
   connectedCount: number;
   busy: string;
@@ -22,6 +23,7 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
+  version,
   online,
   connectedCount,
   busy,
@@ -40,7 +42,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       <div className="topbar-brand">
         <img src={appLogo} alt="Logo" className="brand-logo-img" />
         <span className="brand-name">字浮 CharFloat</span>
-        <span className="brand-version-tag">2.1</span>
+        <span className="brand-version-tag">{version}</span>
       </div>
 
       {/* 右侧操作区：全胶囊规范（统一 28px 高度，包含居右的协同状态胶囊） */}
@@ -102,8 +104,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             className="capsule-tool-btn"
             onClick={onOpenSettings}
-            title="系统偏好设置与体检"
-            aria-label="系统偏好设置与体检"
+            title="设置"
+            aria-label="设置"
           >
             <Settings2 size={13} />
           </button>

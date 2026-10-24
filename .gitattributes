@@ -1,0 +1,7 @@
+# Local signing material must also be excluded from Git source archives.
+.charfloat-local-secrets export-ignore
+.charfloat-local-secrets/** export-ignore
+
+# Local operating notes and deployment evidence are never source-distribution inputs.
+docs export-ignore
+docs/** export-ignore

@@ -62,9 +62,10 @@ test('MCP 配置改名：只写新名字 charfloat，并安全迁走旧版服务
   const b=JSON.parse(fs.readFileSync(file,'utf8'));
   assert.deepEqual(b.mcpServers[oldKey],{command:'someone-else'});
   assert.deepEqual(b.mcpServers['charfloat'],entry);
-  // 幂等：再跑一次结果不变
+  // 幂等：保留原有排版与注释，第二次不产生改动。
+  const beforeRetry=fs.readFileSync(file,'utf8');
   mergeMcpConfig(file,entry);
-  assert.equal(fs.readFileSync(file,'utf8'),JSON.stringify(b,null,2)+'\n');
+  assert.equal(fs.readFileSync(file,'utf8'),beforeRetry);
 });
 test('status checks do not create plugin directories; install validates before writes',()=>{
   assert.equal(fs.existsSync(process.env.WPS_BRIDGE_ADDON_DIR!),false);AddonInstaller.checkStatus();assert.equal(fs.existsSync(process.env.WPS_BRIDGE_ADDON_DIR!),false);
@@ -216,7 +217,7 @@ test('客户端注册表：分类、格式与配置路径完整', () => {
   assert.equal(new Set(ids).size, ids.length);
   for (const def of CLIENT_DEFINITIONS) {
     assert.ok(def.region === 'cn' || def.region === 'global', `${def.id} 缺少分类`);
-    assert.ok(['json-mcp', 'toml-codex', 'json-opencode', 'manual'].includes(def.configKind), `${def.id} 配置格式非法`);
+    assert.ok(['json-mcp', 'json-vscode', 'toml-codex', 'json-opencode', 'yaml-dsh', 'manual'].includes(def.configKind), `${def.id} 配置格式非法`);
     const paths = def.paths(ctx);
     assert.ok(paths.detectPaths.length > 0, `${def.id} 缺少检测路径`);
     if (def.configKind === 'manual') continue;

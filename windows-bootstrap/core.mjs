@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import yauzl from 'yauzl';
+import { openZipStream } from './zip-stream.mjs';
 
 export const PRODUCT = 'charfloat-user-bootstrap-v1';
 export const MIN_STAGE_MS = 5000;
@@ -16,7 +17,7 @@ export async function minimumStage(start, { now = Date.now, sleep = wait, minimu
   await sleep(Math.max(0, minimum - (now() - start)));
 }
 export function safeName(name) {
-  if (typeof name !== 'string' || !name || name.includes('\\') || name.startsWith('/') || name.includes(':') || /[\x00-\x1f]/.test(name)) throw new Error('压缩包包含不安全路径');
+  if (typeof name !== 'string' || !name || name.includes('\\') || name.startsWith('/') || /[:<>"|?*\x00-\x1f]/.test(name)) throw new Error('压缩包包含不安全路径');
   const parts = name.replace(/\/$/, '').split('/');
   if (parts.some(p => !p || p === '.' || p === '..' || /[. ]$/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p))) throw new Error('压缩包包含不安全文件名');
   return parts.join('/');
@@ -41,7 +42,7 @@ export function validateManifest(m) {
   const seen = new Set(); let total = 0;
   for (const f of m.files) {
     const name = safeName(f.name), lower = name.toLowerCase();
-    if (seen.has(lower) || name === MARKER || !Number.isSafeInteger(f.size) || f.size < 0 || !/^[a-f0-9]{64}$/.test(f.sha256)) throw new Error('安装文件清单无效');
+    if (seen.has(lower) || lower === MARKER || !Number.isSafeInteger(f.size) || f.size < 0 || !/^[a-f0-9]{64}$/.test(f.sha256)) throw new Error('安装文件清单无效');
     seen.add(lower); total += f.size;
   }
   if (!seen.has(EXE.toLowerCase()) || !seen.has('resources/app.asar') || total > 4 * 1024 ** 3 || total !== m.totalBytes) throw new Error('安装清单缺少应用或超出限制');
@@ -100,7 +101,7 @@ export async function extractPayload(file, destination, manifest, onProgress = (
       const state = (fileBytes, activity = 'write') => ({ phase: 'extract', activity, file: name, bytes: bytes + fileBytes, verifiedBytes: bytes, totalBytes: manifest.totalBytes, fileBytes, fileTotalBytes: f.size });
       // bytes 是写入回调已完成的字节，verifiedBytes 仅计入大小和哈希均通过的整文件。
       report(state(0), true);
-      const input = await new Promise((res, rej) => zip.openReadStream(entry, (e, s) => e ? rej(e) : res(s)));
+      const input = await openZipStream(zip, entry);
       const hash = createHash('sha256'); let size = 0;
       const output = fs.createWriteStream(target, { flags: 'wx' });
       const timer = setInterval(() => { try { report(state(output.bytesWritten)); } catch (error) { output.destroy(error); } }, PROGRESS_INTERVAL_MS);
@@ -135,12 +136,32 @@ async function acquireLock(root) {
     }
   }
 }
-export async function install({ localAppData, payload, manifest, shortcut, onProgress = () => {} }) {
+export async function validateUpdateTarget(localAppData, target, currentVersion) {
+  if (!localAppData || !path.isAbsolute(localAppData)) throw new Error('无法确认当前用户安装目录');
+  const root = path.join(await fs.promises.realpath(localAppData), 'Programs', 'CharFloat');
+  for (const dir of [path.dirname(root), root]) { const st = await fs.promises.lstat(dir); if (!st.isDirectory() || st.isSymbolicLink()) throw new Error('旧安装目录不安全'); }
+  await readOwned(root);
+  if (!target || path.dirname(target) !== root || !/^\d+\.\d+\.\d+-[a-f0-9]{12}$/.test(path.basename(target))) throw new Error('更新仅适用于本引导安装的当前用户版本；请先手动安装一次');
+  const st = await fs.promises.lstat(target); if (!st.isDirectory() || st.isSymbolicLink()) throw new Error('旧安装目录不安全');
+  await readOwned(target);
+  const receipt = JSON.parse(await fs.promises.readFile(path.join(target, MARKER), 'utf8'));
+  if (receipt.version !== currentVersion || path.basename(target) !== `${receipt.version}-${receipt.payloadSha256?.slice(0, 12)}`) throw new Error('旧安装版本与更新交接不一致');
+  await regular(path.join(target, EXE));
+  return root;
+}
+export async function install({ localAppData, payload, manifest, shortcut, update, onProgress = () => {} }) {
   const m = validateManifest(manifest);
   if (!localAppData || !path.isAbsolute(localAppData)) throw new Error('无法确认当前用户的本地应用目录');
   const base = await fs.promises.realpath(localAppData);
   const programs = path.join(base, 'Programs'); await directory(programs);
   const root = path.join(programs, 'CharFloat');
+  if (update) {
+    if (typeof update.claimAuthorization !== 'function') throw new Error('更新缺少本次确认的安装授权');
+    await validateUpdateTarget(localAppData, update.target, update.currentVersion);
+    const a = m.version.split('.').map(Number), b = update.currentVersion.split('.').map(Number);
+    const difference = a.findIndex((v, i) => v !== b[i]);
+    if (difference < 0 || a[difference] <= b[difference]) throw new Error('更新版本必须高于当前版本');
+  }
   let created = false;
   try { await fs.promises.mkdir(root); created = true; } catch (e) { if (e.code !== 'EEXIST') throw e; }
   await directory(root);
@@ -164,12 +185,30 @@ export async function install({ localAppData, payload, manifest, shortcut, onPro
       if (fs.existsSync(target)) throw new Error('现有安装不完整，未覆盖原文件');
       staging = await fs.promises.mkdtemp(path.join(root, '.pending-'));
       await extractPayload(payload, staging, m, onProgress);
-      await fs.promises.writeFile(path.join(staging, MARKER), JSON.stringify({ product: PRODUCT, payloadSha256: m.payloadSha256, version: m.version, sourceCommit: m.sourceCommit }), { flag: 'wx' });
+      await fs.promises.writeFile(path.join(staging, MARKER), JSON.stringify({ product: PRODUCT, payloadSha256: m.payloadSha256, version: m.version, sourceCommit: m.sourceCommit, ...(update ? { previousDirectory: update.target } : {}) }), { flag: 'wx' });
       await verifyInstallation(staging, m, onProgress);
-      await fs.promises.rename(staging, target); staging = undefined;
+    }
+    // Online ZIP identity is checked after extraction (also when reusing a committed directory),
+    // before changing provenance or any launch entry.
+    await update?.verifyApplication?.(staging || target);
+    const authorize = update ? await update.claimAuthorization() : async () => {};
+    await authorize();
+    if (staging) { await fs.promises.rename(staging, target); staging = undefined; }
+    if (update) {
+      // A prior manual attempt may already have committed the version directory without provenance.
+      // Capture the actual source for this authorized attempt independently of directory creation.
+      const marker = path.join(target, MARKER); await regular(marker);
+      const receipt = JSON.parse(await fs.promises.readFile(marker, 'utf8'));
+      if (receipt.product !== PRODUCT || receipt.payloadSha256 !== m.payloadSha256) throw new Error('目标安装回执已改变，未迁移来源');
+      const temporary = path.join(target, `.update-origin-${randomUUID()}.tmp`);
+      try {
+        await fs.promises.writeFile(temporary, JSON.stringify({ ...receipt, previousDirectory: update.target }), { flag: 'wx', mode: 0o600 });
+        await authorize(); await fs.promises.rename(temporary, marker);
+      } finally { await fs.promises.unlink(temporary).catch(e => { if (e.code !== 'ENOENT') throw e; }); }
     }
     onProgress({ phase: 'shortcut', bytes: m.totalBytes, totalBytes: m.totalBytes });
     const executable = path.join(target, EXE);
+    await authorize();
     await shortcut({ executable, root, directory: target });
     return { executable, directory: target, payloadSha256: m.payloadSha256 };
   } finally {

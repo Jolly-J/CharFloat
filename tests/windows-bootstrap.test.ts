@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { install, fileHash, safeName, validateManifest, verifyInstallation, PRODUCT, EXE } from '../windows-bootstrap/core.mjs';
 import { createShortcut } from '../windows-bootstrap/shortcut.mjs';
 import { runStages } from '../windows-bootstrap/stages.mjs';
@@ -18,6 +18,10 @@ import { createDiagnostics } from '../windows-bootstrap/diagnostics.mjs';
 import physicalFs from '../windows-bootstrap/physical-fs.mjs';
 import { preparePortableScript, assertPortableDefines, installPortableCompileHook } from '../scripts/lib/windows-portable.mjs';
 import { spawn } from 'node:child_process';
+import { createInstallTicket, grantInstallAuthorization, revokeInstallAuthorization } from '../src/main/update-install.js';
+import { prepareWindowsUpdate } from '../windows-bootstrap/update.mjs';
+import { inspectUpdateZip, validateWindowsApplication } from '../windows-bootstrap/update-zip.mjs';
+import asar from '@electron/asar';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const builderRequire=createRequire(import.meta.url);
@@ -109,12 +113,12 @@ test('跨小文件全局合并进度，保留最新值与阶段切换；终态�
 });
 
 function crc32(b: Buffer) { let c = 0xffffffff; for (const value of b) { c ^= value; for (let i=0;i<8;i++) c=(c>>>1)^((c&1)?0xedb88320:0); } return (c^0xffffffff)>>>0; }
-function zip(entries: [string,Buffer][]) {
+function zip(entries: [string,Buffer][], method = 8) {
   const locals: Buffer[] = [], centers: Buffer[] = []; let offset=0;
   for (const [name,data] of entries) {
-    const n=Buffer.from(name), c=crc32(data), compressed=deflateRawSync(data), l=Buffer.alloc(30), h=Buffer.alloc(46);
-    l.writeUInt32LE(0x04034b50); l.writeUInt16LE(20,4); l.writeUInt16LE(0x800,6); l.writeUInt16LE(8,8); l.writeUInt32LE(c,14); l.writeUInt32LE(compressed.length,18); l.writeUInt32LE(data.length,22); l.writeUInt16LE(n.length,26);
-    h.writeUInt32LE(0x02014b50); h.writeUInt16LE(20,4); h.writeUInt16LE(20,6); h.writeUInt16LE(0x800,8); h.writeUInt16LE(8,10); h.writeUInt32LE(c,16); h.writeUInt32LE(compressed.length,20); h.writeUInt32LE(data.length,24); h.writeUInt16LE(n.length,28); h.writeUInt32LE(offset,42);
+    const n=Buffer.from(name), c=crc32(data), compressed=method===0?data:deflateRawSync(data), l=Buffer.alloc(30), h=Buffer.alloc(46);
+    l.writeUInt32LE(0x04034b50); l.writeUInt16LE(20,4); l.writeUInt16LE(0x800,6); l.writeUInt16LE(method,8); l.writeUInt32LE(c,14); l.writeUInt32LE(compressed.length,18); l.writeUInt32LE(data.length,22); l.writeUInt16LE(n.length,26);
+    h.writeUInt32LE(0x02014b50); h.writeUInt16LE(20,4); h.writeUInt16LE(20,6); h.writeUInt16LE(0x800,8); h.writeUInt16LE(method,10); h.writeUInt32LE(c,16); h.writeUInt32LE(compressed.length,20); h.writeUInt32LE(data.length,24); h.writeUInt16LE(n.length,28); h.writeUInt32LE(offset,42);
     locals.push(l,n,compressed); centers.push(h,n); offset+=l.length+n.length+compressed.length;
   }
   const central=Buffer.concat(centers), end=Buffer.alloc(22); end.writeUInt32LE(0x06054b50); end.writeUInt16LE(entries.length,8); end.writeUInt16LE(entries.length,10); end.writeUInt32LE(central.length,12); end.writeUInt32LE(offset,16);
@@ -130,6 +134,16 @@ async function fixture(t: any, suppliedEntries?: [string,Buffer][]) {
   const shortcut=(args:any)=>createShortcut({...args,desktop,shell});
   return {dir,local,desktop,payload,manifest,shell,shortcut,options:{localAppData:local,payload,manifest,shortcut}};
 }
+test('STORE entries including empty files finish online ZIP hashing and installation', { timeout: 5000 }, async t => {
+  const f = await fixture(t);
+  const data: [string, Buffer][] = [[EXE, Buffer.from('exe')], ['resources/app.asar', Buffer.from('asar')], ['resources/icon.png', Buffer.from([0, 1, 2, 255])], ['resources/empty', Buffer.alloc(0)]];
+  fs.writeFileSync(f.payload, zip(data, 0));
+  const manifest = await inspectUpdateZip(f.payload, '2.2.3', await fileHash(f.payload));
+  const result = await install({ ...f.options, manifest });
+  assert.equal(manifest.files.length, data.length);
+  await verifyInstallation(result.directory, manifest);
+  assert.equal(fs.statSync(path.join(result.directory, 'resources/empty')).size, 0);
+});
 test('用户目录解压、中文路径、逐文件哈希和真实字节进度；重复配置保留额外数据',async t=>{
   const f=await fixture(t), progress:any[]=[]; const result=await install({...f.options,onProgress:(p:any)=>progress.push(p)});
   assert.equal(path.dirname(result.directory),path.join(await fs.promises.realpath(f.local),'Programs','CharFloat')); await verifyInstallation(result.directory,f.manifest);
@@ -138,6 +152,78 @@ test('用户目录解压、中文路径、逐文件哈希和真实字节进度�
   assert.ok(progress.some(p=>p.phase==='verify-files'&&p.file==='resources/app.asar'));
   assert.equal(progress.at(-1).bytes,f.manifest.totalBytes); assert.equal(f.shell.readShortcutLink(path.join(f.desktop,'字浮 CharFloat.lnk')).target,result.executable);
   fs.writeFileSync(path.join(result.directory,'my-notes.txt'),'keep'); await install(f.options); assert.equal(fs.readFileSync(path.join(result.directory,'my-notes.txt'),'utf8'),'keep');
+});
+test('在线更新只提交更高版本目录，保留旧版/用户数据；快捷方式失败可恢复重试且不重复首次配置', async t => {
+  const f = await fixture(t), old = await install(f.options);
+  fs.writeFileSync(path.join(old.directory, 'user-notes'), 'keep');
+  const link = path.join(f.desktop, '字浮 CharFloat.lnk'), previousLink = fs.readFileSync(link);
+  const manifest = { ...f.manifest, version: '2.2.4' };
+  const update = { target: old.directory, currentVersion: '2.2.3', claimAuthorization: async () => async () => {} };
+  await assert.rejects(install({ ...f.options, manifest, update, shortcut: async () => { throw new Error('synthetic locked shortcut'); } }), /locked/);
+  assert.deepEqual(fs.readFileSync(link), previousLink); assert.equal(fs.readFileSync(path.join(old.directory, 'user-notes'), 'utf8'), 'keep');
+  const result = await install({ ...f.options, manifest, update });
+  assert.notEqual(result.directory, old.directory); await verifyInstallation(old.directory, f.manifest); await verifyInstallation(result.directory, manifest);
+  assert.equal(f.shell.readShortcutLink(link).target, result.executable);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(result.directory, '.charfloat-install.json'), 'utf8')).previousDirectory, old.directory);
+  await assert.rejects(install({ ...f.options, update }), /高于/);
+  await assert.rejects(install({ ...f.options, manifest, update: { ...update, target: f.dir } }), /仅适用于/);
+});
+test('Windows更新引导验证签名交接和版本后才等待旧GUI退出；错误引导不会开始安装', async t => {
+  const f = await fixture(t), old = await install(f.options), cache = path.join(fs.realpathSync(f.dir), 'updates'); fs.mkdirSync(cache, { mode: 0o700 });
+  const keys = generateKeyPairSync('ed25519'), trust = { feeds: ['https://example.test/stable.json'], assetOrigins: ['https://example.test'], publicKeys: { fixture: keys.publicKey.export({ format: 'pem', type: 'spki' }).toString() } };
+  const size = fs.statSync(f.payload).size, now = Date.now();
+  const payload = Buffer.from(JSON.stringify({ schema: 1, product: 'charfloat', channel: 'stable', releaseId: 1, version: '2.2.4', notes: '', publishedAt: new Date(now).toISOString(), expiresAt: new Date(now + 86400000).toISOString(), assets: [{ platform: 'win32', arch: 'x64', kind: 'windows-zip', urls: ['https://example.test/update.exe'], size, sha256: await fileHash(f.payload) }] }));
+  const envelope = JSON.stringify({ keyId: 'fixture', payload: payload.toString('base64'), signature: sign(null, payload, keys.privateKey).toString('base64') });
+  const job = await createInstallTicket(cache, { parentPid: process.ppid, platform: 'win32', arch: 'x64', currentVersion: '2.2.3', target: old.directory, archive: fs.realpathSync(f.payload), envelope });
+  let waited = 0;
+  const opts = { trust, platform: 'win32', arch: 'x64', wait: async () => { waited++; assert.equal(JSON.parse(fs.readFileSync(path.join(job.directory, 'result.json'), 'utf8')).phase, 'ready'); } };
+  const update = await prepareWindowsUpdate(job.file, { ...f.manifest, version: '2.2.4' }, f.local, opts);
+  assert.equal(waited, 1); assert.equal(update.update.target, old.directory); assert.equal(update.update.currentVersion, '2.2.3');
+  await grantInstallAuthorization(job.file, job.ticket.nonce);
+  const installed = await install({ ...f.options, manifest: { ...f.manifest, version: '2.2.4' }, update: update.update });
+  await verifyInstallation(installed.directory, { ...f.manifest, version: '2.2.4' });
+  await assert.rejects(install({ ...f.options, manifest: { ...f.manifest, version: '2.2.4' }, update: update.update }), /授权已使用/);
+  await assert.rejects(prepareWindowsUpdate(job.file, { ...f.manifest, version: '2.2.5' }, f.local, opts), /版本或架构/);
+  assert.equal(waited, 1); assert.equal(JSON.parse(fs.readFileSync(path.join(job.directory, 'result.json'), 'utf8')).phase, 'failed');
+  await verifyInstallation(old.directory, f.manifest);
+});
+test('review R2: reused manually staged version captures update origin even after shortcut failure', async t => {
+  const f = await fixture(t), old = await install(f.options), manifest = { ...f.manifest, version: '2.2.4' };
+  const link = path.join(f.desktop, '字浮 CharFloat.lnk'), before = fs.readFileSync(link);
+  const config = path.join(f.dir, 'client-config.json'); fs.writeFileSync(config, JSON.stringify({ command: old.executable }));
+  const configBefore = fs.readFileSync(config);
+  await assert.rejects(install({ ...f.options, manifest, shortcut: async () => { throw new Error('manual shortcut failure'); } }), /manual/);
+  const update = { target: old.directory, currentVersion: '2.2.3', claimAuthorization: async () => async () => {} };
+  await assert.rejects(install({ ...f.options, manifest, update, shortcut: async () => { throw new Error('update shortcut failure'); } }), /update/);
+  assert.deepEqual(fs.readFileSync(link), before); assert.deepEqual(fs.readFileSync(config), configBefore);
+  const installed = await install({ ...f.options, manifest, update });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(installed.directory, '.charfloat-install.json'), 'utf8')).previousDirectory, old.directory);
+  assert.deepEqual(fs.readFileSync(config), configBefore);
+});
+test('review R1: a late installer without a successful GUI grant cannot commit after parent exit', async t => {
+  const f = await fixture(t), old = await install(f.options), cache = path.join(fs.realpathSync(f.dir), 'late-updates'); fs.mkdirSync(cache, { mode: 0o700 });
+  const keys = generateKeyPairSync('ed25519'), trust = { feeds: ['https://example.test/stable.json'], assetOrigins: ['https://example.test'], publicKeys: { fixture: keys.publicKey.export({ format: 'pem', type: 'spki' }).toString() } }, now = Date.now();
+  const payload = Buffer.from(JSON.stringify({ schema: 1, product: 'charfloat', channel: 'stable', releaseId: 1, version: '2.2.4', notes: '', publishedAt: new Date(now).toISOString(), expiresAt: new Date(now + 86400000).toISOString(), assets: [{ platform: 'win32', arch: 'x64', kind: 'windows-zip', urls: ['https://example.test/update.exe'], size: fs.statSync(f.payload).size, sha256: await fileHash(f.payload) }] }));
+  const envelope = JSON.stringify({ keyId: 'fixture', payload: payload.toString('base64'), signature: sign(null, payload, keys.privateKey).toString('base64') });
+  const job = await createInstallTicket(cache, { parentPid: process.ppid, platform: 'win32', arch: 'x64', currentVersion: '2.2.3', target: old.directory, archive: fs.realpathSync(f.payload), envelope });
+  const late = await prepareWindowsUpdate(job.file, { ...f.manifest, version: '2.2.4' }, f.local, { trust, platform: 'win32', arch: 'x64', wait: async () => {} });
+  const before = fs.readFileSync(path.join(f.desktop, '字浮 CharFloat.lnk'));
+  await assert.rejects(install({ ...f.options, manifest: { ...f.manifest, version: '2.2.4' }, update: late.update }), /授权|撤销|取消/);
+  assert.deepEqual(fs.readFileSync(path.join(f.desktop, '字浮 CharFloat.lnk')), before);
+  // Real owned parent process: revoke while the installer is waiting, then simulate ordinary GUI exit.
+  const parent = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { stdio: 'ignore' });
+  await new Promise<void>((resolve, reject) => { parent.once('spawn', resolve); parent.once('error', reject); });
+  try {
+    fs.writeFileSync(job.file, JSON.stringify({ ...job.ticket, parentPid: parent.pid }));
+    fs.unlinkSync(path.join(job.directory, 'result.json'));
+    const waiting = prepareWindowsUpdate(job.file, { ...f.manifest, version: '2.2.4' }, f.local, { trust, platform: 'win32', arch: 'x64' }).then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
+    for (let n = 0; n < 200 && !fs.existsSync(path.join(job.directory, 'result.json')); n++) await new Promise(r => setTimeout(r, 10));
+    assert.equal(fs.existsSync(path.join(job.directory, 'result.json')), true);
+    await revokeInstallAuthorization(job.file, job.ticket.nonce);
+    const exited = new Promise<void>(r => parent.once('exit', () => r())); parent.kill('SIGTERM'); await exited;
+    const outcome = await waiting; assert.equal(outcome.value, undefined); assert.match(outcome.error.message, /撤销/);
+    assert.deepEqual(fs.readFileSync(path.join(f.desktop, '字浮 CharFloat.lnk')), before);
+  } finally { if (parent.exitCode === null && parent.signalCode === null) parent.kill('SIGKILL'); }
 });
 test('真实压缩大文件和慢磁盘写入持续报告已写字节，整文件哈希通过前不增加已核验值',async t=>{
   const data=Buffer.alloc(8*1024*1024,0x62), f=await fixture(t,[[EXE,Buffer.from('synthetic executable')],['resources/app.asar',data]]);
@@ -289,4 +375,45 @@ test('实际打包主进程：单实例/IPC门禁、三态计时、重复请求�
   await bad.handlers.get('setup:close')(bad.event);assert.equal(bad.quits(),1);assert.equal(bad.spawned(),0);
   const second=await harness(await fixture(t),{lock:false});assert.equal(second.windows.length,0);assert.equal(second.quits(),1);
   const noProfile=await harness(await fixture(t),{profileFailure:true});assert.equal(noProfile.windows.length,0);assert.equal(noProfile.quits(),1);
+});
+
+test('在线 ZIP 验证真实 PE 架构和 ASAR 应用版本，复用目录也在授权前验证；失败保留旧入口', async t => {
+  const f = await fixture(t), old = await install(f.options);
+  const source = path.join(f.dir, 'asar-source'); fs.mkdirSync(source);
+  const archive = path.join(f.dir, 'fixture.asar');
+  const pe = Buffer.alloc(128); pe.write('MZ'); pe.writeUInt32LE(64, 60); pe.writeUInt32LE(0x4550, 64); pe.writeUInt16LE(0x8664, 68);
+  async function packageZip(version: string, executable = pe) {
+    fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'charfloat', version, main: 'dist/main/index.js' }));
+    await asar.createPackage(source, archive);
+    const payload = path.join(f.dir, `update-${version}-${executable.readUInt16LE(68)}.zip`);
+    fs.writeFileSync(payload, zip([[EXE, executable], ['resources/app.asar', fs.readFileSync(archive)]]));
+    return { payload, manifest: await inspectUpdateZip(payload, '2.2.4', await fileHash(payload)) };
+  }
+  const valid = await packageZip('2.2.4'); let claimed = 0;
+  const update = { target: old.directory, currentVersion: '2.2.3', claimAuthorization: async () => { claimed++; return async () => {}; }, verifyApplication: (dir: string) => validateWindowsApplication(dir, '2.2.4', 'x64', valid.manifest) };
+  const next = await install({ ...f.options, ...valid, update }); assert.equal(claimed, 1);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(next.directory, '.charfloat-install.json'), 'utf8')).previousDirectory, old.directory);
+  await install({ ...f.options, ...valid, update }); assert.equal(claimed, 2);
+  const before = fs.readFileSync(path.join(f.desktop, '字浮 CharFloat.lnk'));
+  fs.writeFileSync(path.join(next.directory, 'unknown.js'), 'untrusted');
+  await assert.rejects(install({ ...f.options, ...valid, update }), /未知文件/); assert.equal(claimed, 2);
+  assert.deepEqual(fs.readFileSync(path.join(f.desktop, '字浮 CharFloat.lnk')), before);
+  const x86 = Buffer.from(pe); x86.writeUInt16LE(0x14c, 68);
+  for (const bad of [await packageZip('2.2.5'), await packageZip('2.2.4', x86)]) {
+    await assert.rejects(install({ ...f.options, ...bad, update: { ...update, verifyApplication: (dir: string) => validateWindowsApplication(dir, '2.2.4', 'x64', bad.manifest) } }), /版本|架构/);
+    assert.equal(claimed, 2); assert.ok(fs.existsSync(old.executable));
+    assert.deepEqual(fs.readFileSync(path.join(f.desktop, '字浮 CharFloat.lnk')), before);
+  }
+});
+test('在线 ZIP 拒绝路径穿越、大小写重复、设备名、目录冲突及伪造安装回执', async t => {
+  const f = await fixture(t);
+  for (const extra of [
+    [['../outside', Buffer.from('x')]], [[EXE.toUpperCase(), Buffer.from('x')]],
+    [['NUL.txt', Buffer.from('x')]], [['a', Buffer.from('x')], ['a/file', Buffer.from('x')]],
+    [['.CHARFLOAT-INSTALL.JSON', Buffer.from('{}')]], [['bad?.txt', Buffer.from('x')]],
+  ] as [string, Buffer][][]) {
+    fs.writeFileSync(f.payload, zip([[EXE, Buffer.from('exe')], ['resources/app.asar', Buffer.from('asar')], ...extra]));
+    await assert.rejects(inspectUpdateZip(f.payload, '2.2.4', await fileHash(f.payload)));
+  }
+  await assert.rejects(inspectUpdateZip(f.payload, '2.2.4', '0'.repeat(64)), /已改变/);
 });

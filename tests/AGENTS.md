@@ -5,6 +5,12 @@
 ## 文件地图
 
 - [brand.test.ts](brand.test.ts)：品牌门禁的正反向夹具、历史例外与生成物检查；只操作临时目录。
+- [update.test.ts](update.test.ts)：签名/回放/源/平台与下载校验、取消/重试、离线发布；密钥仅临时夹具，不用于正式包。
+- [update-key-safety.test.ts](update-key-safety.test.ts)：临时 Git 仓库中的先排除后生成、幂等复用/禁止替换、权限与链接防护、嵌套产物路径拒绝和私钥内容泄露拒绝；仅临时测试密钥，不读取生产私钥。
+- [update-install.test.ts](update-install.test.ts)：临时 Mac bundle/架构/安全解压、同盘提交/失败回滚/中断恢复，以及 Windows 三种 MCP 配置路径迁移；不启动真实应用或宿主。
+- [desktop-lifecycle.test.ts](desktop-lifecycle.test.ts)：本 GUI 拥有的临时后台/辅助作业退出、独立服务保留、启动取消/超时、跨进程迟启动代次拒绝及显式 CLI --start 恢复；真实 CLI 用例先构建且使用临时运行目录/随机端口。
+- [update-notice-ui.cjs](update-notice-ui.cjs)：真实品牌提醒窗口、preload 和 IPC；浅深色截图，关闭不执行更新，查看只导航。仅临时用户目录。
+- [desktop-update-ui.cjs](desktop-update-ui.cjs)：`electron tests/desktop-update-ui.cjs <新的证据目录>`；真实 renderer/preload、隔离 IPC 的更新控件和截图验收，不启动 Bridge、执行安装或写真实配置，不能替代主进程/两平台包的实机链路。
 - [version-policy.test.ts](version-policy.test.ts)：版本一致性门禁及漏改、缺失、重复声明、锁文件根版本、格式错误的反向夹具；只操作临时目录，不构建或访问宿主。
 - [release-protection.test.ts](release-protection.test.ts)：发布副本混淆后的 WPS/Office RPC 行为、构建指纹和泄露门禁；不修改开发加载项或真实文档。
 - [bytecode-exports.test.ts](bytecode-exports.test.ts)：用实际 Electron 运行时编译并加载字节码，验证 PDF/图表文件核验、缺失文件拒绝和宿主调用次数；只用临时文件和模拟导出，不连接办公软件。
@@ -24,7 +30,7 @@
 - [tool-error-response.test.ts](tool-error-response.test.ts)：协议错误白名单和执行状态保守透传。
 - [ppt-layout.test.ts](ppt-layout.test.ts)：页面缩放、容量及脚本参数。
 - [win-icon.test.ts](win-icon.test.ts)：Windows 图标生成器的 PNG 解码/缩放/编码与 ICO 条目格式（含"小于 256 的条目必须是 DIB"的回归项）。
-- [windows-bootstrap.test.ts](windows-bootstrap.test.ts)：用户目录、真实 ZIP/逐文件哈希、慢写入字节进度、全局合并、错误哈希不可计完成、原生开屏像素、诊断日志白名单/脱敏/上限与入口静态约束、越界与链接防护、未知文件保留、并发锁、快捷方式适配器、最低五秒阶段和启动环境；只操作临时目录，Windows Shell 与 PowerShell 启动入口仍需实机验收。
+- [windows-bootstrap.test.ts](windows-bootstrap.test.ts)：用户目录、真实 ZIP/逐文件哈希、慢写入字节进度、全局合并、错误哈希不可计完成、原生开屏像素、诊断日志白名单/脱敏/上限与入口静态约束、越界与链接防护、未知文件保留、并发锁、快捷方式适配器、最低五秒阶段和启动环境；另覆盖在线 ZIP 的 PE/ASAR 身份、版本、架构、目录复用与旧入口保留。只操作临时目录，Windows Shell 与 PowerShell 启动入口仍需实机验收。
 - [windows-bootstrap-electron.cjs](windows-bootstrap-electron.cjs)：显式用完整 Electron 主进程与真实 ZIP/manifest 验证物理 `app.asar`、逐文件核验、重复配置和全局进度合并；只写独立临时目录，用无副作用快捷方式适配器，30 秒截止，不启动真实应用。此项不能以 Electron Node 模式或普通 Node 替代，运行命令见双平台构建文档。
 - [windows-bootstrap-sharing.ps1](windows-bootstrap-sharing.ps1)：由 Windows 条件单测启动，验证真实 Node 写句柄打开时共享读取、UTF-8 半行、去重、暂态失败保留与恢复；只访问测试临时文件，不改执行策略。非 Windows 明确跳过。
 - [windows-bootstrap-ui.cjs](windows-bootstrap-ui.cjs)：完整 Electron 静态四态截图、关闭图标中心与标注/按钮断言；按指定 zoom 同比例放大窗口模拟显示缩放，记录实际 devicePixelRatio，不把模拟写成 Windows DPI 实测。无 preload、无安装操作，输出拒绝覆盖。
@@ -33,6 +39,7 @@
 - [service.test.ts](service.test.ts)：HTTP/MCP、鉴权、审计。
 - [lifecycle.test.ts](lifecycle.test.ts)：后台与客户端生命周期。
 - [platform.test.ts](platform.test.ts)：安装配置、目标隔离、原生进程。
+- [client-integration.test.ts](client-integration.test.ts)：双平台路径、环境覆盖、MCP 格式与停用保留、DSH 不执行表达式、稳定技能链接/备份/失败回退、离线诊断；只用临时目录，不能替代各 AI 客户端实际加载。
 - [native-contracts.ps1](native-contracts.ps1)：原生脚本契约。
 - [windows-office.ps1](windows-office.ps1)：Windows 实机测试。
 

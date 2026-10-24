@@ -132,6 +132,8 @@ flowchart TD
 
 直接运行桌面客户端，它会自动帮你一键安装 WPS / Office 的本地插件，并提供可视化拓扑和快照回滚面板。
 
+客户端接入与两端路径见 [CLIENTS.md](CLIENTS.md)，在线更新和后续发布流程见 [UPDATES.md](UPDATES.md)。
+
 - **macOS**：支持 macOS 12+（Apple Silicon M 系列及 Intel）
 - **Windows**：支持 Windows 10 / 11 64 位
 

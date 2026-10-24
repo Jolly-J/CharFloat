@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import { toolFailureResponse } from './errors.js';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { getToken, runtimeHome, runtimePort, PROTOCOL } from './runtime.js';
+import { captureServiceStartIntent, commitServiceStartIntent, pauseServiceStarts } from './service-start-control.js';
 
 /**
  * 统一的服务不可用文案（ISS-50）。
@@ -30,13 +31,13 @@ function describeUnreachable(error: any) {
   return `${SERVICE_NAME} 后台服务未运行或不可达（地址 ${serviceAddress()}）。恢复步骤：${serviceRecovery().join('；')}。原始错误：${detail}`;
 }
 
-export async function serviceRequest(route: string, body?: unknown) {
+export async function serviceRequest(route: string, body?: unknown, signal?: AbortSignal) {
   let response: Response;
   try {
     response = await fetch(`${serviceAddress()}${route}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(35000)
+      body: body === undefined ? undefined : JSON.stringify(body), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(35000)]) : AbortSignal.timeout(35000)
     });
   } catch (error: any) {
     // 连接/超时不能证明后台未处理请求；保持 unknown，调用方先读回。
@@ -49,13 +50,13 @@ export async function serviceRequest(route: string, body?: unknown) {
   }
   return result;
 }
-export async function probeService() {
+export async function probeService(signal?: AbortSignal) {
   try {
-    const r = await fetch(`${serviceAddress()}/health`, { signal: AbortSignal.timeout(1200) });
+    const r = await fetch(`${serviceAddress()}/health`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(1200)]) : AbortSignal.timeout(1200) });
     if (!r.ok) return { ready: false, occupied: true, service: SERVICE_NAME, address: serviceAddress(), recovery: serviceRecovery(), message: '端口由旧版 Bridge 或其他程序占用；请先退出旧版 Bridge。' };
     const info: any = await r.json();
     if (info.service !== 'wps-bridge' || info.protocol !== PROTOCOL) return { ready: false, occupied: true, service: SERVICE_NAME, address: serviceAddress(), recovery: serviceRecovery(), message: '端口上的服务版本不兼容。' };
-    await serviceRequest('/api/v1/status');
+    await serviceRequest('/api/v1/status', undefined, signal);
     return { ready: true, occupied: true, service: SERVICE_NAME, address: serviceAddress(), info };
   } catch (e: any) {
     const raw = e?.message || String(e);
@@ -72,27 +73,40 @@ export async function probeService() {
   }
 }
 let starting: Promise<void> | undefined;
-export function ensureService(entry: string) {
+export function pauseAutomaticServiceStart() {
+  return pauseServiceStarts();
+}
+export function ensureService(entry: string, options: { signal?: AbortSignal; onSpawn?: (child: ChildProcess) => void; resumeAutomaticStart?: boolean } = {}) {
+  const checkCancelled = () => { if (options.signal?.aborted) throw new Error('字浮正在退出，已取消后台启动。'); };
+  checkCancelled();
   if (starting) return starting;
   starting = (async () => {
-    const state = await probeService();
+    const generation = await captureServiceStartIntent(options.resumeAutomaticStart, options.signal);
+    const state = await probeService(options.signal);
+    checkCancelled();
     if (state.ready) return;
     if (state.occupied) throw new Error(state.message);
-    getToken(true);
     const logPath = path.join(runtimeHome(), 'service.log');
-    if (fs.existsSync(logPath) && fs.statSync(logPath).size > 2 * 1024 * 1024) fs.renameSync(logPath, `${logPath}.previous`);
-    const log = fs.openSync(logPath, 'a', 0o600);
-    const child = spawn(process.execPath, [entry, '--serve'], {
-      detached: true, windowsHide: true, stdio: ['ignore', log, log],
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-    });
-    fs.closeSync(log);
     let launchError: Error | undefined;
     let childExited = false;
     let exitCode: number | null = null;
-    child.on('error', error => { launchError = error; });
-    child.on('exit', code => { childExited = true; exitCode = code; });
+    const child = await commitServiceStartIntent(generation, () => {
+      checkCancelled(); getToken(true);
+      if (fs.existsSync(logPath) && fs.statSync(logPath).size > 2 * 1024 * 1024) fs.renameSync(logPath, `${logPath}.previous`);
+      const log = fs.openSync(logPath, 'a', 0o600);
+      try {
+        const child = spawn(process.execPath, [entry, '--serve'], {
+          detached: true, windowsHide: true, stdio: options.onSpawn ? ['ignore', log, log, 'ipc'] : ['ignore', log, log],
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHARFLOAT_SERVICE_START_GENERATION: generation }
+        });
+        child.on('error', error => { launchError = error; });
+        child.on('exit', code => { childExited = true; exitCode = code; });
+        options.onSpawn?.(child);
+        return child;
+      } finally { fs.closeSync(log); }
+    }, options.signal);
     child.unref();
+    child.channel?.unref();
     const readLogTail = () => {
       try {
         if (fs.existsSync(logPath)) {
@@ -103,12 +117,18 @@ export function ensureService(entry: string) {
     };
     for (let n = 0; n < 80; n++) {
       await new Promise(r => setTimeout(r, 150));
+      checkCancelled();
       if (launchError) throw launchError;
       if (childExited) {
         const tail = readLogTail();
         throw new Error(`后台进程过早退出（退出码 ${exitCode}）。${tail ? `日志: ${tail}` : `查看 ${logPath}`}`);
       }
-      if ((await probeService()).ready) return;
+      const ready = await probeService(options.signal);
+      checkCancelled();
+      if (ready.ready) {
+        if (options.onSpawn && ready.info.pid !== child.pid) throw new Error('后台端口已由其他实例占用，未接管该实例。');
+        return;
+      }
     }
     const tail = readLogTail();
     throw new Error(`后台启动超时。${tail ? `日志: ${tail}` : `查看 ${logPath}，不要反复启动多个实例。`}`);

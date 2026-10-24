@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 // @ts-ignore 只读门禁与命令行使用同一入口。
 import { checkVersion } from '../scripts/check-version.mjs';
+import { setVersion } from '../scripts/set-version.mjs';
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const files = [
@@ -15,6 +16,19 @@ const files = [
   'office-addon/excel/manifest.xml', 'src/renderer/App.tsx',
   'src/renderer/components/LiveWorkspaceCard.tsx', 'src/renderer/components/SettingsDrawer.tsx',
 ];
+
+test('版本同步在独立副本更新所有声明；拒绝降级或不完整输入且不留下半套版本', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat-version-set-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const name of files) { fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true }); fs.copyFileSync(path.join(sourceRoot, name), path.join(root, name)); }
+  setVersion(root, '999.0.0', '2026-10-24');
+  assert.deepEqual(checkVersion(root), { version: '999.0.0', errors: [] });
+  const before = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
+  assert.throws(() => setVersion(root, '2.2.3'), /必须高于/);
+  fs.unlinkSync(path.join(root, 'wps-addon/manifest.xml'));
+  assert.throws(() => setVersion(root, '999.0.1'));
+  assert.equal(fs.readFileSync(path.join(root, 'package.json'), 'utf8'), before);
+});
 
 test('当前源码版本一致，检查不依赖生成物或历史包', () => {
   assert.deepEqual(checkVersion(sourceRoot).errors, []);

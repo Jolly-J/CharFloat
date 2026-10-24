@@ -14,6 +14,7 @@ import appLogo from '../assets/app-logo.png';
 import brandWorking from '../assets/brand-working.png';
 
 interface TopologyViewProps {
+  port: number;
   online: boolean;
   connectedCount: number;
   activeWorkbook?: string;
@@ -26,6 +27,7 @@ interface TopologyViewProps {
 }
 
 export const TopologyView: React.FC<TopologyViewProps> = ({
+  port,
   online,
   connectedCount,
   configuredAgentsCount,
@@ -57,8 +59,7 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
       {/* 头部标题与极简说明 */}
       <div className="topology-title-bar">
         <div className="title-left">
-          <h2>实时连通拓扑</h2>
-          <span className="title-sub">办公套件与 AI 助手通过本地加密管道双向交互</span>
+          <h2>连接状态</h2>
         </div>
         <div className="title-right">
           <ShieldCheck size={13} className="text-muted" />
@@ -79,7 +80,7 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
             {connectedCount > 0 
               ? `${connectedCount} 个应用已连接` 
               : isWpsReady || isOfficeReady 
-              ? '加载项已就绪' 
+              ? '加载项已安装'
               : '待配置加载项'}
           </div>
           <div className="node-status-badge">
@@ -104,12 +105,12 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
         <div className={`track-node ${online ? 'active' : ''}`}>
           <div className="node-icon-row">
             <div className="core-icon-box bridge-core-box">
-              <img src={brandWorking} alt="Bridge 核心" className="bridge-brand-node-img" />
+              <img src={brandWorking} alt="字浮后台" className="bridge-brand-node-img" />
             </div>
           </div>
-          <div className="node-title">Bridge 核心</div>
+          <div className="node-title">字浮后台</div>
           <div className="node-detail">
-            {online ? '端口 19890 守护中' : '服务未运行'}
+            {online ? `端口 ${port} 守护中` : '服务未运行'}
           </div>
           <div className="node-status-badge">
             <span className={`badge-dot ${online ? 'green' : 'gray'}`} />
@@ -140,11 +141,11 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
           <div className="node-detail">
             {configuredAgentsCount > 0 
               ? `已配置 ${configuredAgentsCount} 个客户端` 
-              : '尚未授权客户端'}
+              : '尚未配置客户端'}
           </div>
           <div className="node-status-badge">
             <span className={`badge-dot ${configuredAgentsCount > 0 ? 'green' : 'gray'}`} />
-            <span>{configuredAgentsCount > 0 ? '已授权' : '待配置'}</span>
+            <span>{configuredAgentsCount > 0 ? '已保存配置' : '待配置'}</span>
           </div>
         </div>
       </div>
@@ -170,7 +171,7 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
                   transition={{ duration: 0.2 }}
                 >
                   <CheckCircle2 size={15} className="text-emerald-500" />
-                  <span>恭喜！全链路已连通就绪，现在打开办公文档即可与 AI 开始对话协同。</span>
+                  <span>配置已准备好，打开文档后在 AI 客户端刷新连接。</span>
                   <button 
                     className="guide-dismiss-btn"
                     onClick={() => setGuideDismissed(true)}
@@ -223,7 +224,7 @@ export const TopologyView: React.FC<TopologyViewProps> = ({
                     <motion.div layout className={`ob-step ${step === 3 ? 'current' : ''}`}>
                       <div className="step-badge">3</div>
                       <div className="step-copy">
-                        <strong>授权 AI</strong>
+                        <strong>连接 AI</strong>
                         <span>绑定客户端</span>
                       </div>
                       {step === 3 && (

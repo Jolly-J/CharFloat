@@ -1,15 +1,32 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, clipboard, nativeTheme, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, clipboard, nativeTheme, shell, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { ensureService, serviceRequest, probeService } from '../bridge/service-client.js';
+import { createRequire } from 'node:module';
+import { serviceRequest, probeService, pauseAutomaticServiceStart } from '../bridge/service-client.js';
+import { DesktopService } from './desktop-service.js';
+import { UpdateService } from './update-service.js';
+import { UPDATE_TRUST } from './update-trust.js';
+import { handoffUpdate } from './update-handoff.js';
+import { revokeInstallAuthorization } from './update-install.js';
+import { retargetUpdateConfig } from './update-config.js';
+import { showUpdateNotice, closeUpdateNotice, setupUpdateNoticeIpc } from './update-notice-window.js';
+import { refreshManagedSkills } from './skill-links.js';
+import { runDesktopDiagnostics } from './desktop-diagnostics.js';
 import { atomicWrite, runtimeHome, runtimePort, VERSION, resourcePath, appendServiceLog, getToken } from '../bridge/runtime.js';
 import { FULL_DISK_ACCESS_URL, appToAuthorize } from './permissions.js';
 import { openPermissionWindow, closePermissionWindow, startAppDrag, getPermissionIssue, loadAppIcon } from './permission-window.js';
 import { InstallerEngine } from './installer-engine.js';
+import { findClient } from './client-registry.js';
 import { AddonInstaller, OfficeAddonInstaller } from './addon-installer.js';
 import { ensureAddonUpToDate } from './addon-autoupgrade.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
+// A separate Windows process runs only our bundled updater. It never takes the GUI lock,
+// creates the desktop window, starts Bridge, or loads a script supplied by the caller.
+if (process.argv.includes('--charfloat-update-helper')) {
+  if (process.platform !== 'win32') app.exit(1);
+  else createRequire(import.meta.url)(path.join(here, 'update-helper.cjs'));
+} else {
 process.env.WPS_BRIDGE_RESOURCES ||= app.getAppPath();
 const root = app.getAppPath();
 app.setPath('userData', path.join(runtimeHome(), 'desktop-state'));
@@ -17,7 +34,25 @@ const cliPath = path.join(root, 'dist/bridge/cli.cjs').replace(/app\.asar([\\/])
 InstallerEngine.runtimeEntry = cliPath;
 let window: BrowserWindow | null = null, tray: Tray | null = null;
 let timer: NodeJS.Timeout | undefined;
+let updateTimer: NodeJS.Timeout | undefined;
+let updateFocusPending = false;
 let notice = '';
+const desktopService = new DesktopService();
+const updates = new UpdateService({ trust: UPDATE_TRUST, context: { version: VERSION, platform: process.platform, arch: process.arch }, cacheDirectory: path.join(runtimeHome(), 'desktop-state', 'updates'), onState: value => {
+  if (window && !window.isDestroyed()) window.webContents.send('update-changed', value);
+  if (value.phase === 'available') void announceUpdate(value.availableVersion).catch(() => { notice = '更新提醒未能显示，请在客户端查看版本更新。'; });
+} });
+let quitCompleted = false;
+let quitPending: Promise<void> | undefined;
+let installing = false;
+async function prepareShutdown() {
+  clearInterval(timer);
+  clearInterval(updateTimer);
+  desktopService.beginClosing();
+  await pauseAutomaticServiceStart();
+  await updates.shutdown();
+  await desktopService.stop();
+}
 // 最近一次加载项自动升级的结果（供界面展示）
 let addonUpgradeResult: Awaited<ReturnType<typeof ensureAddonUpToDate>> | null = null;
 const prefsPath = path.join(runtimeHome(), 'desktop.json');
@@ -25,8 +60,29 @@ let prefs: any = {};
 try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')); } catch {}
 if (['system', 'light', 'dark'].includes(prefs.theme)) nativeTheme.themeSource = prefs.theme;
 function persist() { atomicWrite(prefsPath, JSON.stringify(prefs)); }
+function openUpdateArea() {
+  updateFocusPending = true;
+  createWindow();
+  if (window && !window.webContents.isLoading()) window.webContents.send('update-open');
+}
+async function announceUpdate(version?: string) {
+  if (!version || prefs.notifiedUpdateVersion === version || desktopService.closing) return;
+  // Persist before showing: closing the popup or restarting the GUI cannot re-prompt this version.
+  prefs.notifiedUpdateVersion = version;
+  try { persist(); } catch { notice = '更新提醒记录未能保存，请检查用户目录权限。'; }
+  await showUpdateNotice({ version, currentVersion: VERSION, notes: updates.getState().notes || '' });
+}
+function startUpdateChecks() {
+  clearInterval(updateTimer);
+  const check = () => {
+    if (!desktopService.closing && !updates.isWorking && updates.getState().phase !== 'ready') void updates.check().catch(() => {});
+  };
+  check();
+  updateTimer = setInterval(check, 6 * 60 * 60 * 1000); updateTimer.unref();
+}
 function createWindow() {
-  if (window) { window.show(); window.focus(); return; }
+  if (quitCompleted) return;
+  if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); return; }
   let appIcon: Electron.NativeImage | undefined;
   if (process.platform !== 'darwin') {
     try {
@@ -43,19 +99,63 @@ function createWindow() {
   if (process.env.VITE_DEV_SERVER_URL) void window.loadURL(process.env.VITE_DEV_SERVER_URL); else void window.loadFile(path.join(here, '../renderer/index.html'));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
+  window.webContents.on('did-finish-load', () => { if (updateFocusPending) window?.webContents.send('update-open'); });
   window.once('ready-to-show', () => window?.show());
+  window.on('close', event => { if (!quitCompleted) { event.preventDefault(); window?.hide(); } });
   window.on('resized', () => { if (window && !window.isMaximized()) { const [width, height] = window.getSize(); prefs = { ...prefs, width, height }; persist(); } });
   window.on('closed', () => { window = null; });
 }
 async function state() {
-  try { return { online: true, ...(await serviceRequest('/api/v1/status')), notice: '' }; }
-  catch { return { online: false, isWpsConnected: false, components: {}, notice }; }
+  try { return { online: true, ...(await serviceRequest('/api/v1/status')), notice, addonStartupChecked: addonUpgradeResult !== null }; }
+  catch { return { online: false, isWpsConnected: false, components: {}, notice, addonStartupChecked: addonUpgradeResult !== null }; }
 }
 function setupIpc() {
+  setupUpdateNoticeIpc(openUpdateArea, () => desktopService.closing);
+  ipcMain.handle('client:documentation', async (event, id: string) => {
+    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error('无效的客户端请求来源。');
+    const url = typeof id === 'string' ? findClient(id)?.documentation : undefined;
+    if (!url || !url.startsWith('https://')) return { success: false, message: '请在该客户端中查看接入说明。' };
+    await shell.openExternal(url); return { success: true };
+  });
+  const ownUpdate = (event: Electron.IpcMainInvokeEvent) => {
+    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error('无效的更新请求来源。');
+    if (installing || quitPending || desktopService.closing) throw new Error('字浮正在退出或准备安装。');
+  };
+  ipcMain.handle('update:status', event => { ownUpdate(event); return updates.restoreInstallReport(); });
+  ipcMain.handle('update:take-focus', event => { ownUpdate(event); const pending = updateFocusPending; updateFocusPending = false; return pending; });
+  ipcMain.handle('update:check', event => { ownUpdate(event); return updates.check(); });
+  ipcMain.handle('update:download', event => { ownUpdate(event); return updates.download(); });
+  ipcMain.handle('update:cancel', event => { ownUpdate(event); updates.cancel(); return { success: true }; });
+  ipcMain.handle('update:install', async event => {
+    ownUpdate(event);
+    if (installing || quitPending || desktopService.closing) throw new Error('字浮正在退出或准备安装。');
+    if (!app.isPackaged || !['darwin', 'win32'].includes(process.platform) || !['arm64', 'x64'].includes(process.arch)) throw new Error('在线安装仅适用于正式安装的 Mac/Windows 应用。');
+    installing = true;
+    let handoff: Awaited<ReturnType<typeof handoffUpdate>> | undefined;
+    try {
+      const artifact = await updates.verifiedDownload();
+      updates.preparingInstall();
+      const probe = await probeService();
+      if (probe.ready && !desktopService.ownsProcess(probe.info.pid)) throw new Error('检测到独立启动的 Bridge，不能接管或停止它。请先通过它所属的入口退出后台，再重试更新。');
+      prefs.updateLogin = app.getLoginItemSettings().openAtLogin; persist();
+      await prepareShutdown();
+      const target = process.platform === 'darwin' ? path.resolve(process.execPath, '../../..') : path.dirname(process.execPath);
+      handoff = await handoffUpdate({ cache: path.join(runtimeHome(), 'desktop-state', 'updates'), artifact, currentVersion: VERSION, target, helper: path.join(here, 'update-helper.cjs'), platform: process.platform as 'darwin' | 'win32', arch: process.arch as 'arm64' | 'x64' });
+      quitCompleted = true; closePermissionWindow(); closeUpdateNotice(); tray?.destroy(); app.quit();
+      return { success: true };
+    } catch (error) {
+      if (handoff) { await revokeInstallAuthorization(handoff.file, handoff.ticket.nonce); quitCompleted = false; }
+      if (desktopService.closing) {
+        try { desktopService.resumeAfterFailedHandoff(); updates.resumeAfterFailedHandoff(); startStatusTimer(); startUpdateChecks(); } catch { /* keep shutdown guard when a child is still alive */ }
+      }
+      updates.failedInstall(error instanceof Error ? error.message : '更新未完成，请重试。');
+      throw error;
+    } finally { installing = false; }
+  });
   ipcMain.handle('get-status', state);
-  ipcMain.handle('service-start', async () => { try { await ensureService(cliPath); notice = ''; return { success: true }; } catch(e: any) { notice = e.message; return { success: false, message: e.message }; } });
+  ipcMain.handle('service-start', async () => { try { await desktopService.start(cliPath); notice = ''; return { success: true }; } catch(e: any) { notice = e.message; return { success: false, message: e.message }; } });
   ipcMain.handle('service-stop', async () => { await serviceRequest('/api/v1/service/stop', {}); return { success: true }; });
-  ipcMain.handle('diagnose', () => serviceRequest('/api/v1/tool/call', { name: 'bridge_diagnose', arguments: {} }).then(r => r.data));
+  ipcMain.handle('diagnose', () => runDesktopDiagnostics());
   ipcMain.handle('office-status', () => serviceRequest('/api/v1/tool/call', { name: 'office_get_status', arguments: {} }).then(r => r.data));
   ipcMain.handle('get-audit-records', (_e, options = {}) => serviceRequest('/api/v1/tool/call', { name: 'wps_get_audit_history', arguments: { ...options, limit: 20, view: 'summary' } }).then(r => r.data));
   ipcMain.handle('clear-audit-records', () => serviceRequest('/api/v1/tool/call', { name: 'wps_clear_audit_history', arguments: {} }).then(r => r.data));
@@ -152,10 +252,46 @@ function setupIpc() {
   });
   ipcMain.handle('exit-app', () => app.quit());
 }
+function startStatusTimer() {
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    if (!desktopService.closing && window && !window.isDestroyed()) {
+      const current = await state();
+      if (!desktopService.closing && window && !window.isDestroyed()) window.webContents.send('status-changed', current);
+    }
+  }, 2000);
+}
+function migrateUpdatedWindowsPaths() {
+  if (!app.isPackaged || process.platform !== 'win32') return;
+  const directory = path.dirname(process.execPath);
+  try {
+    const marker = path.join(directory, '.charfloat-install.json'), st = fs.lstatSync(marker);
+    if (!st.isFile() || st.isSymbolicLink() || st.size > 16384) return;
+    const receipt = JSON.parse(fs.readFileSync(marker, 'utf8'));
+    const previous = receipt.previousDirectory;
+    if (receipt.product !== 'charfloat-user-bootstrap-v1' || receipt.version !== VERSION || typeof previous !== 'string') return;
+    const root = path.join(fs.realpathSync(process.env.LOCALAPPDATA!), 'Programs', 'CharFloat');
+    if (path.dirname(directory) !== root || path.dirname(previous) !== root || !/^\d+\.\d+\.\d+-[a-f0-9]{12}$/.test(path.basename(previous)) || fs.lstatSync(previous).isSymbolicLink()) throw new Error('无法确认旧安装目录，未迁移客户端路径。');
+    if (prefs.updateMigratedFrom === previous && prefs.updateMigratedTo === directory) return;
+    const errors: string[] = [];
+    for (const agent of InstallerEngine.detectEnvironment().agents) {
+      if (agent.configKind === 'manual') continue;
+      for (const target of agent.configTargets) {
+        try { retargetUpdateConfig(target.file, target.kind, previous, directory); }
+        catch { errors.push(agent.name); }
+      }
+    }
+    if (prefs.updateLogin === true) app.setLoginItemSettings({ openAtLogin: true, args: ['--background'] });
+    if (errors.length) notice = `应用已更新，部分客户端路径未迁移：${[...new Set(errors)].join('、')}。原配置与旧应用均保留，可在授权中心重新配置。`;
+    else { prefs.updateMigratedFrom = previous; prefs.updateMigratedTo = directory; delete prefs.updateLogin; persist(); }
+  } catch (error: any) { notice = error.message || '更新后的客户端路径迁移未完成，原配置已保留。'; }
+}
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', createWindow);
   app.whenReady().then(async () => {
+    migrateUpdatedWindowsPaths();
+    try { refreshManagedSkills(); } catch (error: any) { notice = error.message || '技能资源更新未完成，请重新连接客户端。'; }
     setupIpc();
     const isMac = process.platform === 'darwin';
     let trayIcon: Electron.NativeImage;
@@ -166,21 +302,34 @@ else {
       trayIcon = nativeImage.createFromPath(resourcePath('resources/tray-win.png'));
     }
     tray = new Tray(trayIcon); tray.setToolTip('字浮 CharFloat');
-    tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 字浮 CharFloat', click: createWindow }, { label: '停止服务', click: () => { void serviceRequest('/api/v1/service/stop', {}).catch(e => { notice = e.message; }); } }, { type: 'separator' }, { label: '退出管理窗口（后台继续运行）', click: () => app.quit() }]));
+    tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 字浮 CharFloat', click: createWindow }, { label: '停止服务', click: () => { void serviceRequest('/api/v1/service/stop', {}).catch(e => { notice = e.message; }); } }, { type: 'separator' }, { label: '退出字浮（停止本应用后台）', click: () => app.quit() }]));
     tray.on('click', createWindow);
     if (!process.argv.includes('--background')) createWindow();
     // 启动即对齐：客户端包内的加载项若比 WPS 里部署的新，自动重新部署并触发重载。
     // 串行在 ensureService 之后——重载要靠桥接把 reload 送到加载项。
-    ensureService(cliPath)
-      .then(() => ensureAddonUpToDate())
+    desktopService.start(cliPath)
+      .then(() => desktopService.closing ? null : ensureAddonUpToDate())
       .then(r => {
+        if (!r || desktopService.closing) return;
         addonUpgradeResult = r;
         appendServiceLog('AutoUpgrade', r.message);
       })
       .catch(e => { notice = e.message; });
-    timer = setInterval(async () => { if (window && !window.isDestroyed()) window.webContents.send('status-changed', await state()); }, 2000);
+    startStatusTimer();
+    startUpdateChecks();
     app.on('activate', createWindow);
   });
   app.on('window-all-closed', () => {});
-  app.on('before-quit', () => { clearInterval(timer); tray?.destroy(); });
+  app.on('before-quit', event => {
+    if (quitCompleted) return;
+    event.preventDefault();
+    if (installing) return;
+    quitPending ||= prepareShutdown().then(() => {
+      quitCompleted = true; closePermissionWindow(); closeUpdateNotice(); tray?.destroy(); app.quit();
+    }).catch(error => {
+      quitPending = undefined; notice = error.message;
+      dialog.showErrorBox('字浮未能完成退出', error.message);
+    });
+  });
+}
 }

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import JavaScriptObfuscator from 'javascript-obfuscator';
+import { privateUpdatePath } from './update-key-safety.mjs';
 
 export const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 export const STAGE = path.join(ROOT, 'dist/release-app');
@@ -50,6 +51,7 @@ export function walk(dir, prefix = '') {
 }
 
 export function allowed(name) {
+  if (privateUpdatePath(name)) return false;
   return POLICY.files.includes(name) || new RegExp(POLICY.rendererAssetPattern).test(name) ||
     name === 'package.json' || name === MANIFEST;
 }
@@ -70,6 +72,7 @@ export function checkFiles(names, read, { manifestRequired = true, allowPlainCli
   // 兜底文件是打包阶段（beforePack）在清单写好后加进去的，不参与清单比对
   const own = names.filter(n => !n.startsWith('node_modules/') && !isAllowedPlain(n));
   for (const name of names) {
+    if (privateUpdatePath(name)) errors.push('禁止发布本地更新签名材料');
     if (/[.]map$|(?:^|\/)AGENTS[.]md$|(?:^|\/)[^/]*-full[.]cjs$/.test(name) && !isAllowedPlain(name)) errors.push(`禁止发布: ${name}`);
     if (!name.startsWith('node_modules/') && !isAllowedPlain(name) && !allowed(name)) errors.push(`不在发布白名单: ${name}`);
   }

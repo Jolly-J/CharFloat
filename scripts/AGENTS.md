@@ -4,7 +4,16 @@
 
 ## 文件地图
 
+- [set-version.mjs](set-version.mjs)：同步已确认的新版本声明和变更日志；先完整预检，不构建或提交。
+- [check-dependencies.mjs](check-dependencies.mjs)：逐项核对实际依赖与锁文件；只读，可检查独立依赖目录。
+- [build-update-packages.mjs](build-update-packages.mjs)：在全新本地目录依次检查、构建和生成两端完整程序 ZIP，输出大小/哈希，不签名、不上传；流程见 [UPDATES.md](../UPDATES.md)。
+- [check-update-package.ts](check-update-package.ts)：用真实更新器解压刚构建的 ZIP，验证应用身份、版本和架构；仅写临时目录，不安装或启动。已接入在线包构建门禁，不能以该检查代替系统实机更新。
+
 - [dev.ts](dev.ts)：启动 Vite 和 Electron；启动前依次构建主进程与**加载项部署入口**（`build:main` + `build:addons`）。
+- [prepare-update.ts](prepare-update.ts)：离线复制并重新校验已验收的包，使用调用方提供的已有 Ed25519 私钥签名清单，只写新的本地目录；不生成密钥、不上传、不覆盖输出。信任配置、Nginx 目录映射与先包后清单发布顺序见[更新指南](../UPDATES.md)。
+- [prepare-upgrade-acceptance.mjs](prepare-upgrade-acceptance.mjs)：按本地 A/B 计划把公开输入复制到全新验收目录，只在副本写入测试版本/清单、独立应用身份/用户数据/端口与禁止宿主配置写入的隔离覆盖，并记录逐文件前后指纹；不读取私钥、不安装、不部署。根工作区版本和正式更新源保持不变。
+- [init-update-signing-key.mjs](init-update-signing-key.mjs)：仅显式初始化项目内 Git 忽略的本地生产更新密钥；先核对排除规则，排他创建，已有密钥只复用/校验，不轮换、不覆盖、不输出私钥。构建不得调用它。
+- [check-update-secrets.mjs](check-update-secrets.mjs)、[lib/update-key-safety.mjs](lib/update-key-safety.mjs)：本地签名目录的 Git/归档/应用包/发布白名单门禁；可显式扫描目录、ASAR、ZIP、tar/tgz 的路径及生产私钥字节，报告只有计数和通过状态，不输出材料。私钥不能作为构建输入，扫描器只读校验。
 - [inspect.ts](inspect.ts)：启动服务并探测宿主。
 - [verify-all-mcp-tools.ts](verify-all-mcp-tools.ts)：访问真实 Microsoft 宿主的工具验证。
 - [verify_all_tiers.ts](verify_all_tiers.ts)：真实 Bridge 集成操作。
@@ -42,7 +51,7 @@
 公开仓库不提供本地 `docs/`，平台构建以本节和实际脚本为准：
 
 - **macOS arm64**：`npm run dist:mac` 生成 `release/<版本>/mac/` 内的 ZIP 和解包应用；发布前用 `node scripts/check-release-protection.mjs <实际ZIP路径>` 核验。不能套用 Windows 引导命令。
-- **Windows x64 载荷**：`npm run dist:win` 先生成 `release/<版本>/win/` 内的应用 ZIP；它是引导的载荷和明确标注的备用交付，不包含品牌配置界面。
+- **Windows x64 载荷**：`npm run dist:win` 先生成 `release/<版本>/win/` 内的应用 ZIP；它同时用于客户端在线更新、引导载荷和备用交付，不包含品牌配置界面。
 - **Windows 当前用户引导**：在隔离构建目录中执行 `node scripts/build-windows-bootstrap.mjs <已验证WindowsZIP> <应用源码完整SHA> <引导源码完整SHA>`，再执行 `node scripts/pack-windows-bootstrap.mjs`。输入 ZIP 必须先通过包级检查；产物为 `dist/windows-bootstrap/artifacts/CharFloat-<版本>-win-x64.exe`。脚本使用 `windows-bootstrap/assets/`，不依赖本地官网或 `docs/`。必须重新生成 stage，不能复用旧 `main.cjs`。
 - **验证与发布**：分别运行版本、导航、能力声明、类型、构建与单测门禁；Windows 引导另用完整 Electron 执行 `tests/windows-bootstrap-electron.cjs <payload.zip> <manifest.json> <新report.json>`，并单独验证 UI、外壳、普通用户路径和 Windows 实机行为。模拟测试不能代替实机；不得自动发布、覆盖正式版本或移动标签。发布需有用户授权，并记录两个源码 SHA、产物哈希与验证范围；本地诊断包和用户日志不得上传。
 

@@ -19,6 +19,11 @@ export default defineConfig([
   },
   // 2. Electron 预加载脚本 (Preload, 输出为 CJS 以获得最大的 Electron 兼容性)
   {
+    entry: { "main/update-helper": "src/main/update-helper.ts" },
+    format: ["cjs"], target: "node20", platform: "node", minify: true,
+    sourcemap: false, clean: false, noExternal: [/^(?!original-fs$|electron$).*/], external: ['original-fs', 'electron']
+  },
+  {
     entry: {
       "preload/index": "src/preload/index.ts"
     },

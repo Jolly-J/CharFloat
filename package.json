@@ -1,6 +1,6 @@
 {
   "name": "charfloat",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "description": "Universal Bridge between AI Agents (Doubao, WorkBuddy, Qwen, Kimi, Claude Code, Codex) and Microsoft Office & WPS Office with Audit Trail and GUI",
   "homepage": "https://charfloat.online/",
   "repository": {
@@ -48,8 +48,14 @@
     "check:release": "node scripts/check-release-protection.mjs",
     "build:release": "npm run build && npm run build:release-assets",
     "check:brand": "node scripts/check-brand.mjs",
-    "prebuild": "npm run check:version && npm run check:brand",
-    "postbuild": "node scripts/check-brand.mjs --generated"
+    "check:update-secrets": "node scripts/check-update-secrets.mjs",
+    "prebuild": "npm run check:version && npm run check:brand && npm run check:update-secrets",
+    "postbuild": "node scripts/check-brand.mjs --generated",
+    "check:dependencies": "node scripts/check-dependencies.mjs",
+    "version:set": "node scripts/set-version.mjs",
+    "build:update-packages": "node scripts/build-update-packages.mjs",
+    "prepare:update": "tsx scripts/prepare-update.ts",
+    "check:update-package": "node --import tsx scripts/check-update-package.ts"
   },
   "build": {
     "appId": "com.antigravity.charfloat",
@@ -63,10 +69,14 @@
         "to": ".",
         "filter": [
           "**/*",
+          "!**/.charfloat-local-secrets",
+          "!**/.charfloat-local-secrets/**",
           "!package.json"
         ]
       },
       "package.json",
+      "!**/.charfloat-local-secrets",
+      "!**/.charfloat-local-secrets/**",
       "!**/*-full.cjs",
       "!**/*.map",
       "!**/AGENTS.md"
@@ -124,15 +134,18 @@
   "author": "Antigravity",
   "license": "MIT",
   "dependencies": {
+    "@iarna/toml": "2.2.5",
     "@modelcontextprotocol/sdk": "^1.6.1",
     "@xmldom/xmldom": "0.9.12",
     "bytenode": "^1.7.0",
     "clsx": "^2.1.1",
+    "jsonc-parser": "3.3.1",
     "lucide-react": "^1.16.0",
     "motion": "^13.4.0",
     "tailwind-merge": "^3.0.2",
     "uuid": "^11.1.0",
     "ws": "^8.18.1",
+    "yaml": "2.8.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {

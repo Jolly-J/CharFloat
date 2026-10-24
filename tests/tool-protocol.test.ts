@@ -58,7 +58,8 @@ test('MCP real callback keeps isError and readable text plus safe structured fai
 
 test('background service client keeps safe failure fields for stdio MCP without retry',async()=>{
   let calls=0;
-  const client=load('src/bridge/service-client.ts',{'./errors.js':errors,'./runtime.js':{...runtime,getToken:()=> 'test-only'}},{AbortSignal,fetch:async()=>{calls++;return {ok:false,status:422,json:async()=>({success:false,error:'宿主失败',errorDetails:{kind:'failed',channel:'wps-addon',executed:'unknown'},partial:{completedShapeIds:[3]}})};}});
+  const neverStart=()=>{throw new Error('protocol failure forwarding must not start or pause a service');};
+  const client=load('src/bridge/service-client.ts',{'./errors.js':errors,'./runtime.js':{...runtime,getToken:()=> 'test-only'},'./service-start-control.js':{captureServiceStartIntent:neverStart,commitServiceStartIntent:neverStart,pauseServiceStarts:neverStart}},{AbortSignal,fetch:async()=>{calls++;return {ok:false,status:422,json:async()=>({success:false,error:'宿主失败',errorDetails:{kind:'failed',channel:'wps-addon',executed:'unknown'},partial:{completedShapeIds:[3]}})};}});
   try{await client.serviceRequest('/api/v1/tool/call',{name:'tool'});assert.fail('must fail');}
   catch(e:any){assert.equal(e.errorDetails.executed,'unknown');assert.deepEqual(JSON.parse(JSON.stringify(e.partial)),{completedShapeIds:[3]});}
   assert.equal(calls,1);

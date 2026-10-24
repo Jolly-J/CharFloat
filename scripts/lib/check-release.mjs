@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import asar from '@electron/asar';
 import yauzl from 'yauzl';
 import { checkFiles, walk, MANIFEST, PROFILE } from './release-protection.mjs';
+import { assertPublicPaths } from './update-key-safety.mjs';
 
 async function hashFile(file) {
   const hash = createHash('sha256');
@@ -46,6 +47,7 @@ async function extractApp(zipFile, destination) {
     zip.on('entry', entry => {
       (async () => {
         const name = entry.fileName;
+        assertPublicPaths([name]);
         if (name.includes('\\') || name.startsWith('/') || name.split('/').includes('..') || seen.has(name)) throw new Error(`不安全或重复的 ZIP 路径: ${name}`);
         seen.add(name);
         if (/\.map$/.test(name)) throw new Error(`ZIP 内包含 sourcemap: ${name}`);

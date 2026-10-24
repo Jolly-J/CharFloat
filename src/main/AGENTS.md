@@ -2,13 +2,25 @@
 
 ## 文件地图
 
-- [index.ts](index.ts)：窗口、托盘、IPC 与服务控制。
+- [index.ts](index.ts)：窗口、托盘、IPC、服务控制及更新自动检查/每版本一次弹窗；弹窗仅唤起并定位客户端更新区域。
+- [update-notice-window.ts](update-notice-window.ts)：带品牌形象的独立更新提醒窗口及受控 IPC；只允许关闭或打开客户端更新区域。
+- [desktop-service.ts](desktop-service.ts)：只持有本 GUI 启动的 Bridge 句柄，取消启动竞态并等待退出；不接管既有后台。
+- [update-protocol.ts](update-protocol.ts)、[update-trust.ts](update-trust.ts)：签名清单/版本/源验证与构建时信任配置；正式源未配置时不访问网络。
+- [update-service.ts](update-service.ts)：检查、后台下载、取消/重试、尺寸/哈希核对与安装历史；下载状态与客户端全局忙碌状态分离。
+- [update-install.ts](update-install.ts)、[update-handoff.ts](update-handoff.ts)：私有签名交接、就绪后一次性授权、失败撤销、旧 GUI 退出等待与提交前消费；失败旧票据不可重用，不接受 renderer 指定路径。
+- [update-mac.ts](update-mac.ts)、[update-helper.ts](update-helper.ts)：独立 CJS helper（Windows 从既有程序的专用进程运行，不进入安装向导）、Mac 安全解压、同盘替换/回滚与离线缺失路径恢复。
+- Mac 和 Windows ZIP 流共用 [zip-stream.mjs](../../windows-bootstrap/zip-stream.mjs)，必须覆盖 STORE/DEFLATE、空条目及真实发布 ZIP，不能只用压缩小样本判断更新助手可用。
+- [update-config.ts](update-config.ts)：Windows 更新后的当前品牌 MCP 路径迁移，保留自定义参数与禁用状态，备份配置。部署/故障流程见[更新指南](../../UPDATES.md)。
 - [installer-engine.ts](installer-engine.ts)：客户端检测、状态判定与 MCP/skill 安装编排。
 - [client-registry.ts](client-registry.ts)：AI 客户端注册表（国内/国外分类、配置格式、路径、检测路径、手动接入说明）；加客户端只改这一处。
-- [mcp-adapters.ts](mcp-adapters.ts)：按客户端格式合并 MCP 配置（`json-mcp` / `toml-codex` / `json-opencode`），只改本产品条目，解析失败不覆盖。
+- [mcp-adapters.ts](mcp-adapters.ts)：按 JSON/JSONC、Codex TOML、OpenCode 和 VS Code 格式合并及读回 MCP 配置；保留停用和无关条目。
+- [config-file.ts](config-file.ts)、[dsh-mcp.ts](dsh-mcp.ts)：有界配置读写、并发修改检查、备份；DSH YAML 节点合并，不执行表达式。
+- [skill-links.ts](skill-links.ts)：稳定托管技能源、旧副本备份、Mac 符号链接/Windows junction、读回与失败回退。
+- [desktop-diagnostics.ts](desktop-diagnostics.ts)：后台离线也能运行的只读检查；区分加载项连接、配置保存与实际客户端加载。两端路径及依据见 [CLIENTS.md](../../CLIENTS.md)。
 - [legacy-brand.ts](legacy-brand.ts)：集中维护旧配置/加载项的识别与迁移标识，不用于用户文案或新条目。
 - [addon-installer.ts](addon-installer.ts)：办公加载项部署；Office 清单按内容核对更新与状态，兼容同版本品牌变更；写入失败时返回结构化 `permissionIssue` 而非裸错误。
 - [addon-autoupgrade.ts](addon-autoupgrade.ts)：启动时对齐加载项构建——比对**构建指纹**（版本号在多次构建间不变，不可作依据），不一致则重新部署并触发加载项重载，免重启 WPS。
+  部署检查完成后状态包携带 `addonStartupChecked`；renderer 据此重新读取环境，避免卡片停留在初始检测结果。
 - [permissions.ts](permissions.ts)：macOS 完全磁盘访问权限引导（设置深链、当前运行模式该授权的 App 路径）。
 - [permission-detect.ts](permission-detect.ts)：权限错误的**纯识别逻辑**，不依赖 electron，可单元测试。
 - [permission-window.ts](permission-window.ts)：权限引导的**置顶浮窗**（复用 `index.html#permission-guide`，含 App 图标拖拽 `startDrag`）。
@@ -19,11 +31,13 @@
 
 ## 修改边界
 
-后台不由窗口持有；退出 GUI 不等于停止服务。外部配置合并保留其他条目，解析失败不得覆盖原文件。读取状态不应顺便安装或写配置。安装路径依运行配置，避免写死开发机器路径。
+后台不由窗口持有；关闭窗口隐藏，明确退出等待本 GUI 拥有的后台及其辅助进程停止并暂停 MCP 自动拉起，既有独立后台保留。外部配置合并保留其他条目，解析失败不得覆盖原文件。读取状态不应顺便安装或写配置。安装路径依运行配置，避免写死开发机器路径。
 
 ## 验证
 
-`node --import tsx --test tests/platform.test.ts tests/lifecycle.test.ts`；IPC 修改执行 typecheck/build，窗口交互还需实际 Electron 验证。
+`node --import tsx --test tests/platform.test.ts tests/client-integration.test.ts tests/lifecycle.test.ts`；IPC 修改执行 typecheck/build，窗口交互还需实际 Electron 验证。
+
+更新和退出追加 `tests/update.test.ts`、`tests/update-install.test.ts`、`tests/desktop-lifecycle.test.ts`（需先构建 CLI）；安装测试仅临时目录，真实 GUI/Windows 安装分别报告。新增 helper 构建入口必须同步 tsup 配置与发布白名单；不能把测试公钥植入正式包。
 
 ## 避坑
 
@@ -47,9 +61,11 @@ dev 与打包版的授权对象不同 → 引导里显示错 App，用户拖了�
 
 部署失败仍去重载 → 重载只会再次加载旧文件，制造"已修复"的假象 → 安装器返回 `success: false` 时**不触发重载**并如实报告 → 同上测试的"部署失败时不触发重载"用例。
 
-给新客户端写 MCP 时假定格式都是 `mcpServers` → Codex 只读 `~/.codex/config.toml` 的 `[mcp_servers.*]`，VS Code 用户级旧格式的顶层键是 `servers`（新推荐 `~/.copilot/mcp-config.json` 才是 `mcpServers`），opencode 用的是 `mcp.<name>.command` 数组。写错键名或写错文件**不会报错，只会静默无效**，卡片还可能显示"已配置" → 按注册表 `configKind` 走 `mcp-adapters.ts` 的对应适配器，状态判定用同一格式读回 → 回归见 [platform.test.ts](../../tests/platform.test.ts) 的 Codex/opencode 用例；Codex 可现场用 `codex mcp list` 核对。
+给各 AI 客户端套同一配置格式或把应用缓存目录当用户配置 → 文件写入成功但客户端不读取 → 不同厂商及不同入口的契约不同 → 按注册表的每个 `configTargets.kind` 适配并读回，官方依据与两端矩阵见 [CLIENTS.md](../../CLIENTS.md) → [client-integration.test.ts](../../tests/client-integration.test.ts)。
 
-给"配置存在但官方只支持应用内操作"的客户端猜全局配置文件路径 → Trae 只文档化项目级 `.trae/mcp.json`（需开"项目级 MCP"开关）与 `trae://` 导入链接，通义灵码（现 Qoder CN）只支持 IDE 内"个人设置 > MCP 服务"、配置随账号同步；猜出来的路径写完也没客户端读 → 在注册表里标 `configKind: 'manual'` 并给 `manualHint`，安装时如实返回"需手动接入"，不写文件 → 依据 docs.trae.ai/ide/add-mcp-servers、help.aliyun.com/zh/lingma/mcp-servers。
+只看到 MCP 条目存在就显示连接成功，或直接改客户端审批记录 → 无效路径、停用和用户授权被忽略 → 配置保存与运行时加载是两层状态 → 检查当前命令/参数/环境、停用记录，保留策略；应用内接入明确引导，不猜全局路径，不代用户授权 → 同上测试与各客户端实际工具列表。
+
+Windows 技能链接指向应用版本目录 → 更新后仍读取旧技能 → 版本目录不可变且旧目录保留 → 链接到用户数据下稳定托管源，Windows 使用 junction，旧副本先备份；更新仅刷新已管理源 → 同上链接与回退用例，Windows 实机单独验收。
 
 ## 同步维护
 

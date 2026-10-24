@@ -1,6 +1,7 @@
 {
   "files": [
     "dist/main/index.js",
+    "dist/main/update-helper.cjs",
     "dist/preload/index.cjs",
     "dist/bridge/cli.cjs",
     "dist/bridge/cli.jsc",

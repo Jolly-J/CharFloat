@@ -7,7 +7,9 @@ import {
   ChevronDown, 
   LoaderCircle,
   Check,
-  Bot
+  Bot,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import appLogo from '../assets/app-logo.png';
 import brandGreeting from '../assets/brand-greeting.png';
@@ -26,6 +28,7 @@ import geminiLogo from '../assets/gemini.png';
 import antigravityLogo from '../assets/antigravity.png';
 import opencodeLogo from '../assets/opencode.png';
 import vscodeLogo from '../assets/vscode.png';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 const agentLogos: Record<string, string> = {
   // 国内
@@ -64,6 +67,7 @@ interface AgentHubProps {
   onCopyText: (text: string) => void;
   onOpenDoubaoGuide?: () => void;
   onOpenAgentApp?: (id: string) => void;
+  onOpenDocumentation?: (id: string) => void;
 }
 
 export const AgentHub: React.FC<AgentHubProps> = ({
@@ -78,7 +82,10 @@ export const AgentHub: React.FC<AgentHubProps> = ({
   onCopyText,
   onOpenDoubaoGuide,
   onOpenAgentApp,
+  onOpenDocumentation,
 }) => {
+  const reduced = useReducedMotion();
+  const [manualAgent, setManualAgent] = useState<any>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [copiedType, setCopiedType] = useState<'prompt' | 'json' | null>(null);
   const [activeRegion, setActiveRegion] = useState<'cn' | 'global'>('cn');
@@ -111,15 +118,15 @@ export const AgentHub: React.FC<AgentHubProps> = ({
     const jsonStr = JSON.stringify(mcpConfig, null, 2);
     return `请帮我把本地「字浮 CharFloat」办公自动化服务配置到你（当前 AI 助手）的 MCP (Model Context Protocol) 列表中。
 
-服务配置参数如下（请将其安全合并到你的 mcpServers 配置文件中，不要覆盖已有其他服务）：
+stdio 服务参数如下，请按当前客户端官方配置格式合并，不要覆盖其他服务：
 \`\`\`json
 ${jsonStr}
 \`\`\`
 
 配置执行说明：
-1. 检查并定位你所在客户端的 MCP 配置文件（如 Cursor 用户的 ~/.cursor/mcp.json 或当前项目的 .cursor/mcp.json，Windsurf 用户的 ~/.codeium/windsurf/mcp_config.json 等）；
-2. 读取现有配置内容，并将上述 "charfloat" 服务条目合并进 "mcpServers" 对象；
-3. 保存后请告知我已完成配置，并提醒我重载或刷新 MCP 服务。`;
+1. 核对你所在客户端的官方位置和格式。Codex 使用 TOML，DeepSeek Harness 使用 Cordis YAML，VS Code 使用 servers；不能全部按 mcpServers JSON 写入。
+2. 保留其他服务、自定义选项、禁用和授权设置，解析失败不要覆盖。
+3. 写入后读回核对命令、参数和路径；分别说明配置已保存与客户端实际已连接，不能混为一谈。`;
   };
 
   const handleCopyPrompt = () => {
@@ -135,16 +142,15 @@ ${jsonStr}
   };
 
   return (
-    <section className="agent-hub-card">
+    <><section className="agent-hub-card">
       {/* 头部：标题与快捷操作栏 */}
       <div className="agent-hub-header">
         <div className="hub-title-group">
           <div className="hub-icon-wrap">
-            <img src={brandGreeting} alt="AI 助手授权中心" className="hub-greeting-img" />
+              <img src={brandGreeting} alt="" className="hub-greeting-img" />
           </div>
           <div>
-            <h3>AI 助手授权中心</h3>
-            <p className="sub-caption">选择你需要打通的 AI 客户端，一键授权 Bridge 办公工具集</p>
+            <h3>AI 接入</h3>
           </div>
         </div>
 
@@ -155,7 +161,7 @@ ${jsonStr}
             onClick={onExecuteInstall}
           >
             {isInstalling ? <LoaderCircle size={13} className="spin" /> : <Cable size={13} />}
-            <span>一键配置已选助手 ({selectedAgents.length})</span>
+            <span>配置所选 ({selectedAgents.length})</span>
           </button>
         </div>
       </div>
@@ -204,7 +210,7 @@ ${jsonStr}
                     {logo ? (
                       <img src={logo} alt={agent.name} className="agent-logo-img" />
                     ) : (
-                      <span className="agent-logo-fallback">{agent.name[0]}</span>
+                      <span className={`agent-logo-fallback ${agent.id === 'deepseek-harness' ? 'deepseek-mark' : ''}`}>{agent.id === 'deepseek-harness' ? 'DS' : agent.name[0]}</span>
                     )}
                   </div>
                   {agent.id === 'workbuddy' && onOpenAgentApp && (
@@ -276,15 +282,15 @@ ${jsonStr}
                   {isConfigured ? (
                     <span className="agent-badge active">
                       <CheckCircle2 size={10} />
-                      <span>已配置</span>
+                      <span>已保存</span>
                     </span>
                   ) : agent.manual ? (
                     <span className="agent-badge gray">
-                      <span>需手动</span>
+                      <span>应用内连接</span>
                     </span>
                   ) : isDetected ? (
                     <span className="agent-badge pending">
-                      <span>待授权</span>
+                      <span>{agent.mcp?.status === 'disabled' ? '已停用' : agent.mcp?.status === 'outdated' ? '待更新' : agent.mcp?.status === 'invalid' ? '待修复' : '待配置'}</span>
                     </span>
                   ) : (
                     <span className="agent-badge gray">
@@ -292,9 +298,11 @@ ${jsonStr}
                     </span>
                   )}
                 </div>
-                <p className="agent-detail-text">
-                  {agent.detail || (isConfigured ? '配置已是最新，可直接在客户端对话' : isDetected ? '已在本机检测到客户端配置目录' : '选择后将自动创建接入配置')}
-                </p>
+                <div className="agent-config-footnote" title={`${agent.detail || ''}\n${agent.skills?.detail || ''}`}>
+                  <span>{agent.manual ? '在客户端完成接入' : agent.skills?.status === 'linked' ? '技能已链接' : agent.skills?.status === 'copied' ? '技能为旧副本' : isConfigured ? '在客户端刷新连接' : '选择后配置'}</span>
+                  {agent.manual ? <button onClick={event => { event.stopPropagation(); agent.id === 'doubao' && onOpenDoubaoGuide ? onOpenDoubaoGuide() : setManualAgent(agent); }}>连接<ChevronDown size={11} /></button>
+                    : agent.documentation && <button aria-label={`${agent.name}官方接入说明`} onClick={event => { event.stopPropagation(); onOpenDocumentation?.(agent.id); }}><ExternalLink size={12} /></button>}
+                </div>
               </div>
             </div>
           );
@@ -358,7 +366,7 @@ ${jsonStr}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Bot size={13} className="text-muted" />
-            <span>让 AI 助手为自己配置 MCP（直接发指令给 Cursor / Windsurf 等）</span>
+            <span>手动接入</span>
           </div>
           <ChevronDown size={13} className={showAdvanced ? 'rotate-180' : ''} />
         </button>
@@ -368,9 +376,9 @@ ${jsonStr}
             <div className="mcp-prompt-guide-box">
               <div className="mcp-prompt-header">
                 <div>
-                  <span className="mcp-prompt-tip-title">无需手动翻找配置文件</span>
+                  <span className="mcp-prompt-tip-title">交给 AI 配置</span>
                   <p className="sub-caption" style={{ margin: '2px 0 0' }}>
-                    复制下方指令发给你的 AI 编程助手，它会自动定位配置文件并完成写入：
+                    复制指令发给当前客户端。
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -382,12 +390,12 @@ ${jsonStr}
                     {copiedType === 'prompt' ? (
                       <>
                         <Check size={12} className="text-emerald-500" />
-                        <span>已复制指令，快发给 AI 吧</span>
+                        <span>已复制</span>
                       </>
                     ) : (
                       <>
                         <Copy size={12} />
-                        <span>复制给 AI 的配置指令</span>
+                        <span>复制接入指令</span>
                       </>
                     )}
                   </button>
@@ -410,5 +418,12 @@ ${jsonStr}
         )}
       </div>
     </section>
+    <AnimatePresence>{manualAgent && <motion.div className="modal-backdrop manual-client-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? 0 : .2 }} onMouseDown={event => event.target === event.currentTarget && setManualAgent(null)}>
+      <motion.div className="modal-window manual-client-window" role="dialog" aria-modal="true" aria-label={`连接 ${manualAgent.name}`} initial={{ y: reduced ? 0 : 10 }} animate={{ y: 0 }} exit={{ y: reduced ? 0 : 10 }} transition={{ duration: reduced ? 0 : .2 }}>
+        <div className="modal-header"><h3>连接 {manualAgent.name}</h3><button className="modal-close-btn" aria-label="关闭接入说明" onClick={() => setManualAgent(null)}><X size={17} /></button></div>
+        <div className="modal-body"><p>{manualAgent.manualHint || '在客户端的 MCP 页面粘贴配置。'}</p></div>
+        <div className="modal-footer">{manualAgent.documentation && <button className="dialog-btn secondary" onClick={() => onOpenDocumentation?.(manualAgent.id)}>官方说明</button>}<button className="drawer-action-btn update-primary" onClick={() => onCopyText(JSON.stringify(mcpConfig, null, 2))}><Copy size={13} />复制配置</button></div>
+      </motion.div>
+    </motion.div>}</AnimatePresence></>
   );
 };

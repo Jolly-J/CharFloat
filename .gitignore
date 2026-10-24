@@ -25,6 +25,7 @@ service.log*
 audit_history.json
 
 # Environment and sensitive keys
+/.charfloat-local-secrets/
 .env
 .env*.local
 *.pem

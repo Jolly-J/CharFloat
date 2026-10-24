@@ -145,7 +145,7 @@ export const LiveWorkspaceCard: React.FC<LiveWorkspaceCardProps> = ({
                 <h4>WPS Office</h4>
                 <p className="sub-caption">
                   {wpsInstalled 
-                    ? `已就绪 · 加载项 v${env?.addon?.installedVersion || '2.2.3'}`
+                    ? `已就绪 · 加载项 v${env?.addon?.installedVersion || '2.2.4'}`
                     : '尚未部署 WPS 加载项'}
                 </p>
               </div>
@@ -195,7 +195,7 @@ export const LiveWorkspaceCard: React.FC<LiveWorkspaceCardProps> = ({
                 ? '因系统安全策略受限需一键修复'
                 : wpsNeedsUpgrade
                 ? '有更高版本加载项可用'
-                : '加载项运行正常，可随时重新部署'}
+                : !wpsInstalled ? '安装后打开文档即可连接' : status?.isWpsConnected ? '已连接 WPS' : '已安装，等待文档连接'}
             </span>
             <button
               className={`repair-btn ${isWpsBlocked || wpsNeedsUpgrade || !wpsInstalled ? 'highlight' : ''}`}
@@ -271,9 +271,9 @@ export const LiveWorkspaceCard: React.FC<LiveWorkspaceCardProps> = ({
           {/* 卡片底栏 */}
           <div className="host-card-footer">
             <span className="footer-tip">
-              {officeInstalled
-                ? '加载项运行正常，可在 Office 中随时启用'
-                : '尚未配置加载项，点击右侧一键安装'}
+              {!officeInstalled ? '安装后在 Excel 中启用加载项'
+                : officeNeedsUpgrade ? '加载项需要更新'
+                : status?.isMsOfficeConnected ? '已连接 Microsoft Excel' : '已安装，等待文档连接'}
             </span>
             <button
               className={`repair-btn ${!officeInstalled || officeNeedsUpgrade ? 'highlight' : ''}`}

@@ -30,6 +30,8 @@
  * 只要第 3 步不过，就是"参数没生效"，不管工具返回什么。
  */
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const token = fs.readFileSync(process.env.HOME + '/.wps-bridge/token', 'utf8').trim();
 async function call(name, args = {}) {
@@ -61,7 +63,7 @@ function ck(feature, param, ok, detail) {
 }
 
 // 用工具新建工作簿（顺带验证 create_workbook）
-const mk = await call('wps_create_workbook', { savePath: `/Users/jolin/Downloads/${WB}`, sheetName: SH });
+const mk = await call('wps_create_workbook', { savePath: path.join(os.homedir(), 'Downloads', WB), sheetName: SH });
 if (!mk.success) { console.log('✖ 建簿失败，中止:', String(mk.error).slice(0, 120)); process.exit(1); }
 console.log('隔离工作簿就绪\n');
 
@@ -215,7 +217,7 @@ console.log('── 矢量形状 ──');
 
 // ═══ 汇总（清理后输出）═══
 await call('wps_execute_script', { component: 'excel', code: `for(let i=app.Workbooks.Count;i>=1;i--){const w=app.Workbooks.Item(i); if(w.Name.indexOf('参数生效性测试')>=0) w.Close(false);} return 1;` });
-try { fs.unlinkSync(`/Users/jolin/Downloads/${WB}`); } catch (e) {}
+try { fs.unlinkSync(path.join(os.homedir(), 'Downloads', WB)); } catch (e) {}
 
 const pass = log.filter(x => x.ok).length;
 console.log(`\n════════════════════════`);

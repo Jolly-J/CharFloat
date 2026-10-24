@@ -4,6 +4,8 @@
  * 只用 MCP 工具（不含脚本），每一步都先写后读。
  */
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 const token = fs.readFileSync(process.env.HOME + '/.wps-bridge/token', 'utf8').trim();
 async function call(name, args = {}) {
   const r = await fetch('http://127.0.0.1:19890/api/v1/tool/call', {
@@ -30,7 +32,7 @@ const step = async (label, name, args) => {
 
 console.log('═══ 一、明细表：数据 + 表格对象 + 校验 + 条件格式 + 冻结 + 筛选 ═══');
 // 用新工具从零建工作簿（宿主本来就支持，此前只是没暴露成工具）
-await step('新建工作簿（wps_create_workbook）', 'wps_create_workbook', { savePath: `/Users/jolin/Downloads/${WB}`, sheetName: '明细' });
+await step('新建工作簿（wps_create_workbook）', 'wps_create_workbook', { savePath: path.join(os.homedir(), 'Downloads', WB), sheetName: '明细' });
 await step('确认首表名', 'wps_execute_script', { component: 'excel', workbookName: WB, code: `const w = app.ActiveWorkbook; return w.Name + ' / ' + w.Worksheets.Item(1).Name;` });
 
 const HEAD = ['月份', '区域', '营收(万元)', '订单数', '达成率'];
@@ -131,7 +133,7 @@ console.log(`      打印设置读回：方向=${pl.data?.current?.orientation} 
 const pdf = await step('导出 PDF（整表）', 'excel_export_sheet_pdf', { host: 'wps', workbookName: WB, sheetName: '明细', scope: 'sheet' });
 const pdfPath = pdf.data?.outputPath;
 console.log(`      PDF 落盘：fileWritten=${pdf.data?.fileWritten} ${pdfPath ? (fs.existsSync(pdfPath) ? '✔ ' + fs.statSync(pdfPath).size + ' 字节 → ' + pdfPath : '✖ 未找到 ' + pdfPath) : ''}`);
-const chartPng = '/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/经营分析_图表.png';
+const chartPng = path.join(os.homedir(), 'Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/经营分析_图表.png');
 try { fs.unlinkSync(chartPng); } catch (e) {}
 await step('导出图表图片', 'excel_export_chart_image', { host: 'wps', workbookName: WB, sheetName: '明细', chartIndex: 1, outputPath: chartPng, format: 'PNG' });
 const ci = await call('excel_export_chart_image', { host: 'wps', workbookName: WB, sheetName: '明细', chartIndex: 1, outputPath: chartPng, format: 'PNG' });

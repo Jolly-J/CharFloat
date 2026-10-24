@@ -30,6 +30,8 @@
 - [audit-store.ts](audit-store.ts)：审计持久化；含"未审计的身份类操作"台账（回滚身份判据用）。
 - [build-fingerprint.ts](build-fingerprint.ts)：磁盘/部署产物的构建指纹（桥接入口、WPS 加载项随包与已部署副本、Office.js 任务窗格），供判断"运行中的是哪一版"；Office 清单状态按内容与随包资源核对，不能仅比版本号。
 - [process-runner.ts](process-runner.ts)：原生进程输入输出。
+- [owned-process.ts](owned-process.ts)：仅按自身 spawn 得到的进程句柄停止；原生辅助作业在 Bridge 退出时清理。`service-client.ts` 的桌面退出标志抑制 MCP 自动拉起，桌面打开/显式 CLI `--start` 恢复。
+- [service-start-control.ts](service-start-control.ts)：按运行目录共享的跨进程启动锁与代次栅栏；GUI 必须 await 暂停提交，spawner 和 daemon 监听提交均核对代次。硬中断遗留锁保守报错，不凭 PID 猜测所有权自动删除。
 - [runtime.ts](runtime.ts)：路径与运行配置。
 
 ## 定位与联动

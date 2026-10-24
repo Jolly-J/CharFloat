@@ -113,6 +113,8 @@ export class WpsBridgeServer {
   private readonly mcpSessionIdleMs = Number(process.env.WPS_BRIDGE_MCP_IDLE_MS || 15 * 60 * 1000);
   private state: BridgeState = { isWpsConnected: false, isMsOfficeConnected: false, components: { word: { connected: false }, excel: { connected: false }, ppt: { connected: false }, msExcel: { connected: false } }, lastUpdated: Date.now(), suspectedHostCrash: null };
   private toolService?: ToolService;
+  private shutdownHandler?: () => void;
+  setShutdownHandler(handler: () => void) { this.shutdownHandler = handler; }
   constructor(private port = runtimePort(), private httpsPort = runtimeHttpsPort()) {}
   /** 刷新会话的"最后活动时间"（任何一次带 Mcp-Session-Id 的请求都算活动）。 */
   private touchSession(id?: string | null) {
@@ -450,7 +452,10 @@ export class WpsBridgeServer {
       } catch (e: any) { return json(toolFailureResponse(e, name), 422); }
     }
     if (url.pathname === '/api/v1/service/stop' && req.method === 'POST') {
-      json({ success: true }); setTimeout(() => { this.stop(); process.exit(0); }, 100); return;
+      json({ success: true }); setTimeout(() => {
+        if (this.shutdownHandler) this.shutdownHandler();
+        else { this.stop(); process.exit(0); }
+      }, 100); return;
     }
     return json({ error: 'Not found' }, 404);
   }

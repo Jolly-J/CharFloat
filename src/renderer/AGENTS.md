@@ -2,14 +2,16 @@
 
 ## 文件地图
 
-- [App.tsx](App.tsx)：状态与操作编排。
+- [App.tsx](App.tsx)：状态与操作编排；持续新版本提示、独立下载状态及更新区域定位。
 - [index.css](index.css)：公共样式。
 - [components/AgentHub.tsx](components/AgentHub.tsx)：客户端接入；按「国内 / 国外」分类切换（切换器带数量，选中跨分类保留），卡片状态取自主进程 `env.agents`（含 `region`、`manual`）。
 - [components/LiveWorkspaceCard.tsx](components/LiveWorkspaceCard.tsx)：工作区显示。
 - [components/SafetyTimeMachine.tsx](components/SafetyTimeMachine.tsx)：审计界面。
 - [components/DiffModal.tsx](components/DiffModal.tsx)：差异详情。
 - [components/PermissionFloat.tsx](components/PermissionFloat.tsx)：macOS 完全磁盘访问权限引导**浮窗内容**（置顶、可拖拽图标、设置直达、重试）。
-- [components/SettingsDrawer.tsx](components/SettingsDrawer.tsx)：设置。
+- [components/SettingsDrawer.tsx](components/SettingsDrawer.tsx)：常用/更新/连接检查三页；品牌主题卡、更新进度、持久检查结果与明确操作；未配置更新源不显示最新版本。
+- [components/UpdateNotice.tsx](components/UpdateNotice.tsx)：品牌更新弹窗；形象资源固定在 assets/update-idea.png，独立于官网生成物。
+- [components/UpdatePanel.tsx](components/UpdatePanel.tsx)：更新卡片、圆角蓝色渐变进度及状态/高度过渡；沿用现有 Motion，尊重减少动态效果，不引入新动画依赖。
 - [components/TopologyView.tsx](components/TopologyView.tsx)：连接拓扑。
 
 ## 定位与联动

@@ -102,7 +102,7 @@ r = await call('excel_manage_table', { ...WPS, action: 'apply', address: 'A1:C5'
 ck('CAP-19', '结构化表格 创建 + 读回列名', r.success && r.data?.table?.name === 'finProbeTable', JSON.stringify(r.data?.table?.columns)?.slice(0, 120));
 r = await call('excel_manage_table', { ...WPS, action: 'list' });
 ck('CAP-19', '结构化表格 列出', r.success && r.data?.count >= 1, `count=${r.data?.count}`);
-const picPath = '/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/fin-probe.png';
+const picPath = path.join(os.homedir(), 'Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/fin-probe.png');
 fs.writeFileSync(picPath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mP8z8BQz0AEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC', 'base64'));
 r = await call('excel_manage_pictures', { ...WPS, action: 'insert', filePath: picPath, left: 700, top: 20, width: 60, height: 60, pictureName: 'finProbePic' });
 ck('CAP-20', '图片 插入 + 读回几何', r.success && r.data?.picture?.name === 'finProbePic', JSON.stringify(r.data?.picture)?.slice(0, 130));
@@ -172,7 +172,7 @@ ch.Name = 'finProbeChart';
 return 'created:' + ch.Name;` });
 r = await call('wps_update_chart', { workbookName: WB, sheetName: SH, chartName: 'finProbeChart', title: '终验图表' });
 ck('CAP-21', 'update_chart 改标题 + 读回', r.success && r.data?.chart?.title === '终验图表', JSON.stringify(r.data?.chart)?.slice(0, 130));
-const chartOut = '/Users/jolin/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/fin-chart.png';
+const chartOut = path.join(os.homedir(), 'Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/fin-chart.png');
 try { fs.unlinkSync(chartOut); } catch (e) {}
 r = await call('wps_export_chart_image', { workbookName: WB, sheetName: SH, chartName: 'finProbeChart', outputPath: chartOut, format: 'PNG' });
 ck('CAP-22', 'export_chart_image 落盘核对（应 true）', r.success && r.data?.fileWritten === true, `fileWritten=${r.data?.fileWritten} 大小=${r.data?.fileSizeBytes} 字节`);

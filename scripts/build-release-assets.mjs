@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import { checkBrand } from './check-brand.mjs';
 import path from 'node:path';
 import { ROOT, STAGE, POLICY, PROFILE, MANIFEST, ADDONS, sha256, protectAddon, walk, verifyStage } from './lib/release-protection.mjs';
+import { assertPublicPaths } from './lib/update-key-safety.mjs';
 
 const sourceBrand = checkBrand(ROOT);
 if (sourceBrand.errors.length) throw new Error(sourceBrand.errors.join('\n'));
 
 const inputs = [...POLICY.files, 'package.json', 'scripts/release-files.json',
-  'scripts/build-release-assets.mjs', 'scripts/check-brand.mjs', 'scripts/lib/release-protection.mjs', 'package-lock.json'];
+  'scripts/build-release-assets.mjs', 'scripts/check-brand.mjs', 'scripts/lib/release-protection.mjs', 'scripts/lib/update-key-safety.mjs', 'package-lock.json'];
 const assets = walk(path.join(ROOT, 'dist/renderer/assets')).map(n => `dist/renderer/assets/${n}`);
 for (const name of assets) {
   if (!new RegExp(POLICY.rendererAssetPattern).test(name)) throw new Error(`意外的界面构建资源: ${name}`);
@@ -20,6 +21,7 @@ for (const name of assets) {
 fs.rmSync(STAGE, { recursive: true, force: true });
 
 const names = [...POLICY.files, ...assets, 'package.json'];
+assertPublicPaths(names);
 for (const name of names) if (!fs.existsSync(path.join(ROOT, name))) throw new Error(`缺少构建输入: ${name}；请先 npm run build`);
 // 仅清理本脚本专用的可重建目录，不清理开发 dist/ 或已有 release/。
 fs.rmSync(STAGE, { recursive: true, force: true });

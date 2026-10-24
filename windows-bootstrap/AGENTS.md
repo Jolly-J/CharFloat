@@ -1,8 +1,11 @@
 # Windows 当前用户配置引导
 
-- `main.mjs`：独立 Electron 引导窗口、IPC、桌面快捷方式和显式启动；不进入主应用或办公宿主。
+- `main.mjs`：仅首次安装的独立 Electron 引导窗口、IPC、桌面快捷方式和显式启动；拒绝旧更新参数；不进入主应用或办公宿主。
+- `update-zip.mjs`：已签名完整 ZIP 的有界清单生成、PE 平台/架构、ASAR 应用版本及未知文件验证；由客户端独立助手调用，禁止运行下载 EXE。
+- `update.mjs`：供独立助手调用的更新准备；验证签名交接、确认旧目录归属、等待旧 GUI 退出，core 提交前消费 GUI 就绪后授予的一次性授权，并在目录/来源/快捷方式提交点重新核对未撤销；失败旧票据不能因用户后来退出而生效。`core.mjs` 仅允许更高版本，来源记录独立于目标目录首次创建，复用手动失败留下的目录仍捕获实际旧目录；不重跑客户端首次配置。文件锁或快捷方式失败保留旧版与用户数据供新授权重试。通用流程见[更新指南](../UPDATES.md)。
 - `core.mjs`：ZIP/逐文件 SHA-256、路径约束、有界解压、独立版本目录与锁；只接受调用方提供的用户目录，测试必须用临时目录。
 - `physical-fs.mjs`：Electron 中解压/核验使用 `original-fs` 操作物理 ASAR；普通 Node 保留内置 fs。不能全局设置 `process.noAsar`，引导自身仍从 ASAR 加载界面。
+- `zip-stream.mjs`：把锁定 ZIP 库的旧读取流转换为原生流，保留背压、错误和取消传播；Mac 更新、Windows 预检与解压共用。
 - `preload.cjs`：沙箱 renderer 的最小 IPC 接口。
 - `progress.mjs`：主进程跨文件合并进度，最多每 200ms 刷新同阶段的最新值；阶段切换即时，错误或完成前销毁待发送状态，避免小文件突发或终态后回退。
 - `diagnostics.mjs`：仅诊断入口的 runId/用户目录启用，白名单与脱敏 JSONL、2MiB 上限、退出终态；主进程/渲染回执/异常与心跳。普通启动默认关闭，不把诊断变量传给已安装应用。
@@ -18,6 +21,8 @@
 验证：`node --import tsx --test tests/windows-bootstrap.test.ts`；实际 Electron UI、Windows Shell 快捷方式与最终 EXE 需分别报告，模拟测试不能替代实机。
 
 ## 避坑
+
+真实 ZIP 含 STORE（未压缩）条目时预检/解压停住 → 只用 DEFLATE 小样本无法复现 → yauzl 2 的 fd-slicer 在 EOF 前标记 destroyed，却不发 close，现代 async iterator/pipeline 会等待不来的完成信号 → 通过 data/end/error 转接原生 PassThrough，保留背压与失败传播 → STORE 空文件/普通文件/框架链接回归及真实双平台 ZIP 预检；完整 Electron 解压单独验证。
 
 普通 Node 解压通过，但 Electron 卡在载荷 `app.asar` → 继续沿用 Electron 包装的 fs 会把物理档案当成虚拟目录 → 默认 fs 的 ASAR 拦截影响写入和大小/类型核验 → 安装引擎使用 Electron `original-fs`，保留引导自身的 ASAR 支持 → 必须用完整 Electron 主进程解压真实载荷；`ELECTRON_RUN_AS_NODE=1` 的测试不能覆盖此路径。
 

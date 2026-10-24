@@ -11,6 +11,7 @@ import { createProgressSender } from './progress.mjs';
 import { createDiagnostics } from './diagnostics.mjs';
 
 let window, busy = false, ready, launched = false, started = false;
+const legacyUpdateRequested = process.argv.includes('--charfloat-update');
 const paintWaiters = new Map();
 const resources = process.resourcesPath;
 const diagnostics = createDiagnostics();
@@ -28,7 +29,8 @@ try {
   const profile = path.join(app.getPath('appData'), 'CharFloat Setup');
   fs.mkdirSync(profile, { recursive: true }); app.setPath('userData', profile);
 } catch (error) { profileError = true; diagnostics.record('profile-failed', { message: error?.message, code: error?.code }); diagnostics.flush(); }
-if (profileError) app.whenReady().then(async () => { await dialog.showMessageBox({ type: 'error', message: '无法写入当前用户配置目录，请使用手动解压版或联系企业管理员。' }); app.exit(1); });
+if (legacyUpdateRequested) app.whenReady().then(async () => { await dialog.showMessageBox({ type: 'error', message: '此 EXE 仅用于首次安装。请返回字浮客户端下载程序 ZIP 并重启更新。' }); app.exit(1); });
+else if (profileError) app.whenReady().then(async () => { await dialog.showMessageBox({ type: 'error', message: '无法写入当前用户配置目录，请使用手动解压版或联系企业管理员。' }); app.exit(1); });
 else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } });

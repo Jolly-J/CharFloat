@@ -13,7 +13,9 @@
 | Microsoft 表格请求及宿主差异 | [Bridge](src/bridge/AGENTS.md)、[Office.js](office-addon/AGENTS.md) | office/adapter.ts → normalizer.ts → src/rpc.js → 部署入口 public/taskpane.js（**生成物**）；Windows 回退见原生驱动 |
 | Windows 原生 Office 操作 | [原生 Office](resources/office/AGENTS.md) | runner.ps1 → excel.ps1/common.ps1 |
 | Windows 品牌自解压与当前用户配置 | [Windows 引导](windows-bootstrap/AGENTS.md)、[脚本](scripts/AGENTS.md) | build-windows-bootstrap.mjs → pack-windows-bootstrap.mjs；独立于 Mac 打包，载荷与引导分别固定源码 SHA |
-| 安装、客户端配置、桌面生命周期 | [主进程](src/main/AGENTS.md) | installer-engine.ts、client-registry.ts、mcp-adapters.ts、addon-installer.ts、index.ts |
+| 安装、客户端配置、桌面生命周期 | [主进程](src/main/AGENTS.md) | [客户端接入矩阵](CLIENTS.md) → installer-engine.ts、client-registry.ts、mcp-adapters.ts、skill-links.ts、desktop-diagnostics.ts、index.ts |
+| 自托管更新、签名发布与安装恢复 | [主进程](src/main/AGENTS.md)、[脚本](scripts/AGENTS.md) | [更新指南](UPDATES.md) → update-protocol.ts / update-service.ts → update-handoff.ts / update-helper.ts；Windows 见 windows-bootstrap/update-zip.mjs / update.mjs；发布命令见 scripts/build-update-packages.mjs |
+| 发布更新源、清单续签、线上故障交接 | [更新指南](UPDATES.md)、[脚本](scripts/AGENTS.md) | 有本地资料时读取 `docs/update-operations.local.md`，再核对其指向的当前发布记录；不把本地运维资料复制到公开仓库 |
 | 桌面交互与状态显示 | [界面](src/renderer/AGENTS.md)、[IPC](src/preload/AGENTS.md) | App.tsx → 相关组件 → 对应 IPC |
 | AI 不会调用已有能力 | [技能](skills/AGENTS.md) | 对应 SKILL.md → gateway 工具说明 → 宿主实现 |
 | 测试失败与验收 | [测试](tests/AGENTS.md) | 对应测试文件，不先运行真实宿主脚本 |
@@ -30,7 +32,7 @@
 
 **加载项部署入口为生成物**（改造计划 P3.4/P3.5）：`wps-addon/addon-core.js` 由 `npm run build:wps-addon` 从 `wps-addon/src/**` 生成，`office-addon/public/taskpane.js` 由 `npm run build:office-addon` 从 `office-addon/src/**` 生成；两者顶部都有"请勿手改"注释。**改源码后重新构建，禁止手改生成物掩盖源码问题**；从干净目录（删除生成物后）执行 `npm run build:addons` 必须能重建并通过测试。
 
-生成物 dist/、release/、website/dist/、上述两个加载项入口和依赖 node_modules/ 不作为修改入口，也不维护 AGENTS.md——唯一例外是 [release/AGENTS.md](release/AGENTS.md)：它约束产物仓库"每个版本只保留一套构建物"（mac 留解包 `.app`、win 留交互 EXE 及明确标注的备用 ZIP），`check:agents` 跳过 release/ 目录，该文件只在清理与发布时适用。开发编译在 dist/，发布包按 release/<版本>/<平台>/ 存放；改源文件后通过构建更新，禁止手修产物掩盖源码问题。
+生成物 dist/、release/、website/dist/、上述两个加载项入口和依赖 node_modules/ 不作为修改入口，也不维护 AGENTS.md——唯一例外是 [release/AGENTS.md](release/AGENTS.md)：它约束产物仓库"每个版本只保留一套构建物"（mac 留 `.app` 及在线更新 ZIP，win 留首次安装 EXE 及在线更新 ZIP），`check:agents` 跳过 release/ 目录，该文件只在清理与发布时适用。开发编译在 dist/，发布包按 release/<版本>/<平台>/ 存放；改源文件后通过构建更新，禁止手修产物掩盖源码问题。
 
 ## 改造任务入口
 
