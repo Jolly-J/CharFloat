@@ -99,7 +99,7 @@ test('Windows 8.3 aliases remain usable update directories without changing TEMP
   // cmd.exe parses this command itself; CRT-style escaping would turn its quotes into path characters.
   const short = execFileSync('cmd.exe', ['/d', '/u', '/c', 'for %I in ("%CHARFLOAT_PROBE_PATH%") do @echo %~sI'], { encoding: 'utf16le', windowsHide: true, windowsVerbatimArguments: true, env: { ...process.env, CHARFLOAT_PROBE_PATH: root } }).trim();
   assert.ok(short.length > 0 && !short.includes('"'), 'short-path command must return a bare path');
-  assert.equal(fs.realpathSync(short), fs.realpathSync(root));
+  assert.equal(await fs.promises.realpath(short), await fs.promises.realpath(root));
   assert.ok(path.isAbsolute(short));
   await canonicalDirectory(short);
   const cache = path.join(short, 'cache'); fs.mkdirSync(cache);
