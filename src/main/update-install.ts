@@ -1,9 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { readSignedManifest, compareVersion, configuredTrust, UpdateSecurityError, type UpdateTrust } from './update-protocol.js';
 
 export type InstallTicket = { schema: 1; nonce: string; parentPid: number; createdAt: number; platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64'; currentVersion: string; target: string; archive: string; envelope: string };
+export type InstallFailure = { message: string; code?: string; exitCode?: number | null; signal?: string | null; stderr?: string };
+export function updateFailure(error: any): InstallFailure {
+  const clean = (value: unknown, limit: number) => String(value || '').replace(/[A-Za-z]:[\\/]Users[\\/][^\\/\r\n]+/gi, '<user>').replace(/\/Users\/[^/\r\n]+/g, '/Users/<user>').slice(0, limit);
+  const code = typeof error?.code === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(error.code) ? error.code : undefined;
+  return { message: clean(error?.message || '更新未完成，原应用已保留。', 1500), ...(code ? { code } : {}),
+    ...(Number.isInteger(error?.exitCode) || error?.exitCode === null ? { exitCode: error.exitCode } : {}),
+    ...(typeof error?.signal === 'string' ? { signal: clean(error.signal, 80) } : {}),
+    ...(typeof error?.stderr === 'string' ? { stderr: clean(error.stderr, 2000) } : {}) };
+}
+export function archiveIdentityMatches(before: Pick<fs.Stats, 'ino' | 'dev' | 'size'>, opened: Pick<fs.Stats, 'ino' | 'dev' | 'size'>, platform: string = process.platform) {
+  const unavailableDevice = platform === 'win32' && (before.dev === 0 || opened.dev === 0);
+  return before.ino === opened.ino && before.size === opened.size && (unavailableDevice || before.dev === opened.dev);
+}
 export async function plainFile(file: string, limit = Infinity) {
   const st = await fs.promises.lstat(file);
   if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1 || st.size > limit) throw new UpdateSecurityError('更新文件不是独立的普通文件。');
@@ -14,9 +28,13 @@ export async function plainDirectory(dir: string) {
   if (!st.isDirectory() || st.isSymbolicLink()) throw new UpdateSecurityError('更新目录包含链接或不是目录。');
   return st;
 }
+const realpath = promisify(fs.realpath);
 export async function canonicalDirectory(dir: string) {
   await plainDirectory(dir);
-  if (path.resolve(dir) !== await fs.promises.realpath(dir)) throw new UpdateSecurityError('更新路径包含目录链接，请将应用移到普通可写目录后重试。');
+  // The native promises variant expands Windows 8.3 aliases, unlike fs.realpathSync
+  // used by our callers. The callback implementation still resolves symlinks/junctions
+  // while preserving those aliases; a spelling change alone is not a directory link.
+  if (path.resolve(dir) !== await realpath(dir)) throw new UpdateSecurityError('更新路径包含目录链接，请将应用移到普通可写目录后重试。');
 }
 export async function writeInstallState(directory: string, value: object) {
   if ('phase' in value && value.phase !== 'failed') await assertNotRevoked(directory);
@@ -36,13 +54,19 @@ export async function grantInstallAuthorization(file: string, nonce: string) {
   await fs.promises.writeFile(path.join(directory, 'granted.json'), JSON.stringify({ schema: 1, nonce }), { flag: 'wx', mode: 0o600 });
   await assertNotRevoked(directory);
 }
-export async function revokeInstallAuthorization(file: string, nonce: string) {
+export async function revokeInstallAuthorization(file: string, nonce: string, failure?: InstallFailure) {
   const directory = path.dirname(file); await canonicalDirectory(directory);
   try { await fs.promises.writeFile(path.join(directory, 'revoked.json'), JSON.stringify({ schema: 1, nonce }), { flag: 'wx', mode: 0o600 }); }
   catch (error: any) { if (error.code !== 'EEXIST') throw error; }
   // The permanent tombstone is authoritative even if a late grant write races this unlink.
   await fs.promises.unlink(path.join(directory, 'granted.json')).catch(error => { if (error.code !== 'ENOENT') throw error; });
-  await writeInstallState(directory, { phase: 'failed', nonce, message: '更新交接未完成，安装授权已撤销；原应用未替换。请重新确认更新。' });
+  let cause = failure && updateFailure(failure);
+  try {
+    const result = path.join(directory, 'result.json'); await plainFile(result, 16384);
+    const value = JSON.parse(await fs.promises.readFile(result, 'utf8'));
+    if (value.nonce === nonce && value.phase === 'failed' && typeof value.message === 'string') cause = updateFailure({ ...failure, ...value });
+  } catch { /* unsafe or incomplete diagnostics must never block revocation */ }
+  await writeInstallState(directory, { phase: 'failed', nonce, ...(cause || { message: '更新交接未完成，安装授权已撤销；原应用未替换。请重新确认更新。' }) });
 }
 /** Consume exactly once after the old parent exits; the returned guard is checked at every commit boundary. */
 export async function consumeInstallAuthorization(file: string, nonce: string) {
@@ -54,8 +78,15 @@ export async function consumeInstallAuthorization(file: string, nonce: string) {
     await plainFile(granted, 4096);
     const value = JSON.parse(await fs.promises.readFile(granted, 'utf8'));
     if (value.schema !== 1 || value.nonce !== nonce) throw new UpdateSecurityError('安装授权回执不匹配。');
-    await fs.promises.rename(granted, consumed);
-  } catch (error: any) { if (error.code === 'ENOENT') throw new UpdateSecurityError('没有本次 GUI 确认的安装授权，未执行安装。'); throw error; }
+    // A rename can replace its destination and is not a one-winner primitive on
+    // Windows. Keep a permanent, exclusively created claim even after a crash.
+    await fs.promises.writeFile(consumed, JSON.stringify(value), { flag: 'wx', mode: 0o600 });
+    await fs.promises.unlink(granted);
+  } catch (error: any) {
+    if (error.code === 'EEXIST') throw new UpdateSecurityError('本次更新授权已使用，不能重复安装。');
+    if (error.code === 'ENOENT') throw new UpdateSecurityError('没有本次 GUI 确认的安装授权，未执行安装。');
+    throw error;
+  }
   const guard = async () => {
     await assertNotRevoked(directory); await plainFile(consumed, 4096);
     const value = JSON.parse(await fs.promises.readFile(consumed, 'utf8'));
@@ -89,7 +120,10 @@ export async function readInstallTicket(file: string, trust: UpdateTrust, platfo
   const handle = await fs.promises.open(ticket.archive, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
   try {
     const st = await handle.stat();
-    if (st.ino !== before.ino || st.dev !== before.dev || st.size !== selected.asset.size) throw new UpdateSecurityError('更新包已改变。');
+    // Windows Node 22 can return dev=0 for path stat, but a volume ID for fstat.
+    // Compare known device IDs strictly; authenticity still comes from the signed
+    // hash read through this handle, followed by the same handle's metadata check.
+    if (!st.isFile() || st.nlink !== 1 || !archiveIdentityMatches(before, st) || st.size !== selected.asset.size) throw new UpdateSecurityError('更新包已改变。');
     const hash = createHash('sha256');
     for await (const chunk of handle.createReadStream({ autoClose: false })) hash.update(chunk);
     const after = await handle.stat();

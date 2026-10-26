@@ -20,7 +20,7 @@
 | AI 不会调用已有能力 | [技能](skills/AGENTS.md) | 对应 SKILL.md → gateway 工具说明 → 宿主实现 |
 | 测试失败与验收 | [测试](tests/AGENTS.md) | 对应测试文件，不先运行真实宿主脚本 |
 | 开发、检查、构建脚本 | [脚本](scripts/AGENTS.md) | 对应脚本和 package.json |
-| 版本管理、验收放行、打包发布 | 版本与发布制度（本地 `docs/release-policy.md`）、[脚本](scripts/AGENTS.md) | 验收清单（本地 `docs/release-checklist.md`） → check-version.mjs → release/AGENTS.md（产物细则） |
+| 版本管理、验收放行、打包发布 | 本地发布工作流（`docs/release-workflow.local.md`）、[脚本](scripts/AGENTS.md) | 本地 release-policy.md / release-checklist.md → check-version.mjs → release/AGENTS.md（产物细则） |
 | 官网内容和交互 | [官网](website/AGENTS.md) | website/src/App.tsx → components |
 | 宣传片剧本、录制环境与道具 | [宣传片](promo/AGENTS.md) | README.md（拍摄台本）→ 01/02 剧本 → [施工/plan.json](promo/施工/plan.json) |
 
@@ -32,7 +32,18 @@
 
 **加载项部署入口为生成物**（改造计划 P3.4/P3.5）：`wps-addon/addon-core.js` 由 `npm run build:wps-addon` 从 `wps-addon/src/**` 生成，`office-addon/public/taskpane.js` 由 `npm run build:office-addon` 从 `office-addon/src/**` 生成；两者顶部都有"请勿手改"注释。**改源码后重新构建，禁止手改生成物掩盖源码问题**；从干净目录（删除生成物后）执行 `npm run build:addons` 必须能重建并通过测试。
 
-生成物 dist/、release/、website/dist/、上述两个加载项入口和依赖 node_modules/ 不作为修改入口，也不维护 AGENTS.md——唯一例外是 [release/AGENTS.md](release/AGENTS.md)：它约束产物仓库"每个版本只保留一套构建物"（mac 留 `.app` 及在线更新 ZIP，win 留首次安装 EXE 及在线更新 ZIP），`check:agents` 跳过 release/ 目录，该文件只在清理与发布时适用。开发编译在 dist/，发布包按 release/<版本>/<平台>/ 存放；改源文件后通过构建更新，禁止手修产物掩盖源码问题。
+生成物 dist/、release/、website/dist/、上述两个加载项入口和依赖 node_modules/ 不作为修改入口，也不维护 AGENTS.md——唯一例外是 [release/AGENTS.md](release/AGENTS.md)：它约束产物仓库"每个版本只保留一套构建物"（mac 留 `.app`、首次安装 DMG 及在线更新 ZIP，win 留首次安装 EXE 及在线更新 ZIP），`check:agents` 跳过 release/ 目录，该文件只在清理与发布时适用。开发编译在 dist/，发布包按 release/<版本>/<平台>/ 存放；改源文件后通过构建更新，禁止手修产物掩盖源码问题。
+
+## 本地开发与版本交付
+
+默认以维护者的本地工作区完成开发和发布。接手版本任务时，先读本地 `docs/release-workflow.local.md`，再按其中入口核对 `docs/release-policy.md`、`docs/update-operations.local.md` 和 [UPDATES.md](UPDATES.md)。已有本地资料直接沿用，不为一次交付另建一套发布体系。
+
+- 版本以 package.json 为准；已确认的新版本用 `npm run version:set -- <版本>` 同步声明，随后检查版本一致性。安装包、程序 ZIP、签名清单的版本必须对应。
+- Windows 可在 Mac 交叉构建，不要求验收机先搭编译环境。Windows 实机负责运行验收；Mac/Windows 的构建通过不能互相冒充实机通过。
+- Windows 每版保留首次安装 EXE 与完整程序 ZIP；在线更新只使用 ZIP。Mac 保留应用及在线 ZIP。独立助手切换版本并保留旧目录，不把安装向导接回在线更新。
+- 构建和签名沿用 scripts 的现有入口。实际服务器目录、既有签名材料位置、机器相关操作、当前验收/发布状态与清理记录只写本地 docs；通用职责、参数和命令放本文件、UPDATES.md 或就近目录规范。
+- 已有通过证据且实现未改变时，复用该证据，完成本次构建/包校验即可，不自动重开完整实机验收。影响正常使用或数据安全的问题处理；其他小瑕疵记录，不自动扩大范围。
+- 清理只针对已识别的重复/作废生成物，先保存大小、哈希、来源与引用关系；不把正式当前包、回退版本、验收记录、源码或用户数据当作临时产物。
 
 ## 改造任务入口
 

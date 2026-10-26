@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { readInstallTicket, waitForParentExit, writeInstallState, consumeInstallAuthorization } from './update-install.js';
+import { readInstallTicket, waitForParentExit, writeInstallState, consumeInstallAuthorization, updateFailure } from './update-install.js';
 import { stageMacUpdate, commitMacUpdate, recoverMacUpdate } from './update-mac.js';
 import { UPDATE_TRUST } from './update-trust.js';
 import { inspectUpdateZip, validateWindowsApplication } from '../../windows-bootstrap/update-zip.mjs';
@@ -12,10 +12,15 @@ import { createShortcut } from '../../windows-bootstrap/shortcut.mjs';
 import { prepareWindowsUpdate } from '../../windows-bootstrap/update.mjs';
 
 const windows = process.platform === 'win32' ? createRequire(process.execPath)('electron') as typeof import('electron') : undefined;
+// The GUI closes its pipe when it exits. A later logging error must never abort
+// the updater's failure receipt or old-version recovery.
+process.stderr.on('error', () => {});
 let verified: Awaited<ReturnType<typeof readInstallTicket>> | undefined;
 async function launch(target: string) {
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE; delete env.WPS_BRIDGE_RESOURCES;
-  const child = spawn(windows ? path.join(target, '字浮 CharFloat.exe') : '/usr/bin/open', windows ? [] : [target], { env, cwd: path.dirname(target), stdio: 'ignore', detached: Boolean(windows), windowsHide: true });
+  // This is the visible GUI (including recovery), not the background helper.
+  // windowsHide suppresses its first ShowWindow on Windows.
+  const child = spawn(windows ? path.join(target, '字浮 CharFloat.exe') : '/usr/bin/open', windows ? [] : [target], { env, cwd: path.dirname(target), stdio: 'ignore', detached: Boolean(windows) });
   await new Promise<void>((resolve, reject) => {
     child.once('error', reject);
     if (windows) child.once('spawn', () => resolve());
@@ -71,14 +76,18 @@ async function main() {
   await launch(ticket.target);
 }
 main().catch(async error => {
+  // Before verification no argv-supplied directory is trusted for writing a
+  // receipt. Report through our parent's pipe instead of touching that path.
+  const failure = updateFailure(error);
+  console.error(JSON.stringify({ charfloatUpdateFailure: true, ...failure }));
   const file = process.argv[2];
   if (file === '--recover') { console.error(error?.message || '恢复未完成，已保留应用与备份。'); process.exitCode = 1; return; }
   // Retain validated identity even when authorization is later revoked or the feed expires.
   // A failure must remain visible after the old GUI exits.
   if (verified) {
     const { ticket, directory } = verified;
-    const message = error?.message || '更新未完成，原应用与备份已保留。';
-    try { await writeInstallState(directory, { phase: 'failed', nonce: ticket.nonce, message }); } catch {}
+    const message = failure.message;
+    try { await writeInstallState(directory, { phase: 'failed', nonce: ticket.nonce, ...failure }); } catch {}
     let parentExited = false;
     try { await waitForParentExit(ticket.parentPid, 0); parentExited = true; } catch {}
     if (parentExited) {

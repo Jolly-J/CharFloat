@@ -12,6 +12,11 @@
 - [dev.ts](dev.ts)：启动 Vite 和 Electron；启动前依次构建主进程与**加载项部署入口**（`build:main` + `build:addons`）。
 - [prepare-update.ts](prepare-update.ts)：离线复制并重新校验已验收的包，使用调用方提供的已有 Ed25519 私钥签名清单，只写新的本地目录；不生成密钥、不上传、不覆盖输出。信任配置、Nginx 目录映射与先包后清单发布顺序见[更新指南](../UPDATES.md)。
 - [prepare-upgrade-acceptance.mjs](prepare-upgrade-acceptance.mjs)：按本地 A/B 计划把公开输入复制到全新验收目录，只在副本写入测试版本/清单、独立应用身份/用户数据/端口与禁止宿主配置写入的隔离覆盖，并记录逐文件前后指纹；不读取私钥、不安装、不部署。根工作区版本和正式更新源保持不变。
+- [windows-update-preflight.ts](windows-update-preflight.ts)：构建成独立 CJS 后由 Windows 已安装 Electron 的 Node 模式运行；只写临时合成安装目录和脱敏 JSON 报告，验证短路径/junction、12 进程单次授权、撤销/重试和签名交接。使用临时测试密钥，不读取生产密钥，不安装、不联网、不替代完整 Windows CI 或 GUI 升级验收。
+- [build-windows-update-preflight.mjs](build-windows-update-preflight.mjs)：将上项打成独立离线检查文件及双击 CMD，固定本次测试运行时哈希和源码指纹，只写全新输出目录；命令见 [UPDATES.md](../UPDATES.md)。不把诊断工具放入正式程序包。
+- [windows-update-handoff-probe.ts](windows-update-handoff-probe.ts)、[build-windows-handoff-probe.mjs](build-windows-handoff-probe.mjs)：对已安装的独立 Windows 验收 A 创建新诊断票据，先验签验包，再运行原包自带助手、采集退出码/准备回执/脱敏错误；始终不创建 grant，结束撤销新票据，只停止自己启动的助手。不安装、不清理旧记录、不改安全策略；生成到全新目录，不进入正式程序包。
+- [lib/diagnostic-report.mjs](lib/diagnostic-report.mjs)：把调用者已脱敏、有界的报告同时写入标准输出与独立 JSON；文件写入失败仍在 CMD 控制台日志保留 JSON 和错误码。CMD 不向运行时传递带尾部反斜杠的引号目录参数，脚本默认使用自身目录；回归见 [diagnostic-report.test.ts](../tests/diagnostic-report.test.ts)。
+- [lib/update-probe-paths.ts](lib/update-probe-paths.ts)：只用于诊断的缓存归属比较；先拒绝链接/硬链接，再对缓存和包同时作 native 物理路径解析以兼容 Windows 短长名，重放仍保留原 GUI 路径拼写。票据验证在独立子进程执行，不能为诊断删掉生产 parentPid 防护；旧票据只借用签名上下文，新建 nonce/时间且永不授权。回归见 [update-probe-paths.test.ts](../tests/update-probe-paths.test.ts) 与 update-install 的独立 PID 用例。
 - [init-update-signing-key.mjs](init-update-signing-key.mjs)：仅显式初始化项目内 Git 忽略的本地生产更新密钥；先核对排除规则，排他创建，已有密钥只复用/校验，不轮换、不覆盖、不输出私钥。构建不得调用它。
 - [check-update-secrets.mjs](check-update-secrets.mjs)、[lib/update-key-safety.mjs](lib/update-key-safety.mjs)：本地签名目录的 Git/归档/应用包/发布白名单门禁；可显式扫描目录、ASAR、ZIP、tar/tgz 的路径及生产私钥字节，报告只有计数和通过状态，不输出材料。私钥不能作为构建输入，扫描器只读校验。
 - [inspect.ts](inspect.ts)：启动服务并探测宿主。

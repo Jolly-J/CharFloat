@@ -6,11 +6,128 @@ import path from 'node:path';
 import { generateKeyPairSync, createHash, sign } from 'node:crypto';
 import { deflateRawSync } from 'node:zlib';
 import { extractMacArchive, stageMacUpdate, commitMacUpdate, validateMacBundle, recoverMacUpdate } from '../src/main/update-mac.js';
-import { createInstallTicket, readInstallTicket, waitForParentExit, grantInstallAuthorization, revokeInstallAuthorization, consumeInstallAuthorization, writeInstallState } from '../src/main/update-install.js';
+import { createInstallTicket, readInstallTicket, waitForParentExit, grantInstallAuthorization, revokeInstallAuthorization, consumeInstallAuthorization, writeInstallState, canonicalDirectory, archiveIdentityMatches } from '../src/main/update-install.js';
 import { handoffUpdate } from '../src/main/update-handoff.js';
 import { EventEmitter } from 'node:events';
 import { retargetUpdateConfig } from '../src/main/update-config.js';
 import { renderCodexBlock } from '../src/main/mcp-adapters.js';
+import { fork, execFileSync, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { PassThrough } from 'node:stream';
+
+// NTFS does not implement POSIX executable bits; these bundle tests run on macOS.
+const macFilesystem = { skip: process.platform === 'win32' ? 'requires POSIX executable permissions and framework symlinks' : false };
+
+test('Windows unavailable device metadata does not mask inode/size or known-volume changes; POSIX remains strict', () => {
+  // Synthetic identities: the regression needs dev=0 versus a known device,
+  // not any identifier from a user's machine.
+  const before = { ino: 42, dev: 0, size: 128 }, opened = { ...before, dev: 7 };
+  assert.equal(archiveIdentityMatches(before, opened, 'win32'), true);
+  assert.equal(archiveIdentityMatches(opened, before, 'win32'), true);
+  assert.equal(archiveIdentityMatches(before, opened, 'darwin'), false);
+  assert.equal(archiveIdentityMatches(before, opened, 'linux'), false);
+  assert.equal(archiveIdentityMatches(opened, { ...opened, dev: 123 }, 'win32'), false);
+  assert.equal(archiveIdentityMatches(before, { ...opened, ino: before.ino + 1 }, 'win32'), false);
+  assert.equal(archiveIdentityMatches(before, { ...opened, size: before.size + 1 }, 'win32'), false);
+});
+
+test('real Windows path/handle metadata verifies identity despite unavailable path device', { skip: process.platform !== 'win32' }, async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat-file-identity-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'archive.zip'); fs.writeFileSync(file, 'synthetic');
+  const before = fs.lstatSync(file), fd = fs.openSync(file, 'r');
+  try { const opened = fs.fstatSync(fd); assert.equal(archiveIdentityMatches(before, opened), true); t.diagnostic(JSON.stringify({pathDev:before.dev,handleDev:opened.dev})); }
+  finally { fs.closeSync(fd); }
+});
+
+test('handoff preserves a failed receipt before exit; a dead ready helper never receives a grant', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat-handoff-cause-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let jobFile = '';
+  for (const phase of ['failed', 'ready', 'stderr'] as const) {
+    const spawnProcess: any = (_exe: string, args: string[]) => {
+      jobFile = args[1]; const ticket = JSON.parse(fs.readFileSync(jobFile, 'utf8'));
+      const child: any = new EventEmitter(); child.pid = process.pid; child.kill = () => true; child.unref = () => {}; child.stderr = new PassThrough();
+      if (phase !== 'stderr') fs.writeFileSync(path.join(path.dirname(jobFile), 'result.json'), JSON.stringify({ phase, nonce: ticket.nonce, message: 'synthetic file identity mismatch', code: 'UPDATE_IDENTITY' }));
+      queueMicrotask(() => {
+        if (phase === 'stderr') child.stderr.write(JSON.stringify({ charfloatUpdateFailure:true,message:'synthetic early verification failure',code:'UPDATE_VERIFY' })+'\n');
+        child.emit('exit', 1, null);
+      }); return child;
+    };
+    await assert.rejects(handoffUpdate({ cache:root, artifact:{file:path.join(root,'fixture.zip'),envelope:'{}'},currentVersion:'2.2.906',target:path.join(root,'old'),helper:'',platform:'win32',arch:'x64',spawnProcess,timeoutMs:1000 }), phase === 'failed' ? /identity mismatch/ : phase === 'stderr' ? /early verification failure/ : /退出码 1/);
+    const directory = path.dirname(jobFile), result = JSON.parse(fs.readFileSync(path.join(directory,'result.json'),'utf8'));
+    assert.equal(fs.existsSync(path.join(directory,'revoked.json')), true);
+    assert.equal(fs.existsSync(path.join(directory,'granted.json')), false);
+    assert.equal(fs.existsSync(path.join(directory,'consumed.json')), false);
+    if (phase === 'failed') assert.equal(result.code, 'UPDATE_IDENTITY');
+    if (phase === 'stderr') { assert.equal(result.code, 'UPDATE_VERIFY'); assert.equal(result.exitCode, 1); }
+  }
+});
+
+test('ticket creator is rejected as its own helper, while a separate verifier PID accepts a fresh signed ticket', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat-ticket-verifier-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const bytes = Buffer.from('signed diagnostic fixture'), archive = path.join(root, 'package.zip'); fs.writeFileSync(archive, bytes);
+  const keys = generateKeyPairSync('ed25519'), now = Date.now();
+  const trust = { feeds: ['https://example.test/stable.json'], assetOrigins: ['https://example.test'], publicKeys: { fixture: keys.publicKey.export({ format: 'pem', type: 'spki' }).toString() } };
+  const payload = Buffer.from(JSON.stringify({ schema: 1, product: 'charfloat', channel: 'stable', releaseId: 1, version: '2.2.4', publishedAt: new Date(now).toISOString(), expiresAt: new Date(now + 86400000).toISOString(), notes: '', assets: [{ platform: 'win32', arch: 'x64', kind: 'windows-zip', size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), urls: ['https://example.test/package.zip'] }] }));
+  const envelope = JSON.stringify({ keyId: 'fixture', payload: payload.toString('base64'), signature: sign(null, payload, keys.privateKey).toString('base64') });
+  const job = await createInstallTicket(root, { parentPid: process.pid, platform: 'win32', arch: 'x64', currentVersion: '2.2.3', target: path.join(root, 'old'), archive, envelope });
+  await assert.rejects(readInstallTicket(job.file, trust, 'win32', 'x64'), /交接已过期或与当前系统不匹配/);
+  const trustFile = path.join(root, 'public-trust.json'); fs.writeFileSync(trustFile, JSON.stringify(trust));
+  const result = spawnSync(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('./fixtures/update-ticket-verifier.ts', import.meta.url)), job.file, trustFile], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { verified: true, version: '2.2.4' });
+  assert.equal(fs.existsSync(path.join(job.directory, 'granted.json')), false);
+  assert.equal(fs.existsSync(path.join(job.directory, 'consumed.json')), false);
+});
+
+test('canonical update directories accept ordinary paths but reject linked parents and junctions', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat-canonical-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const target = path.join(root, 'target'), linked = path.join(root, 'linked');
+  fs.mkdirSync(path.join(target, 'cache'), { recursive: true });
+  await canonicalDirectory(path.join(target, 'cache'));
+  fs.symlinkSync(target, linked, process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(canonicalDirectory(linked), /链接/);
+  await assert.rejects(canonicalDirectory(path.join(linked, 'cache')), /链接/);
+});
+
+test('Windows 8.3 aliases remain usable update directories without changing TEMP or security policy', { skip: process.platform !== 'win32' }, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat long directory '));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const short = execFileSync('cmd.exe', ['/d', '/u', '/c', 'for %I in ("%CHARFLOAT_PROBE_PATH%") do @echo %~sI'], { encoding: 'utf16le', windowsHide: true, env: { ...process.env, CHARFLOAT_PROBE_PATH: root } }).trim();
+  assert.ok(path.isAbsolute(short));
+  await canonicalDirectory(short);
+  const cache = path.join(short, 'cache'); fs.mkdirSync(cache);
+  const job = await createInstallTicket(cache, { parentPid: process.ppid, platform: 'win32', arch: 'x64', currentVersion: '2.2.3', target: path.join(short, 'old'), archive: path.join(short, 'package.zip'), envelope: '{}' });
+  await grantInstallAuthorization(job.file, job.ticket.nonce);
+  const guard = await consumeInstallAuthorization(job.file, job.ticket.nonce); await guard();
+  t.diagnostic(short === root ? '8.3 names unavailable on this volume; ordinary path checked' : 'actual Windows short-name path checked');
+});
+
+test('separate helper processes can consume one GUI grant only once', { timeout: 30000 }, async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'charfloat-claim-')));
+  const workers: ReturnType<typeof fork>[] = [];
+  t.after(() => { for (const worker of workers) if (worker.exitCode === null) worker.kill(); fs.rmSync(root, { recursive: true, force: true }); });
+  const job = await createInstallTicket(root, { parentPid: process.ppid, platform: 'win32', arch: 'x64', currentVersion: '2.2.3', target: path.join(root, 'old'), archive: path.join(root, 'package.zip'), envelope: '{}' });
+  await grantInstallAuthorization(job.file, job.ticket.nonce);
+  const results = Array.from({ length: 12 }, () => {
+    const worker = fork(fileURLToPath(new URL('./fixtures/update-authorization-worker.ts', import.meta.url)), [], { execArgv: ['--import', 'tsx'], stdio: ['ignore', 'ignore', 'pipe', 'ipc'] }); workers.push(worker);
+    let ready = false, answer: boolean | undefined, stderr = '';
+    worker.stderr!.on('data', value => { stderr = (stderr + value).slice(-2048); });
+    return {
+      ready: new Promise<void>((resolve, reject) => { worker.once('error', reject); worker.once('exit', () => { if (!ready) reject(new Error(stderr || 'worker exited before ready')); }); worker.on('message', (value: any) => { if (value.ready) { ready = true; resolve(); } }); }),
+      result: new Promise<boolean>((resolve, reject) => { worker.once('error', reject); worker.on('message', (value: any) => { if (typeof value.claimed === 'boolean') answer = value.claimed; }); worker.once('exit', code => code === 0 && answer !== undefined ? resolve(answer) : reject(new Error(stderr || 'worker did not report'))); }),
+    };
+  });
+  await Promise.all(results.map(value => value.ready));
+  for (const worker of workers) worker.send({ file: job.file, nonce: job.ticket.nonce });
+  const claims = await Promise.all(results.map(value => value.result));
+  assert.equal(claims.filter(Boolean).length, 1);
+  await assert.rejects(consumeInstallAuthorization(job.file, job.ticket.nonce), /已使用/);
+  await assert.rejects(grantInstallAuthorization(job.file, job.ticket.nonce), /已使用/);
+});
 
 type Entry = [string, Buffer, number?, number?];
 function zip(entries: Entry[]) {
@@ -44,7 +161,7 @@ async function fixture(t: any) {
   const archive = path.join(dir, 'new.zip'); fs.writeFileSync(archive, zip(appEntries()));
   return { dir, archive, target };
 }
-test('Mac same-volume stage preserves framework links, checks identity/version/architecture and commits with backup', async t => {
+test('Mac same-volume stage preserves framework links, checks identity/version/architecture and commits with backup', macFilesystem, async t => {
   const f = await fixture(t), data = path.join(f.dir, 'user-data'); fs.writeFileSync(data, 'keep');
   const job = await stageMacUpdate(f.archive, f.target, '2.2.3', '2.2.4', 'arm64');
   await validateMacBundle(f.target, '2.2.3', 'arm64');
@@ -54,7 +171,7 @@ test('Mac same-volume stage preserves framework links, checks identity/version/a
   assert.equal(fs.readFileSync(data, 'utf8'), 'keep');
   assert.equal(JSON.parse(fs.readFileSync(job.journal, 'utf8')).phase, 'committed');
 });
-test('Mac stages STORE and DEFLATE entries, including empty files and stored framework links', { timeout: 5000 }, async t => {
+test('Mac stages STORE and DEFLATE entries, including empty files and stored framework links', { ...macFilesystem, timeout: 5000 }, async t => {
   const f = await fixture(t);
   const entries = appEntries().map(([name, bytes, mode]) => [name, bytes, mode, 0] as Entry);
   entries.push(['字浮 CharFloat.app/Contents/empty', Buffer.alloc(0), 0o100644, 0], ['字浮 CharFloat.app/Contents/compressed', Buffer.from('deflated')]);
@@ -64,25 +181,25 @@ test('Mac stages STORE and DEFLATE entries, including empty files and stored fra
   assert.equal(fs.statSync(path.join(job.tx.staged, 'Contents/empty')).size, 0);
   assert.equal(fs.readFileSync(path.join(job.tx.staged, 'Contents/Frameworks/Mock.framework/file'), 'utf8'), 'synthetic framework');
 });
-test('Mac commit failure after moving old app rolls back; retry succeeds without deleting backup', async t => {
+test('Mac commit failure after moving old app rolls back; retry succeeds without deleting backup', macFilesystem, async t => {
   const f = await fixture(t), job = await stageMacUpdate(f.archive, f.target, '2.2.3', '2.2.4', 'arm64');
   await assert.rejects(commitMacUpdate(job.journal, job.tx, async () => { throw new Error('synthetic file lock'); }), /file lock/);
   await validateMacBundle(f.target, '2.2.3', 'arm64'); assert.equal(job.tx.phase, 'rolled-back');
   await commitMacUpdate(job.journal, job.tx); await validateMacBundle(f.target, '2.2.4', 'arm64');
 });
-test('Mac interrupted rename is recovered by the recorded transaction before any new install', async t => {
+test('Mac interrupted rename is recovered by the recorded transaction before any new install', macFilesystem, async t => {
   const f = await fixture(t), job = await stageMacUpdate(f.archive, f.target, '2.2.3', '2.2.4', 'arm64');
   fs.renameSync(f.target, job.tx.backup); job.tx.phase = 'moving';
   await assert.rejects(commitMacUpdate(job.journal, job.tx), /旧应用已恢复/);
   await validateMacBundle(f.target, '2.2.3', 'arm64');
 });
-test('offline journal recovery restores only a missing application and refuses a present target', async t => {
+test('offline journal recovery restores only a missing application and refuses a present target', macFilesystem, async t => {
   const f = await fixture(t), job = await stageMacUpdate(f.archive, f.target, '2.2.3', '2.2.4', 'arm64');
   fs.renameSync(f.target, job.tx.backup);
   assert.equal(await recoverMacUpdate(job.journal), f.target); await validateMacBundle(f.target, '2.2.3', 'arm64');
   await assert.rejects(recoverMacUpdate(job.journal), /仍存在/);
 });
-test('Mac rejects wrong identity, version and architecture before changing installed app', async t => {
+test('Mac rejects wrong identity, version and architecture before changing installed app', macFilesystem, async t => {
   const f = await fixture(t);
   for (const entries of [appEntries('2.2.5'), appEntries('2.2.4', 'x64'), appEntries('2.2.4', 'arm64', 'other.app')]) {
     fs.writeFileSync(f.archive, zip(entries));
@@ -90,7 +207,7 @@ test('Mac rejects wrong identity, version and architecture before changing insta
     await validateMacBundle(f.target, '2.2.3', 'arm64');
   }
 });
-test('Mac archive traversal, escaping links, link children and duplicate/case paths never write outside staging', async t => {
+test('Mac archive traversal, escaping links, link children and duplicate/case paths never write outside staging', macFilesystem, async t => {
   const f = await fixture(t), outside = path.join(f.dir, 'outside'); fs.writeFileSync(outside, 'keep');
   for (const extra of [
     [['../outside', Buffer.from('bad')]],

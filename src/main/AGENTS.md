@@ -41,6 +41,12 @@
 
 ## 避坑
 
+Windows 更新后进程/Bridge 正常但主窗口隐藏 → 给 GUI 继承后台 helper 的 `windowsHide: true` → Windows STARTUPINFO 会压掉第一次 ShowWindow → 只在后台进程保留隐藏标记，更新器启动新版/恢复旧版 GUI 均使用正常显示启动 → `tests/update-gui-launch.test.ts` 执行实际 launch 函数核对参数；最终必须以未点托盘/未强制 ShowWindow 的 Windows 实机画面验收。
+
+Windows Electron Node 22 的 path stat.dev 为 0、fstat.dev 为实际卷号 → 直接要求 dev 严格相等误判同一包被换 → 实机身份/大小/哈希一致且独立验票复现 → 仅实际 Windows 的未知 dev 兼容，保留 inode、独立文件、大小、句柄哈希/mtime；POSIX 和非零卷号仍严格比较。验票前失败走受限 stderr，不向未验证 argv 目录写回执；父进程先读 nonce 匹配的 failed，已知退出的 ready 不授权，撤销保留具体 cause → update-install 身份矩阵、Windows 实文件和失败回执/死助手回归。
+
+Windows 更新交接使用短目录名 → 把 `fs.realpathSync` 与 `fs.promises.realpath` 的不同结果当作目录链接 → 后者调用 native 解析并展开 8.3 名称 → 校验使用 `promisify(fs.realpath)`，保留真实 symlink/junction 拒绝；一次性消费使用 `wx` 排他创建，不能依赖允许替换目标的 rename → `tests/update-install.test.ts` 的短路径、链接父级和多进程竞争回归，Windows 另跑离线预检及真实升级。
+
 修复配置时全量覆盖 → 丢失其他客户端设置 → 使用合并与备份 → [platform.test.ts](../../tests/platform.test.ts) 验证损坏配置和无关条目保留。
 
 安装加载项失败时只抛裸错误或只给一句"请去系统设置开启"→ 用户看不懂也点不动，且错误停在会自动消失的 toast 里 → **FDA 是 TCC 里唯一没有申请 API、也没有系统弹窗的类别**，系统不会替应用弹框，只能检测失败后主动引导 → 权限类错误统一经 `detectPermissionIssue` 转成结构化 `permissionIssue`，界面弹不自动消失的引导（打开设置面板 + 显示**当前运行模式**该授权的 App + 重试） → [permission-guide.test.ts](../../tests/permission-guide.test.ts)；界面交互仍需实际 Electron 验证。

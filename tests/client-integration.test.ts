@@ -64,7 +64,7 @@ test('JSON/JSONC readback distinguishes a named entry from a valid, current, ena
 });
 
 test('VS Code preserves both official formats and rejects relative custom homes', t => {
-  const f = fixture(t), ctx = clientPathContext({ home: f.dir, platform: 'darwin' });
+  const f = fixture(t), ctx = clientPathContext({ home: f.dir, platform: process.platform === 'win32' ? 'win32' : 'darwin' });
   const native = path.join(ctx.appData, 'Code/User/mcp.json'), portable = path.join(f.dir, '.copilot/mcp-config.json');
   for (const file of [native, portable]) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, '{}'); }
   const targets = CLIENT_DEFINITIONS.find(d => d.id === 'vscode')!.paths(ctx).configTargets!;

@@ -4,10 +4,15 @@
 
 ## 文件地图
 
+- [update-gui-launch.test.ts](update-gui-launch.test.ts)：执行真实 helper launch 函数并截获创建进程，核对 Windows 新版/旧版恢复不隐藏 GUI、无 shell 和环境清理；Mac 保留 LaunchServices 与失败报告。不能代替 Windows 窗口实际可见性验收。
+
+- [diagnostic-report.test.ts](diagnostic-report.test.ts)：真实子进程验证报告 JSON 写入失败时控制台仍保留完整脱敏报告，已有文件不改；成功路径输出与独立 JSON 一致。只操作临时目录，不运行更新助手。
+- [update-probe-paths.test.ts](update-probe-paths.test.ts)：诊断路径包含性、外部路径/链接/硬链接拒绝；Windows 原生短长名比较及保留重放拼写。update-install 的独立票据验证进程见 [fixtures/update-ticket-verifier.ts](fixtures/update-ticket-verifier.ts)，仍保留创建者不能充当助手的断言。
+
 - [brand.test.ts](brand.test.ts)：品牌门禁的正反向夹具、历史例外与生成物检查；只操作临时目录。
 - [update.test.ts](update.test.ts)：签名/回放/源/平台与下载校验、取消/重试、离线发布；密钥仅临时夹具，不用于正式包。
 - [update-key-safety.test.ts](update-key-safety.test.ts)：临时 Git 仓库中的先排除后生成、幂等复用/禁止替换、权限与链接防护、嵌套产物路径拒绝和私钥内容泄露拒绝；仅临时测试密钥，不读取生产私钥。
-- [update-install.test.ts](update-install.test.ts)：临时 Mac bundle/架构/安全解压、同盘提交/失败回滚/中断恢复，以及 Windows 三种 MCP 配置路径迁移；不启动真实应用或宿主。
+- [update-install.test.ts](update-install.test.ts)：临时 Mac bundle/架构/安全解压、同盘提交/失败回滚/中断恢复，以及 Windows 三种 MCP 配置路径迁移；短路径与 junction 拒绝、多进程消费同一授权。Mac 执行位/框架链接测试在 Windows 明确标记不适用，授权和 Windows 安全测试照常运行。辅助进程见 [fixtures/update-authorization-worker.ts](fixtures/update-authorization-worker.ts)，不启动真实应用或宿主。
 - [desktop-lifecycle.test.ts](desktop-lifecycle.test.ts)：本 GUI 拥有的临时后台/辅助作业退出、独立服务保留、启动取消/超时、跨进程迟启动代次拒绝及显式 CLI --start 恢复；真实 CLI 用例先构建且使用临时运行目录/随机端口。
 - [update-notice-ui.cjs](update-notice-ui.cjs)：真实品牌提醒窗口、preload 和 IPC；浅深色截图，关闭不执行更新，查看只导航。仅临时用户目录。
 - [desktop-update-ui.cjs](desktop-update-ui.cjs)：`electron tests/desktop-update-ui.cjs <新的证据目录>`；真实 renderer/preload、隔离 IPC 的更新控件和截图验收，不启动 Bridge、执行安装或写真实配置，不能替代主进程/两平台包的实机链路。
