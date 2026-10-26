@@ -26,7 +26,10 @@ test('diagnostic containment accepts owned files but rejects outside paths, junc
 });
 test('Windows diagnostic compares physical names while replaying the original 8.3 spelling', { skip: process.platform !== 'win32' }, async t => {
   const f = fixture(t), physicalCache = await fs.promises.realpath(f.cache);
-  const short = execFileSync('cmd.exe', ['/d', '/u', '/c', 'for %I in ("%CHARFLOAT_PROBE_PATH%") do @echo %~sI'], { env: { ...process.env, CHARFLOAT_PROBE_PATH: f.cache }, windowsHide: true, encoding: 'utf16le' }).trim();
+  // cmd.exe parses this command itself; CRT-style escaping would turn its quotes into path characters.
+  const short = execFileSync('cmd.exe', ['/d', '/u', '/c', 'for %I in ("%CHARFLOAT_PROBE_PATH%") do @echo %~sI'], { env: { ...process.env, CHARFLOAT_PROBE_PATH: f.cache }, windowsHide: true, windowsVerbatimArguments: true, encoding: 'utf16le' }).trim();
+  assert.ok(short.length > 0 && !short.includes('"'), 'short-path command must return a bare path');
+  assert.equal(fs.realpathSync(short), fs.realpathSync(f.cache));
   const archive = path.join(short, 'inside.zip'), result = await checkedProbeArchive(physicalCache, archive);
   assert.equal(result.relative, 'inside.zip'); assert.equal(result.replayCache, short);
   assert.equal(result.archivePhysical, await fs.promises.realpath(f.archive));

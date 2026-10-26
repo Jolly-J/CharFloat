@@ -62,6 +62,8 @@
 
 ## 避坑
 
+测试通过 execFileSync 调用 cmd.exe 内置命令 → 沿用默认参数转义 → Node 的 CRT 引号转义会成为 cmd 路径内容 → 仅在自行构造的固定 cmd 命令上使用 windowsVerbatimArguments，并先验证输出路径对应原目录 → 两条 Windows 短路径用例同时保留身份与安全断言。
+
 服务测试出现 listen EPERM → 沙箱拒绝本地监听而非业务断言失败 → 在授权环境重新运行 → 保留实际错误和结果。
 
 只测"客户端退出不误停服务"就以为覆盖了多客户端 → 跨客户端的**会话状态**（目标锁、审计归属）会串而不被发现 → 进程内 `AsyncLocalStorage` 只在单进程生效，经 HTTP 转发到后台时必须显式携带 `sessionId`，漏传会让后台把所有 stdio 客户端归入默认会话 `http-local` → 用两个独立 stdio 客户端进程分别锁定再互查 → [session-isolation.test.ts](session-isolation.test.ts)（复现证据见 evidence（本地 `docs/acceptance/2.1.0-p0p1/evidence/p2.2-session-isolation-regression.txt`））。
