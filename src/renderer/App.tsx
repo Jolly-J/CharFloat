@@ -23,7 +23,7 @@ export default function App() {
   const reducedMotion = useReducedMotion();
   // 核心状态
   const [status, setStatus] = useState<any>({ online: false, components: {} });
-  const [info, setInfo] = useState<any>({ version: '2.2.4', port: 19890, theme: 'system' });
+  const [info, setInfo] = useState<any>({ version: '2.2.5', port: 19890, theme: 'system' });
   const [update, setUpdate] = useState<UpdateState>();
   const [updateAction, setUpdateAction] = useState('');
   const updateActionRef = useRef(false);

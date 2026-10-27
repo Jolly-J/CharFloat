@@ -235,5 +235,19 @@ export function toolFailureResponse(value: unknown, toolName?: string) {
   }
   const layout = result && (toolName === 'wps_ppt_configure_layout' || result.diagnosticType === 'ppt_layout')
     ? projectPptLayoutFailure(result) : {};
-  return { success: false as const, error: message, errorDetails, ...(Object.keys(partial).length ? { partial } : {}), ...layout };
+  const radius: Record<string, unknown> = {};
+  if(result && (toolName === 'wps_ppt_set_corner_radius' || result.diagnosticType === 'ppt_corner_radius')) {
+    radius.diagnosticType='ppt_corner_radius';
+    if(typeof result.operationId==='string' && /^[A-Za-z0-9_-]{1,40}$/.test(result.operationId)) radius.operationId=result.operationId;
+    if(['planned','applying','applied','partial','unknown','rollingBack','rolledBack','rollbackFailed'].includes(result.state)) radius.state=result.state;
+    for(const k of ['liveApplied','saved','ooxmlVerified','previewVerified']) if(typeof result[k]==='boolean') radius[k]=result[k];
+    radius.requiresReadbackBeforeRetry=true;
+    radius.receipts=Array.isArray(result.receipts)?result.receipts.slice(0,100).map((r:any)=>{
+      const receipt:Record<string,unknown>={};
+      for(const k of ['oldId','newId']) if(typeof r?.[k]==='number'&&Number.isFinite(r[k])) receipt[k]=r[k];
+      if(['pasted','positioned','hidden','replaced'].includes(r?.phase)) receipt.phase=r.phase;
+      return receipt;
+    }):[];
+  }
+  return { success: false as const, error: message, errorDetails, ...(Object.keys(partial).length ? { partial } : {}), ...layout, ...radius };
 }

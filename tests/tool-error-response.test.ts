@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BridgeError, toolFailureResponse } from '../src/bridge/errors.js';
+test('corner failure preserves retry identity and numeric receipts, never shape contents or signatures',()=>{
+  const raw={success:false,error:'import failed',diagnosticType:'ppt_corner_radius',operationId:'op_8',state:'partial',liveApplied:false,saved:false,ooxmlVerified:false,previewVerified:false,backupPath:'/private/document',receipts:[{oldId:2,newId:10,phase:'pasted',name:'private',oldSignature:'secret'}]};
+  const r:any=toolFailureResponse(raw,'wps_ppt_set_corner_radius');
+  assert.equal(r.operationId,'op_8');assert.equal(r.state,'partial');assert.deepEqual(r.receipts,[{oldId:2,newId:10,phase:'pasted'}]);assert.equal(r.requiresReadbackBeforeRetry,true);
+  assert.doesNotMatch(JSON.stringify(r),/secret|private|Signature/);assert.deepEqual(toolFailureResponse(Object.assign(new Error(r.error),r)),r);
+});
 test('classified errors preserve execution uncertainty through safe JSON, never leak cause/stack',()=>{
   const err=new BridgeError('failed','宿主失败',{channel:'wps-addon',method:'ppt_manage_slides',cause:{token:'secret',document:'private'}});
   const r=JSON.parse(JSON.stringify(toolFailureResponse(err)));

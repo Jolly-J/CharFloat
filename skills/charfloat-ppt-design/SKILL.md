@@ -24,6 +24,16 @@ description: 通过「字浮 CharFloat」在已打开的演示文稿中按页批
 
 精细设置使用 [原生脚本](../charfloat/references/native-scripting.md)；形状类型、图表类型与版式都是枚举，必须传整数，取值见 [枚举速查表](../charfloat/references/enumeration.md)。页面批次返回 slideIndex、形状 ID、实际几何、字号及失败步骤；避免返回全部文本或整个宿主对象。
 
+## 空白背景圆角
+
+macOS WPS 可用 `wps_ppt_set_corner_radius` 设置明确点名的顶层可见空白原生 roundRect 背景。先 `action:"plan"`，传 `presentationName`、`slideIndex`、`shapeNames`、`radiusPt`，审阅每个尺寸和计算半径；再用返回的同一 `operationId` 调 `action:"apply"` 并传同一组目标和半径。半径单位为 pt，不是 adj 或百分比，必须小于等于每个目标短边的一半。
+
+该路径从独立 PPTX 参数副本导入原生形状，会生成新 ID；旧背景改名隐藏保留，原可见层级保持。工具拒绝文字、组合、旋转、动画/连接器身份引用等未支持对象。不要用 Adjustments getter 或“调用未报错”证明圆角生效。其他平台尚不支持该工具。
+
+超时或部分失败先用同一文稿、页码、operationId 调 `action:"status"`，禁止换 ID 重放；`action:"rollback"` 仅在相关新旧对象没有后续修改时恢复本次对象并保存，不用整稿备份覆盖后续编辑。加载项重载后宿主回执丢失时拒绝自动回退，保留 `backupPath` 和桥接记录供人工审阅。没有自动删除备份或隐藏旧背景的行为。
+
+分别核对 `liveApplied`、`saved`、`ooxmlVerified`，打开 `previewPath` 检查真实画面。`previewVerified:false` 表示仍需调用者做视觉检查；工具不会因导出 PNG 成功就宣称画面验收通过。PPT 保存会连同其他在途编辑一起落盘。
+
 ## 验证与继续
 
 处理 `layoutWarnings`，再检查真实预览中的越界、遮挡、换行、留白和母版重复元素。每个修改页完成后检查一次，修正后复查受影响页，不在每个形状创建后截图。没有警告也不等于视觉通过。
@@ -32,4 +42,4 @@ description: 通过「字浮 CharFloat」在已打开的演示文稿中按页批
 
 复杂母版、动画与嵌入数据按实际宿主 API 验证。既有 macOS 经验提示图表数据编辑窗口可能导致崩溃；没有当前版本验证依据时，不调用 ChartData.ActivateChartDataWindow 或 ChartData.Workbook 试探。
 
-预览失败或保存未执行时明确报告。PPT 没有统一审计回滚。
+预览失败或保存未执行时明确报告。PPT 没有统一审计回滚；圆角工具的局部回退仅覆盖自身回执中的新旧背景。

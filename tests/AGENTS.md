@@ -30,6 +30,7 @@
 - [contract-consistency.test.ts](contract-consistency.test.ts)：两类契约漂移与审计归属断言（只覆盖网关分支存在，不覆盖宿主实现与参数转换）。
 - [fixtures/ppt-style/](fixtures/ppt-style/)：固定SHA来源、带哈希的旧读取函数与工具契约夹具，测试不依赖Git历史；layout-failure.ts以假页面运行真实布局函数产生部分失败响应。
 - [ppt-read-style.test.ts](ppt-read-style.test.ts)：默认响应兼容、样式读取失败、有界递归与实际网关参数转发。
+- [ppt-radius.test.ts](ppt-radius.test.ts)：纯 PPTX 半径换算、按关系定位页、保留性检查，以及宿主导入、重复请求、并发变化、部分失败与局部回退；只用合成文件和模拟宿主。
 - [bridge-client.test.ts](bridge-client.test.ts)、[bridge-client.test.py](bridge-client.test.py)：Python CLI 的假 HTTP、参数文件、会话隔离及 PNG 输出，无真实服务。
 - [tool-protocol.test.ts](tool-protocol.test.ts)：注入传输/runtime 执行真实 HTTP/MCP 回调，验证错误经 JSON 到 Python 不重放；不启动服务。
 - [tool-error-response.test.ts](tool-error-response.test.ts)：协议错误白名单和执行状态保守透传。

@@ -88,7 +88,9 @@ test('schema extension and actual gateway forwarding; save/export descriptions m
 
 test('anchored PPT contract changes only optional read fields and corrected save/preview descriptions',async()=>{
   const before=JSON.parse(fs.readFileSync(fixtureRoot+'ppt-tools.before.json','utf8'));
-  const after=JSON.parse(JSON.stringify(pptToolDefinitions()));
+  const definitions=pptToolDefinitions();
+  assert.equal(definitions.at(-1)!.function.name,'wps_ppt_set_corner_radius','new tool is appended; existing order remains stable');
+  const after=JSON.parse(JSON.stringify(definitions.slice(0,-1)));
   assert.deepEqual(after.map((t:any)=>t.function.name),before.map((t:any)=>t.function.name));
   for(const tool of after){
     const f=tool.function;

@@ -7,6 +7,7 @@
 - [src/](src/)：**源码**。`shared.js` 配置与跨组件公共工具、`connection.js` 连接握手、`ribbon.js` 侧栏入口与操作回调、`panel.js` 侧栏状态与交互、`dispatch.js` RPC 分发、`word.js` / `ppt.js` 文字和演示操作、`ppt-layout.js` **纯布局计算（无宿主 API，可 Node 直接 import）**、`bootstrap.js` 启动引导。
 - [src/excel/](src/excel/)：表格领域片段，仍共享同一个 IIFE。读写与变更检测 `range.js`；设计语言 `design.js`；样式读取 `styles.js`；格式写入 `format.js`；数据验证 `validation-read.js` / `validation-write.js`；工作表 `sheets.js`；行列 `rows-columns.js`；图表 `chart-read.js` / `chart-write.js`；形状及图片 `shape.js`；表/透视表 `table-pivot.js`；筛选排序 `filter-sort.js`；批注/链接/命名区域 `comments-links.js`；工作簿 `workbook.js`；打印与导出 `export.js`；选区事件 `events.js`；可直接导入的矩阵与列名纯函数 [pure.js](src/excel/pure.js)。
 - [addon-core.js](addon-core.js)：**构建生成物**（部署入口），由 `npm run build:wps-addon` 按固定顺序拼接 `src/**`。顶部有"请勿手改"声明。
+- [src/ppt-radius.js](src/ppt-radius.js)：`ppt_corner_radius` 内存快照、参数副本导入、原可见层级保持和按操作回执局部回退；构建顺序在 `ppt.js` 后。仅支持无文字顶层 roundRect；回执随加载项重载失效，重载后不可盲目重放或回退。
 - [index.html](index.html)：宿主连接/RPC 的加载入口。
 - [panel.html](panel.html)：精简右侧任务窗格，保留工作区、状态、日志、收起与重连；面板模式只负责 UI，不创建连接。
 - [panel.css](panel.css)：生成的部署样式，唯一来源为 [Office 侧栏样式](../office-addon/public/taskpane.css)，由 [同步器](../scripts/sync-addon-panel-style.mjs) 更新，不手改。

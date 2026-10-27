@@ -328,6 +328,25 @@ export function pptToolDefinitions(): GatewayToolDefinition[] {
         additionalProperties: false
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'wps_ppt_set_corner_radius',
+      description: 'macOS WPS 演示圆角控制。仅支持明确点名的顶层可见空白原生 roundRect 背景，单位 pt。plan（默认）导出内存快照并预检查，不修改正式文稿；apply 必须带 operationId，备份后从参数副本导入，旧背景改名隐藏，新对象 ID 会变化，保留原可见层级。拒绝文字、组合、旋转、动画/连接器引用等。status 查询同操作记录并读回，rollback 只在相关对象没有后续修改时恢复。超时或失败先 status，禁止换 operationId 盲重试。liveApplied/saved/ooxmlVerified/previewVerified 分开报告；预览生成不代表视觉通过，必须打开 previewPath 实际检查。其他平台尚未支持。',
+      parameters: {
+        type: 'object',
+        properties: {
+          presentationName: {type:'string',description:'唯一已打开的目标 PPTX 文稿名称，必须明确指定'},
+          slideIndex: {type:'integer',minimum:1,description:'目标页码（1-based），内部同时核对 SlideID'},
+          action: {type:'string',enum:['plan','apply','status','rollback'],description:'默认 plan；apply、status、rollback 必须提供 operationId'},
+          shapeNames: {type:'array',minItems:1,maxItems:100,uniqueItems:true,items:{type:'string',minLength:1,maxLength:200},description:'plan/apply 必填，明确点名的空白 roundRect 背景'},
+          radiusPt: {type:'number',minimum:0,description:'plan/apply 必填，绝对圆角半径（pt），不得超过每个目标短边的一半'},
+          operationId: {type:'string',pattern:'^[A-Za-z0-9_-]{1,40}$',description:'同一操作稳定标识；plan 可自动生成，apply/status/rollback 复用；失败未知时先查询'}
+        },
+        required:['presentationName','slideIndex'],additionalProperties:false
+      }
+    }
   }
 ]
 }

@@ -62,7 +62,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = (props) => {
   return <AnimatePresence>{isOpen && <motion.div className="drawer-backdrop settings-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition}
     onMouseDown={event => event.target === event.currentTarget && props.onClose()}>
     <motion.aside ref={aside} className="settings-drawer settings-branded" role="dialog" aria-modal="true" aria-label="字浮设置" initial={{ x: reduced ? 0 : 28 }} animate={{ x: 0 }} exit={{ x: reduced ? 0 : 28 }} transition={transition}>
-      <header className="settings-brand-header"><div><img src={appLogo} alt="" /><span>设置</span><button className="settings-version" onClick={() => setTab('updates')}>v{appInfo?.version || '2.2.4'}</button></div><button ref={closeButton} className="drawer-close-btn" onClick={props.onClose} aria-label="关闭设置"><X size={18} /></button></header>
+      <header className="settings-brand-header"><div><img src={appLogo} alt="" /><span>设置</span><button className="settings-version" onClick={() => setTab('updates')}>v{appInfo?.version || '2.2.5'}</button></div><button ref={closeButton} className="drawer-close-btn" onClick={props.onClose} aria-label="关闭设置"><X size={18} /></button></header>
       <nav className="settings-tabs" role="tablist" aria-label="设置分类">{tabs.map(({ id, label, Icon }) => <button key={id} role="tab" aria-selected={tab === id} aria-controls={`settings-${id}`} onClick={() => setTab(id)}>
         {tab === id && <motion.span layoutId="settings-active-tab" className="settings-tab-indicator" transition={transition} />}<Icon size={14} /><span>{label}</span>{id === 'updates' && update?.availableVersion && <i className="settings-tab-dot" />}
       </button>)}</nav>

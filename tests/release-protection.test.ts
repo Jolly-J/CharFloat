@@ -15,7 +15,7 @@ test('发布 WPS 副本通过相同的宿主 RPC 行为回归，开发文件不�
     assert.equal(code, protectAddon(source, ADDONS[0]), '同输入须可重复构建');
     const file = path.join(tmp, 'addon.js');
     fs.writeFileSync(file, code);
-    execFileSync(process.execPath, ['--import', 'tsx', '--test', 'tests/addon.test.ts'], {
+    execFileSync(process.execPath, ['--import', 'tsx', '--test', 'tests/addon.test.ts', 'tests/ppt-radius.test.ts'], {
       env: { ...process.env, OAB_TEST_WPS_ARTIFACT: file }, timeout: 30000, stdio: 'pipe'
     });
     assert.equal(fs.readFileSync(ADDONS[0], 'utf8'), source);

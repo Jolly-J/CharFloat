@@ -6,6 +6,7 @@
 
 - [gateway.ts](gateway.ts)：**兼容门面**。`executeTool` 只做锁定注入 → 查 `HANDLERS` 注册表 → 组上下文 → 调用；`registeredGatewayBranches()` 导出真实注册表键供测试读取；工具定义已按类迁出（P2.3），此处 `getOpenAiTools(activeWbHint?)` 只委托 `tools/definitions/`；`getOpenApiSchema` 仍在此。
 - [gateway/](gateway/)：**按类拆分的执行处理器**（P3.1）。`types.ts` 上下文与处理器类型、`locks.ts` 目标锁、`excel.ts`/`word.ts`/`ppt.ts` 三类文档操作、`script.ts` 原生脚本与反射、`audit.ts` 回滚与审计、`lock.ts`/`microsoft.ts`。处理器不各自 import 执行器，全部经 `GatewayContext` 注入。
+  - [gateway/ppt-radius.ts](gateway/ppt-radius.ts)：macOS WPS 空白 roundRect 的预检查、备份、导入、状态与回退编排；[gateway/pptx-radius.ts](gateway/pptx-radius.ts) 负责有界 ZIP/XML、原生几何和保存后保留性校验，不依赖 Python。回执留在私有预览目录下；宿主执行未知时不可自动重放。
 - [contracts/](contracts/)：**契约层**，纯定义，不引用执行器与服务实例。
   - [contracts/host-methods.ts](contracts/host-methods.ts)：宿主方法标识、路由表、宿主实现缺口、只读与重放属性。
   - [contracts/tool-service.ts](contracts/tool-service.ts)：协议层需要的 `ToolService` 接口与工具描述结构。

@@ -271,6 +271,9 @@ case "ppt_read_presentation":
         case "ppt_capture_slide_preview":
           result = pptCaptureSlidePreview(app, params);
           break;
+        case "ppt_corner_radius":
+          result = pptCornerRadius(app, params);
+          break;
 
         // 文档强隔离锁定 RPC 分发
         case "lock_target_document": {

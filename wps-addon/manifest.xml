@@ -2,7 +2,7 @@
 <manifest>
   <name>字浮 CharFloat</name>
   <description>字浮 CharFloat 原生办公接管中枢 (Doubao, WorkBuddy, Cursor, Claude &amp; MCP Integration)</description>
-  <version>2.2.4</version>
+  <version>2.2.5</version>
   <publisher>Antigravity</publisher>
   <et>
     <ribbon>ribbon.xml</ribbon>

@@ -86,6 +86,7 @@ const MODULES = [
   "word.js",
   "ppt-layout.js",
   "ppt.js",
+  "ppt-radius.js",
   "panel.js",
   "bootstrap.js",
 ];

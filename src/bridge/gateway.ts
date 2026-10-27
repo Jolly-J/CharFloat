@@ -33,6 +33,7 @@ import type { GatewayContext, Handler } from "./gateway/types.js";
 import * as excel from "./gateway/excel.js";
 import * as word from "./gateway/word.js";
 import * as ppt from "./gateway/ppt.js";
+import { setCornerRadius } from './gateway/ppt-radius.js';
 import * as script from "./gateway/script.js";
 import * as audit from "./gateway/audit.js";
 import * as lock from "./gateway/lock.js";
@@ -140,6 +141,7 @@ const HANDLERS: Record<string, Handler> = {
   "wps_ppt_insert_native_chart": ppt.insertNativeChart,
   "wps_ppt_manage_shapes_and_media": ppt.manageShapesAndMedia,
   "wps_ppt_capture_slide_preview": ppt.captureSlidePreview,
+  "wps_ppt_set_corner_radius": setCornerRadius,
 
   // ---- 审计、回滚与收尾 ----
   "wps_rollback": audit.rollback,
